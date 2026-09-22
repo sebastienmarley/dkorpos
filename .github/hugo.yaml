@@ -1,0 +1,8 @@
+- name: Build
+  working-directory: ./site
+  run: |
+    hugo build \
+      --gc \
+      --minify \
+      --baseURL "${{ steps.pages.outputs.base_url }}/" \
+      --cacheDir "${{ runner.temp }}/.cache/hugo"
