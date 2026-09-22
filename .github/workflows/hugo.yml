@@ -127,6 +127,10 @@ jobs:
           path: ${{ runner.temp }}/.cache/hugo
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
+      - name: Cache
+        images:
+          dir: :cacheDir/images
+          
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
@@ -142,3 +146,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
