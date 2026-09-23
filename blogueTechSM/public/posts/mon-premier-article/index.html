@@ -1,230 +1,137 @@
 <!DOCTYPE html>
-<html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mon premier article — Weekly recap</title>
-    <style>
-      :root {
-        --bg: #0f172a;
-        --panel: #111827;
-        --panel-alt: #1f2937;
-        --text: #e5e7eb;
-        --muted: #9ca3af;
-        --accent: #38bdf8;
-        --accent-strong: #0ea5e9;
-        --border: rgba(148, 163, 184, 0.2);
-        --highlight: #fbbf24;
-      }
+<html lang="en-us">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="robots" content="noodp" />
+        <title>Mon premier article - My New Hugo Project</title><meta name="Description" content="This is my cool site"><meta property="og:url" content="https://example.org/posts/mon-premier-article/">
+	<meta property="og:site_name" content="My New Hugo Project">
+	<meta property="og:title" content="Mon premier article">
+	<meta property="og:description" content="Voici le premier article de mon blog. Je vais y détailler ma première expérience, mes constats et les étapes qui suivent.">
+	<meta property="og:locale" content="en_us">
+	<meta property="og:type" content="article">
+		<meta property="article:section" content="posts">
+		<meta property="article:published_time" content="2026-09-21T00:00:00+00:00">
+		<meta property="article:modified_time" content="2026-09-21T00:00:00+00:00">
 
-      * { box-sizing: border-box; }
+	<meta name="twitter:card" content="summary">
+	<meta name="twitter:title" content="Mon premier article">
+	<meta name="twitter:description" content="Voici le premier article de mon blog. Je vais y détailler ma première expérience, mes constats et les étapes qui suivent.">
+<meta name="application-name" content="My cool site">
+<meta name="apple-mobile-web-app-title" content="My cool site">
+<meta name="referrer" content="no-referrer" /><meta name="theme-color" content="#ffffff"><meta name="msapplication-TileColor" content="#da532c"><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"><link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"><link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5"><link rel="manifest" href="/site.webmanifest"><link rel="canonical" href="https://example.org/posts/mon-premier-article/" /><link rel="next" href="https://example.org/posts/week-one/" /><link rel="stylesheet" href="/css/style.min.css"><link rel="preload" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+        <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css"></noscript><link rel="preload" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+        <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css"></noscript><script type="application/ld+json">
+    {
+        "@context": "http://schema.org",
+        "@type": "BlogPosting",
+        "headline": "Mon premier article",
+        "inLanguage": "en-us",
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https:\/\/example.org\/posts\/mon-premier-article\/"
+        },"genre": "posts","wordcount":  21 ,
+        "url": "https:\/\/example.org\/posts\/mon-premier-article\/","datePublished": "2026-09-21T00:00:00+00:00","dateModified": "2026-09-21T00:00:00+00:00","publisher": {
+            "@type": "Organization",
+            "name": ""},"author": {
+                "@type": "Person",
+                "name": "xxxx"
+            },"description": ""
+    }
+    </script></head>
+    <body data-header-desktop="fixed" data-header-mobile="auto"><script>
+          const query = window.matchMedia('(prefers-color-scheme: dark)');
+          function applyTheme() {
+            let theme = window.localStorage?.getItem('theme') || 'auto';
+            let isDark = theme === 'dark' || (theme === 'auto' && query.matches);
+            document.body.setAttribute('theme', isDark? 'dark' : 'light');
+            document.body.setAttribute('cfg-theme', theme);
+          }
 
-      body {
-        margin: 0;
-        font-family: Arial, Helvetica, sans-serif;
-        background: linear-gradient(180deg, #020817 0%, #0f172a 100%);
-        color: var(--text);
-        line-height: 1.7;
-      }
+          applyTheme();
+          query.addEventListener('change', applyTheme);
+        </script>
 
-      .container {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 48px 20px 80px;
-      }
+        <div id="mask"></div><div class="wrapper"><header class="desktop" id="header-desktop">
+    <div class="header-wrapper">
+        <div class="header-title">
+            <a href="/" title="My New Hugo Project">My cool site</a>
+        </div>
+        <div class="menu">
+            <div class="menu-inner"><a class="menu-item" href="/posts/"> Archive posts </a><a class="menu-item" href="/technical-research/"> Technical research </a><a class="menu-item" href="/my-reflexion/"> My reflexion </a><span class="menu-item delimiter"></span><a href="javascript:void(0);" class="menu-item theme-switch" title="Switch Theme">
+                    <i class="fas fa-adjust" aria-hidden="true"></i>
+                </a></div>
+        </div>
+    </div>
+</header><header class="mobile" id="header-mobile">
+    <div class="header-container">
+        <div class="header-wrapper">
+            <div class="header-title">
+                <a href="/" title="My New Hugo Project">My cool site</a>
+            </div>
+            <div class="menu-toggle" id="menu-toggle-mobile">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+        <div class="menu" id="menu-mobile"><a class="menu-item" href="/posts/" title="">Archive posts</a><a class="menu-item" href="/technical-research/" title="">Technical research</a><a class="menu-item" href="/my-reflexion/" title="">My reflexion</a><a href="javascript:void(0);" class="menu-item theme-switch" title="Switch Theme">
+                <i class="fas fa-adjust" aria-hidden="true"></i>
+            </a></div>
+    </div>
+</header><main class="main">
+                <div class="container"><div class="toc" id="toc-auto">
+            <h2 class="toc-title">Contents</h2>
+            <div class="toc-content" id="toc-content-auto"></div>
+        </div><article class="page single"><h1 class="single-title animate__animated animate__flipInX">Mon premier article</h1><div class="post-meta">
+            <div class="post-meta-line"><span class="post-author"><a href="/" title="Author" rel="author" class="author"><i class="fas fa-user-circle" aria-hidden="true"></i>xxxx</a></span></div>
+            <div class="post-meta-line"><i class="far fa-calendar-alt" aria-hidden="true"></i>&nbsp;<time datetime="2026-09-21">2026-09-21</time>&nbsp;<i class="fas fa-pencil-alt" aria-hidden="true"></i>&nbsp;21 words&nbsp;
+                <i class="far fa-clock" aria-hidden="true"></i>&nbsp;One minute&nbsp;</div>
+        </div><div class="details toc" id="toc-static"  data-kept="">
+                <div class="details-summary toc-title">
+                    <span>Contents</span>
+                    <span><i class="details-icon fas fa-angle-right" aria-hidden="true"></i></span>
+                </div>
+                <div class="details-content toc-content" id="toc-content-static"><nav id="TableOfContents"></nav></div>
+            </div><div class="content" id="content"><p>Voici le premier article de mon blog. Je vais y détailler ma première expérience, mes constats et les étapes qui suivent.</p>
+</div><div class="post-footer" id="post-footer">
+    <div class="post-info">
+        <div class="post-info-line">
+            <div class="post-info-mod">
+                <span>Updated on 2026-09-21</span>
+            </div></div>
+        <div class="post-info-line">
+            <div class="post-info-md"></div>
+            <div class="post-info-share">
+                <span><a href="javascript:void(0);" title="Share on X" data-sharer="x" data-url="https://example.org/posts/mon-premier-article/" data-title="Mon premier article"><i class="fab fa-x-twitter" aria-hidden="true"></i></a><a href="javascript:void(0);" title="Share on Threads" data-sharer="threads" data-url="https://example.org/posts/mon-premier-article/" data-title="Mon premier article"><i class="fab fa-threads" aria-hidden="true"></i></a><a href="javascript:void(0);" title="Share on Facebook" data-sharer="facebook" data-url="https://example.org/posts/mon-premier-article/"><i class="fab fa-facebook-square" aria-hidden="true"></i></a><a href="javascript:void(0);" title="Share on Hacker News" data-sharer="hackernews" data-url="https://example.org/posts/mon-premier-article/" data-title="Mon premier article"><i class="fab fa-hacker-news" aria-hidden="true"></i></a><a href="javascript:void(0);" title="Share on Line" data-sharer="line" data-url="https://example.org/posts/mon-premier-article/" data-title="Mon premier article"><i data-svg-src="https://cdn.jsdelivr.net/npm/simple-icons@15.14.0/icons/line.svg" aria-hidden="true"></i></a><a href="javascript:void(0);" title="Share on 微博" data-sharer="weibo" data-url="https://example.org/posts/mon-premier-article/" data-title="Mon premier article"><i class="fab fa-weibo" aria-hidden="true"></i></a><a href="javascript:void(0);" title="Share on Diaspora" data-sharer="diaspora" data-url="https://example.org/posts/mon-premier-article/" data-title="Mon premier article" data-description=""><i class="fab fa-diaspora" aria-hidden="true"></i></a><a href="https://t.me/share/url?url=https%3a%2f%2fexample.org%2fposts%2fmon-premier-article%2f&amp;text=Mon%20premier%20article" target="_blank" title="Share on Telegram"><i class="fab fa-telegram" aria-hidden="true"></i></a></span>
+            </div>
+        </div>
+    </div>
 
-      .eyebrow {
-        display: inline-block;
-        padding: 6px 12px;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        background: rgba(56, 189, 248, 0.08);
-        color: var(--accent);
-        font-size: 0.8rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        font-weight: 700;
-      }
+    <div class="post-info-more">
+        <section class="post-tags"></section>
+        <section>
+            <span><a href="javascript:void(0);" onclick="window.history.back();">Back</a></span>&nbsp;|&nbsp;<span><a href="/">Home</a></span>
+        </section>
+    </div>
 
-      article {
-        background: rgba(17, 24, 39, 0.9);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 32px;
-        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.35);
-      }
+    <div class="post-nav">
+            <a href="/posts/week-one/" class="next" rel="next" title="Itération 1 - semaine 1">Itération 1 - semaine 1<i class="fas fa-angle-right" aria-hidden="true"></i></a></div>
+</div>
+</article></div>
+            </main><footer class="footer">
+        <div class="footer-container"><div class="footer-line">Powered by <a href="https://gohugo.io/" target="_blank" rel="noopener noreffer" title="Hugo 0.166.0">Hugo</a> | Theme - <a href="https://github.com/dillonzq/LoveIt" target="_blank" rel="noopener noreffer" title="LoveIt 0.3.1-DEV"><i class="far fa-kiss-wink-heart" aria-hidden="true"></i> LoveIt</a>
+                </div><div class="footer-line" itemscope itemtype="http://schema.org/CreativeWork"><i class="far fa-copyright" aria-hidden="true"></i><span itemprop="copyrightYear">2022 - 2026</span><span class="author" itemprop="copyrightHolder">&nbsp;<a href="/" target="_blank">xxxx</a></span></div>
+        </div>
+    </footer></div>
 
-      h1 {
-        font-size: clamp(2.2rem, 5vw, 4rem);
-        line-height: 1.1;
-        margin: 18px 0 10px;
-      }
-
-      .meta {
-        color: var(--muted);
-        font-size: 0.95rem;
-        margin-bottom: 24px;
-      }
-
-      .hero {
-        margin: 28px 0 32px;
-        border-radius: 14px;
-        overflow: hidden;
-        border: 1px solid var(--border);
-        background: var(--panel-alt);
-      }
-
-      .hero img {
-        display: block;
-        width: 100%;
-        height: 320px;
-        object-fit: cover;
-        filter: saturate(1.1);
-      }
-
-      p {
-        margin: 0 0 18px;
-        color: #dbe3f0;
-      }
-
-      h2 {
-        margin: 36px 0 14px;
-        font-size: 1.5rem;
-        color: #f8fafc;
-      }
-
-      ul {
-        padding-left: 20px;
-        margin: 0 0 20px;
-        color: #dbe3f0;
-      }
-
-      li + li {
-        margin-top: 8px;
-      }
-
-      .video-link {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        margin-top: 18px;
-        padding: 14px 22px;
-        border-radius: 12px;
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
-        color: #03111c;
-        text-decoration: none;
-        font-weight: 700;
-        box-shadow: 0 10px 20px rgba(14, 165, 233, 0.25);
-        transition: transform 0.2s ease;
-      }
-
-      .video-link:hover {
-        transform: translateY(-1px);
-      }
-
-      .video-link .play {
-        font-size: 1.2rem;
-      }
-
-      .quote {
-        margin-top: 32px;
-        padding: 18px 20px;
-        border-left: 4px solid var(--highlight);
-        background: rgba(251, 191, 36, 0.08);
-        border-radius: 10px;
-        color: #fef3c7;
-      }
-    </style>
-  </head>
-  <body>
-    <main class="container">
-      <article>
-        <span class="eyebrow">Weekly blog</span>
-        <h1>Itération 1 semaine 1</h1>
-        <div class="meta">Publié le 22 septembre 2026 • 5 min de lecture</div>
-
-        <div class="hero">
-          <img
-            src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80"
-            alt="Ordinateur portable, code et bureau de travail"
-          />
+        <div id="fixed-buttons"><a href="#" id="back-to-top" class="fixed-button" title="Back to Top">
+                <i class="fas fa-arrow-up" aria-hidden="true"></i>
+            </a>
         </div>
 
-        <p>
-       Voilà déjà 5 jours que j'ai débuté mon aventure qu'est ce cours. Je n'ai aucune prétention, 
-       juste heureux de pouvoir apprendre à maitriser des outils que je n'ai jamais touché, IA incluse. 
-       Si mon prermier weekend a été une longue galère sur une mer fortement agitée, j'espère que la 
-       semaine qui vient pourra me remettre sur les rails. J'ai été confronté à une installation plutôt 
-       chaotique des éléments que j'ai sélectionné pour réalisé mon projet. D'une part j'ai hésité avec 
-       les paramètres Github, finalement la version publique est la solution gratuite pour utiliser Github 
-       Pages... Ensuite MySQL sur le site d'Oracle, c'est loin d'être à jour et fonctionnel, une chance que 
-       mon collègue m'a parlé de DBNGIN hier, même si sqlite semblait simple pour le développement j'aime 
-       mieux l'idée d'un outil polyvalent pour l'éventuel déploiement en Laravel Cloud. J'ai eu droit à toute 
-       sorte d'émotion lorsque j'ai finalement décidé d'introduire l'IA dans mon démarrage, cependant je ne 
-       saurais dire que je suis complètement satisfait de la façon dont j'ai employé l'outil. C'était une 
-       de mes appréhensions avant de commencer, au final je sens que je vais avoir fort à faire pour un passer 
-       par dessus mes inquiétudes et deux apprendre à converser adéquatement avec la machine. Finalement hier 
-       c'était au tour de GoHugo de me donneer du fil à retordre. Je ne suis même pas certain si je suis 
-       parvenu à faire quoique ce soit de valable, mais rendu à ma 12 ou 13e tentative que le Build se complète 
-       j'ai choisi de m'en remettre au compagnon de VSCode et de carrément tout jeter pour repartir à neuf. 
-       J'ai aussi l'impression que je vais faire cela pour le projet principal. En jasant avec mon collègue,
-        il m'a donné des pistes sur des outils et des components intéressant via spatie et les discussions 
-        de bureau avec lui de ce matin m'ont encore plus allumé. Pour mener à bien le projet le mieux que 
-        j'ai à faire c'est d'établir des bases solides.
-        </p>
-
-        <p>
-          Cette espace de réflexion ce doit d'être simple et utile. Elle doit traduire mes progrès,
-          faire état de mes blocages et des solutions que j'ai trouvé pour les surmonter. Mon but
-          est de laisser une trace des mes apprentissages et des avancées du projet. Je vais aussi étayé mes objectifs
-          de la semaine suivante et faire un retour sur ceux de la semaine précédente. Finalement je vais aussi mettre un lien
-          vers une courte vidéo youtube pour démontrer ma façon d'interagir avec l'IA et les résultats que j'obtiens.
-        </p>
-
-        <h2>Les progrès de la semaine</h2>
-        <ul>
-          <li>Installer les outils de développement</li>
-          <li>Configurer l'environnement de travail</li>
-          <li>Commencer à explorer les fonctionnalités du projet</li>
-          <li>Documenter les étapes et les décisions prises</li>
-          <li>Débuter le blog</li>
-        </ul>
-
-        <h2>Les bogues et blocages</h2>
-        <p>
-            J’ai rencontré des difficultés avec l’installation de certains outils et la configuration de mon
-            environnement de développement. J’ai dû passer du temps à chercher des solutions et à tester différentes
-            approches pour résoudre ces problèmes. Que ce soit avec GoHugo, MySQL ou l’IA, chaque étape a été un apprentissage en soi.
-            Je vais assurément écraser et recommencer ma première fondation, car je crois qu'il est plus important pour moi de comprendre
-            le code que l'IA me retourne que de me fier que c'est correct. Preuve, ce blog HTML est la 3e itération depuis hier soir. 
-            Mais cette fois c'est en langage plus pur et je sais ce que ça fait.
-        </p>
-
-        <p>
-         
-        </p>
-
-        <div class="quote">
-          Mon collègue m'a suggéré ceci : <i>" Tu es mieux de recommencer ta base 5 fois au début du projet que de regretter en plein milieu d'avoir été trop vite.</i>      
-        </div>
-
-        <h2>La semaine à venir</h2>
-        <p>
-            Cette semaine, je termine mon "KanBan" mercredi et jeudi. Pour préparer la nouvelle itération 1 du projet. 
-            Je vais filmer quelques vidéos, avec OBS pour mettre ici et sur le blog de la semaine 2. Finalement je dois finir mes laracasts.
-        </p>
-
-        <p>
-            Première semaine haute en couleur, peu de réflexion sur le projet en soi, mais beaucoup de travail sur comment je vais l'aborder et 
-            y travailler. Je dépose aussi ma première réflexion dans l'autre partie ce blog. La semaine prochaine sera axée sur l'aspect technique.
-        </p>
-
-        <a class="video-link" href="https://www.youtube.com/shorts/EXEMPLE_LINK" target="_blank" rel="noreferrer">
-          <span class="play">▶</span>
-          Voir le YouTube short de la semaine
-        </a>
-      </article>
-    </main>
-  </body>
+        <div id="fixed-buttons-hidden"><a href="#" id="view-comments" class="fixed-button" title="View Comments">
+                <i class="fas fa-comment" aria-hidden="true"></i>
+            </a>
+        </div><script src="https://cdn.jsdelivr.net/npm/lazysizes@5.3.2/lazysizes.min.js"></script><script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.11/dist/clipboard.min.js"></script><script src="https://cdn.jsdelivr.net/npm/sharer.js@0.5.2/sharer.min.js"></script><script>window.config={"comment":{}};</script><script src="/js/theme.min.js"></script></body>
 </html>

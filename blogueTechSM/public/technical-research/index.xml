@@ -1,1 +1,15 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Technical research on My New Hugo Project</title><link>https://example.com/technical-research/</link><description>Recent content in Technical research on My New Hugo Project</description><generator>Hugo</generator><language>en-us</language><atom:link href="https://example.com/technical-research/index.xml" rel="self" type="application/rss+xml"/></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+	<channel>
+		<title>Technical research on My New Hugo Project</title>
+		<link>https://example.org/technical-research/</link>
+		<description>Recent content in Technical research on My New Hugo Project</description>
+		<generator>Hugo</generator>
+		<language>en-us</language>
+		
+		
+		
+		
+			<atom:link href="https://example.org/technical-research/index.xml" rel="self" type="application/rss+xml" />
+	</channel>
+</rss>

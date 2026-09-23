@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+	<channel>
+		<title>Projet on My New Hugo Project</title>
+		<link>https://example.org/tags/projet/</link>
+		<description>Recent content in Projet on My New Hugo Project</description>
+		<generator>Hugo</generator>
+		<language>en-us</language>
+		
+		
+		
+		
+			<lastBuildDate>Wed, 15 Apr 2026 00:00:00 +0000</lastBuildDate>
+		
+			<atom:link href="https://example.org/tags/projet/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Progression du projet</title>
+				<link>https://example.org/project-journal/week-two/</link>
+				<pubDate>Wed, 15 Apr 2026 00:00:00 +0000</pubDate>
+				<guid>https://example.org/project-journal/week-two/</guid>
+				<description>&lt;p&gt;Ce journal sert à garder une trace claire des avancées du projet, des difficultés rencontrées et des apprentissages qui émergent au fil du temps.&lt;/p&gt;&#xA;&lt;h2 id=&#34;première-étape&#34;&gt;Première étape&lt;/h2&gt;&#xA;&lt;p&gt;Aujourd’hui, j’ai posé les bases du projet et clarifié l’objectif général. J’ai pris le temps de noter ce que je veux vraiment accomplir, ainsi que la direction qui me semble la plus naturelle.&lt;/p&gt;&#xA;&lt;p&gt;J’ai découvert que le plus important n’est pas seulement d’avancer rapidement, mais de garder une vision claire et cohérente. Il faut que chaque décision soit alignée avec l’intention du projet.&lt;/p&gt;</description>
+			</item>
+	</channel>
+</rss>

@@ -1,1 +1,23 @@
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url><loc>https://example.com/posts/</loc><lastmod>2026-09-21T00:00:00+00:00</lastmod></url><url><loc>https://example.com/posts/mon-premier-article/</loc><lastmod>2026-09-21T00:00:00+00:00</lastmod></url><url><loc>https://example.com/</loc><lastmod>2026-09-21T00:00:00+00:00</lastmod></url><url><loc>https://example.com/categories/</loc></url><url><loc>https://example.com/my-reflexion/</loc></url><url><loc>https://example.com/tags/</loc></url><url><loc>https://example.com/technical-research/</loc></url></urlset>
+<urlset
+    xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+    xmlns:xhtml="http://www.w3.org/1999/xhtml"
+    ><url>
+            <loc>https://example.org/posts/</loc><lastmod>2026-09-22T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/categories/</loc><lastmod>2026-09-22T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/tags/d%C3%A9marrage/</loc><lastmod>2026-09-22T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/tags/github/</loc><lastmod>2026-09-22T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/tags/hugo/</loc><lastmod>2026-09-22T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/tags/ia/</loc><lastmod>2026-09-22T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/posts/week-one/</loc><lastmod>2026-09-22T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/</loc><lastmod>2026-09-22T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/categories/projet/</loc><lastmod>2026-09-22T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/tags/</loc><lastmod>2026-09-22T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/posts/mon-premier-article/</loc><lastmod>2026-09-21T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/tags/journal/</loc><lastmod>2026-04-15T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/project-journal/week-two/</loc><lastmod>2026-04-15T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/categories/project/</loc><lastmod>2026-04-15T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/project-journal/</loc><lastmod>2026-04-15T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/tags/projet/</loc><lastmod>2026-04-15T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/tags/r%C3%A9flexion/</loc><lastmod>2026-04-15T00:00:00&#43;00:00</lastmod></url><url>
+            <loc>https://example.org/my-reflexion/</loc></url><url>
+            <loc>https://example.org/technical-research/</loc></url></urlset>
