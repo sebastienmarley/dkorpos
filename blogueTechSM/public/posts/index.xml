@@ -14,12 +14,12 @@
 <p>J’ai commencé par m’attaquer à l’environnement de travail. L’installation des outils a été plus compliquée que prévu : GitHub, les configurations de base, le choix d’un parcours de publication, puis la mise en place de l’environnement de développement. J’ai aussi découvert qu’il ne suffit pas de vouloir aller vite : il faut d’abord poser des bases solides pour éviter de devoir tout reprendre plus tard.</p>]]></description>
 </item>
 <item>
-    <title>Mon premier article</title>
+    <title></title>
     <link>https://example.org/posts/mon-premier-article/</link>
-    <pubDate>Mon, 21 Sep 2026 00:00:00 &#43;0000</pubDate>
+    <pubDate>Mon, 01 Jan 0001 00:00:00 &#43;0000</pubDate>
     <author>xxxx</author>
     <guid>https://example.org/posts/mon-premier-article/</guid>
-    <description><![CDATA[<p>Voici le premier article de mon blog. Je vais y détailler ma première expérience, mes constats et les étapes qui suivent.</p>]]></description>
+    <description><![CDATA[]]></description>
 </item>
 </channel>
 </rss>

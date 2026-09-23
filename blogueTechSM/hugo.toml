@@ -20,7 +20,13 @@ title = 'My New Hugo Project'
     weight = 2
 
   [[menu.main]]
+    identifier = "project-journal"
+    name = "Project journal"
+    url = "/project-journal/"
+    weight = 3
+
+  [[menu.main]]
     identifier = "my-reflexion"
     name = "My reflexion"
     url = "/my-reflexion/"
-    weight = 3
+    weight = 4
