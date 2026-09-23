@@ -12,17 +12,18 @@ tags:
   - "démarrage"
 ---
 
-Voici le premier retour de cette aventure de projet. La semaine 1 a surtout été une semaine de mise en place, d’installation, d’essais, de blocages et de petits déclics. Je n’ai pas encore de résultat final spectaculaire, mais j’ai appris énormément sur ma manière de travailler, sur les outils à utiliser et sur la meilleure façon d’aborder la suite.
+## Résumé de la semaine
+Première semaine de travail qui s'achève, quelle aventure. Ma première semaine consistait surtout en installation de mes outils de développement, j'ai reconfigurer une machine complète pour se faire. Beaucoup de temps investi pour arriver à mes fins, sans compter la documentation plus ou moins à jour parfois. Principaux écueils, GitHub Pages disponible seulement sur un git public. Ensuite MySQL, une chance mon collègue m'a suggéré DBNGIN pour résoudre le problème et m'éviter de prendre sqlite, à lire dans la page de mes choix techniques. Mais le plus difficile fut Hugo, un bon 5-6 heures pour comprendre comment déployer le tout, où composer le texte, etc. sans compter la méthode pour incorporer le "template" de base que j'avais choisi. Si ce n'était de l'intégration à GitHub Pages je crois presque que du bon vieux HTML m'aurait moins égaré. Mais bon, j'ai appris. Pour preuve ce que vous lisez.
 
-## Ce que j’ai appris
+## Leçons de la semaine
 
-J’ai commencé par m’attaquer à l’environnement de travail. L’installation des outils a été plus compliquée que prévu : GitHub, les configurations de base, le choix d’un parcours de publication, puis la mise en place de l’environnement de développement. J’ai aussi découvert qu’il ne suffit pas de vouloir aller vite : il faut d’abord poser des bases solides pour éviter de devoir tout reprendre plus tard.
+Ce n'est pas parce qu'on a un livre de recette qu'on remplace le chef. Je ne le cacherai pas, c'est tout un défi pour moi en ce moment, je dois apprendre comment fonctionne les outils que j'utilise, en plus de la nomenclature et d'un style de programmation que j'ai seulement lu dans les 3 dernières années. Au moins si les choses ne fonctionnent pas, je suis encore à l'étape de jeter et de repartir.
 
-La partie la plus intéressante pour moi, c’est l’usage de l’IA dans le cadre du projet. J’avais des appréhensions au départ, surtout parce que je ne savais pas bien comment dialoguer avec l’outil sans me laisser guider trop facilement. En l’utilisant de manière plus réfléchie, j’ai vu à quel point elle pouvait m’aider à gagner du temps, mais aussi à quel point il fallait rester critique sur ce qu’elle propose.
+La partie la plus intéressante pour moi, c’est l’usage de l’IA dans le cadre du projet. J’avais des appréhensions au départ, surtout parce que je n'avais jamais utilisé cela. J'avais peur aussi de ne pas comprendre le code qui m'est retourné, pour preuve j'ai jeté et recommencé ce projet Hugo 4 fois en 2 jours, c'est maintenant ma 5e itérations. Heureusement à force de questionner l'agent Copilot de VSCode j'ai fini par comprendre un peu mieux la structure pour un site Hugo. En souhaitant avoir retiré les derniers artéfact d'un site de base sur celle-ci sinon ce sera dans mes tâches de la semaine prochaine. Voici un exemple de ce que je n'ai pas aimé de l'IA : En l’utilisant de manière plus réfléchie, j’ai vu à quel point elle pouvait m’aider à gagner du temps, mais aussi à quel point il fallait rester critique sur ce qu’elle propose. Les résumés et modifications faites à mes textes, j'ai réécrit ce blogue 3 fois jusqu'à maintenant. Je prend note de ne plus écrire directement dans le projet. Autre point, je dois comprendre le code qui m'est retourné, j'ai souvent l'impression de superflu dans ce que l'IA me propose.
 
 ## Les blocages rencontrés
 
-Le plus gros frein a été la config initiale. J’ai perdu du temps sur des éléments de setup, sur des mauvaises pistes de solution et sur des outils qui semblaient simples au départ mais demandaient plus de finesse qu’attendu.
+J'ai eu l'impression de débuter mon projet directement en face d'un mur. Les trois premières journées ont été investis dans la préparation de l'environnement et dans la conception du cas. J'ai tenté un premier jet, mais je vais repartir à neuf cette semaine.
 
 J’ai notamment traversé cette période avec :
 
@@ -31,28 +32,25 @@ J’ai notamment traversé cette période avec :
 - des essais répétitifs sur Hugo avant d’obtenir un rendu exploitable
 - une prise de conscience qu’il fallait repartir sur des fondations plus claires
 
-Il y a aussi un point qui m’a particulièrement marqué : le projet ne doit pas être piloté uniquement par la vitesse. Il vaut mieux avancer calmement, comprendre ce que l’on fait et ne pas être prisonnier du sentiment qu’il faut aller trop vite.
 
 ## Les progrès concrets
 
-Malgré les blocages, j’ai quand même progressé sur plusieurs points :
+Malgré tout, j’ai accompli quelques point du premier jalon :
 
 - mise en place du blog et de la structure de publication
 - compréhension des outils de base du projet
 - prise en main de l’environnement de développement
-- début de formalisation de la méthode de travail
-- meilleure compréhension de mes propres habitudes de travail
+- début du KanBan dans GitHub Project
 
-J’ai aussi commencé à poser les bases de la discipline qui me permettra de tenir le projet sur le long terme : documenter les étapes, noter les blocages, écrire les retours et garder une trace claire des décisions prises.
+J’ai aussi posé les bases de la structure du projet, fait une première tentative avec gestions des usages et canvas de base. 
 
 ## La semaine à venir
 
-La semaine prochaine, je veux surtout me concentrer sur la structure du projet et la qualité de la base. Je veux clarifier les objectifs, mieux organiser le travail et faire le point sur les outils qui seront réellement utiles pour la suite.
+La semaine 2 servira à terminer les dernières étapes du jalon 1, jeter les bases du projet refacto les usagers pour ajouter l'auth. à 2 facteurs, avec toggle dans la gestion de profile, sera enforced rendu au build final. Compléter le Kanban pour être prêt pour la semaine 3. Je vais aussi débuter des enregistrements de mon travail via OBS j'en mettrai un en évidence par semaine via un lien en fin d'entrée de blogue.
 
-Je vais aussi finaliser quelques éléments de cadrage, tester des pistes plus solides et commencer à mieux utiliser les outils techniques sans me laisser submerger par le bruit.
-
+Mon collègue m'a dit.  
 > “Tu es mieux de recommencer ta base 5 fois au début du projet que de regretter en plein milieu d’avoir été trop vite.”
+Je dois lui donner raison.
 
-Je veux que cette publication serve de trace. Elle doit refléter mes progrès, mes blocages et les solutions que j’ai trouvées pour avancer. C’est aussi une manière de garder une mémoire de mon apprentissage, étape par étape.
 
 [Voir le short YouTube de la semaine](https://www.youtube.com/shorts/EXEMPLE_LINK)
