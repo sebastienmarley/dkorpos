@@ -1,0 +1,33 @@
+{{- define "title" -}}
+  {{- .Title | default .Section -}} - {{ .Site.Title -}}
+{{- end -}}
+
+{{- define "content" -}}
+  <div class="page archive">
+    <h2 class="single-title animate__animated animate__pulse animate__faster">
+      {{ .Title | default .Section }}
+    </h2>
+
+    {{- if .Pages -}}
+      {{- range .Pages.ByDate.Reverse }}
+        <article class="archive-item" style="display:block; margin-bottom:2rem;">
+          <h3 style="margin-bottom:0.25rem;">
+            <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+          </h3>
+          <time datetime="{{ .Date.Format "2006-01-02" }}" style="display:block; color:#666; margin-bottom:0.75rem;">
+            {{ .Date.Format "2006-01-02" }}
+          </time>
+          <div>
+            {{- if .Summary }}
+              {{ .Summary | safeHTML }}
+            {{- else }}
+              {{ .Content | safeHTML }}
+            {{- end -}}
+          </div>
+        </article>
+      {{- end -}}
+    {{- else -}}
+      <p>No posts yet.</p>
+    {{- end -}}
+  </div>
+{{- end -}}

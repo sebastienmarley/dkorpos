@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mon premier article — Weekly recap</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-alt: #1f2937;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --accent: #38bdf8;
+        --accent-strong: #0ea5e9;
+        --border: rgba(148, 163, 184, 0.2);
+        --highlight: #fbbf24;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: linear-gradient(180deg, #020817 0%, #0f172a 100%);
+        color: var(--text);
+        line-height: 1.7;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 48px 20px 80px;
+      }
+
+      .eyebrow {
+        display: inline-block;
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.08);
+        color: var(--accent);
+        font-size: 0.8rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+
+      article {
+        background: rgba(17, 24, 39, 0.9);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.35);
+      }
+
+      h1 {
+        font-size: clamp(2.2rem, 5vw, 4rem);
+        line-height: 1.1;
+        margin: 18px 0 10px;
+      }
+
+      .meta {
+        color: var(--muted);
+        font-size: 0.95rem;
+        margin-bottom: 24px;
+      }
+
+      .hero {
+        margin: 28px 0 32px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: var(--panel-alt);
+      }
+
+      .hero img {
+        display: block;
+        width: 100%;
+        height: 320px;
+        object-fit: cover;
+        filter: saturate(1.1);
+      }
+
+      p {
+        margin: 0 0 18px;
+        color: #dbe3f0;
+      }
+
+      h2 {
+        margin: 36px 0 14px;
+        font-size: 1.5rem;
+        color: #f8fafc;
+      }
+
+      ul {
+        padding-left: 20px;
+        margin: 0 0 20px;
+        color: #dbe3f0;
+      }
+
+      li + li {
+        margin-top: 8px;
+      }
+
+      .video-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 18px;
+        padding: 14px 22px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+        color: #03111c;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 10px 20px rgba(14, 165, 233, 0.25);
+        transition: transform 0.2s ease;
+      }
+
+      .video-link:hover {
+        transform: translateY(-1px);
+      }
+
+      .video-link .play {
+        font-size: 1.2rem;
+      }
+
+      .quote {
+        margin-top: 32px;
+        padding: 18px 20px;
+        border-left: 4px solid var(--highlight);
+        background: rgba(251, 191, 36, 0.08);
+        border-radius: 10px;
+        color: #fef3c7;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <article>
+        <span class="eyebrow">Weekly blog</span>
+        <h1>Itération 1 semaine 1</h1>
+        <div class="meta">Publié le 22 septembre 2026 • 5 min de lecture</div>
+
+        <div class="hero">
+          <img
+            src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80"
+            alt="Ordinateur portable, code et bureau de travail"
+          />
+        </div>
+
+        <p>
+       Voilà déjà 5 jours que j'ai débuté mon aventure qu'est ce cours. Je n'ai aucune prétention, 
+       juste heureux de pouvoir apprendre à maitriser des outils que je n'ai jamais touché, IA incluse. 
+       Si mon prermier weekend a été une longue galère sur une mer fortement agitée, j'espère que la 
+       semaine qui vient pourra me remettre sur les rails. J'ai été confronté à une installation plutôt 
+       chaotique des éléments que j'ai sélectionné pour réalisé mon projet. D'une part j'ai hésité avec 
+       les paramètres Github, finalement la version publique est la solution gratuite pour utiliser Github 
+       Pages... Ensuite MySQL sur le site d'Oracle, c'est loin d'être à jour et fonctionnel, une chance que 
+       mon collègue m'a parlé de DBNGIN hier, même si sqlite semblait simple pour le développement j'aime 
+       mieux l'idée d'un outil polyvalent pour l'éventuel déploiement en Laravel Cloud. J'ai eu droit à toute 
+       sorte d'émotion lorsque j'ai finalement décidé d'introduire l'IA dans mon démarrage, cependant je ne 
+       saurais dire que je suis complètement satisfait de la façon dont j'ai employé l'outil. C'était une 
+       de mes appréhensions avant de commencer, au final je sens que je vais avoir fort à faire pour un passer 
+       par dessus mes inquiétudes et deux apprendre à converser adéquatement avec la machine. Finalement hier 
+       c'était au tour de GoHugo de me donneer du fil à retordre. Je ne suis même pas certain si je suis 
+       parvenu à faire quoique ce soit de valable, mais rendu à ma 12 ou 13e tentative que le Build se complète 
+       j'ai choisi de m'en remettre au compagnon de VSCode et de carrément tout jeter pour repartir à neuf. 
+       J'ai aussi l'impression que je vais faire cela pour le projet principal. En jasant avec mon collègue,
+        il m'a donné des pistes sur des outils et des components intéressant via spatie et les discussions 
+        de bureau avec lui de ce matin m'ont encore plus allumé. Pour mener à bien le projet le mieux que 
+        j'ai à faire c'est d'établir des bases solides.
+        </p>
+
+        <p>
+          Cette espace de réflexion ce doit d'être simple et utile. Elle doit traduire mes progrès,
+          faire état de mes blocages et des solutions que j'ai trouvé pour les surmonter. Mon but
+          est de laisser une trace des mes apprentissages et des avancées du projet. Je vais aussi étayé mes objectifs
+          de la semaine suivante et faire un retour sur ceux de la semaine précédente. Finalement je vais aussi mettre un lien
+          vers une courte vidéo youtube pour démontrer ma façon d'interagir avec l'IA et les résultats que j'obtiens.
+        </p>
+
+        <h2>Les progrès de la semaine</h2>
+        <ul>
+          <li>Installer les outils de développement</li>
+          <li>Configurer l'environnement de travail</li>
+          <li>Commencer à explorer les fonctionnalités du projet</li>
+          <li>Documenter les étapes et les décisions prises</li>
+          <li>Débuter le blog</li>
+        </ul>
+
+        <h2>Les bogues et blocages</h2>
+        <p>
+            J’ai rencontré des difficultés avec l’installation de certains outils et la configuration de mon
+            environnement de développement. J’ai dû passer du temps à chercher des solutions et à tester différentes
+            approches pour résoudre ces problèmes. Que ce soit avec GoHugo, MySQL ou l’IA, chaque étape a été un apprentissage en soi.
+            Je vais assurément écraser et recommencer ma première fondation, car je crois qu'il est plus important pour moi de comprendre
+            le code que l'IA me retourne que de me fier que c'est correct. Preuve, ce blog HTML est la 3e itération depuis hier soir. 
+            Mais cette fois c'est en langage plus pur et je sais ce que ça fait.
+        </p>
+
+        <p>
+         
+        </p>
+
+        <div class="quote">
+          Mon collègue m'a suggéré ceci : <i>" Tu es mieux de recommencer ta base 5 fois au début du projet que de regretter en plein milieu d'avoir été trop vite.</i>      
+        </div>
+
+        <h2>La semaine à venir</h2>
+        <p>
+            Cette semaine, je termine mon "KanBan" mercredi et jeudi. Pour préparer la nouvelle itération 1 du projet. 
+            Je vais filmer quelques vidéos, avec OBS pour mettre ici et sur le blog de la semaine 2. Finalement je dois finir mes laracasts.
+        </p>
+
+        <p>
+            Première semaine haute en couleur, peu de réflexion sur le projet en soi, mais beaucoup de travail sur comment je vais l'aborder et 
+            y travailler. Je dépose aussi ma première réflexion dans l'autre partie ce blog. La semaine prochaine sera axée sur l'aspect technique.
+        </p>
+
+        <a class="video-link" href="https://www.youtube.com/shorts/EXEMPLE_LINK" target="_blank" rel="noreferrer">
+          <span class="play">▶</span>
+          Voir le YouTube short de la semaine
+        </a>
+      </article>
+    </main>
+  </body>
+</html>
