@@ -1,0 +1,15 @@
+{
+  "sum": "9f0a79c8f99843ec",
+  "dependencySources": {
+    "dependencies": {},
+    "devDependencies": {
+      "@babel/cli": "github.com/dillonzq/LoveIt",
+      "@babel/core": "github.com/dillonzq/LoveIt",
+      "@babel/preset-env": "github.com/dillonzq/LoveIt",
+      "babelify": "github.com/dillonzq/LoveIt",
+      "browserify": "github.com/dillonzq/LoveIt",
+      "core-js": "github.com/dillonzq/LoveIt",
+      "segmentit": "github.com/dillonzq/LoveIt"
+    }
+  }
+}

@@ -1,6 +1,23 @@
 baseURL = 'https://example.org/'
-locale = 'en-us'
-title = 'My New Hugo Project'
+locale = 'fr-ca'
+title = 'Projet DKOR'
+
+[params]
+  title = 'Projet DKOR'
+  description = 'Blogue technique et journal de projet.'
+
+  [params.author]
+    name = 'Sébastien Marley'
+
+  [params.header.title]
+    name = 'Projet DKOR'
+
+  [params.app]
+    title = 'Projet DKOR'
+
+  [params.home.profile]
+    title = 'Projet DKOR'
+    subtitle = 'Blogue technique et journal de projet'
 
 [module]
   [[module.imports]]
@@ -8,25 +25,21 @@ title = 'My New Hugo Project'
 
 [menu]
   [[menu.main]]
-    identifier = "archive"
-    name = "Archive posts"
-    url = "/posts/"
+    identifier = "Blog"
+    name = "Blogue"
+    url = "/blog/"
     weight = 1
 
   [[menu.main]]
-    identifier = "technical-research"
-    name = "Technical research"
-    url = "/technical-research/"
+    identifier = "techno"
+    name = "Choix techniques"
+    url = "/techno/"
     weight = 2
 
   [[menu.main]]
-    identifier = "project-journal"
-    name = "Project journal"
-    url = "/project-journal/"
+    identifier = "journal"
+    name = "Journal de Projet"
+    url = "/journal/"
     weight = 3
 
-  [[menu.main]]
-    identifier = "my-reflexion"
-    name = "My reflexion"
-    url = "/my-reflexion/"
-    weight = 4
+

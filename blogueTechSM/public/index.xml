@@ -1,27 +1,9 @@
 <rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
     <channel>
-        <title>My New Hugo Project</title>
+        <title>Projet DKOR</title>
         <link>https://example.org/</link>
-        <description>This is my cool site</description>
-        <generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Tue, 22 Sep 2026 00:00:00 &#43;0000</lastBuildDate>
+        <description>Blogue technique et journal de projet.</description>
+        <generator>Hugo -- gohugo.io</generator><language>fr-ca</language><lastBuildDate>Tue, 22 Sep 2026 00:00:00 &#43;0000</lastBuildDate>
             <atom:link href="https://example.org/index.xml" rel="self" type="application/rss+xml" />
-        <item>
-    <title>Itération 1 - semaine 1</title>
-    <link>https://example.org/posts/week-one/</link>
-    <pubDate>Tue, 22 Sep 2026 00:00:00 &#43;0000</pubDate>
-    <author>xxxx</author>
-    <guid>https://example.org/posts/week-one/</guid>
-    <description><![CDATA[<p>Voici le premier retour de cette aventure de projet. La semaine 1 a surtout été une semaine de mise en place, d’installation, d’essais, de blocages et de petits déclics. Je n’ai pas encore de résultat final spectaculaire, mais j’ai appris énormément sur ma manière de travailler, sur les outils à utiliser et sur la meilleure façon d’aborder la suite.</p>
-<h2 id="ce-que-jai-appris">Ce que j’ai appris</h2>
-<p>J’ai commencé par m’attaquer à l’environnement de travail. L’installation des outils a été plus compliquée que prévu : GitHub, les configurations de base, le choix d’un parcours de publication, puis la mise en place de l’environnement de développement. J’ai aussi découvert qu’il ne suffit pas de vouloir aller vite : il faut d’abord poser des bases solides pour éviter de devoir tout reprendre plus tard.</p>]]></description>
-</item>
-<item>
-    <title></title>
-    <link>https://example.org/posts/mon-premier-article/</link>
-    <pubDate>Mon, 01 Jan 0001 00:00:00 &#43;0000</pubDate>
-    <author>xxxx</author>
-    <guid>https://example.org/posts/mon-premier-article/</guid>
-    <description><![CDATA[]]></description>
-</item>
-</channel>
+        </channel>
 </rss>
