@@ -22,7 +22,13 @@ class DeleteUserForm extends Component
             'password' => $this->currentPasswordRules(),
         ]);
 
-        tap(Auth::user(), $logout(...))->delete();
+        $user = Auth::user();
+
+        if ($user) {
+            $user->forceFill(['is_active' => false])->save();
+        }
+
+        tap($user, $logout(...));
 
         $this->redirect('/', navigate: true);
     }

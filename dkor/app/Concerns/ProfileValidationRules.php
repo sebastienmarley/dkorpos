@@ -16,13 +16,14 @@ trait ProfileValidationRules
     protected function profileRules(?int $userId = null): array
     {
         return [
-            'name' => $this->nameRules(),
+            'firstname' => $this->nameRules(),
+            'lastname' => $this->nameRules(),
             'email' => $this->emailRules($userId),
         ];
     }
 
     /**
-     * Get the validation rules used to validate user names.
+     * Get the validation rules used to validate user first and last names.
      *
      * @return array<int, ValidationRule|array<mixed>|string>
      */

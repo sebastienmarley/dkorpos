@@ -13,7 +13,9 @@ class Profile extends Component
 {
     use ProfileValidationRules;
 
-    public string $name = '';
+    public string $firstname = '';
+
+    public string $lastname = '';
 
     public string $email = '';
 
@@ -22,7 +24,8 @@ class Profile extends Component
      */
     public function mount(): void
     {
-        $this->name = Auth::user()->name;
+        $this->firstname = Auth::user()->firstname;
+        $this->lastname = Auth::user()->lastname;
         $this->email = Auth::user()->email;
     }
 
