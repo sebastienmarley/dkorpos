@@ -1,0 +1,67 @@
+name: Laravel CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dkor/**'
+      - '.github/workflows/laravel-ci.yml'
+  pull_request:
+    paths:
+      - 'dkor/**'
+      - '.github/workflows/laravel-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./dkor
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, bcmath, gd, xml, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: dkor/package-lock.json
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          touch database/database.sqlite
+          php artisan migrate --force
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Run Pint
+        run: ./vendor/bin/pint --test
+
+      - name: Run PHPStan
+        run: ./vendor/bin/phpstan analyse --memory-limit=1G
+
+      - name: Run tests
+        run: php artisan test
