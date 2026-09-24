@@ -10,18 +10,6 @@
             <div>
                 <flux:input wire:model="email" :label="__('Email')" type="email" required autocomplete="email" />
 
-                @if ($this->hasUnverifiedEmail)
-                    <div>
-                        <flux:text class="mt-4">
-                            {{ __('Your email address is unverified.') }}
-
-                            <flux:link class="text-sm cursor-pointer" wire:click.prevent="resendVerificationNotification">
-                                {{ __('Click here to re-send the verification email.') }}
-                            </flux:link>
-                        </flux:text>
-
-                    </div>
-                @endif
             </div>
 
             <div class="flex items-center gap-4">
@@ -29,8 +17,6 @@
             </div>
         </form>
 
-        @if ($this->showDeleteUser)
             <livewire:settings.delete-user-form />
-        @endif
     </x-settings.layout>
 </section>
