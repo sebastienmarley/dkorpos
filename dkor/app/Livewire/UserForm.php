@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\User;
+use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -173,7 +174,7 @@ class UserForm extends Component
         session()->flash('success', 'User updated successfully.');
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.user-form');
     }

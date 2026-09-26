@@ -15,13 +15,43 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::query()->updateOrCreate(
-            ['email' => 'test@dkor.ca'],
+        User::updateOrCreate(
+            ['email' => 'testuser@dkor.ca'],
             [
                 'firstname' => 'Test',
                 'lastname' => 'User',
                 'username' => 'testuser',
+                'role' => 'user',
+                'is_active' => true,
+                'first_day' => now()->subMonths(3)->toDateString(),
+                'last_day' => null,
+                'email_verified_at' => now(),
+                'password' => bcrypt('password'),
+            ],
+        );
+
+        User::updateOrCreate(
+            ['email' => 'testadmin@dkor.ca'],
+            [
+                'firstname' => 'Test',
+                'lastname' => 'Admin',
+                'username' => 'testadmin',
                 'role' => 'admin',
+                'is_active' => true,
+                'first_day' => now()->subMonths(3)->toDateString(),
+                'last_day' => null,
+                'email_verified_at' => now(),
+                'password' => bcrypt('password'),
+            ],
+        );
+
+        User::updateOrCreate(
+            ['email' => 'testsale@dkor.ca'],
+            [
+                'firstname' => 'Test',
+                'lastname' => 'Sale',
+                'username' => 'testsale',
+                'role' => 'user',
                 'is_active' => true,
                 'first_day' => now()->subMonths(3)->toDateString(),
                 'last_day' => null,
