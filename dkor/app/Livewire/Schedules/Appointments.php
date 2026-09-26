@@ -85,9 +85,9 @@ class Appointments extends Component
             ->first();
 
         $this->editingAppointmentId = $existing?->id;
-        $this->title = $existing?->title ?? '';
-        $this->notes = $existing?->notes ?? '';
-        $this->durationHours = $existing?->duration_hours ?? 1;
+        $this->title = $existing ? $existing->title : '';
+        $this->notes = $existing ? ($existing->notes ?? '') : '';
+        $this->durationHours = $existing ? $existing->duration_hours : 1;
         $this->selectedCustomerId = $existing?->customer_id;
         $this->customerSearch = $existing?->customer
             ? $existing->customer->firstname.' '.$existing->customer->lastname

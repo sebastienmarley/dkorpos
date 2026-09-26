@@ -19,7 +19,10 @@ enum ScheduleStatus: string
         };
     }
 
-    /** Les statuts modifiables depuis le module horaire. */
+    /** Les statuts modifiables depuis le module horaire.
+     *
+     * @return array<int, self>
+     */
     public static function editableValues(): array
     {
         return [self::Draft, self::Published];
