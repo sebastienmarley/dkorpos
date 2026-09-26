@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::query()->updateOrCreate(
+        User::updateOrCreate(
             ['email' => 'testuser@dkor.ca'],
             [
                 'firstname' => 'Test',
@@ -28,6 +28,9 @@ class DatabaseSeeder extends Seeder
                 'email_verified_at' => now(),
                 'password' => bcrypt('password'),
             ],
+        );
+
+        User::updateOrCreate(
             ['email' => 'testadmin@dkor.ca'],
             [
                 'firstname' => 'Test',
@@ -40,6 +43,9 @@ class DatabaseSeeder extends Seeder
                 'email_verified_at' => now(),
                 'password' => bcrypt('password'),
             ],
+        );
+
+        User::updateOrCreate(
             ['email' => 'testsale@dkor.ca'],
             [
                 'firstname' => 'Test',
