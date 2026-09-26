@@ -79,6 +79,16 @@
                 <flux:sidebar.item icon="user-group" :href="route('customers.index')" :current="request()->routeIs('customers.*')" wire:navigate>
                     {{ __('Clients') }}
                 </flux:sidebar.item>
+
+
+                <flux:sidebar.group :heading="__('Gestion horaire')" expandable>
+                    <flux:sidebar.item icon="calendar-days" :href="route('schedules.index')" :current="request()->routeIs('schedules.index')" wire:navigate>
+                        {{ __('Mon horaire') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="table-cells" :href="route('schedules.schedule-edit')" :current="request()->routeIs('schedules.schedule-edit')" wire:navigate>
+                        {{ __('Gestion des horaires') }}
+                    </flux:sidebar.item>
+                </flux:sidebar.group>
             </flux:sidebar.nav>
 
             <flux:spacer />
