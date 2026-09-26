@@ -20,17 +20,18 @@ use Illuminate\Support\Str;
  * @property string $email
  * @property bool $is_active
  * @property date|null $first_day
- * @property date|null $last_day 
+ * @property date|null $last_day
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
+ * @property string|null $personal_email
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['firstname', 'lastname', 'role', 'email', 'password', 'is_active', 'first_day', 'last_day'])]
+#[Fillable(['firstname', 'lastname', 'role', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'first_day', 'last_day'])]
 class User extends Authenticatable
 {
@@ -202,8 +203,4 @@ class User extends Authenticatable
 
         return Str::upper($firstName.$lastName);
     }
-
-    /**
-     * Removed in favor of Laravel's built-in date casting.
-     */
 }

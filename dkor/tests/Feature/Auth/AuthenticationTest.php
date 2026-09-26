@@ -9,11 +9,14 @@ test('login screen can be rendered', function () {
     $response->assertOk();
 });
 
-test('users can authenticate using the login screen', function () {
-    $user = User::factory()->create();
+test('users can authenticate using their username', function () {
+    $user = User::factory()->create([
+        'firstname' => 'Jane',
+        'lastname' => 'Doe',
+    ]);
 
     $response = $this->post(route('login.store'), [
-        'email' => $user->email,
+        'username' => $user->username,
         'password' => 'password',
     ]);
 
@@ -24,15 +27,26 @@ test('users can authenticate using the login screen', function () {
     $this->assertAuthenticated();
 });
 
-test('users can not authenticate with invalid password', function () {
+test('users cannot authenticate with an invalid password', function () {
+    $user = User::factory()->create();
+
+    $response = $this->post(route('login.store'), [
+        'username' => $user->username,
+        'password' => 'wrong-password',
+    ]);
+
+    $response->assertSessionHasErrorsIn('username');
+
+    $this->assertGuest();
+});
+
+test('users cannot authenticate using their email', function () {
     $user = User::factory()->create();
 
     $response = $this->post(route('login.store'), [
         'email' => $user->email,
-        'password' => 'wrong-password',
+        'password' => 'password',
     ]);
-
-    $response->assertSessionHasErrorsIn('email');
 
     $this->assertGuest();
 });
@@ -48,7 +62,7 @@ test('users with two factor enabled are redirected to two factor challenge', fun
     $user = User::factory()->withTwoFactor()->create();
 
     $response = $this->post(route('login.store'), [
-        'email' => $user->email,
+        'username' => $user->username,
         'password' => 'password',
     ]);
 
