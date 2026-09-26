@@ -14,6 +14,7 @@ it('creates a user with an auto-generated unique username', function () {
         ->call('save');
 
     $response->assertHasNoErrors();
+    $response->assertDispatched('user-saved');
 
     $user = User::where('email', 'jane.doe@example.com')->first();
 
@@ -39,6 +40,7 @@ it('increments the username when the base username already exists', function () 
         ->call('save');
 
     $response->assertHasNoErrors();
+    $response->assertDispatched('user-saved');
 
     $user = User::where('email', 'jane.doe.duplicate@example.com')->first();
 

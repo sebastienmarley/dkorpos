@@ -102,7 +102,7 @@ class UserForm extends Component
             $this->existingUser->forceFill(['is_active' => true])->save();
         }
 
-        $this->redirect(route('users.edit', $this->existingUser), navigate: true);
+        $this->dispatch('user-saved', id: $this->existingUser->id);
     }
 
     public function save(): void
@@ -150,9 +150,7 @@ class UserForm extends Component
             $user->password = bcrypt('password');
             $user->save();
 
-            session()->flash('success', 'User created successfully.');
-
-            $this->redirect(route('users.edit', $user), navigate: true);
+            $this->dispatch('user-saved', id: $user->id);
 
             return;
         }
