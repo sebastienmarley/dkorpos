@@ -9,6 +9,13 @@
         </div>
 
         <div class="flex items-center gap-2">
+            <flux:button size="sm" variant="ghost" wire:click="unpublishWeek" wire:confirm="{{ __('Dépublier tous les quarts de cette semaine ?') }}">
+                {{ __('Dépublier') }}
+            </flux:button>
+            <flux:button size="sm" variant="primary" wire:click="publishWeek" wire:confirm="{{ __('Publier tous les quarts de cette semaine ?') }}">
+                {{ __('Publier') }}
+            </flux:button>
+
             @if (! $isCurrentWeek)
                 <flux:button size="sm" variant="ghost" wire:click="goToCurrentWeek">
                     {{ __('Semaine actuelle') }}
@@ -77,6 +84,9 @@
                                         @if ($schedule->end_time)
                                             <div class="text-blue-500 dark:text-blue-400">{{ substr($schedule->end_time, 0, 5) }}</div>
                                         @endif
+                                        @if ($schedule->status === \App\Enums\ScheduleStatus::Published)
+                                            <div class="mt-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">● {{ __('Publiée') }}</div>
+                                        @endif
                                     @else
                                         <span>+</span>
                                     @endif
@@ -120,6 +130,12 @@
         @endif
 
         <form wire:submit="save" class="space-y-4">
+            @error('editingDate')
+                <flux:callout variant="danger" icon="exclamation-triangle">
+                    <flux:callout.text>{{ $message }}</flux:callout.text>
+                </flux:callout>
+            @enderror
+
             <div class="grid grid-cols-2 gap-4">
                 <flux:field>
                     <flux:label>{{ __('Début') }}</flux:label>
@@ -133,6 +149,15 @@
                     <flux:error name="endTime" />
                 </flux:field>
             </div>
+
+            <flux:field>
+                <flux:label>{{ __('Statut') }}</flux:label>
+                <flux:select wire:model="status">
+                    <flux:select.option value="draft">{{ __('Non publiée') }}</flux:select.option>
+                    <flux:select.option value="published">{{ __('Publiée') }}</flux:select.option>
+                </flux:select>
+                <flux:error name="status" />
+            </flux:field>
 
             <flux:field>
                 <flux:label>{{ __('Pause non payée') }}</flux:label>
@@ -150,13 +175,29 @@
                 <flux:error name="notes" />
             </flux:field>
 
-            <div class="flex justify-end gap-3 pt-2">
-                <flux:button type="button" variant="ghost" wire:click="$set('showModal', false)">
-                    {{ __('Annuler') }}
-                </flux:button>
-                <flux:button type="submit" variant="primary">
-                    {{ __('Sauvegarder') }}
-                </flux:button>
+            <div class="flex items-center justify-between pt-2">
+                <div>
+                    @if ($startTime || $endTime)
+                        <flux:button
+                            type="button"
+                            variant="danger"
+                            icon="trash"
+                            wire:click="deleteSchedule"
+                            wire:confirm="{{ __('Supprimer ce quart de travail ?') }}"
+                        >
+                            {{ __('Supprimer') }}
+                        </flux:button>
+                    @endif
+                </div>
+
+                <div class="flex gap-3">
+                    <flux:button type="button" variant="ghost" wire:click="$set('showModal', false)">
+                        {{ __('Annuler') }}
+                    </flux:button>
+                    <flux:button type="submit" variant="primary">
+                        {{ __('Sauvegarder') }}
+                    </flux:button>
+                </div>
             </div>
         </form>
     </flux:modal>

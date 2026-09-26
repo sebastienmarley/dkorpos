@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Schedules;
 
+use App\Enums\ScheduleStatus;
 use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
@@ -24,6 +25,8 @@ class ScheduleEdit extends Component
     public string $endTime = '';
 
     public int $breakMinutes = 0;
+
+    public string $status = 'draft';
 
     public string $notes = '';
 
@@ -60,40 +63,96 @@ class ScheduleEdit extends Component
         $this->startTime = $schedule?->start_time ? substr($schedule->start_time, 0, 5) : '';
         $this->endTime = $schedule?->end_time ? substr($schedule->end_time, 0, 5) : '';
         $this->breakMinutes = $schedule ? $schedule->break_minutes : 0;
+        $this->status = $schedule ? $schedule->status->value : ScheduleStatus::Draft->value;
         $this->notes = $schedule ? ($schedule->notes ?? '') : '';
 
         $this->showModal = true;
     }
 
+    public function publishWeek(): void
+    {
+        $start = Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY);
+
+        Schedule::query()
+            ->where('date', '>=', $start->toDateString())
+            ->where('date', '<', $start->copy()->addDays(7)->toDateString())
+            ->update(['status' => ScheduleStatus::Published]);
+    }
+
+    public function unpublishWeek(): void
+    {
+        $start = Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY);
+
+        Schedule::query()
+            ->where('date', '>=', $start->toDateString())
+            ->where('date', '<', $start->copy()->addDays(7)->toDateString())
+            ->whereIn('status', [ScheduleStatus::Published->value, ScheduleStatus::Draft->value])
+            ->update(['status' => ScheduleStatus::Draft]);
+    }
+
+    public function deleteSchedule(): void
+    {
+        Schedule::query()
+            ->where('user_id', $this->editingUserId)
+            ->whereDate('date', $this->editingDate)
+            ->delete();
+
+        $this->showModal = false;
+        $this->reset(['editingUserId', 'editingDate', 'startTime', 'endTime', 'breakMinutes', 'notes']);
+    }
+
     public function save(): void
     {
         $this->validate([
-            'startTime' => ['nullable', 'date_format:H:i'],
-            'endTime' => ['nullable', 'date_format:H:i', 'after:startTime'],
+            'startTime' => ['nullable', 'date_format:H:i', 'required_with:endTime'],
+            'endTime' => ['nullable', 'date_format:H:i', 'after:startTime', 'required_with:startTime'],
             'breakMinutes' => ['required', 'integer', 'in:0,30,60'],
+            'status' => ['required', 'string', 'in:draft,published,closed,paid'],
             'notes' => ['nullable', 'string', 'max:500'],
+        ], [
+            'startTime.required_with' => __("L'heure de début est requise si une heure de fin est saisie."),
+            'endTime.required_with' => __("L'heure de fin est requise si une heure de début est saisie."),
         ]);
+
+        $employee = User::findOrFail($this->editingUserId);
+
+        if ($employee->first_day && $this->editingDate < $employee->first_day->toDateString()) {
+            $this->addError('editingDate', __("La date est antérieure au premier jour de travail de l'employé (:date).", [
+                'date' => $employee->first_day->translatedFormat('d F Y'),
+            ]));
+
+            return;
+        }
+
+        $existingSchedule = Schedule::query()
+            ->where('user_id', $this->editingUserId)
+            ->whereDate('date', $this->editingDate)
+            ->first();
+
+        if ($existingSchedule && ! in_array($existingSchedule->status, ScheduleStatus::editableValues())) {
+            $this->addError('editingDate', __('Ce quart ne peut pas être modifié (statut : :status).', [
+                'status' => $existingSchedule->status->label(),
+            ]));
+
+            return;
+        }
 
         $data = [
             'start_time' => filled($this->startTime) ? $this->startTime : null,
             'end_time' => filled($this->endTime) ? $this->endTime : null,
             'break_minutes' => $this->breakMinutes,
+            'status' => $this->status,
             'notes' => filled($this->notes) ? $this->notes : null,
         ];
 
-        $schedule = Schedule::query()
-            ->where('user_id', $this->editingUserId)
-            ->whereDate('date', $this->editingDate)
-            ->first();
-
-        if ($schedule) {
-            $schedule->update($data);
+        if ($existingSchedule) {
+            $existingSchedule->update($data);
         } else {
             Schedule::create(['user_id' => $this->editingUserId, 'date' => $this->editingDate, ...$data]);
         }
 
         $this->showModal = false;
-        $this->reset(['editingUserId', 'editingDate', 'startTime', 'endTime', 'breakMinutes', 'notes']);
+        $this->reset(['editingUserId', 'editingDate', 'startTime', 'endTime', 'breakMinutes', 'status', 'notes']);
     }
 
     public function render(): View

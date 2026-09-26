@@ -2,8 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\ScheduleStatus;
-use Database\Factories\ScheduleFactory;
+use Database\Factories\AppointmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,31 +12,30 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $user_id
+ * @property int|null $customer_id
  * @property string $date
- * @property string|null $start_time
- * @property string|null $end_time
- * @property int $break_minutes
- * @property ScheduleStatus $status
+ * @property int $hour
+ * @property int $duration_hours
+ * @property string $title
  * @property string|null $notes
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['user_id', 'date', 'start_time', 'end_time', 'break_minutes', 'status', 'notes'])]
-class Schedule extends Model
+#[Fillable(['user_id', 'customer_id', 'date', 'hour', 'duration_hours', 'title', 'notes'])]
+class Appointment extends Model
 {
-    /** @use HasFactory<ScheduleFactory> */
+    /** @use HasFactory<AppointmentFactory> */
     use HasFactory;
-
-    protected function casts(): array
-    {
-        return [
-            'status' => ScheduleStatus::class,
-        ];
-    }
 
     /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return BelongsTo<customer, $this> */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(customer::class);
     }
 }

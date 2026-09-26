@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ScheduleStatus;
 use App\Livewire\Schedules\ScheduleEdit;
 use App\Models\Schedule;
 use App\Models\User;
@@ -251,6 +252,34 @@ it('rejette une heure de fin antérieure à l\'heure de début', function () {
         ->assertHasErrors(['endTime']);
 });
 
+it('rejette une heure de début sans heure de fin', function () {
+    $user = User::factory()->create();
+
+    $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('startTime', '09:00')
+        ->call('save')
+        ->assertHasErrors(['endTime']);
+});
+
+it('rejette une heure de fin sans heure de début', function () {
+    $user = User::factory()->create();
+
+    $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('endTime', '17:00')
+        ->call('save')
+        ->assertHasErrors(['startTime']);
+});
+
 it('rejette une valeur de pause non autorisée', function () {
     $user = User::factory()->create();
 
@@ -265,6 +294,235 @@ it('rejette une valeur de pause non autorisée', function () {
         ->set('breakMinutes', 45)
         ->call('save')
         ->assertHasErrors(['breakMinutes']);
+});
+
+// ── Statut ─────────────────────────────────────────────────────────────────
+
+it('crée un quart avec le statut non publiée par défaut', function () {
+    $user = User::factory()->create();
+    $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->call('save');
+
+    expect(Schedule::where('user_id', $user->id)->whereDate('date', $date)->first()->status)
+        ->toBe(ScheduleStatus::Draft);
+});
+
+it('sauvegarde le statut publiée', function () {
+    $user = User::factory()->create();
+    $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->set('status', 'published')
+        ->call('save');
+
+    expect(Schedule::where('user_id', $user->id)->whereDate('date', $date)->first()->status)
+        ->toBe(ScheduleStatus::Published);
+});
+
+it('charge le statut existant à l\'ouverture du modal', function () {
+    $user = User::factory()->create();
+    $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+
+    Schedule::factory()->forDate($date)->published()->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->assertSet('status', 'published');
+});
+
+it('refuse de modifier un quart avec le statut fermée', function () {
+    $user = User::factory()->create();
+    $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+
+    Schedule::factory()->forDate($date)->withStatus(ScheduleStatus::Closed)->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('startTime', '10:00')
+        ->set('endTime', '18:00')
+        ->call('save')
+        ->assertHasErrors(['editingDate']);
+});
+
+it('refuse de modifier un quart avec le statut payée', function () {
+    $user = User::factory()->create();
+    $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+
+    Schedule::factory()->forDate($date)->withStatus(ScheduleStatus::Paid)->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('startTime', '10:00')
+        ->set('endTime', '18:00')
+        ->call('save')
+        ->assertHasErrors(['editingDate']);
+});
+
+// ── Publication de semaine ─────────────────────────────────────────────────
+
+it('publie tous les quarts de la semaine', function () {
+    $user = User::factory()->create();
+    $start = Carbon::now()->startOfWeek(Carbon::SUNDAY);
+
+    Schedule::factory()->forDate($start->toDateString())->create(['user_id' => $user->id]);
+    Schedule::factory()->forDate($start->copy()->addDay()->toDateString())->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('publishWeek');
+
+    expect(Schedule::where('user_id', $user->id)->get()->every(fn ($s) => $s->status === ScheduleStatus::Published))
+        ->toBeTrue();
+});
+
+it('dépublie les quarts draft et published de la semaine', function () {
+    $user = User::factory()->create();
+    $start = Carbon::now()->startOfWeek(Carbon::SUNDAY);
+
+    Schedule::factory()->forDate($start->toDateString())->published()->create(['user_id' => $user->id]);
+    Schedule::factory()->forDate($start->copy()->addDay()->toDateString())->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('unpublishWeek');
+
+    expect(Schedule::where('user_id', $user->id)->get()->every(fn ($s) => $s->status === ScheduleStatus::Draft))
+        ->toBeTrue();
+});
+
+it('ne dépublie pas les quarts fermés ou payés', function () {
+    $user = User::factory()->create();
+    $start = Carbon::now()->startOfWeek(Carbon::SUNDAY);
+
+    Schedule::factory()->forDate($start->toDateString())->withStatus(ScheduleStatus::Closed)->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('unpublishWeek');
+
+    expect(Schedule::where('user_id', $user->id)->first()->status)
+        ->toBe(ScheduleStatus::Closed);
+});
+
+// ── Suppression ────────────────────────────────────────────────────────────
+
+it('supprime un quart de travail existant', function () {
+    $user = User::factory()->create();
+
+    $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+
+    Schedule::factory()->forDate($date)->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->call('deleteSchedule')
+        ->assertSet('showModal', false);
+
+    expect(Schedule::where('user_id', $user->id)->whereDate('date', $date)->exists())->toBeFalse();
+});
+
+it('ne supprime pas le quart d\'un autre employé', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+
+    $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+
+    Schedule::factory()->forDate($date)->create(['user_id' => $other->id]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->call('deleteSchedule');
+
+    expect(Schedule::where('user_id', $other->id)->exists())->toBeTrue();
+});
+
+// ── Contrainte premier jour ────────────────────────────────────────────────
+
+it('refuse un quart de travail avant le premier jour de l\'employé', function () {
+    $user = User::factory()->create([
+        'first_day' => '2026-09-15',
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, '2026-09-10')
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->call('save')
+        ->assertHasErrors(['editingDate']);
+
+    expect(Schedule::where('user_id', $user->id)->count())->toBe(0);
+});
+
+it('accepte un quart de travail le jour du premier jour de l\'employé', function () {
+    $user = User::factory()->create([
+        'first_day' => '2026-09-15',
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, '2026-09-15')
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Schedule::where('user_id', $user->id)->count())->toBe(1);
+});
+
+it('accepte un quart de travail après le premier jour de l\'employé', function () {
+    $user = User::factory()->create([
+        'first_day' => '2026-09-15',
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, '2026-09-20')
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->call('save')
+        ->assertHasNoErrors();
+});
+
+it('accepte un quart de travail quand l\'employé n\'a pas de premier jour défini', function () {
+    $user = User::factory()->create(['first_day' => null]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, '2026-09-10')
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->call('save')
+        ->assertHasNoErrors();
 });
 
 // ── Navigation ─────────────────────────────────────────────────────────────

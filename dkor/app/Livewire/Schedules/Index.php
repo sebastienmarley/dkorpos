@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Schedules;
 
+use App\Enums\ScheduleStatus;
 use App\Models\Schedule;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
@@ -43,6 +44,7 @@ class Index extends Component
             ->where('user_id', auth()->id())
             ->where('date', '>=', $start->toDateString())
             ->where('date', '<', $end->copy()->addDay()->toDateString())
+            ->where('status', '!=', ScheduleStatus::Draft)
             ->get()
             ->keyBy(fn ($s) => Carbon::parse($s->date)->toDateString());
 

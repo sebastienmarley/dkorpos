@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Customers\Index as CustomersIndex;
+use App\Livewire\Schedules\Appointments;
 use App\Livewire\Schedules\Index as SchedulesIndex;
 use App\Livewire\Schedules\ScheduleEdit;
 use App\Livewire\UserForm;
@@ -26,6 +27,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('schedules', SchedulesIndex::class)->name('schedules.index');
     Route::get('schedules/schedule-edit', ScheduleEdit::class)->name('schedules.schedule-edit');
+    Route::get('schedules/appointments', Appointments::class)->name('schedules.appointments');
 });
 
 require __DIR__.'/settings.php';

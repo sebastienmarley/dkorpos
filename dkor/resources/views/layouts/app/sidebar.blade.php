@@ -88,6 +88,9 @@
                     <flux:sidebar.item icon="table-cells" :href="route('schedules.schedule-edit')" :current="request()->routeIs('schedules.schedule-edit')" wire:navigate>
                         {{ __('Gestion des horaires') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="clock" :href="route('schedules.appointments')" :current="request()->routeIs('schedules.appointments')" wire:navigate>
+                        {{ __('Rendez-vous') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

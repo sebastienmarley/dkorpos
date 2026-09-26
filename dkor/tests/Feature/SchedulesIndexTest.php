@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ScheduleStatus;
 use App\Livewire\Schedules\Index;
 use App\Models\Schedule;
 use App\Models\User;
@@ -26,8 +27,8 @@ it('affiche uniquement les horaires de l\'utilisateur connecté', function () {
 
     $monday = Carbon::now()->startOfWeek()->toDateString();
 
-    Schedule::factory()->forDate($monday)->create(['user_id' => $user->id, 'start_time' => '08:00', 'end_time' => '16:00']);
-    Schedule::factory()->forDate($monday)->create(['user_id' => $other->id, 'start_time' => '10:00', 'end_time' => '18:00']);
+    Schedule::factory()->forDate($monday)->published()->create(['user_id' => $user->id, 'start_time' => '08:00', 'end_time' => '16:00']);
+    Schedule::factory()->forDate($monday)->published()->create(['user_id' => $other->id, 'start_time' => '10:00', 'end_time' => '18:00']);
 
     $this->actingAs($user);
 
@@ -50,7 +51,7 @@ it('calcule la durée en déduisant la pause', function () {
 
     $monday = Carbon::now()->startOfWeek()->toDateString();
 
-    Schedule::factory()->forDate($monday)->create([
+    Schedule::factory()->forDate($monday)->published()->create([
         'user_id' => $user->id,
         'start_time' => '08:00',
         'end_time' => '16:00',
@@ -68,7 +69,7 @@ it('affiche une durée correcte sans pause', function () {
 
     $monday = Carbon::now()->startOfWeek()->toDateString();
 
-    Schedule::factory()->forDate($monday)->create([
+    Schedule::factory()->forDate($monday)->published()->create([
         'user_id' => $user->id,
         'start_time' => '09:00',
         'end_time' => '17:00',
@@ -79,6 +80,24 @@ it('affiche une durée correcte sans pause', function () {
 
     Livewire::test(Index::class)
         ->assertSee('8h00');
+});
+
+it('n\'affiche pas les quarts non publiés', function () {
+    $user = User::factory()->create();
+
+    $monday = Carbon::now()->startOfWeek()->toDateString();
+
+    Schedule::factory()->forDate($monday)->create([
+        'user_id' => $user->id,
+        'start_time' => '08:00',
+        'end_time' => '16:00',
+        'status' => ScheduleStatus::Draft,
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(Index::class)
+        ->assertDontSee('08:00');
 });
 
 // ── Navigation ─────────────────────────────────────────────────────────────
@@ -130,7 +149,7 @@ it('affiche les horaires de la semaine naviguée', function () {
 
     $lastWeekMonday = Carbon::now()->subWeek()->startOfWeek()->toDateString();
 
-    Schedule::factory()->forDate($lastWeekMonday)->create([
+    Schedule::factory()->forDate($lastWeekMonday)->published()->create([
         'user_id' => $user->id,
         'start_time' => '07:00',
         'end_time' => '15:00',
