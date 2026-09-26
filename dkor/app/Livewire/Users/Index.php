@@ -26,6 +26,10 @@ class Index extends Component
 
     public ?string $personalEmail = null;
 
+    public ?string $phone = null;
+
+    public ?string $cellphone = null;
+
     public bool $showDuplicatePrompt = false;
 
     public ?User $existingUser = null;
@@ -46,6 +50,10 @@ class Index extends Component
     public ?string $editLastDay = null;
 
     public ?string $editPersonalEmail = null;
+
+    public ?string $editPhone = null;
+
+    public ?string $editCellphone = null;
 
     public string $editUsername = '';
 
@@ -91,7 +99,7 @@ class Index extends Component
 
     public function openCreateModal(): void
     {
-        $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'showDuplicatePrompt', 'existingUser']);
+        $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'phone', 'cellphone', 'showDuplicatePrompt', 'existingUser']);
         $this->role = 'user';
         $this->showCreateModal = true;
     }
@@ -104,6 +112,8 @@ class Index extends Component
             'role' => ['required', 'string', 'max:255'],
             'first_day' => ['nullable', 'date'],
             'personalEmail' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
+            'cellphone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
         ]);
 
         $resolved = User::resolveUsernameForEmployee($this->firstname, $this->lastname);
@@ -131,12 +141,14 @@ class Index extends Component
         $user->is_active = true;
         $user->first_day = $validated['first_day'];
         $user->personal_email = $validated['personalEmail'];
+        $user->phone = filled($validated['phone']) ? $validated['phone'] : null;
+        $user->cellphone = filled($validated['cellphone']) ? $validated['cellphone'] : null;
         $user->username = $resolved['username'];
         $user->password = bcrypt('password');
         $user->save();
 
         $this->showCreateModal = false;
-        $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'showDuplicatePrompt', 'existingUser']);
+        $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'phone', 'cellphone', 'showDuplicatePrompt', 'existingUser']);
         $this->role = 'user';
 
         $this->dispatch('user-created');
@@ -152,6 +164,8 @@ class Index extends Component
         $this->editFirstDay = $user->first_day?->format('Y-m-d');
         $this->editLastDay = $user->last_day?->format('Y-m-d');
         $this->editPersonalEmail = $user->personal_email;
+        $this->editPhone = $user->phone;
+        $this->editCellphone = $user->cellphone;
         $this->editUsername = $user->username;
         $this->editEmail = $user->email;
         $this->editIsActive = $user->is_active;
@@ -167,6 +181,8 @@ class Index extends Component
             'editFirstDay' => ['nullable', 'date'],
             'editLastDay' => ['nullable', 'date'],
             'editPersonalEmail' => ['nullable', 'email', 'max:255'],
+            'editPhone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
+            'editCellphone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
         ]);
 
         $user = User::findOrFail($this->editingUserId);
@@ -176,11 +192,13 @@ class Index extends Component
         $user->first_day = $validated['editFirstDay'];
         $user->last_day = $validated['editLastDay'];
         $user->personal_email = $validated['editPersonalEmail'];
+        $user->phone = filled($validated['editPhone']) ? $validated['editPhone'] : null;
+        $user->cellphone = filled($validated['editCellphone']) ? $validated['editCellphone'] : null;
         $user->is_active = $this->editIsActive;
         $user->save();
 
         $this->showEditModal = false;
-        $this->reset(['editingUserId', 'editFirstname', 'editLastname', 'editRole', 'editFirstDay', 'editLastDay', 'editPersonalEmail', 'editUsername', 'editEmail', 'editIsActive']);
+        $this->reset(['editingUserId', 'editFirstname', 'editLastname', 'editRole', 'editFirstDay', 'editLastDay', 'editPersonalEmail', 'editPhone', 'editCellphone', 'editUsername', 'editEmail', 'editIsActive']);
         $this->editRole = 'user';
     }
 

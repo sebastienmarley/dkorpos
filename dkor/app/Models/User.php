@@ -27,11 +27,13 @@ use Illuminate\Support\Str;
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  * @property string|null $personal_email
+ * @property string|null $phone
+ * @property string|null $cellphone
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['firstname', 'lastname', 'role', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day'])]
+#[Fillable(['firstname', 'lastname', 'role', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day', 'phone', 'cellphone'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'first_day', 'last_day'])]
 class User extends Authenticatable
 {

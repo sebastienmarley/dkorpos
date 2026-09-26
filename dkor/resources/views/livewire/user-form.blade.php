@@ -45,6 +45,11 @@
         </div>
 
         <div class="grid gap-4 md:grid-cols-2">
+            <x-phone-input wire:model="phone" label="{{ __('Téléphone') }}" name="phone" />
+            <x-phone-input wire:model="cellphone" label="{{ __('Cellulaire') }}" name="cellphone" />
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
             <flux:input wire:model="first_day" :label="__('First day')" type="date" />
             <flux:input wire:model="last_day" :label="__('Last day')" type="date" />
         </div>

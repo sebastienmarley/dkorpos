@@ -75,6 +75,10 @@
                 <flux:sidebar.item icon="users" :href="route('users.index')" :current="request()->routeIs('users.*')" wire:navigate>
                     {{ __('Utilisateurs') }}
                 </flux:sidebar.item>
+
+                <flux:sidebar.item icon="user-group" :href="route('customers.index')" :current="request()->routeIs('customers.*')" wire:navigate>
+                    {{ __('Clients') }}
+                </flux:sidebar.item>
             </flux:sidebar.nav>
 
             <flux:spacer />

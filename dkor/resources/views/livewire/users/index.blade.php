@@ -166,6 +166,11 @@
                 <flux:error name="personalEmail" />
             </flux:field>
 
+            <div class="grid gap-4 sm:grid-cols-2">
+                <x-phone-input wire:model="phone" label="{{ __('Téléphone') }}" name="phone" />
+                <x-phone-input wire:model="cellphone" label="{{ __('Cellulaire') }}" name="cellphone" />
+            </div>
+
             {{-- Aperçu des informations générées --}}
             @if (filled($username))
                 <div class="space-y-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-800">
@@ -254,6 +259,11 @@
                 <flux:input wire:model="editPersonalEmail" type="email" placeholder="prenom.nom@exemple.com" />
                 <flux:error name="editPersonalEmail" />
             </flux:field>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <x-phone-input wire:model="editPhone" label="{{ __('Téléphone') }}" name="editPhone" />
+                <x-phone-input wire:model="editCellphone" label="{{ __('Cellulaire') }}" name="editCellphone" />
+            </div>
 
             <div class="flex items-center justify-between pt-2">
                 <flux:switch wire:model="editIsActive" :label="__('Actif')" />

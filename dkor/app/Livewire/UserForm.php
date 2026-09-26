@@ -26,6 +26,10 @@ class UserForm extends Component
 
     public string $username = '';
 
+    public ?string $phone = null;
+
+    public ?string $cellphone = null;
+
     public bool $showDuplicatePrompt = false;
 
     public ?User $existingUser = null;
@@ -43,6 +47,8 @@ class UserForm extends Component
             $this->first_day = $this->user->first_day?->toDateString();
             $this->last_day = $this->user->last_day?->toDateString();
             $this->username = $this->user->username;
+            $this->phone = $this->user->phone;
+            $this->cellphone = $this->user->cellphone;
         }
     }
 
@@ -113,6 +119,8 @@ class UserForm extends Component
             'is_active' => ['boolean'],
             'first_day' => ['nullable', 'date'],
             'last_day' => ['nullable', 'date', 'after_or_equal:first_day'],
+            'phone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
+            'cellphone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
         ]);
 
         if (! $this->user) {
@@ -127,7 +135,7 @@ class UserForm extends Component
                 $this->username = $resolved['username'];
             }
 
-            $user = new User();
+            $user = new User;
             $user->firstname = $validated['firstname'];
             $user->lastname = $validated['lastname'];
             $user->email = $validated['email'];
@@ -135,6 +143,8 @@ class UserForm extends Component
             $user->is_active = $validated['is_active'];
             $user->first_day = $validated['first_day'];
             $user->last_day = $validated['last_day'];
+            $user->phone = $validated['phone'];
+            $user->cellphone = $validated['cellphone'];
             $user->username = $resolved['username'];
             $user->password = bcrypt('password');
             $user->save();
@@ -154,6 +164,8 @@ class UserForm extends Component
             'is_active' => $validated['is_active'],
             'first_day' => $validated['first_day'],
             'last_day' => $validated['last_day'],
+            'phone' => $validated['phone'],
+            'cellphone' => $validated['cellphone'],
         ]);
         $this->user->username = $this->user->username ?: User::generateUniqueUsername($this->user->firstname, $this->user->lastname);
         $this->user->save();

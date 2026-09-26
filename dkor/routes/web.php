@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Customers\Index as CustomersIndex;
 use App\Livewire\UserForm;
 use App\Livewire\Users\Index as UsersIndex;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +19,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('users', UsersIndex::class)->name('users.index');
     Route::get('users/create', UserForm::class)->name('users.create');
     Route::get('users/{user}/edit', UserForm::class)->name('users.edit');
+
+    Route::get('customers', CustomersIndex::class)->name('customers.index');
 });
 
 require __DIR__.'/settings.php';
