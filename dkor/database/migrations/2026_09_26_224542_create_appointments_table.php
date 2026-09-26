@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->date('date');
-            $table->unsignedTinyInteger('hour'); // 8 à 18
+            $table->unsignedTinyInteger('hour');
             $table->string('title');
             $table->text('notes')->nullable();
             $table->timestamps();

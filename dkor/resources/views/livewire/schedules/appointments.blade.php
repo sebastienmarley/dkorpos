@@ -10,12 +10,7 @@
 
         <div class="flex items-center gap-3">
             {{-- Nouveau client --}}
-            <flux:button
-                size="sm"
-                variant="ghost"
-                icon="user-plus"
-                x-on:click="$dispatch('open-customer-create')"
-            >
+            <flux:button size="sm" variant="ghost" icon="user-plus" x-on:click="$dispatch('open-customer-create')">
                 {{ __('Nouveau client') }}
             </flux:button>
 
@@ -29,24 +24,12 @@
             {{-- Navigation semaine --}}
             <div class="flex items-center gap-2">
                 @if (! $isCurrentWeek)
-                    <flux:button size="sm" variant="ghost" wire:click="goToCurrentWeek">
-                        {{ __('Semaine actuelle') }}
-                    </flux:button>
+                    <flux:button size="sm" variant="ghost" wire:click="goToCurrentWeek">{{ __('Semaine actuelle') }}</flux:button>
                 @endif
 
                 <flux:button.group>
-                    <flux:button
-                        size="sm"
-                        icon="chevron-left"
-                        wire:click="previousWeek"
-                        :label="__('Semaine précédente')"
-                    />
-                    <flux:button
-                        size="sm"
-                        icon="chevron-right"
-                        wire:click="nextWeek"
-                        :label="__('Semaine suivante')"
-                    />
+                    <flux:button size="sm" icon="chevron-left" wire:click="previousWeek" :label="__('Semaine précédente')" />
+                    <flux:button size="sm" icon="chevron-right" wire:click="nextWeek" :label="__('Semaine suivante')" />
                 </flux:button.group>
             </div>
         </div>
@@ -88,7 +71,6 @@
                                 $dateKey = $day->toDateString();
                                 $cellKey = $dateKey.':'.(string) $hour;
 
-                                // Skip cells covered by a multi-hour appointment above.
                                 if ($coveredCells->contains($cellKey)) {
                                     continue;
                                 }
@@ -111,7 +93,7 @@
                             <td
                                 @if ($rowspan > 1) rowspan="{{ $rowspan }}" @endif
                                 @class([
-                                    'relative px-1 py-0.5 transition-colors align-top' => true,
+                                    'relative px-1 py-0.5 align-top transition-colors' => true,
                                     'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30' => $isClickable && ! $appointment,
                                     'cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/30' => $isClickable && $appointment,
                                     'bg-zinc-50/60 dark:bg-zinc-800/40' => ! $isClickable && ! $appointment,
@@ -124,7 +106,7 @@
                                 <div @class(['min-h-[2rem]' => $rowspan === 1])>
                                     @if ($appointment)
                                         <div @class([
-                                            'rounded px-1.5 py-1 text-xs leading-tight h-full' => true,
+                                            'h-full rounded px-1.5 py-1 text-xs leading-tight' => true,
                                             'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200' => $isClickable,
                                             'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400' => ! $isClickable,
                                         ])>
@@ -178,9 +160,7 @@
                     <flux:label>{{ __('Durée') }}</flux:label>
                     <flux:select wire:model="durationHours">
                         @for ($h = 1; $h <= $maxDuration; $h++)
-                            <flux:select.option value="{{ $h }}">
-                                {{ $h }}h00
-                            </flux:select.option>
+                            <flux:select.option value="{{ $h }}">{{ $h }}h00</flux:select.option>
                         @endfor
                     </flux:select>
                     <flux:error name="durationHours" />
@@ -227,12 +207,7 @@
                     @elseif (strlen($customerSearch) >= 4)
                         <div class="mt-1 flex items-center justify-between rounded-lg border border-dashed border-zinc-200 px-3 py-2 dark:border-zinc-700">
                             <flux:text class="text-sm text-zinc-400">{{ __('Aucun client trouvé.') }}</flux:text>
-                            <flux:button
-                                size="sm"
-                                variant="ghost"
-                                icon="user-plus"
-                                x-on:click="$dispatch('open-customer-create')"
-                            >
+                            <flux:button size="sm" variant="ghost" icon="user-plus" x-on:click="$dispatch('open-customer-create')">
                                 {{ __('Créer') }}
                             </flux:button>
                         </div>
@@ -262,12 +237,8 @@
                 </div>
 
                 <div class="flex gap-3">
-                    <flux:button type="button" variant="ghost" wire:click="closeModal">
-                        {{ __('Annuler') }}
-                    </flux:button>
-                    <flux:button type="submit" variant="primary">
-                        {{ __('Enregistrer') }}
-                    </flux:button>
+                    <flux:button type="button" variant="ghost" wire:click="closeModal">{{ __('Annuler') }}</flux:button>
+                    <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
                 </div>
             </div>
         </form>

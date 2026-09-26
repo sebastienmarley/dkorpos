@@ -10,28 +10,14 @@
 
         <div class="flex items-center gap-2">
             @if (! $isCurrentWeek)
-                <flux:button
-                    size="sm"
-                    variant="ghost"
-                    wire:click="goToCurrentWeek"
-                >
-                    {{ __("Semaine actuelle") }}
+                <flux:button size="sm" variant="ghost" wire:click="goToCurrentWeek">
+                    {{ __('Semaine actuelle') }}
                 </flux:button>
             @endif
 
             <flux:button.group>
-                <flux:button
-                    size="sm"
-                    icon="chevron-left"
-                    wire:click="previousWeek"
-                    :label="__('Semaine précédente')"
-                />
-                <flux:button
-                    size="sm"
-                    icon="chevron-right"
-                    wire:click="nextWeek"
-                    :label="__('Semaine suivante')"
-                />
+                <flux:button size="sm" icon="chevron-left" wire:click="previousWeek" :label="__('Semaine précédente')" />
+                <flux:button size="sm" icon="chevron-right" wire:click="nextWeek" :label="__('Semaine suivante')" />
             </flux:button.group>
         </div>
     </div>
@@ -65,22 +51,17 @@
                         }
                     @endphp
 
-                    <flux:table.row
-                        :key="$dateKey"
-                        @class(['opacity-50' => $isWeekend && ! $schedule])
-                    >
+                    <flux:table.row :key="$dateKey" @class(['opacity-50' => $isWeekend && ! $schedule])>
                         <flux:table.cell variant="strong">
                             <div class="flex items-center gap-2">
                                 @if ($isToday)
-                                    <flux:badge size="sm" color="blue" inset="top bottom">{{ __('Aujourd\'hui') }}</flux:badge>
+                                    <flux:badge size="sm" color="blue" inset="top bottom">{{ __("Aujourd'hui") }}</flux:badge>
                                 @endif
                                 {{ ucfirst($day->translatedFormat('l')) }}
                             </div>
                         </flux:table.cell>
 
-                        <flux:table.cell>
-                            {{ $day->translatedFormat('d M') }}
-                        </flux:table.cell>
+                        <flux:table.cell>{{ $day->translatedFormat('d M') }}</flux:table.cell>
 
                         <flux:table.cell>
                             {{ $schedule?->start_time ? \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) : '—' }}
@@ -98,9 +79,7 @@
                             @endif
                         </flux:table.cell>
 
-                        <flux:table.cell>
-                            {{ $schedule?->notes ?: '—' }}
-                        </flux:table.cell>
+                        <flux:table.cell>{{ $schedule?->notes ?: '—' }}</flux:table.cell>
                     </flux:table.row>
                 @endforeach
             </flux:table.rows>
