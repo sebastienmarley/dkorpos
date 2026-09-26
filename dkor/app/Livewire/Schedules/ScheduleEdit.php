@@ -59,8 +59,8 @@ class ScheduleEdit extends Component
 
         $this->startTime = $schedule?->start_time ? substr($schedule->start_time, 0, 5) : '';
         $this->endTime = $schedule?->end_time ? substr($schedule->end_time, 0, 5) : '';
-        $this->breakMinutes = $schedule?->break_minutes ?? 0;
-        $this->notes = $schedule?->notes ?? '';
+        $this->breakMinutes = $schedule ? $schedule->break_minutes : 0;
+        $this->notes = $schedule ? ($schedule->notes ?? '') : '';
 
         $this->showModal = true;
     }
@@ -133,7 +133,7 @@ class ScheduleEdit extends Component
             'totalHours' => $totalHours,
             'startDate' => $start,
             'endDate' => $start->copy()->addDays(6),
-            'isCurrentWeek' => $start->isSameWeek(Carbon::now(), Carbon::SUNDAY),
+            'isCurrentWeek' => $start->isSameWeek(Carbon::now()),
         ])->layout('layouts.app', ['title' => __('Gestion des horaires')]);
     }
 }
