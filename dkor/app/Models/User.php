@@ -19,8 +19,8 @@ use Illuminate\Support\Str;
  * @property string $role
  * @property string $email
  * @property bool $is_active
- * @property date|null $first_day
- * @property date|null $last_day
+ * @property Carbon|null $first_day
+ * @property Carbon|null $last_day
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret

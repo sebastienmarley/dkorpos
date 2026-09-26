@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\customer;
+use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -81,7 +82,7 @@ class customerForm extends Component
         $this->dispatch('customer-saved', id: $customer->id);
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.customer-form');
     }

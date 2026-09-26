@@ -3,6 +3,7 @@
 namespace App\Livewire\Customers;
 
 use App\Models\customer;
+use Illuminate\Contracts\View\View;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -13,7 +14,7 @@ class Index extends Component
     #[On('customer-saved')]
     public function refresh(): void {}
 
-    public function render()
+    public function render(): View
     {
         $customers = blank($this->search)
             ? collect()

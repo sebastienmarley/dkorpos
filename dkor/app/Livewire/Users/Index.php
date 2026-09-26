@@ -3,6 +3,7 @@
 namespace App\Livewire\Users;
 
 use App\Models\User;
+use Illuminate\Contracts\View\View;
 use Livewire\Component;
 
 class Index extends Component
@@ -207,7 +208,7 @@ class Index extends Component
         $this->sortRole = ($this->sortRole === $role) ? '' : $role;
     }
 
-    public function render()
+    public function render(): View
     {
         $query = User::query()->where('is_active', true);
 
