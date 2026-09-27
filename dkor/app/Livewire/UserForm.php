@@ -18,7 +18,7 @@ class UserForm extends Component
 
     public string $email = '';
 
-    public string $role = 'user';
+    public string $role = 'salesman';
 
     public bool $is_active = true;
 

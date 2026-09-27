@@ -9,7 +9,7 @@ it('creates a user with an auto-generated unique username', function () {
         ->set('firstname', 'Jane')
         ->set('lastname', 'Doe')
         ->set('email', 'jane.doe@example.com')
-        ->set('role', 'user')
+        ->set('role', 'salesman')
         ->set('is_active', true)
         ->call('save');
 
@@ -35,7 +35,7 @@ it('increments the username when the base username already exists', function () 
         ->set('firstname', 'Jane')
         ->set('lastname', 'Doe')
         ->set('email', 'jane.doe.duplicate@example.com')
-        ->set('role', 'user')
+        ->set('role', 'salesman')
         ->set('is_active', true)
         ->call('save');
 
