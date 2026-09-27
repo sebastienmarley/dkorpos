@@ -18,7 +18,7 @@ class UserForm extends Component
 
     public string $email = '';
 
-    public string $role = 'user';
+    public string $role = 'salesman';
 
     public bool $is_active = true;
 
@@ -44,7 +44,7 @@ class UserForm extends Component
             $this->firstname = $this->user->firstname;
             $this->lastname = $this->user->lastname;
             $this->email = $this->user->email;
-            $this->role = $this->user->role ?? 'user';
+            $this->role = $this->user->role->value;
             $this->is_active = (bool) $this->user->is_active;
             $this->first_day = $this->user->first_day?->toDateString();
             $this->last_day = $this->user->last_day?->toDateString();

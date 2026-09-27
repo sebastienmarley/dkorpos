@@ -33,7 +33,7 @@ it('affiche uniquement les utilisateurs actifs', function () {
 
 it('filtre les utilisateurs par rôle', function () {
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-    $userRole = User::factory()->create(['role' => 'user', 'is_active' => true]);
+    $userRole = User::factory()->create(['role' => 'salesman', 'is_active' => true]);
 
     $this->actingAs(User::factory()->create());
 
@@ -45,7 +45,7 @@ it('filtre les utilisateurs par rôle', function () {
 
 it('retire le filtre de rôle quand on rappelle sortByRole avec le même rôle', function () {
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-    $userRole = User::factory()->create(['role' => 'user', 'is_active' => true]);
+    $userRole = User::factory()->create(['role' => 'salesman', 'is_active' => true]);
 
     $this->actingAs(User::factory()->create());
 
@@ -74,7 +74,7 @@ it('réinitialise les champs à l\'ouverture du modal', function () {
         ->call('openCreateModal')
         ->assertSet('firstname', '')
         ->assertSet('generatedEmail', '')
-        ->assertSet('role', 'user');
+        ->assertSet('role', 'salesman');
 });
 
 // ── Génération du courriel ─────────────────────────────────────────────────
@@ -109,7 +109,7 @@ it('crée un nouvel utilisateur avec le courriel généré', function () {
         ->call('openCreateModal')
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
-        ->set('role', 'user')
+        ->set('role', 'salesman')
         ->call('save')
         ->assertHasNoErrors()
         ->assertSet('showCreateModal', false);
@@ -136,7 +136,7 @@ it('génère un username et courriel uniques en cas de doublon de nom', function
         ->call('openCreateModal')
         ->set('firstname', 'Luc')
         ->set('lastname', 'Roy')
-        ->set('role', 'user')
+        ->set('role', 'salesman')
         ->call('save')
         ->assertHasNoErrors();
 

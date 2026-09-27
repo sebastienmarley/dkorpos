@@ -80,6 +80,9 @@
                     {{ __('Clients') }}
                 </flux:sidebar.item>
 
+                <flux:sidebar.item icon="building-storefront" :href="route('suppliers.index')" :current="request()->routeIs('suppliers.*')" wire:navigate>
+                    {{ __('Fournisseurs') }}
+                </flux:sidebar.item>
 
                 <flux:sidebar.group :heading="__('Gestion horaire')" expandable>
                     <flux:sidebar.item icon="calendar-days" :href="route('schedules.index')" :current="request()->routeIs('schedules.index')" wire:navigate>

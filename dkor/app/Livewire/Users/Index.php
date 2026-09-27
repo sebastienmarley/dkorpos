@@ -3,6 +3,7 @@
 namespace App\Livewire\Users;
 
 use App\Actions\PurgeSchedulesAfterLastDay;
+use App\Enums\RoleType;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
@@ -18,7 +19,7 @@ class Index extends Component
 
     public string $lastname = '';
 
-    public string $role = 'user';
+    public string $role = 'salesman';
 
     public ?string $first_day = null;
 
@@ -45,7 +46,7 @@ class Index extends Component
 
     public string $editLastname = '';
 
-    public string $editRole = 'user';
+    public string $editRole = 'salesman';
 
     public ?string $editFirstDay = null;
 
@@ -102,7 +103,7 @@ class Index extends Component
     public function openCreateModal(): void
     {
         $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'phone', 'cellphone', 'showDuplicatePrompt', 'existingUser']);
-        $this->role = 'user';
+        $this->role = 'salesman';
         $this->showCreateModal = true;
     }
 
@@ -111,7 +112,7 @@ class Index extends Component
         $validated = $this->validate([
             'firstname' => ['required', 'string', 'max:255'],
             'lastname' => ['required', 'string', 'max:255'],
-            'role' => ['required', 'string', 'max:255'],
+            'role' => ['required', 'string', 'in:'.implode(',', array_column(RoleType::cases(), 'value'))],
             'first_day' => ['nullable', 'date'],
             'personalEmail' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
@@ -151,7 +152,7 @@ class Index extends Component
 
         $this->showCreateModal = false;
         $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'phone', 'cellphone', 'showDuplicatePrompt', 'existingUser']);
-        $this->role = 'user';
+        $this->role = 'salesman';
 
         $this->dispatch('user-created');
     }
@@ -162,7 +163,7 @@ class Index extends Component
         $this->editingUserId = $userId;
         $this->editFirstname = $user->firstname;
         $this->editLastname = $user->lastname;
-        $this->editRole = $user->role;
+        $this->editRole = $user->role->value;
         $this->editFirstDay = $user->first_day?->format('Y-m-d');
         $this->editLastDay = $user->last_day?->format('Y-m-d');
         $this->editPersonalEmail = $user->personal_email;
@@ -179,7 +180,7 @@ class Index extends Component
         $validated = $this->validate([
             'editFirstname' => ['required', 'string', 'max:255'],
             'editLastname' => ['required', 'string', 'max:255'],
-            'editRole' => ['required', 'string', 'max:255'],
+            'editRole' => ['required', 'string', 'in:'.implode(',', array_column(RoleType::cases(), 'value'))],
             'editFirstDay' => ['nullable', 'date'],
             'editLastDay' => ['nullable', 'date'],
             'editPersonalEmail' => ['nullable', 'email', 'max:255'],
@@ -203,12 +204,18 @@ class Index extends Component
 
         $this->showEditModal = false;
         $this->reset(['editingUserId', 'editFirstname', 'editLastname', 'editRole', 'editFirstDay', 'editLastDay', 'editPersonalEmail', 'editPhone', 'editCellphone', 'editUsername', 'editEmail', 'editIsActive']);
-        $this->editRole = 'user';
+        $this->editRole = 'salesman';
     }
 
     public function sortByRole(string $role): void
     {
-        $this->sortRole = ($this->sortRole === $role) ? '' : $role;
+        $this->sortRole = $this->sortRole === $role ? '' : $role;
+    }
+
+    /** @return array<int, RoleType> */
+    public function getRoleTypes(): array
+    {
+        return RoleType::cases();
     }
 
     public function render(): View
@@ -221,16 +228,8 @@ class Index extends Component
 
         $users = $query->orderBy('lastname')->orderBy('firstname')->get();
 
-        $roles = User::query()
-            ->where('is_active', true)
-            ->distinct()
-            ->pluck('role')
-            ->sort()
-            ->values();
-
         return view('livewire.users.index', [
             'users' => $users,
-            'roles' => $roles,
         ])->layout('layouts.app', ['title' => __('Utilisateurs')]);
     }
 }

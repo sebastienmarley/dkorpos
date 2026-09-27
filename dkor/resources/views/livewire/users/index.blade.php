@@ -12,86 +12,45 @@
     </div>
 
     {{-- Filtre par rôle --}}
-    @if ($roles->isNotEmpty())
-        <div class="mb-4 flex flex-wrap items-center gap-2">
-            <flux:text class="text-sm text-zinc-500">{{ __('Filtrer par rôle :') }}</flux:text>
-
-            <flux:button
-                size="sm"
-                :variant="$sortRole === '' ? 'primary' : 'filled'"
-                wire:click="sortByRole('')"
-            >
-                {{ __('Tous') }}
-            </flux:button>
-
-            @foreach ($roles as $r)
-                <flux:button
-                    size="sm"
-                    :variant="$sortRole === $r ? 'primary' : 'filled'"
-                    wire:click="sortByRole('{{ $r }}')"
-                >
-                    {{ ucfirst($r) }}
-                </flux:button>
+    <div class="mb-4 w-64">
+        <flux:select wire:model.live="sortRole">
+            <flux:select.option value="">{{ __('Tous les rôles') }}</flux:select.option>
+            @foreach ($this->getRoleTypes() as $roleType)
+                <flux:select.option :value="$roleType->value">{{ $roleType->label() }}</flux:select.option>
             @endforeach
-        </div>
-    @endif
+        </flux:select>
+    </div>
 
     {{-- Tableau --}}
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <flux:table>
             <flux:table.columns>
-                <flux:table.column>{{ __('Rôle') }}</flux:table.column>
                 <flux:table.column>{{ __('Nom') }}</flux:table.column>
-                <flux:table.column>{{ __("Nom d'utilisateur") }}</flux:table.column>
-                <flux:table.column>{{ __('Courriel') }}</flux:table.column>
-                <flux:table.column>{{ __('Depuis') }}</flux:table.column>
-                <flux:table.column></flux:table.column>
+                <flux:table.column>{{ __('Rôle') }}</flux:table.column>
             </flux:table.columns>
 
             <flux:table.rows>
                 @forelse ($users as $user)
                     <flux:table.row :key="$user->id">
-                        <flux:table.cell>
-                            @if ($user->role === 'admin')
-                                <flux:badge color="violet" size="sm">{{ __('Admin') }}</flux:badge>
-                            @else
-                                <flux:badge color="blue" size="sm">{{ ucfirst($user->role) }}</flux:badge>
-                            @endif
-                        </flux:table.cell>
-
                         <flux:table.cell variant="strong">
-                            <div class="flex items-center gap-3">
-                                <flux:avatar
-                                    :name="$user->fullName()"
-                                    :initials="$user->initials()"
-                                    size="sm"
-                                />
+                            <button
+                                type="button"
+                                wire:click="openEditModal({{ $user->id }})"
+                                class="text-left hover:underline"
+                            >
                                 {{ $user->fullName() }}
-                            </div>
+                            </button>
                         </flux:table.cell>
-
-                        <flux:table.cell>{{ $user->username }}</flux:table.cell>
-
-                        <flux:table.cell>{{ $user->email }}</flux:table.cell>
 
                         <flux:table.cell>
-                            {{ $user->first_day ? $user->first_day->translatedFormat('j M Y') : '—' }}
-                        </flux:table.cell>
-
-                        <flux:table.cell align="end">
-                            <flux:button
-                                size="sm"
-                                variant="ghost"
-                                icon="pencil-square"
-                                wire:click="openEditModal({{ $user->id }})"
-                            >
-                                {{ __('Modifier') }}
-                            </flux:button>
+                            <flux:badge :color="$user->role === \App\Enums\RoleType::Admin ? 'violet' : 'blue'" size="sm">
+                                {{ $user->role->label() }}
+                            </flux:badge>
                         </flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="6" class="py-12 text-center">
+                        <flux:table.cell colspan="2" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="users" class="h-8 w-8 text-zinc-300" />
                                 <flux:text class="text-zinc-400">{{ __('Aucun utilisateur actif trouvé.') }}</flux:text>
@@ -108,7 +67,7 @@
         <flux:text class="mt-3 text-sm text-zinc-400">
             {{ trans_choice(':count utilisateur actif|:count utilisateurs actifs', $users->count()) }}
             @if (filled($sortRole))
-                · {{ __('filtrés par rôle :') }} <strong>{{ ucfirst($sortRole) }}</strong>
+                · {{ __('filtrés par rôle :') }} <strong>{{ \App\Enums\RoleType::from($sortRole)->label() }}</strong>
             @endif
         </flux:text>
     @endif
@@ -148,8 +107,9 @@
             <flux:field>
                 <flux:label>{{ __('Rôle') }}</flux:label>
                 <flux:select wire:model="role">
-                    <flux:select.option value="user">{{ __('Utilisateur') }}</flux:select.option>
-                    <flux:select.option value="admin">{{ __('Admin') }}</flux:select.option>
+                    @foreach ($this->getRoleTypes() as $roleType)
+                        <flux:select.option :value="$roleType->value">{{ $roleType->label() }}</flux:select.option>
+                    @endforeach
                 </flux:select>
                 <flux:error name="role" />
             </flux:field>
@@ -234,8 +194,9 @@
             <flux:field>
                 <flux:label>{{ __('Rôle') }}</flux:label>
                 <flux:select wire:model="editRole">
-                    <flux:select.option value="user">{{ __('Utilisateur') }}</flux:select.option>
-                    <flux:select.option value="admin">{{ __('Admin') }}</flux:select.option>
+                    @foreach ($this->getRoleTypes() as $roleType)
+                        <flux:select.option :value="$roleType->value">{{ $roleType->label() }}</flux:select.option>
+                    @endforeach
                 </flux:select>
                 <flux:error name="editRole" />
             </flux:field>

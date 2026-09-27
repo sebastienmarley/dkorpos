@@ -1,8 +1,6 @@
 <?php
 
 namespace App\Console\Commands;
-/*Pour qu'elle s'exécute en production, le cron de Laravel doit être actif 
-(* * * * * php artisan schedule:run). */
 
 use App\Models\User;
 use Illuminate\Console\Command;
