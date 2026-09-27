@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\RoleType;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -17,7 +18,7 @@ use Illuminate\Support\Str;
  * @property string $firstname
  * @property string $lastname
  * @property string $username
- * @property string $role
+ * @property RoleType $role
  * @property string $email
  * @property bool $is_active
  * @property Carbon|null $first_day
@@ -54,6 +55,7 @@ class User extends Authenticatable
             'last_day' => 'date',
             'is_active' => 'boolean',
             'password' => 'hashed',
+            'role' => RoleType::class,
         ];
     }
 

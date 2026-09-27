@@ -57,3 +57,18 @@ Accomplissement :
 - Tests CI reliés
 - Nombreuses corrections pour les tests CI. Je dois challenger l'IA souvent la-dessus, les assertions sont souvent erronées ou incomplètes.
 - Rempli certaines portions du blogue.
+
+## Jour 6
+[Tout d'abord, voici un survol de l'appli en date de ce matin](https://youtu.be/rRz5qpiWqq8).  
+- J'ai travaillé sur les horaires pour régler le problème rencontré en tournant le vidéo ci-dessus.  
+- J'ai modifier la présentation des tables dans chacun des modules, réduire la quantité d'infos affichés, limiter les lignes affichés au render, etc.
+- J'ai commencé la branche fournisseurs, table, migration, interface de base.
+- J'ai fait l'enum pour les rôles.
+- Tentative de modification de l'interface utilisateur, en mode mobile, mais c'est un échec pour l'instant.
+## Exemple d'usage
+Voici un court vidéo ou je débogge avec l'aide de l'IA
+https://youtu.be/D4qVovh7RbM
+
+
+
+## Jour 7
