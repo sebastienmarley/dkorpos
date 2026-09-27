@@ -53,4 +53,4 @@ Mon collègue m'a dit.
 Je dois lui donner raison.
 
 
-[Voir le short YouTube de la semaine](https://www.youtube.com/shorts/EXEMPLE_LINK)
+[Voici un petit vidéo pour résumer ma semaine](https://youtu.be/u6pVoEuRhOI)
