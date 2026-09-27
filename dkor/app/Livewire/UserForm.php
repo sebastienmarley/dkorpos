@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Actions\PurgeSchedulesAfterLastDay;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
@@ -168,6 +169,8 @@ class UserForm extends Component
         ]);
         $this->user->username = $this->user->username ?: User::generateUniqueUsername($this->user->firstname, $this->user->lastname);
         $this->user->save();
+
+        (new PurgeSchedulesAfterLastDay)->execute($this->user);
 
         session()->flash('success', 'User updated successfully.');
     }

@@ -512,13 +512,67 @@ it('accepte un quart de travail après le premier jour de l\'employé', function
         ->assertHasNoErrors();
 });
 
-it('accepte un quart de travail quand l\'employé n\'a pas de premier jour défini', function () {
+it('refuse un quart de travail quand l\'employé n\'a pas de date d\'entrée en fonction', function () {
     $user = User::factory()->create(['first_day' => null]);
 
     $this->actingAs($user);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, '2026-09-10')
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->call('save')
+        ->assertHasErrors(['editingDate']);
+});
+
+// ── Contrainte dernier jour ────────────────────────────────────────────────
+
+it('refuse un quart de travail après le dernier jour de l\'employé', function () {
+    $user = User::factory()->create([
+        'first_day' => '2026-09-01',
+        'last_day' => '2026-09-20',
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, '2026-09-25')
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->call('save')
+        ->assertHasErrors(['editingDate']);
+
+    expect(Schedule::where('user_id', $user->id)->count())->toBe(0);
+});
+
+it('accepte un quart de travail le jour du dernier jour de l\'employé', function () {
+    $user = User::factory()->create([
+        'first_day' => '2026-09-01',
+        'last_day' => '2026-09-20',
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, '2026-09-20')
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Schedule::where('user_id', $user->id)->count())->toBe(1);
+});
+
+it('accepte un quart de travail avant le dernier jour de l\'employé', function () {
+    $user = User::factory()->create([
+        'first_day' => '2026-09-01',
+        'last_day' => '2026-09-20',
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, '2026-09-15')
         ->set('startTime', '09:00')
         ->set('endTime', '17:00')
         ->call('save')

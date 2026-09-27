@@ -116,9 +116,23 @@ class ScheduleEdit extends Component
 
         $employee = User::findOrFail($this->editingUserId);
 
-        if ($employee->first_day && $this->editingDate < $employee->first_day->toDateString()) {
+        if (! $employee->first_day) {
+            $this->addError('editingDate', __("Impossible d'assigner un quart : l'employé n'a pas de date d'entrée en fonction."));
+
+            return;
+        }
+
+        if ($this->editingDate < $employee->first_day->toDateString()) {
             $this->addError('editingDate', __("La date est antérieure au premier jour de travail de l'employé (:date).", [
                 'date' => $employee->first_day->translatedFormat('d F Y'),
+            ]));
+
+            return;
+        }
+
+        if ($employee->last_day && $this->editingDate > $employee->last_day->toDateString()) {
+            $this->addError('editingDate', __("La date est postérieure au dernier jour de travail de l'employé (:date).", [
+                'date' => $employee->last_day->translatedFormat('d F Y'),
             ]));
 
             return;

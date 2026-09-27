@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Users;
 
+use App\Actions\PurgeSchedulesAfterLastDay;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
@@ -197,6 +198,8 @@ class Index extends Component
         $user->cellphone = filled($validated['editCellphone']) ? $validated['editCellphone'] : null;
         $user->is_active = $this->editIsActive;
         $user->save();
+
+        (new PurgeSchedulesAfterLastDay)->execute($user);
 
         $this->showEditModal = false;
         $this->reset(['editingUserId', 'editFirstname', 'editLastname', 'editRole', 'editFirstDay', 'editLastDay', 'editPersonalEmail', 'editPhone', 'editCellphone', 'editUsername', 'editEmail', 'editIsActive']);
