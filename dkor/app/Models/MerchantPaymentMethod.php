@@ -17,10 +17,6 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['name', 'account_type_id', 'is_active'])]
-/*Quand tu développeras la gestion des types de compte, 
-tu n'auras qu'à ajouter une migration pour la 
-contrainte ->foreign('account_type_id')->references('id')->on('...') 
-et la relation belongsTo dans le modèle. */
 class MerchantPaymentMethod extends Model
 {
     /** @use HasFactory<MerchantPaymentMethodFactory> */
