@@ -2,4 +2,4 @@
 title: "Project journal"
 ---
 
-A space to record ideas, blockers, progress and reflections as the project evolves.
+Le journal de mon projet, des entrées pour chaque jour de travail.

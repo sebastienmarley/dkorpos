@@ -46,3 +46,14 @@ courte journée de travail, début de la construction de la structure de user da
 Beaucoup plus dans le détail aujourd'hui, j'ai réfléchit à certaine structure, influencé en partie par mes lectures du module 3. J'essai quand même de ne pas trop tout prévoir, car je ne sais pas encore jusqu'où je développerai le projet.  
 Je tente tout de même d'avoir un produit intéressant à présenter, et même si l'IA me suggère beaucoup de code, j'ai remarqué que je devais toujours peaufiné chaque petit détail. Exemple du jour, lors de la conception de l'index de user, tout était aligné à droite pour ressembler au fait la sidenav est à droite, avec en plus une inversion des éléments, ainsi le nom de l'usager se retrouvait à droite complètement. Finalement après un long échange avec l'IA qui m'obstinait dur comme fer que je devais seulement faire un clear de mes caches et de ma vue, j'avais raison, le vrai problème était dans le code, une fonctionalité de flux dlr="rtl" gachait l'ordre parce qu'elle ordonnait tout par la droite. Elle avait été activé dans le tout début lorsque j'avais demandé d'avoir ma nav à droite c'est ce qui m'avait été suggéré.
 
+## Jour 5
+Très grosse journée, j'ai touché à de nombreux modules, mais principalement travailler avec l'horaire, dans sa branche que j'ai fusionné en fin de journée, mais qui m'a causé un souci, j'ai oublié de faire un pull après le merge. c'est ma leçon du jour. J'ai filmer mes premiers vidéos d'interactions, j'ai apprécier mon moment et je vais en faire plus demain, aujourd'hui j'avais une contrainte sonore. 
+Accomplissement :
+- Horaire des employés
+- Horaire de l'employé connecté (index)
+- Horaire des rendez-vous
+- J'ai mis des contraintes de présences, d'existences et de temps. 
+- Modal de création de client isolé pour permettre de l'utiliser dans de nombreux modules ( RDV, Livraison, Commande client, Devis, etc.)  
+- Tests CI reliés
+- Nombreuses corrections pour les tests CI. Je dois challenger l'IA souvent la-dessus, les assertions sont souvent erronées ou incomplètes.
+- Rempli certaines portions du blogue.
