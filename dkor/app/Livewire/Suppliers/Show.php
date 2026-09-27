@@ -97,6 +97,7 @@ class Show extends Component
         $this->dispatch('toast', message: __('Paramètres sauvegardés.'), variant: 'success');
     }
 
+    /** @return array<int, SupplierType> */
     public function getSupplierTypes(): array
     {
         return SupplierType::cases();
@@ -110,7 +111,7 @@ class Show extends Component
         $this->phone = $this->supplier->phone ?? '';
         $this->email = $this->supplier->email ?? '';
         $this->accountNumber = $this->supplier->account_number ?? '';
-        $this->bankAccount = $this->supplier->bank_account ?? '';
+        $this->bankAccount = (string) ($this->supplier->bank_account ?? '');
         $this->paymentAddress = $this->supplier->payment_address ?? '';
         $this->orderEmail = $this->supplier->order_email ?? '';
         $this->orderable = $this->supplier->orderable;

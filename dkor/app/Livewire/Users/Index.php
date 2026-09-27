@@ -212,6 +212,7 @@ class Index extends Component
         $this->sortRole = $role;
     }
 
+    /** @return array<int, RoleType> */
     public function getRoleTypes(): array
     {
         return RoleType::cases();

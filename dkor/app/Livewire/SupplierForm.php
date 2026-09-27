@@ -50,6 +50,7 @@ class SupplierForm extends Component
         $this->dispatch('supplier-saved', id: $supplier->id);
     }
 
+    /** @return array<int, SupplierType> */
     public function getSupplierTypes(): array
     {
         return SupplierType::cases();
