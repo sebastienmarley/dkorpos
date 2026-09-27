@@ -209,7 +209,7 @@ class Index extends Component
 
     public function sortByRole(string $role): void
     {
-        $this->sortRole = $role;
+        $this->sortRole = $this->sortRole === $role ? '' : $role;
     }
 
     /** @return array<int, RoleType> */
