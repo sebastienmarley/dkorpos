@@ -3,20 +3,19 @@
 
     <flux:heading level="2" class="sr-only">{{ __('Profile settings') }}</flux:heading>
 
-    <x-settings.layout :heading="__('Profile')" :subheading="__('Update your name and email address')">
-        <form wire:submit="updateProfileInformation" class="my-6 w-full space-y-6">
-            <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
+    <x-settings.layout :heading="__('Profil')" :subheading="__('Informations de votre compte')">
+        <div class="my-6 w-full space-y-6">
+            <flux:input :value="Auth::user()->firstname . ' ' . Auth::user()->lastname" :label="__('Nom')" type="text" readonly />
+            <flux:input :value="Auth::user()->email" :label="__('Courriel')" type="email" readonly />
+        </div>
 
-            <div>
-                <flux:input wire:model="email" :label="__('Email')" type="email" required autocomplete="email" />
+        <flux:separator class="my-6" />
 
-            </div>
-
-            <div class="flex items-center gap-4">
-                <flux:button variant="primary" type="submit">{{ __('Save') }}</flux:button>
-            </div>
-        </form>
-
-            <livewire:settings.delete-user-form />
+        <flux:heading class="mb-4">{{ __('Apparence') }}</flux:heading>
+        <flux:radio.group x-data variant="segmented" x-model="$flux.appearance">
+            <flux:radio value="light" icon="sun">{{ __('Clair') }}</flux:radio>
+            <flux:radio value="dark" icon="moon">{{ __('Sombre') }}</flux:radio>
+            <flux:radio value="system" icon="computer-desktop">{{ __('Système') }}</flux:radio>
+        </flux:radio.group>
     </x-settings.layout>
 </section>

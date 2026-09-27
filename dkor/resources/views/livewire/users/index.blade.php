@@ -238,6 +238,48 @@
                 </div>
             </div>
         </form>
+
+        {{-- Réinitialisation du mot de passe --}}
+        <div class="mt-6 border-t border-zinc-200 pt-5 dark:border-zinc-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <flux:heading size="sm">{{ __('Mot de passe') }}</flux:heading>
+                    <flux:text class="text-sm text-zinc-500">{{ __('Générer un nouveau mot de passe sécuritaire') }}</flux:text>
+                </div>
+                <flux:button
+                    type="button"
+                    variant="danger"
+                    icon="key"
+                    wire:click="resetPassword"
+                    wire:confirm="{{ __('Réinitialiser le mot de passe de cet utilisateur ?') }}"
+                >
+                    {{ __('Réinitialiser') }}
+                </flux:button>
+            </div>
+
+            @if ($editGeneratedPassword)
+                <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950">
+                    <div class="mb-2 flex items-center gap-2">
+                        <flux:icon name="exclamation-triangle" class="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                        <flux:text class="text-sm font-medium text-amber-800 dark:text-amber-300">
+                            {{ __('Notez ce mot de passe, il ne sera plus affiché.') }}
+                        </flux:text>
+                    </div>
+                    <div class="flex items-center justify-between rounded-md border border-amber-300 bg-white px-3 py-2 dark:border-amber-600 dark:bg-zinc-900">
+                        <code class="text-base font-mono font-semibold tracking-wider text-zinc-800 dark:text-zinc-100">{{ $editGeneratedPassword }}</code>
+                        <flux:button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            icon="clipboard"
+                            x-on:click="navigator.clipboard.writeText('{{ $editGeneratedPassword }}')"
+                        >
+                            {{ __('Copier') }}
+                        </flux:button>
+                    </div>
+                </div>
+            @endif
+        </div>
     </flux:modal>
 
 </div>

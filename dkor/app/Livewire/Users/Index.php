@@ -6,6 +6,8 @@ use App\Actions\PurgeSchedulesAfterLastDay;
 use App\Enums\RoleType;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 class Index extends Component
@@ -63,6 +65,8 @@ class Index extends Component
     public string $editEmail = '';
 
     public bool $editIsActive = true;
+
+    public ?string $editGeneratedPassword = null;
 
     public function updatedFirstname(): void
     {
@@ -172,7 +176,20 @@ class Index extends Component
         $this->editUsername = $user->username;
         $this->editEmail = $user->email;
         $this->editIsActive = $user->is_active;
+        $this->editGeneratedPassword = null;
         $this->showEditModal = true;
+    }
+
+    public function resetPassword(): void
+    {
+        $user = User::findOrFail($this->editingUserId);
+
+        $plainPassword = Str::password(12);
+
+        $user->password = Hash::make($plainPassword);
+        $user->save();
+
+        $this->editGeneratedPassword = $plainPassword;
     }
 
     public function update(): void
@@ -203,7 +220,7 @@ class Index extends Component
         (new PurgeSchedulesAfterLastDay)->execute($user);
 
         $this->showEditModal = false;
-        $this->reset(['editingUserId', 'editFirstname', 'editLastname', 'editRole', 'editFirstDay', 'editLastDay', 'editPersonalEmail', 'editPhone', 'editCellphone', 'editUsername', 'editEmail', 'editIsActive']);
+        $this->reset(['editingUserId', 'editFirstname', 'editLastname', 'editRole', 'editFirstDay', 'editLastDay', 'editPersonalEmail', 'editPhone', 'editCellphone', 'editUsername', 'editEmail', 'editIsActive', 'editGeneratedPassword']);
         $this->editRole = 'salesman';
     }
 

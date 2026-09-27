@@ -2,6 +2,7 @@
 
 use App\Livewire\Users\Index;
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
 
 // ── Accès ──────────────────────────────────────────────────────────────────
@@ -155,4 +156,36 @@ it('requiert le prénom et le nom', function () {
         ->call('openCreateModal')
         ->call('save')
         ->assertHasErrors(['firstname', 'lastname']);
+});
+
+// ── Réinitialisation du mot de passe ──────────────────────────────────────
+
+it('réinitialise le mot de passe et affiche le nouveau en clair', function () {
+    $this->actingAs(User::factory()->create());
+
+    $user = User::factory()->create();
+    $ancienHash = $user->password;
+
+    $component = Livewire::test(Index::class)
+        ->call('openEditModal', $user->id)
+        ->assertSet('editGeneratedPassword', null)
+        ->call('resetPassword')
+        ->assertSet('editGeneratedPassword', fn ($value) => filled($value) && strlen($value) >= 12);
+
+    $user->refresh();
+
+    expect($user->password)->not->toBe($ancienHash);
+    expect(Hash::check($component->get('editGeneratedPassword'), $user->password))->toBeTrue();
+});
+
+it('efface le mot de passe généré à la fermeture du modal', function () {
+    $this->actingAs(User::factory()->create());
+
+    $user = User::factory()->create();
+
+    Livewire::test(Index::class)
+        ->call('openEditModal', $user->id)
+        ->call('resetPassword')
+        ->call('update')
+        ->assertSet('editGeneratedPassword', null);
 });
