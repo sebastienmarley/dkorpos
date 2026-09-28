@@ -63,12 +63,15 @@ Accomplissement :
 - J'ai travaillé sur les horaires pour régler le problème rencontré en tournant le vidéo ci-dessus.  
 - J'ai modifier la présentation des tables dans chacun des modules, réduire la quantité d'infos affichés, limiter les lignes affichés au render, etc.
 - J'ai commencé la branche fournisseurs, table, migration, interface de base.
-- J'ai fait l'enum pour les rôles.
+- J'ai fait l'enum pour les rôles. Mais je vais surement passer en Eloquent après avoir travailler sur d'autre table.
 - Tentative de modification de l'interface utilisateur, en mode mobile, mais c'est un échec pour l'instant.
+J'ai commencé le chantier pour les produits, j'aurais du me faire une branche. 
+Immense revamp pour les adresses, je veux faire comme pour les # de téléphones et forcer un model spécifique pour réduire les erreurs et les oublis.  
+Implémenté des règles pour les coûtant et une structure pour vérifier l'unicité des modèles des fournisseurs. C'est très important surtout lorsque j'implémenterais la mise à jour par liste de prix, un même produit ne doit pas exister deux fois.
+J'ai d'autre vidéos à importer sur Youtube, mais ça ira à demain.
 ## Exemple d'usage
 Voici un court vidéo ou je débogge avec l'aide de l'IA
 https://youtu.be/D4qVovh7RbM
-
 
 
 ## Jour 7

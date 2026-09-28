@@ -84,6 +84,21 @@
                     {{ __('Fournisseurs') }}
                 </flux:sidebar.item>
 
+                <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('catalog.*')">
+                    <flux:sidebar.item icon="cube" :href="route('products.index')" :current="request()->routeIs('products.*')" wire:navigate>
+                        {{ __('Produits') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="tag" :href="route('catalog.departments')" :current="request()->routeIs('catalog.departments')" wire:navigate>
+                        {{ __('Départements') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="squares-2x2" :href="route('catalog.categories')" :current="request()->routeIs('catalog.categories')" wire:navigate>
+                        {{ __('Catégories') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="swatch" :href="route('catalog.colors')" :current="request()->routeIs('catalog.colors')" wire:navigate>
+                        {{ __('Couleurs') }}
+                    </flux:sidebar.item>
+                </flux:sidebar.group>
+
                 <flux:sidebar.group :heading="__('Gestion horaire')" expandable>
                     <flux:sidebar.item icon="calendar-days" :href="route('schedules.index')" :current="request()->routeIs('schedules.index')" wire:navigate>
                         {{ __('Mon horaire') }}

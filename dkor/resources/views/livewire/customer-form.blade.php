@@ -1,4 +1,4 @@
-<flux:modal wire:model="showModal" class="w-full max-w-lg">
+<flux:modal wire:model="showModal" class="w-full max-w-2xl">
     <flux:heading class="mb-1">{{ $customerId ? __('Modifier le client') : __('Nouveau client') }}</flux:heading>
 
     <form wire:submit="save" class="mt-6 space-y-4">
@@ -27,11 +27,10 @@
             <flux:error name="email" />
         </flux:field>
 
-        <flux:field>
-            <flux:label>{{ __('Adresse') }}</flux:label>
-            <flux:input wire:model="adress" type="text" />
-            <flux:error name="adress" />
-        </flux:field>
+        <div>
+            <flux:heading size="sm" class="mb-4">{{ __('Adresse') }}</flux:heading>
+            <x-address-input prefix="address" :current-country="$address['country'] ?? 'CA'" />
+        </div>
 
         <div class="flex justify-end gap-3 pt-2">
             <flux:button type="button" variant="ghost" wire:click="$set('showModal', false)">

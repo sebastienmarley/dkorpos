@@ -45,7 +45,7 @@
 
         {{-- Identification --}}
         <div x-show="tab === 'identification'" x-cloak>
-            <form wire:submit="saveIdentification" class="mt-6 max-w-2xl space-y-4">
+            <form wire:submit="saveIdentification" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
                         <flux:label>{{ __('Type') }}</flux:label>
@@ -64,11 +64,10 @@
                     </flux:field>
                 </div>
 
-                <flux:field>
-                    <flux:label>{{ __('Adresse') }}</flux:label>
-                    <flux:input wire:model="address" type="text" />
-                    <flux:error name="address" />
-                </flux:field>
+                <div>
+                    <flux:heading size="sm" class="mb-4">{{ __('Adresse') }}</flux:heading>
+                    <x-address-input prefix="address" :current-country="$address['country'] ?? 'CA'" />
+                </div>
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <x-phone-input wire:model="phone" label="{{ __('Téléphone') }}" name="phone" />
@@ -88,24 +87,35 @@
 
         {{-- Comptabilité --}}
         <div x-show="tab === 'accounting'" x-cloak>
-            <form wire:submit="saveAccounting" class="mt-6 max-w-2xl space-y-4">
-                <flux:field>
-                    <flux:label>{{ __('Numéro de compte') }}</flux:label>
-                    <flux:input wire:model="accountNumber" type="text" />
-                    <flux:error name="accountNumber" />
-                </flux:field>
+            <form wire:submit="saveAccounting" class="mt-6 max-w-2xl space-y-6">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <flux:field>
+                        <flux:label>{{ __('Numéro de compte') }}</flux:label>
+                        <flux:input wire:model="accountNumber" type="text" />
+                        <flux:error name="accountNumber" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:label>{{ __('Compte bancaire') }}</flux:label>
-                    <flux:input wire:model="bankAccount" type="text" />
-                    <flux:error name="bankAccount" />
-                </flux:field>
+                    <flux:field>
+                        <flux:label>{{ __('Compte bancaire') }}</flux:label>
+                        <flux:input wire:model="bankAccount" type="text" />
+                        <flux:error name="bankAccount" />
+                    </flux:field>
+                </div>
 
-                <flux:field>
-                    <flux:label>{{ __('Adresse de paiement') }}</flux:label>
-                    <flux:input wire:model="paymentAddress" type="text" />
-                    <flux:error name="paymentAddress" />
-                </flux:field>
+                <div>
+                    <div class="mb-4 flex items-center justify-between">
+                        <flux:heading size="sm">{{ __('Adresse de paiement') }}</flux:heading>
+                        <flux:checkbox
+                            wire:model.live="sameAsMainAddress"
+                            :label="__('Même que l\'adresse principale')"
+                            class="text-sm"
+                        />
+                    </div>
+
+                    <div @class(['pointer-events-none opacity-50' => $sameAsMainAddress])>
+                        <x-address-input prefix="paymentAddress" :current-country="$paymentAddress['country'] ?? 'CA'" />
+                    </div>
+                </div>
 
                 <div class="flex justify-end pt-2">
                     <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
@@ -120,6 +130,13 @@
                     <flux:label>{{ __('Courriel de commande') }}</flux:label>
                     <flux:input wire:model="orderEmail" type="email" />
                     <flux:error name="orderEmail" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Multiplicateur de prix') }}</flux:label>
+                    <flux:input wire:model="priceMultiplier" type="number" step="0.0001" min="0.0001" />
+                    <flux:description>{{ __('Le prix de vente est calculé en multipliant le coût par ce facteur.') }}</flux:description>
+                    <flux:error name="priceMultiplier" />
                 </flux:field>
 
                 <flux:field>

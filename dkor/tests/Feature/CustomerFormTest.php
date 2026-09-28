@@ -30,7 +30,11 @@ it('crée un client avec tous les champs remplis', function () {
         ->set('phone', '(514)555-1234')
         ->set('cellphone', '(438)555-5678')
         ->set('email', 'marie.cote@exemple.com')
-        ->set('adress', '123 rue Principale')
+        ->set('address.civic', '123')
+        ->set('address.street', 'rue Principale')
+        ->set('address.city', 'Montréal')
+        ->set('address.province', 'QC')
+        ->set('address.country', 'CA')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -39,6 +43,8 @@ it('crée un client avec tous les champs remplis', function () {
     expect($client)->not->toBeNull();
     expect($client->phone)->toBe('(514)555-1234');
     expect($client->cellphone)->toBe('(438)555-5678');
+    expect($client->address_civic)->toBe('123');
+    expect($client->address_street)->toBe('rue Principale');
 });
 
 it('enregistre null pour un courriel vide afin d\'éviter la violation de contrainte unique', function () {

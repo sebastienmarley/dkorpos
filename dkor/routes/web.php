@@ -1,6 +1,11 @@
 <?php
 
+use App\Livewire\Catalog\Categories;
+use App\Livewire\Catalog\Colors;
+use App\Livewire\Catalog\Departments;
 use App\Livewire\Customers\Index as CustomersIndex;
+use App\Livewire\Products\Index as ProductsIndex;
+use App\Livewire\Products\Show as ProductShow;
 use App\Livewire\Schedules\Appointments;
 use App\Livewire\Schedules\Index as SchedulesIndex;
 use App\Livewire\Schedules\ScheduleEdit;
@@ -26,6 +31,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('suppliers', SuppliersIndex::class)->name('suppliers.index');
     Route::get('suppliers/{supplier}', SupplierShow::class)->name('suppliers.show');
+
+    Route::get('products', ProductsIndex::class)->name('products.index');
+    Route::get('products/{product}', ProductShow::class)->name('products.show');
+
+    Route::get('catalog/departments', Departments::class)->name('catalog.departments');
+    Route::get('catalog/categories', Categories::class)->name('catalog.categories');
+    Route::get('catalog/colors', Colors::class)->name('catalog.colors');
 
     Route::get('schedules', SchedulesIndex::class)->name('schedules.index');
     Route::get('schedules/schedule-edit', ScheduleEdit::class)->name('schedules.schedule-edit');
