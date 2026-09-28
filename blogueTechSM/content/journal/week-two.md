@@ -70,8 +70,8 @@ Immense revamp pour les adresses, je veux faire comme pour les # de téléphones
 Implémenté des règles pour les coûtant et une structure pour vérifier l'unicité des modèles des fournisseurs. C'est très important surtout lorsque j'implémenterais la mise à jour par liste de prix, un même produit ne doit pas exister deux fois.
 J'ai d'autre vidéos à importer sur Youtube, mais ça ira à demain.
 ## Exemple d'usage
-Voici un court vidéo ou je débogge avec l'aide de l'IA
-https://youtu.be/D4qVovh7RbM
+[Voici un court vidéo ou je débogge avec l'aide de l'IA](https://youtu.be/D4qVovh7RbM)
+
 
 
 ## Jour 7
