@@ -2,8 +2,10 @@
 
 namespace App\Livewire\Schedules;
 
+use App\Enums\ScheduleType;
 use App\Models\Appointment;
 use App\Models\customer;
+use App\Models\Holiday;
 use App\Models\Schedule;
 use App\Models\User;
 use Flux\Flux;
@@ -325,7 +327,39 @@ class Appointments extends Component
             return false;
         }
 
-        return true;
+        return $this->blockReasonFor($date) === null;
+    }
+
+    /**
+     * Motif pour lequel l'employé sélectionné ne prend pas de rendez-vous ce jour-là :
+     * une absence (maladie, vacances…) ou un férié fermé sans quart de travail publié.
+     */
+    private function blockReasonFor(string $date): ?string
+    {
+        $absence = Schedule::query()
+            ->where('user_id', $this->selectedUserId)
+            ->whereDate('date', $date)
+            ->where('type', '!=', ScheduleType::Work->value)
+            ->first();
+
+        if ($absence) {
+            return $absence->type->label();
+        }
+
+        $closedHoliday = Holiday::query()->whereDate('date', $date)->where('is_closed', true)->first();
+
+        if (! $closedHoliday) {
+            return null;
+        }
+
+        $worksThatDay = Schedule::query()
+            ->bookable()
+            ->where('user_id', $this->selectedUserId)
+            ->whereDate('date', $date)
+            ->where('type', ScheduleType::Work->value)
+            ->exists();
+
+        return $worksThatDay ? null : $closedHoliday->name;
     }
 
     /**
@@ -337,6 +371,7 @@ class Appointments extends Component
     {
         $schedule = Schedule::query()
             ->bookable()
+            ->where('type', ScheduleType::Work->value)
             ->where('user_id', $this->selectedUserId)
             ->where('date', $date)
             ->first();
@@ -468,11 +503,42 @@ class Appointments extends Component
             }
         }
 
+        $weekAbsences = $this->selectedUserId
+            ? Schedule::query()
+                ->where('user_id', $this->selectedUserId)
+                ->where('date', '>=', $start->toDateString())
+                ->where('date', '<', $start->copy()->addDays(7)->toDateString())
+                ->where('type', '!=', ScheduleType::Work->value)
+                ->get()
+                ->keyBy(fn ($s) => Carbon::parse($s->date)->toDateString())
+            : collect();
+
+        $weekHolidays = Holiday::query()
+            ->whereBetween('date', [$start->toDateString(), $start->copy()->addDays(6)->toDateString()])
+            ->get()
+            ->keyBy('date');
+
+        // Étiquette affichée sous chaque jour particulier, et blocage éventuel des rendez-vous.
+        $dayNotes = [];
+        foreach ($days as $day) {
+            $dateKey = $day->toDateString();
+            $holiday = $weekHolidays->get($dateKey);
+            $worksThatDay = $schedules->get($dateKey)?->type === ScheduleType::Work;
+            $absence = $weekAbsences->get($dateKey);
+
+            if ($absence) {
+                $dayNotes[$dateKey] = ['label' => $absence->type->label(), 'blocked' => true];
+            } elseif ($holiday) {
+                $dayNotes[$dateKey] = ['label' => $holiday->name, 'blocked' => $holiday->is_closed && ! $worksThatDay];
+            }
+        }
+
         // Créneaux réservables par jour (même règle que canBookAt, sans requête supplémentaire).
         $now = Carbon::now();
         $openSlots = [];
         foreach ($days as $day) {
             $dateKey = $day->toDateString();
+            $isBlockedDay = $dayNotes[$dateKey]['blocked'] ?? false;
             $schedule = $schedules->get($dateKey);
             $window = $schedule && $schedule->start_time && $schedule->end_time
                 ? [$this->minutesOf($schedule->start_time), $this->minutesOf($schedule->end_time)]
@@ -481,7 +547,7 @@ class Appointments extends Component
             foreach ($timeSlots as $slot) {
                 $inFuture = $day->copy()->startOfDay()->addMinutes($slot)->gte($now);
                 $inWindow = ! $isCurrentWeek || ($window !== null && $slot >= $window[0] && $slot < $window[1]);
-                $openSlots[$dateKey][$slot] = $inFuture && $inWindow;
+                $openSlots[$dateKey][$slot] = $inFuture && $inWindow && ! $isBlockedDay;
             }
         }
 
@@ -509,6 +575,7 @@ class Appointments extends Component
             'days' => $days,
             'timeSlots' => $timeSlots,
             'openSlots' => $openSlots,
+            'dayNotes' => $dayNotes,
             'gridData' => $gridData,
             'slotMinutes' => self::SLOT_MINUTES,
             'appointments' => $appointments,

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ScheduleStatus;
+use App\Enums\ScheduleType;
 use Database\Factories\ScheduleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -20,13 +21,14 @@ use Illuminate\Support\Carbon;
  * @property string|null $end_time
  * @property int $break_minutes
  * @property ScheduleStatus $status
+ * @property ScheduleType $type
  * @property string|null $notes
  * @property int|null $created_by
  * @property int|null $last_updated_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['user_id', 'date', 'start_time', 'end_time', 'break_minutes', 'status', 'notes', 'created_by', 'last_updated_by'])]
+#[Fillable(['user_id', 'date', 'start_time', 'end_time', 'break_minutes', 'status', 'type', 'notes', 'created_by', 'last_updated_by'])]
 class Schedule extends Model
 {
     /** @use HasFactory<ScheduleFactory> */
@@ -66,6 +68,7 @@ class Schedule extends Model
     {
         return [
             'status' => ScheduleStatus::class,
+            'type' => ScheduleType::class,
         ];
     }
 

@@ -78,6 +78,13 @@
                         <th class="px-3 py-3 text-center font-medium @if($day->isToday()) text-blue-600 dark:text-blue-400 @else text-zinc-500 dark:text-zinc-400 @endif">
                             <div>{{ ucfirst($day->translatedFormat('D')) }}</div>
                             <div class="text-xs font-normal">{{ $day->translatedFormat('d M') }}</div>
+                            @if ($holiday = $holidays->get($day->toDateString()))
+                                <div @class([
+                                    'mx-auto mt-0.5 max-w-24 truncate rounded px-1 text-[10px] font-medium',
+                                    'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' => $holiday->is_closed,
+                                    'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' => ! $holiday->is_closed,
+                                ]) title="{{ $holiday->is_closed ? __('Magasin fermé') : __('Magasin ouvert') }}">{{ $holiday->name }}</div>
+                            @endif
                         </th>
                     @endforeach
                     <th class="px-4 py-3 text-right font-medium text-zinc-500 dark:text-zinc-400">
@@ -107,7 +114,14 @@
                                 <button
                                     wire:click="openCell({{ $user->id }}, '{{ $dateKey }}')"
                                     class="w-full min-w-20 rounded-lg border px-2 py-1.5 text-xs transition
-                                        @if ($schedule?->start_time)
+                                        @if ($schedule?->type->isAbsence())
+                                            {{ match ($schedule->type) {
+                                                \App\Enums\ScheduleType::Sick => 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300',
+                                                \App\Enums\ScheduleType::Absent => 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+                                                \App\Enums\ScheduleType::Vacation => 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
+                                                default => 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-300',
+                                            } }}
+                                        @elseif ($schedule?->start_time)
                                             border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50
                                         @elseif ($isToday)
                                             border-zinc-300 bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:border-zinc-600 dark:bg-zinc-700/50 dark:text-zinc-400 dark:hover:bg-zinc-700
@@ -116,7 +130,12 @@
                                         @endif
                                     "
                                 >
-                                    @if ($schedule?->start_time)
+                                    @if ($schedule?->type->isAbsence())
+                                        <div class="font-medium">{{ $schedule->type->label() }}</div>
+                                        @if ($schedule->status === \App\Enums\ScheduleStatus::Published)
+                                            <div class="mt-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">● {{ __('Publiée') }}</div>
+                                        @endif
+                                    @elseif ($schedule?->start_time)
                                         <div>{{ substr($schedule->start_time, 0, 5) }}</div>
                                         @if ($schedule->end_time)
                                             <div class="text-blue-500 dark:text-blue-400">{{ substr($schedule->end_time, 0, 5) }}</div>
@@ -186,31 +205,50 @@
                 </flux:callout>
             @enderror
 
-            @if ($shiftTemplates->isNotEmpty())
+            <flux:field>
+                <flux:label>{{ __('Type') }}</flux:label>
+                <flux:select wire:model.live="scheduleType">
+                    @foreach ($scheduleTypes as $type)
+                        <flux:select.option value="{{ $type->value }}">{{ $type->label() }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="scheduleType" />
+            </flux:field>
+
+            @if ($scheduleType === 'work')
+                @if ($shiftTemplates->isNotEmpty())
+                    <flux:field>
+                        <flux:label>{{ __('Quart type') }}</flux:label>
+                        <flux:select wire:model.live="shiftTemplateId">
+                            <flux:select.option value="">{{ __('— Personnalisé —') }}</flux:select.option>
+                            @foreach ($shiftTemplates as $shiftTemplate)
+                                <flux:select.option value="{{ $shiftTemplate->id }}">{{ $shiftTemplate->summary() }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                    </flux:field>
+                @endif
+
+                <div class="grid grid-cols-2 gap-4">
+                    <flux:field>
+                        <flux:label>{{ __('Début') }}</flux:label>
+                        <flux:input wire:model="startTime" type="time" />
+                        <flux:error name="startTime" />
+                    </flux:field>
+
+                    <flux:field>
+                        <flux:label>{{ __('Fin') }}</flux:label>
+                        <flux:input wire:model="endTime" type="time" />
+                        <flux:error name="endTime" />
+                    </flux:field>
+                </div>
+            @else
                 <flux:field>
-                    <flux:label>{{ __('Quart type') }}</flux:label>
-                    <flux:select wire:model.live="shiftTemplateId">
-                        <flux:select.option value="">{{ __('— Personnalisé —') }}</flux:select.option>
-                        @foreach ($shiftTemplates as $shiftTemplate)
-                            <flux:select.option value="{{ $shiftTemplate->id }}">{{ $shiftTemplate->summary() }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
+                    <flux:label>{{ __('Jusqu\'au (inclus)') }}</flux:label>
+                    <flux:input wire:model="untilDate" type="date" :min="$editingDate" />
+                    <flux:description>{{ __('Laissez vide pour un seul jour.') }}</flux:description>
+                    <flux:error name="untilDate" />
                 </flux:field>
             @endif
-
-            <div class="grid grid-cols-2 gap-4">
-                <flux:field>
-                    <flux:label>{{ __('Début') }}</flux:label>
-                    <flux:input wire:model="startTime" type="time" />
-                    <flux:error name="startTime" />
-                </flux:field>
-
-                <flux:field>
-                    <flux:label>{{ __('Fin') }}</flux:label>
-                    <flux:input wire:model="endTime" type="time" />
-                    <flux:error name="endTime" />
-                </flux:field>
-            </div>
 
             <flux:field>
                 <flux:label>{{ __('Statut') }}</flux:label>
@@ -221,15 +259,17 @@
                 <flux:error name="status" />
             </flux:field>
 
-            <flux:field>
-                <flux:label>{{ __('Pause non payée') }}</flux:label>
-                <flux:select wire:model="breakMinutes">
-                    <flux:select.option value="0">{{ __('Aucune') }}</flux:select.option>
-                    <flux:select.option value="30">{{ __('30 minutes') }}</flux:select.option>
-                    <flux:select.option value="60">{{ __('60 minutes') }}</flux:select.option>
-                </flux:select>
-                <flux:error name="breakMinutes" />
-            </flux:field>
+            @if ($scheduleType === 'work')
+                <flux:field>
+                    <flux:label>{{ __('Pause non payée') }}</flux:label>
+                    <flux:select wire:model="breakMinutes">
+                        <flux:select.option value="0">{{ __('Aucune') }}</flux:select.option>
+                        <flux:select.option value="30">{{ __('30 minutes') }}</flux:select.option>
+                        <flux:select.option value="60">{{ __('60 minutes') }}</flux:select.option>
+                    </flux:select>
+                    <flux:error name="breakMinutes" />
+                </flux:field>
+            @endif
 
             <flux:field>
                 <flux:label>{{ __('Notes') }}</flux:label>
@@ -239,7 +279,7 @@
 
             <div class="flex items-center justify-between pt-2">
                 <div>
-                    @if ($startTime || $endTime)
+                    @if ($editingScheduleId)
                         <flux:button
                             type="button"
                             variant="danger"

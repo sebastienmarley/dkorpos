@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\ScheduleStatus;
+use App\Enums\ScheduleType;
 use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -21,6 +22,7 @@ class ScheduleFactory extends Factory
             'end_time' => '17:00',
             'break_minutes' => 30,
             'status' => ScheduleStatus::Draft,
+            'type' => ScheduleType::Work,
             'notes' => null,
         ];
     }
@@ -38,6 +40,11 @@ class ScheduleFactory extends Factory
     public function withoutHours(): static
     {
         return $this->state(['start_time' => null, 'end_time' => null, 'break_minutes' => 0]);
+    }
+
+    public function absence(ScheduleType $type): static
+    {
+        return $this->state(['type' => $type, 'start_time' => null, 'end_time' => null, 'break_minutes' => 0]);
     }
 
     public function published(): static

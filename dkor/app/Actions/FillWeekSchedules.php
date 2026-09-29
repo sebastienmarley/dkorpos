@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Enums\ScheduleStatus;
 use App\Models\Appointment;
+use App\Models\Holiday;
 use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -13,17 +14,17 @@ use Illuminate\Support\Facades\DB;
  * Crée en brouillon les quarts proposés (copie de semaine ou semaine type).
  *
  * Ne remplace jamais un quart existant, quel que soit son statut, et ignore les cases où l'employé
- * n'est pas en fonction, est inactif, ou a déjà des rendez-vous qui ne tiendraient pas dans le quart.
+ * n'est pas en fonction, est inactif, tombe un férié fermé, ou a déjà des rendez-vous qui ne tiendraient pas dans le quart.
  */
 class FillWeekSchedules
 {
     /**
      * @param  iterable<array{user_id: int, date: string, start_time: string, end_time: string, break_minutes: int, notes?: string|null}>  $plannedShifts
-     * @return array{created: int, existing: int, unavailable: int, conflicts: int}
+     * @return array{created: int, existing: int, unavailable: int, conflicts: int, holidays: int}
      */
     public function handle(iterable $plannedShifts): array
     {
-        $result = ['created' => 0, 'existing' => 0, 'unavailable' => 0, 'conflicts' => 0];
+        $result = ['created' => 0, 'existing' => 0, 'unavailable' => 0, 'conflicts' => 0, 'holidays' => 0];
 
         foreach (collect($plannedShifts)->groupBy('user_id') as $userId => $shifts) {
             $employee = User::query()->find($userId);
@@ -43,12 +44,16 @@ class FillWeekSchedules
 
     /**
      * @param  array{user_id: int, date: string, start_time: string, end_time: string, break_minutes: int, notes?: string|null}  $shift
-     * @return 'created'|'existing'|'unavailable'|'conflicts'
+     * @return 'created'|'existing'|'unavailable'|'conflicts'|'holidays'
      */
     private function fill(?User $employee, array $shift): string
     {
         if (! $employee || ! $employee->is_active || ! $this->isInService($employee, $shift['date'])) {
             return 'unavailable';
+        }
+
+        if (Holiday::query()->whereDate('date', $shift['date'])->where('is_closed', true)->exists()) {
+            return 'holidays';
         }
 
         $exists = Schedule::query()

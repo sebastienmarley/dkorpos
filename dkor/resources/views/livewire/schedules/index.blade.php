@@ -58,18 +58,27 @@
                                     <flux:badge size="sm" color="blue" inset="top bottom">{{ __("Aujourd'hui") }}</flux:badge>
                                 @endif
                                 {{ ucfirst($day->translatedFormat('l')) }}
+                                @if ($holiday = $holidays->get($dateKey))
+                                    <flux:badge size="sm" color="violet" inset="top bottom">{{ $holiday->name }}</flux:badge>
+                                @endif
                             </div>
                         </flux:table.cell>
 
                         <flux:table.cell>{{ $day->translatedFormat('d M') }}</flux:table.cell>
 
-                        <flux:table.cell>
-                            {{ $schedule?->start_time ? \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) : '—' }}
-                        </flux:table.cell>
+                        @if ($schedule?->type->isAbsence())
+                            <flux:table.cell colspan="2">
+                                <flux:badge size="sm" :color="$schedule->type->color()" inset="top bottom">{{ $schedule->type->label() }}</flux:badge>
+                            </flux:table.cell>
+                        @else
+                            <flux:table.cell>
+                                {{ $schedule?->start_time ? \Illuminate\Support\Str::substr($schedule->start_time, 0, 5) : '—' }}
+                            </flux:table.cell>
 
-                        <flux:table.cell>
-                            {{ $schedule?->end_time ? \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) : '—' }}
-                        </flux:table.cell>
+                            <flux:table.cell>
+                                {{ $schedule?->end_time ? \Illuminate\Support\Str::substr($schedule->end_time, 0, 5) : '—' }}
+                            </flux:table.cell>
+                        @endif
 
                         <flux:table.cell>
                             @if ($duration)

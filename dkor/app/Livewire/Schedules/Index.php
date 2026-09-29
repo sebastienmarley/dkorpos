@@ -3,6 +3,7 @@
 namespace App\Livewire\Schedules;
 
 use App\Enums\ScheduleStatus;
+use App\Models\Holiday;
 use App\Models\Schedule;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
@@ -15,7 +16,7 @@ class Index extends Component
 
     public function mount(): void
     {
-        $this->weekStart = Carbon::now()->startOfWeek()->toDateString();
+        $this->weekStart = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
     }
 
     public function previousWeek(): void
@@ -30,13 +31,13 @@ class Index extends Component
 
     public function goToCurrentWeek(): void
     {
-        $this->weekStart = Carbon::now()->startOfWeek()->toDateString();
+        $this->weekStart = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
     }
 
     public function render(): View
     {
-        $start = Carbon::parse($this->weekStart)->startOfWeek();
-        $end = $start->copy()->endOfWeek();
+        $start = Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY);
+        $end = $start->copy()->addDays(6);
 
         $days = Collection::times(7, fn ($i) => $start->copy()->addDays($i - 1));
 
@@ -48,12 +49,18 @@ class Index extends Component
             ->get()
             ->keyBy(fn ($s) => Carbon::parse($s->date)->toDateString());
 
+        $holidays = Holiday::query()
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->get()
+            ->keyBy('date');
+
         return view('livewire.schedules.index', [
+            'holidays' => $holidays,
             'days' => $days,
             'schedules' => $schedules,
             'startDate' => $start,
             'endDate' => $end,
-            'isCurrentWeek' => $start->isSameWeek(Carbon::now()),
+            'isCurrentWeek' => $start->isSameDay(Carbon::now()->startOfWeek(Carbon::SUNDAY)),
         ])->layout('layouts.app', ['title' => __('Horaire')]);
     }
 }

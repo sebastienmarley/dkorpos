@@ -4,7 +4,9 @@ namespace App\Livewire\Schedules;
 
 use App\Actions\FillWeekSchedules;
 use App\Enums\ScheduleStatus;
+use App\Enums\ScheduleType;
 use App\Models\Appointment;
+use App\Models\Holiday;
 use App\Models\Schedule;
 use App\Models\ShiftTemplate;
 use App\Models\User;
@@ -46,6 +48,11 @@ class ScheduleEdit extends Component
 
     public string $shiftTemplateId = '';
 
+    public string $scheduleType = 'work';
+
+    /** Dernier jour d'une absence de plusieurs jours (optionnel). */
+    public string $untilDate = '';
+
     public function mount(): void
     {
         $this->weekStart = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
@@ -84,6 +91,8 @@ class ScheduleEdit extends Component
         $this->status = $schedule ? $schedule->status->value : ScheduleStatus::Draft->value;
         $this->notes = $schedule ? ($schedule->notes ?? '') : '';
         $this->shiftTemplateId = '';
+        $this->scheduleType = $schedule ? $schedule->type->value : ScheduleType::Work->value;
+        $this->untilDate = '';
 
         $this->showModal = true;
     }
@@ -110,6 +119,7 @@ class ScheduleEdit extends Component
         $planned = Schedule::query()
             ->where('date', '>=', $start->copy()->subWeek()->toDateString())
             ->where('date', '<', $start->toDateString())
+            ->where('type', ScheduleType::Work->value)
             ->whereNotNull('start_time')
             ->whereNotNull('end_time')
             ->get()
@@ -148,7 +158,7 @@ class ScheduleEdit extends Component
     }
 
     /**
-     * @param  array{created: int, existing: int, unavailable: int, conflicts: int}  $result
+     * @param  array{created: int, existing: int, unavailable: int, conflicts: int, holidays: int}  $result
      */
     private function reportFill(array $result, string $heading): void
     {
@@ -160,6 +170,10 @@ class ScheduleEdit extends Component
 
         if ($result['unavailable'] > 0) {
             $lines[] = trans_choice(':count case ignorée (employé inactif ou hors de sa période de travail).|:count cases ignorées (employé inactif ou hors de sa période de travail).', $result['unavailable']);
+        }
+
+        if ($result['holidays'] > 0) {
+            $lines[] = trans_choice(':count case ignorée (férié fermé).|:count cases ignorées (férié fermé).', $result['holidays']);
         }
 
         if ($result['conflicts'] > 0) {
@@ -255,10 +269,17 @@ class ScheduleEdit extends Component
             return;
         }
 
+        $type = ScheduleType::tryFrom($this->scheduleType) ?? ScheduleType::Work;
+        $isAbsence = $type->isAbsence();
+
         $this->validate([
-            'startTime' => ['nullable', 'date_format:H:i', 'required_with:endTime'],
-            'endTime' => ['nullable', 'date_format:H:i', 'after:startTime', 'required_with:startTime'],
-            'breakMinutes' => ['required', 'integer', 'in:0,30,60'],
+            'scheduleType' => ['required', Rule::enum(ScheduleType::class)],
+            'startTime' => $isAbsence ? [] : ['nullable', 'date_format:H:i', 'required_with:endTime'],
+            'endTime' => $isAbsence ? [] : ['nullable', 'date_format:H:i', 'after:startTime', 'required_with:startTime'],
+            'breakMinutes' => $isAbsence ? [] : ['required', 'integer', 'in:0,30,60'],
+            'untilDate' => $isAbsence
+                ? ['nullable', 'date_format:Y-m-d', 'after_or_equal:editingDate', 'before_or_equal:'.Carbon::parse($this->editingDate)->addYear()->toDateString()]
+                : [],
             'status' => ['required', 'string', Rule::in(array_map(fn (ScheduleStatus $status) => $status->value, ScheduleStatus::editableValues()))],
             'notes' => ['nullable', 'string', 'max:500'],
         ], [
@@ -291,14 +312,17 @@ class ScheduleEdit extends Component
         }
 
         $data = [
-            'start_time' => filled($this->startTime) ? $this->startTime : null,
-            'end_time' => filled($this->endTime) ? $this->endTime : null,
-            'break_minutes' => $this->breakMinutes,
+            'type' => $type->value,
+            'start_time' => ! $isAbsence && filled($this->startTime) ? $this->startTime : null,
+            'end_time' => ! $isAbsence && filled($this->endTime) ? $this->endTime : null,
+            'break_minutes' => $isAbsence ? 0 : $this->breakMinutes,
             'status' => $this->status,
             'notes' => filled($this->notes) ? $this->notes : null,
         ];
 
-        $error = $this->writeSchedule($data);
+        $isRange = $isAbsence && filled($this->untilDate) && $this->untilDate > $this->editingDate;
+
+        $error = $isRange ? $this->writeAbsenceRange($data, $employee) : $this->writeSchedule($data);
 
         if ($error !== null) {
             $this->addError('editingDate', $error);
@@ -344,7 +368,7 @@ class ScheduleEdit extends Component
                 ]);
             }
 
-            $window = $data['status'] === ScheduleStatus::Draft->value || ! $data['start_time'] || ! $data['end_time']
+            $window = $data['status'] === ScheduleStatus::Draft->value || $data['type'] !== ScheduleType::Work->value || ! $data['start_time'] || ! $data['end_time']
                 ? null
                 : [$this->minutesOf($data['start_time']), $this->minutesOf($data['end_time'])];
 
@@ -362,6 +386,68 @@ class ScheduleEdit extends Component
 
             return null;
         });
+    }
+
+    /**
+     * Enregistre une absence sur plusieurs jours : le premier jour suit toutes les règles d'un quart,
+     * les suivants remplacent un quart modifiable et sont ignorés s'ils ne peuvent pas l'être.
+     *
+     * @param  array<string, mixed>  $data
+     * @return string|null Message d'erreur, ou null si l'absence a été enregistrée.
+     */
+    private function writeAbsenceRange(array $data, User $employee): ?string
+    {
+        return DB::transaction(function () use ($data, $employee): ?string {
+            $error = $this->writeSchedule($data);
+
+            if ($error !== null) {
+                return $error;
+            }
+
+            $saved = 1;
+            $skipped = 0;
+            $last = Carbon::parse($this->untilDate);
+
+            for ($day = Carbon::parse($this->editingDate)->addDay(); $day->lte($last); $day->addDay()) {
+                $this->fillAbsenceDay($employee, $day->toDateString(), $data) ? $saved++ : $skipped++;
+            }
+
+            $text = trans_choice(':count jour enregistré.|:count jours enregistrés.', $saved);
+
+            if ($skipped > 0) {
+                $text .= ' '.trans_choice(':count jour ignoré (quart fermé ou payé, hors période de travail, ou rendez-vous déjà pris).|:count jours ignorés (quart fermé ou payé, hors période de travail, ou rendez-vous déjà pris).', $skipped);
+            }
+
+            Flux::toast(text: $text, heading: __('Absence enregistrée'), variant: $skipped > 0 ? 'warning' : 'success');
+
+            return null;
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function fillAbsenceDay(User $employee, string $date, array $data): bool
+    {
+        $inService = $employee->first_day
+            && $date >= $employee->first_day->toDateString()
+            && (! $employee->last_day || $date <= $employee->last_day->toDateString());
+
+        $existing = Schedule::query()->where('user_id', $employee->id)->whereDate('date', $date)->first();
+
+        if (! $inService
+            || ($existing && ! in_array($existing->status, ScheduleStatus::editableValues()))
+            || Appointment::countOutsideWindow($employee->id, $date, null) > 0) {
+            return false;
+        }
+
+        if ($existing) {
+            $existing->update($data);
+        } else {
+            Schedule::create(['user_id' => $employee->id, 'date' => $date, ...$data]);
+        }
+
+        return true;
     }
 
     private function conflictMessage(int $count): string
@@ -398,7 +484,8 @@ class ScheduleEdit extends Component
     {
         $this->showModal = false;
         $this->resetValidation();
-        $this->reset(['editingUserId', 'editingScheduleId', 'editingVersion', 'editingDate', 'startTime', 'endTime', 'breakMinutes', 'status', 'notes', 'shiftTemplateId']);
+        $this->reset(['editingUserId', 'editingScheduleId', 'editingVersion', 'editingDate', 'startTime', 'endTime', 'breakMinutes', 'status', 'notes', 'shiftTemplateId', 'untilDate']);
+        $this->scheduleType = ScheduleType::Work->value;
     }
 
     public function render(): View
@@ -435,7 +522,14 @@ class ScheduleEdit extends Component
             ? Schedule::query()->with(['creator', 'lastUpdatedBy'])->find($this->editingScheduleId)
             : null;
 
+        $holidays = Holiday::query()
+            ->whereBetween('date', [$start->toDateString(), $start->copy()->addDays(6)->toDateString()])
+            ->get()
+            ->keyBy('date');
+
         return view('livewire.schedules.schedule-edit', [
+            'holidays' => $holidays,
+            'scheduleTypes' => ScheduleType::cases(),
             'shiftTemplates' => ShiftTemplate::query()->orderBy('name')->get(),
             'weekTemplates' => WeekTemplate::query()->orderBy('name')->get(),
             'editingSchedule' => $editingSchedule,
@@ -445,7 +539,7 @@ class ScheduleEdit extends Component
             'totalHours' => $totalHours,
             'startDate' => $start,
             'endDate' => $start->copy()->addDays(6),
-            'isCurrentWeek' => $start->isSameWeek(Carbon::now()),
+            'isCurrentWeek' => $start->isSameDay(Carbon::now()->startOfWeek(Carbon::SUNDAY)),
         ])->layout('layouts.app', ['title' => __('Gestion des horaires')]);
     }
 }

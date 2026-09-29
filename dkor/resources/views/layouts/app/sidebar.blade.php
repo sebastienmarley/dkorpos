@@ -109,6 +109,9 @@
                     <flux:sidebar.item icon="squares-2x2" :href="route('schedules.templates')" :current="request()->routeIs('schedules.templates')" wire:navigate>
                         {{ __('Modèles d\'horaire') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="sun" :href="route('schedules.holidays')" :current="request()->routeIs('schedules.holidays')" wire:navigate>
+                        {{ __('Jours fériés') }}
+                    </flux:sidebar.item>
                     <flux:sidebar.item icon="clock" :href="route('schedules.appointments')" :current="request()->routeIs('schedules.appointments')" wire:navigate>
                         {{ __('Rendez-vous') }}
                     </flux:sidebar.item>
