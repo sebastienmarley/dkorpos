@@ -166,6 +166,11 @@ it('affiche les horaires de la semaine naviguée', function () {
 it('présente la semaine du dimanche au samedi', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(Index::class)
-        ->assertSeeInOrder(['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']);
+    $dayNames = collect(range(0, 6))
+        ->map(fn (int $offset) => ucfirst(Carbon::now()->startOfWeek(Carbon::SUNDAY)->addDays($offset)->translatedFormat('l')))
+        ->all();
+
+    expect($dayNames[0])->toBe(ucfirst(Carbon::parse('sunday')->translatedFormat('l')));
+
+    Livewire::test(Index::class)->assertSeeInOrder($dayNames);
 });

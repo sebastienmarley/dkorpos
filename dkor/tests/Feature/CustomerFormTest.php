@@ -1,6 +1,6 @@
 <?php
 
-use App\Livewire\customerForm;
+use App\Livewire\CustomerForm;
 use App\Models\customer;
 use App\Models\User;
 use Livewire\Livewire;
@@ -10,7 +10,7 @@ use Livewire\Livewire;
 it('crée un client avec les champs obligatoires', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openCreate')
         ->set('firstname', 'Richard')
         ->set('lastname', 'Valjean')
@@ -23,7 +23,7 @@ it('crée un client avec les champs obligatoires', function () {
 it('crée un client avec tous les champs remplis', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openCreate')
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
@@ -50,14 +50,14 @@ it('crée un client avec tous les champs remplis', function () {
 it('enregistre null pour un courriel vide afin d\'éviter la violation de contrainte unique', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openCreate')
         ->set('firstname', 'Jean')
         ->set('lastname', 'Martin')
         ->call('save')
         ->assertHasNoErrors();
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openCreate')
         ->set('firstname', 'Pierre')
         ->set('lastname', 'Leblanc')
@@ -70,7 +70,7 @@ it('enregistre null pour un courriel vide afin d\'éviter la violation de contra
 it('ferme le modal et dispatche customer-saved après la création', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openCreate')
         ->set('firstname', 'Alice')
         ->set('lastname', 'Roy')
@@ -91,7 +91,7 @@ it('charge les données du client dans le modal d\'édition', function () {
 
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openEdit', $client->id)
         ->assertSet('firstname', 'Luc')
         ->assertSet('lastname', 'Gagnon')
@@ -105,7 +105,7 @@ it('met à jour un client existant', function () {
 
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openEdit', $client->id)
         ->set('firstname', 'Lucas')
         ->set('phone', '(450)555-9999')
@@ -121,7 +121,7 @@ it('ferme le modal et dispatche customer-saved après la modification', function
 
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openEdit', $client->id)
         ->call('save')
         ->assertSet('showModal', false)
@@ -133,7 +133,7 @@ it('ferme le modal et dispatche customer-saved après la modification', function
 it('requiert le prénom et le nom', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openCreate')
         ->call('save')
         ->assertHasErrors(['firstname', 'lastname']);
@@ -142,7 +142,7 @@ it('requiert le prénom et le nom', function () {
 it('rejette un format de téléphone invalide', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openCreate')
         ->set('firstname', 'Test')
         ->set('lastname', 'Client')
@@ -154,7 +154,7 @@ it('rejette un format de téléphone invalide', function () {
 it('accepte un téléphone au format (xxx)xxx-xxxx', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openCreate')
         ->set('firstname', 'Test')
         ->set('lastname', 'Client')
@@ -166,7 +166,7 @@ it('accepte un téléphone au format (xxx)xxx-xxxx', function () {
 it('accepte un téléphone vide', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openCreate')
         ->set('firstname', 'Test')
         ->set('lastname', 'Client')
@@ -180,7 +180,7 @@ it('rejette un courriel dupliqué', function () {
 
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openCreate')
         ->set('firstname', 'Test')
         ->set('lastname', 'Client')
@@ -194,7 +194,7 @@ it('autorise le même courriel lors de la modification du même client', functio
 
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->call('openEdit', $client->id)
         ->set('email', 'propre@exemple.com')
         ->call('save')
@@ -206,7 +206,7 @@ it('autorise le même courriel lors de la modification du même client', functio
 it('ouvre le modal en mode création avec les champs vides', function () {
     $this->actingAs(User::factory()->create());
 
-    Livewire::test(customerForm::class)
+    Livewire::test(CustomerForm::class)
         ->set('firstname', 'Données précédentes')
         ->call('openCreate')
         ->assertSet('showModal', true)

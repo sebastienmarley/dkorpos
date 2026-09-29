@@ -8,7 +8,7 @@ use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
-class customerForm extends Component
+class CustomerForm extends Component
 {
     public bool $showModal = false;
 
