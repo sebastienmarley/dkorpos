@@ -2,6 +2,7 @@
 
 use App\Enums\ScheduleStatus;
 use App\Livewire\Schedules\ScheduleEdit;
+use App\Models\Appointment;
 use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -618,4 +619,246 @@ it('retourne à la semaine courante', function () {
         ->call('previousWeek')
         ->call('goToCurrentWeek')
         ->assertSet('weekStart', Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString());
+});
+
+// ── Publication sûre ───────────────────────────────────────────────────────
+
+it('ne republie pas les quarts fermés ou payés en publiant la semaine', function () {
+    $user = User::factory()->create();
+    $start = Carbon::now()->startOfWeek(Carbon::SUNDAY);
+
+    Schedule::factory()->forDate($start->toDateString())->withStatus(ScheduleStatus::Closed)->create(['user_id' => $user->id]);
+    Schedule::factory()->forDate($start->copy()->addDay()->toDateString())->withStatus(ScheduleStatus::Paid)->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)->call('publishWeek');
+
+    expect(Schedule::orderBy('date')->pluck('status')->all())
+        ->toBe([ScheduleStatus::Closed, ScheduleStatus::Paid]);
+});
+
+it('ne publie pas les quarts des employés inactifs', function () {
+    $active = User::factory()->create();
+    $inactive = User::factory()->create(['is_active' => false]);
+    $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+
+    Schedule::factory()->forDate($date)->create(['user_id' => $inactive->id]);
+
+    $this->actingAs($active);
+
+    Livewire::test(ScheduleEdit::class)->call('publishWeek');
+
+    expect(Schedule::firstOrFail()->status)->toBe(ScheduleStatus::Draft);
+});
+
+it('refuse de dépublier une semaine qui contient des rendez-vous à venir', function () {
+    $user = User::factory()->create();
+    $today = Carbon::today()->toDateString();
+
+    Schedule::factory()->forDate($today)->published()->create(['user_id' => $user->id]);
+    Appointment::factory()->create(['user_id' => $user->id, 'date' => $today, 'start_minute' => 600, 'duration_minutes' => 60]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('unpublishWeek')
+        ->assertDispatched('toast-show');
+
+    expect(Schedule::firstOrFail()->status)->toBe(ScheduleStatus::Published);
+});
+
+// ── Rendez-vous liés ───────────────────────────────────────────────────────
+
+function scheduleWithAppointment(User $user, string $date): void
+{
+    Schedule::factory()->forDate($date)->published()->create(['user_id' => $user->id, 'start_time' => '09:00', 'end_time' => '17:00']);
+    Appointment::factory()->create(['user_id' => $user->id, 'date' => $date, 'start_minute' => 15 * 60, 'duration_minutes' => 60]);
+}
+
+it('refuse de raccourcir un quart si un rendez-vous se retrouve hors horaire', function () {
+    $user = User::factory()->create();
+    $date = Carbon::today()->addDays(2)->toDateString();
+    scheduleWithAppointment($user, $date);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('endTime', '15:30')
+        ->call('save')
+        ->assertHasErrors('editingDate');
+
+    expect(Schedule::firstOrFail()->end_time)->toBe('17:00');
+});
+
+it('accepte de modifier un quart tant que les rendez-vous restent dans l\'horaire', function () {
+    $user = User::factory()->create();
+    $date = Carbon::today()->addDays(2)->toDateString();
+    scheduleWithAppointment($user, $date);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('endTime', '16:00')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Schedule::firstOrFail()->end_time)->toBe('16:00');
+});
+
+it('refuse de repasser un quart en brouillon si des rendez-vous y sont pris', function () {
+    $user = User::factory()->create();
+    $date = Carbon::today()->addDays(2)->toDateString();
+    scheduleWithAppointment($user, $date);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('status', 'draft')
+        ->call('save')
+        ->assertHasErrors('editingDate');
+});
+
+it('refuse de supprimer un quart qui contient des rendez-vous', function () {
+    $user = User::factory()->create();
+    $date = Carbon::today()->addDays(2)->toDateString();
+    scheduleWithAppointment($user, $date);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->call('deleteSchedule')
+        ->assertHasErrors('editingDate');
+
+    expect(Schedule::count())->toBe(1);
+});
+
+it('ne tient pas compte des rendez-vous passés', function () {
+    $user = User::factory()->create();
+    $date = Carbon::today()->subDays(2)->toDateString();
+    scheduleWithAppointment($user, $date);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->call('deleteSchedule')
+        ->assertHasNoErrors();
+
+    expect(Schedule::count())->toBe(0);
+});
+
+// ── Statuts protégés ───────────────────────────────────────────────────────
+
+it('refuse de supprimer un quart payé', function () {
+    $user = User::factory()->create();
+    $date = Carbon::today()->addDay()->toDateString();
+
+    Schedule::factory()->forDate($date)->withStatus(ScheduleStatus::Paid)->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->call('deleteSchedule')
+        ->assertHasErrors('editingDate');
+
+    expect(Schedule::count())->toBe(1);
+});
+
+it('refuse d\'assigner un statut fermé ou payé depuis le module', function () {
+    $user = User::factory()->create();
+    $date = Carbon::today()->addDay()->toDateString();
+
+    $this->actingAs($user);
+
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->set('status', 'paid')
+        ->call('save')
+        ->assertHasErrors('status');
+});
+
+// ── Auteur et concurrence ──────────────────────────────────────────────────
+
+it('enregistre l\'auteur de la création et de la dernière modification', function () {
+    $creator = User::factory()->create();
+    $editor = User::factory()->create();
+    $date = Carbon::today()->addDay()->toDateString();
+
+    $this->actingAs($creator);
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $creator->id, $date)
+        ->set('startTime', '09:00')
+        ->set('endTime', '17:00')
+        ->call('save');
+
+    $this->actingAs($editor);
+    Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $creator->id, $date)
+        ->set('endTime', '16:00')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Schedule::firstOrFail())
+        ->created_by->toBe($creator->id)
+        ->last_updated_by->toBe($editor->id);
+});
+
+it('refuse d\'enregistrer un quart modifié par quelqu\'un d\'autre entre-temps', function () {
+    $user = User::factory()->create();
+    $date = Carbon::today()->addDay()->toDateString();
+    $schedule = Schedule::factory()->forDate($date)->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    $component = Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('endTime', '18:00');
+
+    $schedule->forceFill(['end_time' => '12:00', 'updated_at' => now()->addMinute()])->saveQuietly();
+
+    $component->call('save')->assertHasErrors('editingDate');
+
+    expect($schedule->fresh()->end_time)->toBe('12:00');
+});
+
+it('refuse d\'enregistrer un quart supprimé par quelqu\'un d\'autre entre-temps', function () {
+    $user = User::factory()->create();
+    $date = Carbon::today()->addDay()->toDateString();
+    $schedule = Schedule::factory()->forDate($date)->create(['user_id' => $user->id]);
+
+    $this->actingAs($user);
+
+    $component = Livewire::test(ScheduleEdit::class)->call('openCell', $user->id, $date);
+
+    $schedule->delete();
+
+    $component->call('save')->assertHasErrors('editingDate');
+
+    expect(Schedule::count())->toBe(0);
+});
+
+it('refuse de créer un quart déjà créé par quelqu\'un d\'autre entre-temps', function () {
+    $user = User::factory()->create();
+    $date = Carbon::today()->addDay()->toDateString();
+
+    $this->actingAs($user);
+
+    $component = Livewire::test(ScheduleEdit::class)
+        ->call('openCell', $user->id, $date)
+        ->set('startTime', '08:00')
+        ->set('endTime', '12:00');
+
+    Schedule::factory()->forDate($date)->create(['user_id' => $user->id]);
+
+    $component->call('save')->assertHasErrors('editingDate');
+
+    expect(Schedule::count())->toBe(1)->and(Schedule::firstOrFail()->end_time)->toBe('17:00');
 });

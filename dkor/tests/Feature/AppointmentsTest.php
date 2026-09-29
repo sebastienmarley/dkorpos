@@ -98,7 +98,7 @@ it('modifie un rendez-vous existant sans le compter comme chevauchement', functi
 });
 
 it('limite la durée à la fin de l\'horaire dans la semaine en cours', function () {
-    Schedule::factory()->create([
+    Schedule::factory()->published()->create([
         'user_id' => $this->employee->id,
         'date' => '2026-09-29',
         'start_time' => '08:00:00',
@@ -113,7 +113,7 @@ it('limite la durée à la fin de l\'horaire dans la semaine en cours', function
 });
 
 it('ignore les cases hors de l\'horaire de l\'employé dans la semaine en cours', function () {
-    Schedule::factory()->create([
+    Schedule::factory()->published()->create([
         'user_id' => $this->employee->id,
         'date' => '2026-09-29',
         'start_time' => '08:00:00',
@@ -127,7 +127,7 @@ it('ignore les cases hors de l\'horaire de l\'employé dans la semaine en cours'
 it('ignore les créneaux déjà passés aujourd\'hui', function () {
     Carbon::setTestNow(Carbon::parse('2026-09-28 10:15:00'));
 
-    Schedule::factory()->create([
+    Schedule::factory()->published()->create([
         'user_id' => $this->employee->id,
         'date' => '2026-09-28',
         'start_time' => '08:00:00',
@@ -391,4 +391,15 @@ it('ne plante pas en supprimant un rendez-vous déjà supprimé', function () {
     $appointment->delete();
 
     $component->call('deleteAppointment')->assertSet('showModal', false);
+});
+
+it('ne permet pas de réserver dans un quart non publié', function () {
+    Schedule::factory()->create([
+        'user_id' => $this->employee->id,
+        'date' => '2026-09-29',
+        'start_time' => '08:00:00',
+        'end_time' => '17:00:00',
+    ]);
+
+    bookingComponent($this->employee, '2026-09-29', 10 * 60)->assertSet('showModal', false);
 });

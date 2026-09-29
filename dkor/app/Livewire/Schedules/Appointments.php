@@ -336,6 +336,7 @@ class Appointments extends Component
     private function workingWindow(string $date): ?array
     {
         $schedule = Schedule::query()
+            ->bookable()
             ->where('user_id', $this->selectedUserId)
             ->where('date', $date)
             ->first();
@@ -432,6 +433,7 @@ class Appointments extends Component
 
         $schedules = $this->selectedUserId
             ? Schedule::query()
+                ->bookable()
                 ->where('user_id', $this->selectedUserId)
                 ->where('date', '>=', $start->toDateString())
                 ->where('date', '<', $start->copy()->addDays(7)->toDateString())

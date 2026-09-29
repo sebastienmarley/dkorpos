@@ -9,6 +9,7 @@ use App\Livewire\Products\Show as ProductShow;
 use App\Livewire\Schedules\Appointments;
 use App\Livewire\Schedules\Index as SchedulesIndex;
 use App\Livewire\Schedules\ScheduleEdit;
+use App\Livewire\Schedules\Templates;
 use App\Livewire\Suppliers\Index as SuppliersIndex;
 use App\Livewire\Suppliers\Show as SupplierShow;
 use App\Livewire\Users\Index as UsersIndex;
@@ -42,6 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('schedules', SchedulesIndex::class)->name('schedules.index');
     Route::get('schedules/schedule-edit', ScheduleEdit::class)->name('schedules.schedule-edit');
     Route::get('schedules/appointments', Appointments::class)->name('schedules.appointments');
+    Route::get('schedules/templates', Templates::class)->name('schedules.templates');
 });
 
 require __DIR__.'/settings.php';

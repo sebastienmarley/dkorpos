@@ -47,6 +47,27 @@ class Appointment extends Model
         });
     }
 
+    /**
+     * Nombre de rendez-vous à venir de l'employé, ce jour-là, qui ne tiendraient plus dans la plage donnée.
+     *
+     * @param  array{0: int, 1: int}|null  $window  Minutes depuis minuit ; null si aucun horaire réservable.
+     */
+    public static function countOutsideWindow(int $userId, string $date, ?array $window): int
+    {
+        if ($date < Carbon::today()->toDateString()) {
+            return 0;
+        }
+
+        return static::query()
+            ->where('user_id', $userId)
+            ->whereDate('date', $date)
+            ->when($window !== null, fn ($query) => $query->where(function ($query) use ($window) {
+                $query->where('start_minute', '<', $window[0])
+                    ->orWhereRaw('start_minute + duration_minutes > ?', [$window[1]]);
+            }))
+            ->count();
+    }
+
     public function endMinute(): int
     {
         return $this->start_minute + $this->duration_minutes;
