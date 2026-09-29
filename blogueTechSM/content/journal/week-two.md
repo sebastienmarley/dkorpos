@@ -72,6 +72,4 @@ J'ai d'autre vidéos à importer sur Youtube, mais ça ira à demain.
 ## Exemple d'usage
 [Voici un court vidéo ou je débogge avec l'aide de l'IA](https://youtu.be/D4qVovh7RbM).  
 
-
-
 ## Jour 7

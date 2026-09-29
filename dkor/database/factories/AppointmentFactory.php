@@ -16,7 +16,8 @@ class AppointmentFactory extends Factory
         return [
             'user_id' => User::factory(),
             'date' => fake()->dateTimeBetween('now', '+30 days')->format('Y-m-d'),
-            'hour' => fake()->numberBetween(8, 18),
+            'start_minute' => fake()->numberBetween(8, 17) * 60,
+            'duration_minutes' => 60,
             'title' => fake()->sentence(3),
             'notes' => fake()->optional()->sentence(),
         ];

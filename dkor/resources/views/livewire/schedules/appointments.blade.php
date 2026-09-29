@@ -41,8 +41,134 @@
         </flux:callout>
     @endif
 
+    @assets
+    <script>
+        window.appointmentGrid = (slotMinutes, dayStartMinute) => ({
+            drag: null,
+            preview: null,
+
+            start(event, mode) {
+                if (event.button !== 0) return;
+                const block = event.currentTarget.closest('[data-appt]');
+                const rows = this.rows();
+                const startRow = Math.round((Number(block.dataset.start) - dayStartMinute) / slotMinutes);
+                const pointer = this.locate(event);
+
+                this.drag = {
+                    mode,
+                    id: Number(block.dataset.appt),
+                    version: Number(block.dataset.version),
+                    originDate: block.dataset.date,
+                    startRow,
+                    slots: Math.round(Number(block.dataset.duration) / slotMinutes),
+                    grabOffset: pointer.row - startRow,
+                    x: event.clientX,
+                    y: event.clientY,
+                    moved: false,
+                    total: rows.length,
+                };
+                this.drag.target = { date: block.dataset.date, row: startRow, slots: this.drag.slots };
+
+                window.addEventListener('pointermove', this.onMove = (e) => this.move(e));
+                window.addEventListener('pointerup', this.onUp = () => this.end());
+                event.preventDefault();
+            },
+
+            move(event) {
+                const d = this.drag;
+                if (!d) return;
+                if (!d.moved && Math.hypot(event.clientX - d.x, event.clientY - d.y) < 4) return;
+                d.moved = true;
+
+                const pointer = this.locate(event);
+                if (d.mode === 'move') {
+                    const row = Math.min(Math.max(pointer.row - d.grabOffset, 0), d.total - d.slots);
+                    d.target = { date: pointer.date, row, slots: d.slots };
+                } else {
+                    const slots = Math.min(Math.max(pointer.row - d.startRow + 1, 1), d.total - d.startRow);
+                    d.target = { date: d.originDate, row: d.startRow, slots };
+                }
+                this.draw(d.target);
+            },
+
+            isValid(target) {
+                const grid = JSON.parse(this.$root.dataset.grid);
+                const open = new Set(grid.open[target.date] ?? []);
+                const from = dayStartMinute + target.row * slotMinutes;
+                const to = from + target.slots * slotMinutes;
+
+                for (let minute = from; minute < to; minute += slotMinutes) {
+                    if (!open.has(minute)) return false;
+                }
+
+                return !grid.appointments.some((a) =>
+                    a.id !== this.drag.id && a.date === target.date && a.start < to && a.end > from);
+            },
+
+            end() {
+                window.removeEventListener('pointermove', this.onMove);
+                window.removeEventListener('pointerup', this.onUp);
+                const d = this.drag;
+                this.drag = null;
+                this.preview = null;
+                if (!d || !d.moved) return;
+
+                // Le clic qui suit un glisser ne doit pas ouvrir la fenêtre d'édition.
+                const swallow = (e) => e.stopPropagation();
+                this.$root.addEventListener('click', swallow, { capture: true, once: true });
+                setTimeout(() => this.$root.removeEventListener('click', swallow, { capture: true }), 0);
+
+                const t = d.target;
+                if (t.date === d.originDate && t.row === d.startRow && t.slots === d.slots) return;
+                this.$wire.updateAppointmentTime(d.id, t.date, dayStartMinute + t.row * slotMinutes, t.slots * slotMinutes, d.version);
+            },
+
+            rows() {
+                return [...this.$root.querySelectorAll('tbody > tr')];
+            },
+
+            columns() {
+                return [...this.$root.querySelectorAll('thead th[data-date]')];
+            },
+
+            locate(event) {
+                const pick = (items, value, from, to) => {
+                    let index = items.findIndex((el) => value < el.getBoundingClientRect()[to]);
+                    return index === -1 ? items.length - 1 : index;
+                };
+                const rows = this.rows();
+                const columns = this.columns();
+                return {
+                    row: pick(rows, event.clientY, 'top', 'bottom'),
+                    date: columns[pick(columns, event.clientX, 'left', 'right')].dataset.date,
+                };
+            },
+
+            draw(target) {
+                const rows = this.rows();
+                const column = this.columns().find((th) => th.dataset.date === target.date);
+                const root = this.$root.getBoundingClientRect();
+                const first = rows[target.row].getBoundingClientRect();
+                const last = rows[target.row + target.slots - 1].getBoundingClientRect();
+                const col = column.getBoundingClientRect();
+
+                this.preview = {
+                    left: col.left - root.left + this.$root.scrollLeft,
+                    top: first.top - root.top + this.$root.scrollTop,
+                    width: col.width,
+                    height: last.bottom - first.top,
+                    valid: this.isValid(target),
+                };
+            },
+        });
+    </script>
+    @endassets
+
     {{-- Grille --}}
-    <div class="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+    <div
+        x-data="appointmentGrid({{ $slotMinutes }}, {{ \App\Livewire\Schedules\Appointments::DAY_START_MINUTE }})"
+        data-grid="{{ json_encode($gridData) }}"
+        class="relative overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <table class="min-w-full table-fixed border-collapse text-sm">
             <thead>
                 <tr class="border-b border-zinc-200 dark:border-zinc-700">
@@ -51,7 +177,7 @@
                     </th>
                     @foreach ($days as $day)
                         @php $isToday = $day->isToday(); @endphp
-                        <th class="px-2 py-2 text-center text-xs font-semibold @if($isToday) text-blue-600 dark:text-blue-400 @else text-zinc-500 dark:text-zinc-400 @endif">
+                        <th data-date="{{ $day->toDateString() }}" class="px-2 py-2 text-center text-xs font-semibold @if($isToday) text-blue-600 dark:text-blue-400 @else text-zinc-500 dark:text-zinc-400 @endif">
                             <div>{{ ucfirst($day->translatedFormat('l')) }}</div>
                             <div @class(['mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold' => true, 'bg-blue-600 text-white' => $isToday])>
                                 {{ $day->translatedFormat('d') }}
@@ -61,33 +187,25 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach ($hours as $hour)
+                @foreach ($timeSlots as $slotStart)
                     <tr class="border-b border-zinc-100 last:border-0 dark:border-zinc-800">
                         <td class="px-3 py-1 text-xs font-medium text-zinc-400 dark:text-zinc-500">
-                            {{ sprintf('%02d:00', $hour) }}
+                            {{ sprintf('%02d:%02d', intdiv($slotStart, 60), $slotStart % 60) }}
                         </td>
                         @foreach ($days as $day)
                             @php
                                 $dateKey = $day->toDateString();
-                                $cellKey = $dateKey.':'.(string) $hour;
+                                $cellKey = $dateKey.':'.$slotStart;
 
                                 if ($coveredCells->contains($cellKey)) {
                                     continue;
                                 }
 
-                                $appointment = $appointments->get($dateKey)?->get($hour);
-                                $isPast = $day->startOfDay()->lt(\Carbon\Carbon::now()->startOfDay());
+                                $appointment = $appointments->get($dateKey)?->get($slotStart);
+                                $isPast = $day->copy()->startOfDay()->addMinutes($slotStart)->lt(\Carbon\Carbon::now());
 
-                                $schedule = $schedules->get($dateKey);
-                                $worksAtHour = false;
-                                if ($schedule && $schedule->start_time && $schedule->end_time) {
-                                    $scheduleStartHour = (int) \Illuminate\Support\Str::substr($schedule->start_time, 0, 2);
-                                    $scheduleEndHour = (int) \Illuminate\Support\Str::substr($schedule->end_time, 0, 2);
-                                    $worksAtHour = $hour >= $scheduleStartHour && $hour < $scheduleEndHour;
-                                }
-
-                                $isClickable = ! $isPastWeek && ! $isPast && (! $isCurrentWeek || $worksAtHour);
-                                $rowspan = $appointment ? $appointment->duration_hours : 1;
+                                $isClickable = $openSlots[$dateKey][$slotStart] ?? false;
+                                $rowspan = $appointment ? (int) ceil($appointment->duration_minutes / $slotMinutes) : 1;
                             @endphp
 
                             <td
@@ -100,13 +218,23 @@
                                     'opacity-40' => $isPast && ! $appointment,
                                 ])
                                 @if ($isClickable)
-                                    wire:click="openCell('{{ $dateKey }}', {{ $hour }})"
+                                    wire:click="openCell('{{ $dateKey }}', {{ $slotStart }})"
                                 @endif
                             >
-                                <div @class(['min-h-[2rem]' => $rowspan === 1])>
+                                <div class="min-h-[2rem]">
                                     @if ($appointment)
-                                        <div @class([
-                                            'h-full rounded px-1.5 py-1 text-xs leading-tight' => true,
+                                        <div
+                                            @if ($isClickable)
+                                                data-appt="{{ $appointment->id }}"
+                                                data-date="{{ $dateKey }}"
+                                                data-start="{{ $appointment->start_minute }}"
+                                                data-duration="{{ $appointment->duration_minutes }}"
+                                                data-version="{{ $appointment->updated_at?->getTimestamp() }}"
+                                                x-on:pointerdown="start($event, 'move')"
+                                            @endif
+                                            @class([
+                                            'absolute inset-0.5 select-none rounded px-1.5 py-1 text-xs leading-tight' => true,
+                                            'touch-none cursor-grab active:cursor-grabbing' => $isClickable,
                                             'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200' => $isClickable,
                                             'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400' => ! $isClickable,
                                         ])>
@@ -114,8 +242,19 @@
                                             @if ($appointment->customer)
                                                 <div class="truncate text-[10px] opacity-75">{{ $appointment->customer->firstname }} {{ $appointment->customer->lastname }}</div>
                                             @endif
-                                            @if ($appointment->duration_hours > 1)
-                                                <div class="mt-0.5 text-[10px] opacity-60">{{ $appointment->duration_hours }}h</div>
+                                            <div class="mt-0.5 text-[10px] opacity-60">
+                                                {{ sprintf('%02d:%02d', intdiv($appointment->start_minute, 60), $appointment->start_minute % 60) }}
+                                                – {{ sprintf('%02d:%02d', intdiv($appointment->endMinute(), 60), $appointment->endMinute() % 60) }}
+                                            </div>
+                                            @if ($isClickable)
+                                                <div
+                                                    x-on:pointerdown.stop="start($event, 'resize')"
+                                                    x-on:click.stop
+                                                    class="absolute inset-x-0 bottom-0 flex h-2 cursor-ns-resize items-end justify-center"
+                                                    title="{{ __('Ajuster la durée') }}"
+                                                >
+                                                    <span class="mb-0.5 h-0.5 w-6 rounded bg-blue-400/60"></span>
+                                                </div>
                                             @endif
                                         </div>
                                     @elseif ($isClickable)
@@ -130,6 +269,14 @@
                 @endforeach
             </tbody>
         </table>
+
+        <div
+            x-show="preview"
+            x-cloak
+            class="pointer-events-none absolute rounded border-2 border-dashed"
+            x-bind:class="preview && !preview.valid ? 'border-red-500 bg-red-500/20' : 'border-blue-500 bg-blue-500/10'"
+            x-bind:style="preview && `left:${preview.left}px;top:${preview.top}px;width:${preview.width}px;height:${preview.height}px`"
+        ></div>
     </div>
 
     {{-- Modal ajout/édition --}}
@@ -144,7 +291,20 @@
         @if ($editingDate)
             <flux:text class="mb-4 text-zinc-500">
                 {{ ucfirst(\Illuminate\Support\Carbon::parse($editingDate)->translatedFormat('l d F Y')) }}
-                {{ __('à') }} {{ sprintf('%02d:00', $editingHour) }}
+                {{ __('à') }} {{ sprintf('%02d:%02d', intdiv($editingStartMinute, 60), $editingStartMinute % 60) }}
+            </flux:text>
+        @endif
+
+        @if ($editingAppointment)
+            <flux:text class="mb-4 text-xs text-zinc-400">
+                @if ($editingAppointment->creator)
+                    {{ __('Créé par :name', ['name' => $editingAppointment->creator->fullName()]) }}
+                    · {{ $editingAppointment->created_at?->translatedFormat('d M Y H:i') }}
+                @endif
+                @if ($editingAppointment->lastUpdatedBy && $editingAppointment->updated_at?->ne($editingAppointment->created_at))
+                    <br>{{ __('Dernière modification par :name', ['name' => $editingAppointment->lastUpdatedBy->fullName()]) }}
+                    · {{ $editingAppointment->updated_at?->translatedFormat('d M Y H:i') }}
+                @endif
             </flux:text>
         @endif
 
@@ -158,12 +318,14 @@
 
                 <flux:field>
                     <flux:label>{{ __('Durée') }}</flux:label>
-                    <flux:select wire:model="durationHours">
-                        @for ($h = 1; $h <= $maxDuration; $h++)
-                            <flux:select.option value="{{ $h }}">{{ $h }}h00</flux:select.option>
+                    <flux:select wire:model="durationMinutes">
+                        @for ($m = $slotMinutes; $m <= $maxDuration; $m += $slotMinutes)
+                            <flux:select.option value="{{ $m }}">
+                                {{ $m >= 60 ? intdiv($m, 60).'h'.($m % 60 ? sprintf('%02d', $m % 60) : '') : $m.' min' }}
+                            </flux:select.option>
                         @endfor
                     </flux:select>
-                    <flux:error name="durationHours" />
+                    <flux:error name="durationMinutes" />
                 </flux:field>
             </div>
 
