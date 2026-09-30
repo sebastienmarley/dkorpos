@@ -1,24 +1,44 @@
 <div class="p-6">
+    @if (session('toast-error'))
+        <div x-data x-init="$nextTick(() => $flux.toast({ text: @js(session('toast-error')), variant: 'danger' }))"></div>
+    @endif
+
     {{-- En-tête --}}
     <div class="mb-6 flex items-center justify-between">
         <div>
             <flux:heading level="1" size="xl">{{ __('Utilisateurs') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Employés actifs') }}</flux:text>
+            <flux:text class="mt-1 text-zinc-500">{{ match ($statusFilter) { 'inactive' => __('Employés inactifs'), 'all' => __('Tous les employés'), default => __('Employés actifs') } }}</flux:text>
         </div>
 
-        <flux:button variant="primary" icon="plus" wire:click="openCreateModal">
-            {{ __('Ajouter un utilisateur') }}
-        </flux:button>
+        @can('create', \App\Models\User::class)
+            <flux:button variant="primary" icon="plus" wire:click="openCreateModal">
+                {{ __('Ajouter un utilisateur') }}
+            </flux:button>
+        @endcan
     </div>
 
-    {{-- Filtre par rôle --}}
-    <div class="mb-4 w-64">
-        <flux:select wire:model.live="sortRole">
-            <flux:select.option value="">{{ __('Tous les rôles') }}</flux:select.option>
-            @foreach ($this->getRoleTypes() as $roleType)
-                <flux:select.option :value="$roleType->value">{{ $roleType->label() }}</flux:select.option>
-            @endforeach
-        </flux:select>
+    {{-- Recherche et filtres --}}
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+        <div class="w-64">
+            <flux:input wire:model.live.debounce.300ms="search" type="search" icon="magnifying-glass" :placeholder="__('Rechercher un employé…')" />
+        </div>
+
+        <div class="w-56">
+            <flux:select wire:model.live="sortRole">
+                <flux:select.option value="">{{ __('Tous les rôles') }}</flux:select.option>
+                @foreach ($this->getRoleTypes() as $roleType)
+                    <flux:select.option :value="$roleType->value">{{ $roleType->label() }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        </div>
+
+        <div class="w-44">
+            <flux:select wire:model.live="statusFilter">
+                <flux:select.option value="active">{{ __('Actifs') }}</flux:select.option>
+                <flux:select.option value="inactive">{{ __('Inactifs') }}</flux:select.option>
+                <flux:select.option value="all">{{ __('Tous') }}</flux:select.option>
+            </flux:select>
+        </div>
     </div>
 
     {{-- Tableau --}}
@@ -33,13 +53,13 @@
                 @forelse ($users as $user)
                     <flux:table.row :key="$user->id">
                         <flux:table.cell variant="strong">
-                            <button
-                                type="button"
-                                wire:click="openEditModal({{ $user->id }})"
-                                class="text-left hover:underline"
-                            >
+                            @can('update', $user)
+                                <flux:link :href="route('users.show', $user)" wire:navigate>
+                                    {{ $user->fullName() }}
+                                </flux:link>
+                            @else
                                 {{ $user->fullName() }}
-                            </button>
+                            @endcan
                         </flux:table.cell>
 
                         <flux:table.cell>
@@ -53,7 +73,7 @@
                         <flux:table.cell colspan="2" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="users" class="h-8 w-8 text-zinc-300" />
-                                <flux:text class="text-zinc-400">{{ __('Aucun utilisateur actif trouvé.') }}</flux:text>
+                                <flux:text class="text-zinc-400">{{ __('Aucun utilisateur trouvé.') }}</flux:text>
                             </div>
                         </flux:table.cell>
                     </flux:table.row>
@@ -65,17 +85,65 @@
     {{-- Compteur --}}
     @if ($users->isNotEmpty())
         <flux:text class="mt-3 text-sm text-zinc-400">
-            {{ trans_choice(':count utilisateur actif|:count utilisateurs actifs', $users->count()) }}
+            {{ trans_choice(':count utilisateur|:count utilisateurs', $users->count()) }}
             @if (filled($sortRole))
                 · {{ __('filtrés par rôle :') }} <strong>{{ \App\Enums\RoleType::from($sortRole)->label() }}</strong>
             @endif
         </flux:text>
     @endif
 
+    {{-- Identifiants du nouvel utilisateur --}}
+    <flux:modal wire:model="showCredentialsModal" class="w-full max-w-md" x-on:close="$wire.closeCredentialsModal()">
+        <flux:heading class="mb-1">{{ __('Utilisateur créé') }}</flux:heading>
+        <flux:text class="mb-4 mt-1 text-zinc-500">{{ __('Notez ce mot de passe temporaire, il ne sera plus affiché.') }}</flux:text>
+
+        <div class="space-y-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-800">
+            <div class="flex items-center justify-between">
+                <span class="text-zinc-500">{{ __('Courriel') }}</span>
+                <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ $createdEmail }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-zinc-500">{{ __('Mot de passe') }}</span>
+                <code class="font-mono font-semibold tracking-wider text-zinc-800 dark:text-zinc-100">{{ $createdPassword }}</code>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4">
+            <flux:button
+                type="button"
+                variant="ghost"
+                icon="clipboard"
+                x-on:click="navigator.clipboard.writeText(@js($createdPassword))"
+            >
+                {{ __('Copier') }}
+            </flux:button>
+            <flux:button type="button" variant="primary" wire:click="closeCredentialsModal">
+                {{ __('Fermer') }}
+            </flux:button>
+        </div>
+    </flux:modal>
+
     {{-- Modal de création --}}
     <flux:modal wire:model="showCreateModal" class="w-full max-w-lg">
         <flux:heading class="mb-1">{{ __('Nouvel utilisateur') }}</flux:heading>
         <flux:text class="mb-6 mt-1 text-zinc-500">{{ __('Le courriel et le mot de passe temporaire seront générés automatiquement.') }}</flux:text>
+
+        @if ($inactiveMatchIds !== [] && $employeeChoice === null)
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p class="font-medium">
+                    {{ trans_choice('Un employé inactif porte déjà ce nom.|:count employés inactifs portent déjà ce nom.', count($inactiveMatchIds)) }}
+                </p>
+                <p class="mt-1">{{ __("S'agit-il d'un nouvel employé ou d'un retour d'employé ?") }}</p>
+                <div class="mt-3 flex gap-2">
+                    <flux:button size="sm" variant="primary" wire:click="confirmNewEmployee">
+                        {{ __('Nouvel employé') }}
+                    </flux:button>
+                    <flux:button size="sm" wire:click="confirmReturningEmployee">
+                        {{ __('Retour d\'un employé') }}
+                    </flux:button>
+                </div>
+            </div>
+        @endif
 
         @if ($showDuplicatePrompt && $existingUser)
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
@@ -107,7 +175,7 @@
             <flux:field>
                 <flux:label>{{ __('Rôle') }}</flux:label>
                 <flux:select wire:model="role">
-                    @foreach ($this->getRoleTypes() as $roleType)
+                    @foreach ($this->assignableRoles() as $roleType)
                         <flux:select.option :value="$roleType->value">{{ $roleType->label() }}</flux:select.option>
                     @endforeach
                 </flux:select>
@@ -156,130 +224,4 @@
             </div>
         </form>
     </flux:modal>
-
-    {{-- Modal de modification --}}
-    <flux:modal wire:model="showEditModal" class="w-full max-w-lg">
-        <flux:heading class="mb-1">{{ __('Modifier l\'utilisateur') }}</flux:heading>
-        <flux:text class="mb-6 mt-1 text-zinc-500">{{ __("Le nom d'utilisateur et le courriel système ne peuvent pas être modifiés.") }}</flux:text>
-
-        {{-- Info en lecture seule --}}
-        @if (filled($editUsername))
-            <div class="mb-4 space-y-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-800">
-                <div class="flex items-center justify-between">
-                    <span class="text-zinc-500">{{ __("Nom d'utilisateur") }}</span>
-                    <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ $editUsername }}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-zinc-500">{{ __('Courriel') }}</span>
-                    <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ $editEmail }}</span>
-                </div>
-            </div>
-        @endif
-
-        <form wire:submit="update" class="space-y-4">
-            <div class="grid gap-4 sm:grid-cols-2">
-                <flux:field>
-                    <flux:label>{{ __('Prénom') }}</flux:label>
-                    <flux:input wire:model="editFirstname" type="text" required autofocus />
-                    <flux:error name="editFirstname" />
-                </flux:field>
-
-                <flux:field>
-                    <flux:label>{{ __('Nom') }}</flux:label>
-                    <flux:input wire:model="editLastname" type="text" required />
-                    <flux:error name="editLastname" />
-                </flux:field>
-            </div>
-
-            <flux:field>
-                <flux:label>{{ __('Rôle') }}</flux:label>
-                <flux:select wire:model="editRole">
-                    @foreach ($this->getRoleTypes() as $roleType)
-                        <flux:select.option :value="$roleType->value">{{ $roleType->label() }}</flux:select.option>
-                    @endforeach
-                </flux:select>
-                <flux:error name="editRole" />
-            </flux:field>
-
-            <div class="grid gap-4 sm:grid-cols-2">
-                <flux:field>
-                    <flux:label>{{ __('Premier jour') }}</flux:label>
-                    <flux:input wire:model="editFirstDay" type="date" />
-                    <flux:error name="editFirstDay" />
-                </flux:field>
-
-                <flux:field>
-                    <flux:label>{{ __('Dernier jour') }}</flux:label>
-                    <flux:input wire:model="editLastDay" type="date" />
-                    <flux:error name="editLastDay" />
-                </flux:field>
-            </div>
-
-            <flux:field>
-                <flux:label>{{ __('Courriel personnel') }}</flux:label>
-                <flux:input wire:model="editPersonalEmail" type="email" placeholder="prenom.nom@exemple.com" />
-                <flux:error name="editPersonalEmail" />
-            </flux:field>
-
-            <div class="grid gap-4 sm:grid-cols-2">
-                <x-phone-input wire:model="editPhone" label="{{ __('Téléphone') }}" name="editPhone" />
-                <x-phone-input wire:model="editCellphone" label="{{ __('Cellulaire') }}" name="editCellphone" />
-            </div>
-
-            <div class="flex items-center justify-between pt-2">
-                <flux:switch wire:model="editIsActive" :label="__('Actif')" />
-                <div class="flex gap-3">
-                    <flux:button type="button" variant="ghost" wire:click="$set('showEditModal', false)">
-                        {{ __('Annuler') }}
-                    </flux:button>
-                    <flux:button type="submit" variant="primary">
-                        {{ __('Sauvegarder') }}
-                    </flux:button>
-                </div>
-            </div>
-        </form>
-
-        {{-- Réinitialisation du mot de passe --}}
-        <div class="mt-6 border-t border-zinc-200 pt-5 dark:border-zinc-700">
-            <div class="flex items-center justify-between">
-                <div>
-                    <flux:heading size="sm">{{ __('Mot de passe') }}</flux:heading>
-                    <flux:text class="text-sm text-zinc-500">{{ __('Générer un nouveau mot de passe sécuritaire') }}</flux:text>
-                </div>
-                <flux:button
-                    type="button"
-                    variant="danger"
-                    icon="key"
-                    wire:click="resetPassword"
-                    wire:confirm="{{ __('Réinitialiser le mot de passe de cet utilisateur ?') }}"
-                >
-                    {{ __('Réinitialiser') }}
-                </flux:button>
-            </div>
-
-            @if ($editGeneratedPassword)
-                <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950">
-                    <div class="mb-2 flex items-center gap-2">
-                        <flux:icon name="exclamation-triangle" class="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                        <flux:text class="text-sm font-medium text-amber-800 dark:text-amber-300">
-                            {{ __('Notez ce mot de passe, il ne sera plus affiché.') }}
-                        </flux:text>
-                    </div>
-                    <div class="flex items-center justify-between rounded-md border border-amber-300 bg-white px-3 py-2 dark:border-amber-600 dark:bg-zinc-900">
-                        <code class="text-base font-mono font-semibold tracking-wider text-zinc-800 dark:text-zinc-100">{{ $editGeneratedPassword }}</code>
-                        <flux:button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            icon="clipboard"
-                            x-on:click="navigator.clipboard.writeText('{{ $editGeneratedPassword }}')"
-                        >
-                            {{ __('Copier') }}
-                        </flux:button>
-                    </div>
-                </div>
-            @endif
-        </div>
-    </flux:modal>
-
 </div>

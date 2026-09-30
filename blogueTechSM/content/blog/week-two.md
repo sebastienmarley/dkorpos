@@ -2,7 +2,7 @@
 title: "Itération 1 - semaine 2"
 date: 2026-09-27
 draft: false
-description: "Retour sur la deuxièmesemaine de démarrage du projet, les blocages rencontrés et les constats del'utilisation de l'IA."
+description: "Retour sur la deuxième semaine de démarrage du projet, les blocages rencontrés et les constats de l'utilisation de l'IA."
 categories:
   - "Projet"
 tags:

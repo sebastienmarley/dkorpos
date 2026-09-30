@@ -3,6 +3,7 @@
 namespace App\Livewire\Catalog;
 
 use App\Models\Color;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
 
@@ -45,10 +46,10 @@ class Colors extends Component
 
         if ($this->editingId) {
             Color::findOrFail($this->editingId)->update($data);
-            $this->dispatch('toast', message: __('Couleur mise à jour.'), variant: 'success');
+            Flux::toast(text: __('Couleur mise à jour.'), variant: 'success');
         } else {
             Color::create($data);
-            $this->dispatch('toast', message: __('Couleur créée.'), variant: 'success');
+            Flux::toast(text: __('Couleur créée.'), variant: 'success');
         }
 
         $this->showModal = false;

@@ -2,17 +2,27 @@
 
 namespace App\Livewire\Users;
 
-use App\Actions\PurgeSchedulesAfterLastDay;
 use App\Enums\RoleType;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
 class Index extends Component
 {
     public string $sortRole = '';
+
+    public string $search = '';
+
+    /** Valeurs possibles : active, inactive, all. */
+    public string $statusFilter = 'active';
+
+    public bool $showCredentialsModal = false;
+
+    public string $createdEmail = '';
+
+    public ?string $createdPassword = null;
 
     public bool $showCreateModal = false;
 
@@ -37,44 +47,23 @@ class Index extends Component
 
     public bool $showDuplicatePrompt = false;
 
+    /** @var array<int, int> Identifiants des employés inactifs portant le même nom. */
+    public array $inactiveMatchIds = [];
+
+    /** Réponse à « nouvel employé ou retour ? » : null tant qu'on n'a pas répondu, sinon « new ». */
+    public ?string $employeeChoice = null;
+
     public ?User $existingUser = null;
-
-    // Champs du formulaire de modification
-    public bool $showEditModal = false;
-
-    public ?int $editingUserId = null;
-
-    public string $editFirstname = '';
-
-    public string $editLastname = '';
-
-    public string $editRole = 'salesman';
-
-    public ?string $editFirstDay = null;
-
-    public ?string $editLastDay = null;
-
-    public ?string $editPersonalEmail = null;
-
-    public ?string $editPhone = null;
-
-    public ?string $editCellphone = null;
-
-    public string $editUsername = '';
-
-    public string $editEmail = '';
-
-    public bool $editIsActive = true;
-
-    public ?string $editGeneratedPassword = null;
 
     public function updatedFirstname(): void
     {
+        $this->employeeChoice = null;
         $this->syncUsername();
     }
 
     public function updatedLastname(): void
     {
+        $this->employeeChoice = null;
         $this->syncUsername();
     }
 
@@ -85,48 +74,83 @@ class Index extends Component
             $this->generatedEmail = '';
             $this->showDuplicatePrompt = false;
             $this->existingUser = null;
+            $this->inactiveMatchIds = [];
 
             return;
         }
 
+        $this->inactiveMatchIds = User::inactiveMatchesForName($this->firstname, $this->lastname, Auth::user())->modelKeys();
+
         $resolved = User::resolveUsernameForEmployee($this->firstname, $this->lastname);
         $this->username = $resolved['username'];
         $this->generatedEmail = $resolved['username'].'@dkor.ca';
-        $this->existingUser = $resolved['existingUser'];
-        $this->showDuplicatePrompt = $resolved['requiresVerification'];
+        $this->showDuplicatePrompt = $resolved['requiresVerification'] && $this->canSee($resolved['existingUser']);
+        $this->existingUser = $this->showDuplicatePrompt ? $resolved['existingUser'] : null;
     }
 
     public function confirmNewEmployee(): void
     {
+        $this->employeeChoice = 'new';
         $this->username = User::generateUniqueUsername($this->firstname, $this->lastname);
         $this->generatedEmail = $this->username.'@dkor.ca';
         $this->showDuplicatePrompt = false;
         $this->existingUser = null;
     }
 
+    /**
+     * Retour d'un ancien employé : fiche directe s'il n'y a qu'un seul candidat,
+     * sinon liste filtrée sur les inactifs pour choisir le bon.
+     */
+    public function confirmReturningEmployee(): void
+    {
+        $matches = User::inactiveMatchesForName($this->firstname, $this->lastname, Auth::user());
+
+        if ($matches->count() === 1) {
+            $this->redirectRoute('users.show', ['user' => $matches->first()], navigate: true);
+
+            return;
+        }
+
+        $this->search = trim($this->firstname.' '.$this->lastname);
+        $this->statusFilter = 'inactive';
+        $this->sortRole = '';
+        $this->closeCreateModal();
+    }
+
     public function openCreateModal(): void
     {
-        $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'phone', 'cellphone', 'showDuplicatePrompt', 'existingUser']);
+        $this->authorize('create', User::class);
+
+        $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'phone', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
         $this->role = 'salesman';
         $this->showCreateModal = true;
     }
 
     public function save(): void
     {
+        $this->authorize('create', User::class);
+
         $validated = $this->validate([
             'firstname' => ['required', 'string', 'max:255'],
             'lastname' => ['required', 'string', 'max:255'],
-            'role' => ['required', 'string', 'in:'.implode(',', array_column(RoleType::cases(), 'value'))],
+            'role' => ['required', 'string', 'in:'.implode(',', array_column($this->assignableRoles(), 'value'))],
             'first_day' => ['nullable', 'date'],
             'personalEmail' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
             'cellphone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
         ]);
 
+        $this->inactiveMatchIds = User::inactiveMatchesForName($this->firstname, $this->lastname, Auth::user())->modelKeys();
+
+        if ($this->inactiveMatchIds !== [] && $this->employeeChoice !== 'new') {
+            return;
+        }
+
         $resolved = User::resolveUsernameForEmployee($this->firstname, $this->lastname);
 
         if ($resolved['requiresVerification']) {
-            $this->showDuplicatePrompt = true;
+            $this->showDuplicatePrompt = $this->canSee($resolved['existingUser']);
+            $this->existingUser = $this->showDuplicatePrompt ? $resolved['existingUser'] : null;
             $this->username = User::generateUniqueUsername($this->firstname, $this->lastname);
             $this->generatedEmail = $this->username.'@dkor.ca';
             $resolved['username'] = $this->username;
@@ -151,77 +175,33 @@ class Index extends Component
         $user->phone = filled($validated['phone']) ? $validated['phone'] : null;
         $user->cellphone = filled($validated['cellphone']) ? $validated['cellphone'] : null;
         $user->username = $resolved['username'];
-        $user->password = bcrypt('password');
-        $user->save();
+        $plainPassword = Str::password(12);
+        $user->password = $plainPassword;
+        $user->markModifiedBy(Auth::user())->save();
 
-        $this->showCreateModal = false;
-        $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'phone', 'cellphone', 'showDuplicatePrompt', 'existingUser']);
-        $this->role = 'salesman';
+        $this->closeCreateModal();
+        $this->createdEmail = $email;
+        $this->createdPassword = $plainPassword;
+        $this->showCredentialsModal = true;
 
         $this->dispatch('user-created');
     }
 
-    public function openEditModal(int $userId): void
+    private function canSee(?User $user): bool
     {
-        $user = User::findOrFail($userId);
-        $this->editingUserId = $userId;
-        $this->editFirstname = $user->firstname;
-        $this->editLastname = $user->lastname;
-        $this->editRole = $user->role->value;
-        $this->editFirstDay = $user->first_day?->format('Y-m-d');
-        $this->editLastDay = $user->last_day?->format('Y-m-d');
-        $this->editPersonalEmail = $user->personal_email;
-        $this->editPhone = $user->phone;
-        $this->editCellphone = $user->cellphone;
-        $this->editUsername = $user->username;
-        $this->editEmail = $user->email;
-        $this->editIsActive = $user->is_active;
-        $this->editGeneratedPassword = null;
-        $this->showEditModal = true;
+        return $user !== null && in_array($user->role, Auth::user()->visibleRoles(), true);
     }
 
-    public function resetPassword(): void
+    public function closeCreateModal(): void
     {
-        $user = User::findOrFail($this->editingUserId);
-
-        $plainPassword = Str::password(12);
-
-        $user->password = Hash::make($plainPassword);
-        $user->save();
-
-        $this->editGeneratedPassword = $plainPassword;
+        $this->showCreateModal = false;
+        $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'phone', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
+        $this->role = 'salesman';
     }
 
-    public function update(): void
+    public function closeCredentialsModal(): void
     {
-        $validated = $this->validate([
-            'editFirstname' => ['required', 'string', 'max:255'],
-            'editLastname' => ['required', 'string', 'max:255'],
-            'editRole' => ['required', 'string', 'in:'.implode(',', array_column(RoleType::cases(), 'value'))],
-            'editFirstDay' => ['nullable', 'date'],
-            'editLastDay' => ['nullable', 'date'],
-            'editPersonalEmail' => ['nullable', 'email', 'max:255'],
-            'editPhone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
-            'editCellphone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
-        ]);
-
-        $user = User::findOrFail($this->editingUserId);
-        $user->firstname = $validated['editFirstname'];
-        $user->lastname = $validated['editLastname'];
-        $user->role = $validated['editRole'];
-        $user->first_day = $validated['editFirstDay'];
-        $user->last_day = $validated['editLastDay'];
-        $user->personal_email = $validated['editPersonalEmail'];
-        $user->phone = filled($validated['editPhone']) ? $validated['editPhone'] : null;
-        $user->cellphone = filled($validated['editCellphone']) ? $validated['editCellphone'] : null;
-        $user->is_active = $this->editIsActive;
-        $user->save();
-
-        (new PurgeSchedulesAfterLastDay)->execute($user);
-
-        $this->showEditModal = false;
-        $this->reset(['editingUserId', 'editFirstname', 'editLastname', 'editRole', 'editFirstDay', 'editLastDay', 'editPersonalEmail', 'editPhone', 'editCellphone', 'editUsername', 'editEmail', 'editIsActive', 'editGeneratedPassword']);
-        $this->editRole = 'salesman';
+        $this->reset(['showCredentialsModal', 'createdEmail', 'createdPassword']);
     }
 
     public function sortByRole(string $role): void
@@ -230,14 +210,37 @@ class Index extends Component
     }
 
     /** @return array<int, RoleType> */
+    public function assignableRoles(): array
+    {
+        return Auth::user()->assignableRoles();
+    }
+
+    /** @return array<int, RoleType> */
     public function getRoleTypes(): array
     {
-        return RoleType::cases();
+        return Auth::user()->visibleRoles();
     }
 
     public function render(): View
     {
-        $query = User::query()->where('is_active', true);
+        $query = User::query()->visibleTo(Auth::user());
+
+        match ($this->statusFilter) {
+            'inactive' => $query->where('is_active', false),
+            'all' => null,
+            default => $query->where('is_active', true),
+        };
+
+        if (filled($this->search)) {
+            foreach (explode(' ', (string) preg_replace('/\s+/', ' ', trim($this->search))) as $word) {
+                $term = '%'.addcslashes($word, '%_\\').'%';
+
+                $query->where(function ($q) use ($term): void {
+                    $q->where('firstname', 'like', $term)
+                        ->orWhere('lastname', 'like', $term);
+                });
+            }
+        }
 
         if (filled($this->sortRole)) {
             $query->where('role', $this->sortRole);

@@ -4,6 +4,7 @@ namespace App\Livewire\Catalog;
 
 use App\Models\Category;
 use App\Models\Department;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Component;
@@ -47,10 +48,10 @@ class Categories extends Component
 
         if ($this->editingId) {
             Category::findOrFail($this->editingId)->update($data);
-            $this->dispatch('toast', message: __('Catégorie mise à jour.'), variant: 'success');
+            Flux::toast(text: __('Catégorie mise à jour.'), variant: 'success');
         } else {
             Category::create($data);
-            $this->dispatch('toast', message: __('Catégorie créée.'), variant: 'success');
+            Flux::toast(text: __('Catégorie créée.'), variant: 'success');
         }
 
         $this->showModal = false;

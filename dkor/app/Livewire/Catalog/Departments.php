@@ -3,6 +3,7 @@
 namespace App\Livewire\Catalog;
 
 use App\Models\Department;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
 
@@ -34,10 +35,10 @@ class Departments extends Component
 
         if ($this->editingId) {
             Department::findOrFail($this->editingId)->update(['name' => $this->name]);
-            $this->dispatch('toast', message: __('Département mis à jour.'), variant: 'success');
+            Flux::toast(text: __('Département mis à jour.'), variant: 'success');
         } else {
             Department::create(['name' => $this->name]);
-            $this->dispatch('toast', message: __('Département créé.'), variant: 'success');
+            Flux::toast(text: __('Département créé.'), variant: 'success');
         }
 
         $this->showModal = false;

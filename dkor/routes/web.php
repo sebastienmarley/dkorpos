@@ -14,6 +14,7 @@ use App\Livewire\Schedules\Templates;
 use App\Livewire\Suppliers\Index as SuppliersIndex;
 use App\Livewire\Suppliers\Show as SupplierShow;
 use App\Livewire\Users\Index as UsersIndex;
+use App\Livewire\Users\Show as UserShow;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +29,7 @@ Route::get('/', function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('home', 'home')->name('home');
     Route::get('users', UsersIndex::class)->name('users.index');
+    Route::get('users/{user}', UserShow::class)->name('users.show');
 
     Route::get('customers', CustomersIndex::class)->name('customers.index');
 

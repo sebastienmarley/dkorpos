@@ -42,3 +42,17 @@ it('ne touche pas les employés déjà inactifs', function () {
 
     expect($alreadyInactive->fresh()->is_active)->toBeFalse();
 });
+
+it('ne modifie pas last_modified_by lors de la désactivation', function () {
+    $auteur = User::factory()->create();
+    $employe = User::factory()->create(['last_day' => now()->subDay(), 'last_modified_by' => $auteur->id, 'last_modified' => now()->subWeek()]);
+    $avant = $employe->fresh()->last_modified;
+
+    $this->artisan('employees:deactivate-expired')->assertSuccessful();
+
+    $employe->refresh();
+
+    expect($employe->is_active)->toBeFalse();
+    expect($employe->last_modified_by)->toBe($auteur->id);
+    expect($employe->last_modified->equalTo($avant))->toBeTrue();
+});

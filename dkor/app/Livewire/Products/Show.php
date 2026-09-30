@@ -8,6 +8,7 @@ use App\Models\Department;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Rules\UniqueCleanProductModel;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Component;
@@ -84,7 +85,7 @@ class Show extends Component
         ])->save();
 
         $this->product->refresh();
-        $this->dispatch('toast', message: __('Général sauvegardé.'), variant: 'success');
+        Flux::toast(text: __('Général sauvegardé.'), variant: 'success');
     }
 
     public function saveDescription(): void
@@ -101,7 +102,7 @@ class Show extends Component
             'description' => filled($this->description) ? $this->description : null,
         ])->save();
 
-        $this->dispatch('toast', message: __('Description sauvegardée.'), variant: 'success');
+        Flux::toast(text: __('Description sauvegardée.'), variant: 'success');
     }
 
     public function getSellingPrice(): float

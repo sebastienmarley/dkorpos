@@ -6,7 +6,11 @@ use App\Enums\RoleType;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -32,11 +36,13 @@ use Illuminate\Support\Str;
  * @property string|null $phone
  * @property string|null $cellphone
  * @property string|null $remember_token
+ * @property Carbon|null $last_modified
+ * @property int|null $last_modified_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
 #[Fillable(['firstname', 'lastname', 'role', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day', 'phone', 'cellphone'])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'first_day', 'last_day'])]
+#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'first_day', 'last_day', 'last_modified', 'last_modified_by'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -53,6 +59,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'first_day' => 'date',
             'last_day' => 'date',
+            'last_modified' => 'datetime:Y-m-d H:i',
             'is_active' => 'boolean',
             'password' => 'hashed',
             'role' => RoleType::class,
@@ -135,9 +142,10 @@ class User extends Authenticatable
     }
 
     /**
-     * Resolve a username for a new employee and expose duplicate/returning-user status.
+     * Resolve a username for a new employee and expose duplicate status.
+     * Un nom d'utilisateur déjà pris par un employé inactif est simplement ignoré (jamais de réactivation ici).
      *
-     * @return array{username: string, existingUser: ?self, requiresVerification: bool, reactivated: bool}
+     * @return array{username: string, existingUser: ?self, requiresVerification: bool}
      */
     public static function resolveUsernameForEmployee(string $firstName, string $lastName): array
     {
@@ -153,33 +161,37 @@ class User extends Authenticatable
                     'username' => $candidate,
                     'existingUser' => null,
                     'requiresVerification' => false,
-                    'reactivated' => false,
                 ];
             }
 
-            if (! $existingUser->is_active) {
-                $existingUser->forceFill(['is_active' => true])->save();
-
-                return [
-                    'username' => $candidate,
-                    'existingUser' => $existingUser,
-                    'requiresVerification' => false,
-                    'reactivated' => true,
-                ];
-            }
-
-            if ($candidate === $base) {
+            if ($existingUser->is_active && $candidate === $base) {
                 return [
                     'username' => $base.$suffix,
                     'existingUser' => $existingUser,
                     'requiresVerification' => true,
-                    'reactivated' => false,
                 ];
             }
 
             $candidate = $base.$suffix;
             $suffix++;
         }
+    }
+
+    /**
+     * Employés inactifs portant le même prénom et nom (pour un éventuel retour d'employé),
+     * limités à ceux que $viewer a le droit de voir.
+     *
+     * @return Collection<int, static>
+     */
+    public static function inactiveMatchesForName(string $firstName, string $lastName, ?self $viewer = null): Collection
+    {
+        return static::query()
+            ->when($viewer, fn (Builder $query) => $query->visibleTo($viewer))
+            ->where('is_active', false)
+            ->whereRaw('LOWER(firstname) = ?', [mb_strtolower(trim($firstName))])
+            ->whereRaw('LOWER(lastname) = ?', [mb_strtolower(trim($lastName))])
+            ->orderBy('id')
+            ->get();
     }
 
     /**
@@ -196,6 +208,65 @@ class User extends Authenticatable
         $this->attributes['username'] = blank($value)
             ? null
             : self::generateUniqueUsername($this->firstname ?? '', $this->lastname ?? '');
+    }
+
+    /**
+     * Rôles que cet utilisateur peut attribuer en créant ou en modifiant un usager.
+     * Vide pour les rôles qui ne gèrent pas les utilisateurs.
+     *
+     * @return array<int, RoleType>
+     */
+    public function assignableRoles(): array
+    {
+        return match ($this->role) {
+            RoleType::Admin, RoleType::Owner, RoleType::Manager => $this->visibleRoles(),
+            default => [],
+        };
+    }
+
+    /**
+     * Rôles dont les fiches sont visibles pour cet utilisateur (un Manager ne voit ni Admin ni Owner).
+     *
+     * @return array<int, RoleType>
+     */
+    public function visibleRoles(): array
+    {
+        if ($this->role !== RoleType::Manager) {
+            return RoleType::cases();
+        }
+
+        return array_values(array_filter(
+            RoleType::cases(),
+            fn (RoleType $role): bool => ! in_array($role, [RoleType::Admin, RoleType::Owner], true),
+        ));
+    }
+
+    /**
+     * Limite la requête aux usagers que le visiteur a le droit de voir.
+     *
+     * @param  Builder<User>  $query
+     */
+    #[Scope]
+    protected function visibleTo(Builder $query, self $viewer): void
+    {
+        $query->whereIn('role', array_column($viewer->visibleRoles(), 'value'));
+    }
+
+    /**
+     * Enregistre qui a modifié la fiche et quand (sans sauvegarder).
+     */
+    public function markModifiedBy(?self $modifier): static
+    {
+        return $this->forceFill([
+            'last_modified' => now(),
+            'last_modified_by' => $modifier?->id,
+        ]);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function lastModifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'last_modified_by');
     }
 
     /** @return HasMany<Schedule, $this> */

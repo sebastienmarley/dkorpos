@@ -1,6 +1,6 @@
 ---
 title: "Réflexion semaine 2"
-date: 2026-09-23
+date: 2026-09-23 au 2026-09-28
 draft: false
 description: "."
 categories:

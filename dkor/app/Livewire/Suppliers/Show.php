@@ -4,6 +4,7 @@ namespace App\Livewire\Suppliers;
 
 use App\Enums\SupplierType;
 use App\Models\Supplier;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
 
@@ -103,7 +104,7 @@ class Show extends Component
             'email' => filled($this->email) ? $this->email : null,
         ])->save();
 
-        $this->dispatch('toast', message: __('Identification sauvegardée.'), variant: 'success');
+        Flux::toast(text: __('Identification sauvegardée.'), variant: 'success');
     }
 
     public function saveAccounting(): void
@@ -132,7 +133,7 @@ class Show extends Component
             'payment_address_postal_code' => filled($this->paymentAddress['postal_code']) ? $this->paymentAddress['postal_code'] : null,
         ])->save();
 
-        $this->dispatch('toast', message: __('Comptabilité sauvegardée.'), variant: 'success');
+        Flux::toast(text: __('Comptabilité sauvegardée.'), variant: 'success');
     }
 
     public function saveParameters(): void
@@ -151,7 +152,7 @@ class Show extends Component
             'is_active' => $this->isActive,
         ])->save();
 
-        $this->dispatch('toast', message: __('Paramètres sauvegardés.'), variant: 'success');
+        Flux::toast(text: __('Paramètres sauvegardés.'), variant: 'success');
     }
 
     /** @return array<int, SupplierType> */
