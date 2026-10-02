@@ -44,12 +44,14 @@
                 >{{ __('Transport') }}</button>
             @endif
 
-            <button
-                type="button"
-                @click="tab = 'parameters'"
-                :class="tab === 'parameters' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
-            >{{ __('Paramètres') }}</button>
+            @if ($supplier->type !== \App\Enums\SupplierType::Shipping)
+                <button
+                    type="button"
+                    @click="tab = 'parameters'"
+                    :class="tab === 'parameters' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
+                    class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                >{{ __('Info commande') }}</button>
+            @endif
         </div>
 
         {{-- Identification --}}
@@ -87,6 +89,11 @@
                         <flux:error name="email" />
                     </flux:field>
                 </div>
+
+                <flux:field>
+                    <flux:checkbox wire:model="isActive" :label="__('Actif')" />
+                    <flux:error name="isActive" />
+                </flux:field>
 
                 <div class="flex justify-end pt-2">
                     @can('suppliers.edit')
@@ -185,64 +192,61 @@
             </div>
         @endif
 
-        {{-- Paramètres --}}
-        <div x-show="tab === 'parameters'" x-cloak>
-            <form wire:submit="saveParameters" class="mt-6 max-w-2xl space-y-4">
-                <flux:field>
-                    <flux:label>{{ __('Courriel de commande') }}</flux:label>
-                    <flux:input wire:model="orderEmail" type="email" />
-                    <flux:error name="orderEmail" />
-                </flux:field>
+        @if ($supplier->type !== \App\Enums\SupplierType::Shipping)
+            {{-- Info commande --}}
+            <div x-show="tab === 'parameters'" x-cloak>
+                <form wire:submit="saveParameters" class="mt-6 max-w-2xl space-y-4">
+                    <flux:field>
+                        <flux:label>{{ __('Courriel de commande') }}</flux:label>
+                        <flux:input wire:model="orderEmail" type="email" />
+                        <flux:error name="orderEmail" />
+                    </flux:field>
 
-                <div>
-                    <flux:heading size="sm" class="mb-4">{{ __('Multiplicateur de prix') }}</flux:heading>
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <flux:field>
-                            <flux:label>{{ __('Base') }}</flux:label>
-                            <flux:input wire:model.live.debounce.300ms="baseMultiplier" type="number" step="0.0001" min="0" />
-                            <flux:error name="baseMultiplier" />
-                        </flux:field>
+                    <div>
+                        <flux:heading size="sm" class="mb-4">{{ __('Multiplicateur de prix') }}</flux:heading>
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <flux:field>
+                                <flux:label>{{ __('Base') }}</flux:label>
+                                <flux:input wire:model.live.debounce.300ms="baseMultiplier" type="number" step="0.0001" min="0" />
+                                <flux:error name="baseMultiplier" />
+                            </flux:field>
 
-                        <flux:field>
-                            <flux:label>{{ __('Taux de change') }}</flux:label>
-                            <flux:input :value="$supplier->exchangeRate()" type="number" disabled />
-                            <flux:description>{{ $supplier->currency ? __('Taux de la devise :code.', ['code' => $supplier->currency->code]) : __('Aucune devise sélectionnée (Comptabilité).') }}</flux:description>
-                        </flux:field>
+                            <flux:field>
+                                <flux:label>{{ __('Taux de change') }}</flux:label>
+                                <flux:input :value="$supplier->exchangeRate()" type="number" disabled />
+                                <flux:description>{{ $supplier->currency ? __('Taux de la devise :code.', ['code' => $supplier->currency->code]) : __('Aucune devise sélectionnée (Comptabilité).') }}</flux:description>
+                            </flux:field>
 
-                        <flux:field>
-                            <flux:label>{{ __('Frais de douanes') }}</flux:label>
-                            <flux:input wire:model.live.debounce.300ms="customsFee" type="number" step="0.0001" min="0" />
-                            <flux:error name="customsFee" />
-                        </flux:field>
+                            <flux:field>
+                                <flux:label>{{ __('Frais de douanes') }}</flux:label>
+                                <flux:input wire:model.live.debounce.300ms="customsFee" type="number" step="0.0001" min="0" />
+                                <flux:error name="customsFee" />
+                            </flux:field>
 
-                        <flux:field>
-                            <flux:label>{{ __('Frais de transport') }}</flux:label>
-                            <flux:input wire:model.live.debounce.300ms="shippingFee" type="number" step="0.0001" min="0" />
-                            <flux:error name="shippingFee" />
-                        </flux:field>
+                            <flux:field>
+                                <flux:label>{{ __('Frais de transport') }}</flux:label>
+                                <flux:input wire:model.live.debounce.300ms="shippingFee" type="number" step="0.0001" min="0" />
+                                <flux:error name="shippingFee" />
+                            </flux:field>
+                        </div>
+                        <flux:text class="mt-3">
+                            {{ __('Multiplicateur calculé') }} : <strong>{{ number_format($this->computedMultiplier, 4) }}</strong>
+                            — {{ __('le prix de vente est calculé en multipliant le coût par ce facteur.') }}
+                        </flux:text>
                     </div>
-                    <flux:text class="mt-3">
-                        {{ __('Multiplicateur calculé') }} : <strong>{{ number_format($this->computedMultiplier, 4) }}</strong>
-                        — {{ __('le prix de vente est calculé en multipliant le coût par ce facteur.') }}
-                    </flux:text>
-                </div>
 
-                <flux:field>
-                    <flux:checkbox wire:model="orderable" :label="__('Commandable')" />
-                    <flux:error name="orderable" />
-                </flux:field>
+                    <flux:field>
+                        <flux:checkbox wire:model="orderable" :label="__('Commandable')" :disabled="! $supplier->is_active" />
+                        <flux:error name="orderable" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:checkbox wire:model="isActive" :label="__('Actif')" />
-                    <flux:error name="isActive" />
-                </flux:field>
-
-                <div class="flex justify-end pt-2">
-                    @can('suppliers.edit')
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
-                    @endcan
-                </div>
-            </form>
-        </div>
+                    <div class="flex justify-end pt-2">
+                        @can('suppliers.edit')
+                            <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        @endcan
+                    </div>
+                </form>
+            </div>
+        @endif
     </div>
 </div>

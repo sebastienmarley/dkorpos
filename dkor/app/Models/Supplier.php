@@ -98,7 +98,7 @@ class Supplier extends Model
      */
     public function exchangeRate(): float
     {
-        return (float) ($this->currency?->rate ?? 0);
+        return (float) $this->currency?->rate;
     }
 
     public function computePriceMultiplier(): float

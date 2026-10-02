@@ -53,7 +53,7 @@ class Show extends Component
 
     public string $defaultShippingSupplierId = '';
 
-    // Paramètres
+    // Info commande
     public string $orderEmail = '';
 
     public string $baseMultiplier = '2';
@@ -76,13 +76,6 @@ class Show extends Component
     {
         if ($value) {
             $this->paymentAddress = $this->address;
-        }
-    }
-
-    public function updatedIsActive(bool $value): void
-    {
-        if (! $value) {
-            $this->orderable = false;
         }
     }
 
@@ -112,6 +105,7 @@ class Show extends Component
             'address.postal_code' => ['nullable', 'string', 'max:6'],
             'phone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
             'email' => ['nullable', 'email', 'max:255'],
+            'isActive' => ['boolean'],
         ]);
 
         $this->supplier->fill([
@@ -126,7 +120,10 @@ class Show extends Component
             'address_postal_code' => filled($this->address['postal_code']) ? $this->address['postal_code'] : null,
             'phone' => filled($this->phone) ? $this->phone : null,
             'email' => filled($this->email) ? $this->email : null,
+            'is_active' => $this->isActive,
         ])->save();
+
+        $this->orderable = $this->supplier->orderable;
 
         Flux::toast(text: __('Identification sauvegardée.'), variant: 'success');
     }
@@ -201,13 +198,14 @@ class Show extends Component
     {
         $this->authorize('suppliers.edit');
 
+        abort_if($this->supplier->type === SupplierType::Shipping, 404);
+
         $this->validate([
             'orderEmail' => ['nullable', 'email', 'max:255'],
             'baseMultiplier' => ['required', 'numeric', 'min:0', 'max:9999'],
             'customsFee' => ['required', 'numeric', 'min:0', 'max:9999'],
             'shippingFee' => ['required', 'numeric', 'min:0', 'max:9999'],
             'orderable' => ['boolean'],
-            'isActive' => ['boolean'],
         ]);
 
         $this->supplier->fill([
@@ -216,12 +214,11 @@ class Show extends Component
             'customs_fee' => $this->customsFee,
             'shipping_fee' => $this->shippingFee,
             'orderable' => $this->orderable,
-            'is_active' => $this->isActive,
         ])->save();
 
         $this->orderable = $this->supplier->orderable;
 
-        Flux::toast(text: __('Paramètres sauvegardés.'), variant: 'success');
+        Flux::toast(text: __('Info commande sauvegardée.'), variant: 'success');
     }
 
     public function getComputedMultiplierProperty(): float
