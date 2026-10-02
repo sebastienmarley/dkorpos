@@ -2,29 +2,39 @@
 
 namespace App\Policies;
 
-use App\Enums\RoleType;
 use App\Models\User;
 
 class UserPolicy
 {
     /**
-     * Seuls Admin, Owner et Manager peuvent créer un utilisateur.
+     * Créer un utilisateur exige la permission et au moins un rôle attribuable.
      */
     public function create(User $user): bool
     {
-        return $user->assignableRoles() !== [];
+        return $user->can('users.create') && $user->assignableRoles()->isNotEmpty();
     }
 
     /**
-     * Un utilisateur ne modifie que les usagers dont il peut attribuer le rôle
-     * (un Manager ne touche donc ni aux Admin ni aux Owner) et un Manager ne s'édite pas lui-même.
+     * Sa propre fiche dépend uniquement de users.edit_self. Pour les autres, il faut users.edit
+     * et que leur rôle ne dépasse pas le niveau hiérarchique de l'utilisateur.
      */
     public function update(User $user, User $model): bool
     {
-        if ($user->role === RoleType::Manager && $user->is($model)) {
-            return false;
+        if ($user->is($model)) {
+            return $user->can('users.edit_self');
         }
 
-        return in_array($model->role, $user->assignableRoles(), true);
+        return $user->can('users.edit')
+            && ($model->role === null || $user->assignableRoles()->contains('id', $model->role->id));
+    }
+
+    /**
+     * Attribuer des permissions supplémentaires à un usager que l'on peut modifier.
+     */
+    public function assignPermissions(User $user, User $model): bool
+    {
+        return $user->can('users.assign_permissions')
+            && ! $user->is($model)
+            && $this->update($user, $model);
     }
 }

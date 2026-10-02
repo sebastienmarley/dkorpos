@@ -19,6 +19,8 @@ class Colors extends Component
 
     public function openCreate(): void
     {
+        $this->authorize('colors.create');
+
         $this->editingId = null;
         $this->reset(['name', 'hexCode']);
         $this->showModal = true;
@@ -26,6 +28,8 @@ class Colors extends Component
 
     public function openEdit(Color $color): void
     {
+        $this->authorize('colors.edit');
+
         $this->editingId = $color->id;
         $this->name = $color->name;
         $this->hexCode = $color->hex_code ?? '';
@@ -34,6 +38,8 @@ class Colors extends Component
 
     public function save(): void
     {
+        $this->authorize($this->editingId ? 'colors.edit' : 'colors.create');
+
         $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'hexCode' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],

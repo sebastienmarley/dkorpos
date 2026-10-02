@@ -72,50 +72,97 @@
                     {{ __('Accueil') }}
                 </flux:sidebar.item>
 
-                <flux:sidebar.item icon="users" :href="route('users.index')" :current="request()->routeIs('users.*')" wire:navigate>
-                    {{ __('Utilisateurs') }}
-                </flux:sidebar.item>
+                @can('customers.view')
+                    <flux:sidebar.item icon="user-group" :href="route('customers.index')" :current="request()->routeIs('customers.*')" wire:navigate>
+                        {{ __('Clients') }}
+                    </flux:sidebar.item>
+                @endcan
 
-                <flux:sidebar.item icon="user-group" :href="route('customers.index')" :current="request()->routeIs('customers.*')" wire:navigate>
-                    {{ __('Clients') }}
-                </flux:sidebar.item>
+                @can('suppliers.view')
+                    <flux:sidebar.item icon="building-storefront" :href="route('suppliers.index')" :current="request()->routeIs('suppliers.*')" wire:navigate>
+                        {{ __('Fournisseurs') }}
+                    </flux:sidebar.item>
+                @endcan
 
-                <flux:sidebar.item icon="building-storefront" :href="route('suppliers.index')" :current="request()->routeIs('suppliers.*')" wire:navigate>
-                    {{ __('Fournisseurs') }}
-                </flux:sidebar.item>
-
+                @canany(['products.view', 'departments.view', 'categories.view', 'colors.view'])
                 <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('catalog.*')">
-                    <flux:sidebar.item icon="cube" :href="route('products.index')" :current="request()->routeIs('products.*')" wire:navigate>
-                        {{ __('Produits') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="tag" :href="route('catalog.departments')" :current="request()->routeIs('catalog.departments')" wire:navigate>
-                        {{ __('Départements') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="squares-2x2" :href="route('catalog.categories')" :current="request()->routeIs('catalog.categories')" wire:navigate>
-                        {{ __('Catégories') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="swatch" :href="route('catalog.colors')" :current="request()->routeIs('catalog.colors')" wire:navigate>
-                        {{ __('Couleurs') }}
-                    </flux:sidebar.item>
+                    @can('products.view')
+                        <flux:sidebar.item icon="cube" :href="route('products.index')" :current="request()->routeIs('products.*')" wire:navigate>
+                            {{ __('Produits') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('departments.view')
+                        <flux:sidebar.item icon="tag" :href="route('catalog.departments')" :current="request()->routeIs('catalog.departments')" wire:navigate>
+                            {{ __('Départements') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('categories.view')
+                        <flux:sidebar.item icon="squares-2x2" :href="route('catalog.categories')" :current="request()->routeIs('catalog.categories')" wire:navigate>
+                            {{ __('Catégories') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('colors.view')
+                        <flux:sidebar.item icon="swatch" :href="route('catalog.colors')" :current="request()->routeIs('catalog.colors')" wire:navigate>
+                            {{ __('Couleurs') }}
+                        </flux:sidebar.item>
+                    @endcan
                 </flux:sidebar.group>
+                @endcanany
 
+                @canany(['users.view', 'positions.manage', 'roles.manage', 'permissions.manage'])
+                    <flux:sidebar.group :heading="__('Administration')" expandable :expanded="request()->routeIs('admin.*') || request()->routeIs('users.*')">
+                        @can('users.view')
+                            <flux:sidebar.item icon="users" :href="route('users.index')" :current="request()->routeIs('users.*')" wire:navigate>
+                                {{ __('Utilisateurs') }}
+                            </flux:sidebar.item>
+                        @endcan
+                        @can('positions.manage')
+                            <flux:sidebar.item icon="briefcase" :href="route('admin.positions')" :current="request()->routeIs('admin.positions')" wire:navigate>
+                                {{ __('Positions') }}
+                            </flux:sidebar.item>
+                        @endcan
+                        @can('roles.manage')
+                            <flux:sidebar.item icon="shield-check" :href="route('admin.roles')" :current="request()->routeIs('admin.roles')" wire:navigate>
+                                {{ __('Rôles') }}
+                            </flux:sidebar.item>
+                        @endcan
+                        @can('permissions.manage')
+                            <flux:sidebar.item icon="key" :href="route('admin.permissions')" :current="request()->routeIs('admin.permissions')" wire:navigate>
+                                {{ __('Permissions') }}
+                            </flux:sidebar.item>
+                        @endcan
+                    </flux:sidebar.group>
+                @endcanany
+
+                @canany(['schedules.view', 'schedule_management.view', 'schedule_templates.view', 'holidays.view', 'appointments.view'])
                 <flux:sidebar.group :heading="__('Gestion horaire')" expandable>
-                    <flux:sidebar.item icon="calendar-days" :href="route('schedules.index')" :current="request()->routeIs('schedules.index')" wire:navigate>
-                        {{ __('Mon horaire') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="table-cells" :href="route('schedules.schedule-edit')" :current="request()->routeIs('schedules.schedule-edit')" wire:navigate>
-                        {{ __('Gestion des horaires') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="squares-2x2" :href="route('schedules.templates')" :current="request()->routeIs('schedules.templates')" wire:navigate>
-                        {{ __('Modèles d\'horaire') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="sun" :href="route('schedules.holidays')" :current="request()->routeIs('schedules.holidays')" wire:navigate>
-                        {{ __('Jours fériés') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="clock" :href="route('schedules.appointments')" :current="request()->routeIs('schedules.appointments')" wire:navigate>
-                        {{ __('Rendez-vous') }}
-                    </flux:sidebar.item>
+                    @can('schedules.view')
+                        <flux:sidebar.item icon="calendar-days" :href="route('schedules.index')" :current="request()->routeIs('schedules.index')" wire:navigate>
+                            {{ __('Mon horaire') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('schedule_management.view')
+                        <flux:sidebar.item icon="table-cells" :href="route('schedules.schedule-edit')" :current="request()->routeIs('schedules.schedule-edit')" wire:navigate>
+                            {{ __('Gestion des horaires') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('schedule_templates.view')
+                        <flux:sidebar.item icon="squares-2x2" :href="route('schedules.templates')" :current="request()->routeIs('schedules.templates')" wire:navigate>
+                            {{ __('Modèles d\'horaire') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('holidays.view')
+                        <flux:sidebar.item icon="sun" :href="route('schedules.holidays')" :current="request()->routeIs('schedules.holidays')" wire:navigate>
+                            {{ __('Jours fériés') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('appointments.view')
+                        <flux:sidebar.item icon="clock" :href="route('schedules.appointments')" :current="request()->routeIs('schedules.appointments')" wire:navigate>
+                            {{ __('Rendez-vous') }}
+                        </flux:sidebar.item>
+                    @endcan
                 </flux:sidebar.group>
+                @endcanany
             </flux:sidebar.nav>
 
             <flux:spacer />

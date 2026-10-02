@@ -43,6 +43,8 @@ class Holidays extends Component
 
     public function openCreate(): void
     {
+        $this->authorize('holidays.create');
+
         $this->resetValidation();
         $this->reset(['editingId', 'name']);
         $this->date = Carbon::create($this->year, 1, 1)->toDateString();
@@ -52,6 +54,8 @@ class Holidays extends Component
 
     public function openEdit(int $id): void
     {
+        $this->authorize('holidays.edit');
+
         $holiday = Holiday::query()->findOrFail($id);
 
         $this->resetValidation();
@@ -64,6 +68,8 @@ class Holidays extends Component
 
     public function save(): void
     {
+        $this->authorize($this->editingId ? 'holidays.edit' : 'holidays.create');
+
         $this->validate([
             'name' => ['required', 'string', 'max:100'],
             'date' => ['required', 'date_format:Y-m-d', Rule::unique('holidays', 'date')->ignore($this->editingId)],
@@ -100,11 +106,15 @@ class Holidays extends Component
 
     public function delete(int $id): void
     {
+        $this->authorize('holidays.delete');
+
         Holiday::query()->whereKey($id)->delete();
     }
 
     public function generateQuebec(): void
     {
+        $this->authorize('holidays.create');
+
         $created = app(GenerateQuebecHolidays::class)->handle($this->year);
 
         Flux::toast(

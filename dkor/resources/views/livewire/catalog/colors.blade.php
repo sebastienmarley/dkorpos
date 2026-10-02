@@ -4,9 +4,11 @@
             <flux:heading level="1" size="xl">{{ __('Couleurs') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Gestion des couleurs produits') }}</flux:text>
         </div>
-        <flux:button variant="primary" icon="plus" wire:click="openCreate">
-            {{ __('Ajouter') }}
-        </flux:button>
+        @can('colors.create')
+            <flux:button variant="primary" icon="plus" wire:click="openCreate">
+                {{ __('Ajouter') }}
+            </flux:button>
+        @endcan
     </div>
 
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -32,7 +34,9 @@
                         <flux:table.cell>{{ $color->hex_code ?? '—' }}</flux:table.cell>
                         <flux:table.cell>{{ $color->products_count }}</flux:table.cell>
                         <flux:table.cell class="text-right">
-                            <flux:button variant="ghost" size="sm" icon="pencil" wire:click="openEdit({{ $color->id }})" />
+                            @can('colors.edit')
+                                <flux:button variant="ghost" size="sm" icon="pencil" wire:click="openEdit({{ $color->id }})" />
+                            @endcan
                         </flux:table.cell>
                     </flux:table.row>
                 @empty

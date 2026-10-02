@@ -14,13 +14,17 @@
                 <flux:button size="sm" icon="chevron-right" wire:click="nextYear" :label="__('Année suivante')" />
             </flux:button.group>
 
-            <flux:button size="sm" variant="ghost" icon="sparkles" wire:click="generateQuebec">
-                {{ __('Générer les fériés du Québec') }}
-            </flux:button>
+            @can('holidays.create')
+                <flux:button size="sm" variant="ghost" icon="sparkles" wire:click="generateQuebec">
+                    {{ __('Générer les fériés du Québec') }}
+                </flux:button>
+            @endcan
 
-            <flux:button size="sm" variant="primary" icon="plus" wire:click="openCreate">
-                {{ __('Nouveau férié') }}
-            </flux:button>
+            @can('holidays.create')
+                <flux:button size="sm" variant="primary" icon="plus" wire:click="openCreate">
+                    {{ __('Nouveau férié') }}
+                </flux:button>
+            @endcan
         </div>
     </div>
 
@@ -35,7 +39,7 @@
                     wire:key="holiday-{{ $holiday->id }}"
                     class="group relative rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition-colors hover:border-blue-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-blue-700"
                 >
-                    <button type="button" wire:click="openEdit({{ $holiday->id }})" class="block w-full text-left">
+                    <button type="button" @can('holidays.edit') wire:click="openEdit({{ $holiday->id }})" @else disabled @endcan class="block w-full text-left">
                         <div class="truncate pr-8 font-medium text-zinc-800 dark:text-zinc-100">{{ $holiday->name }}</div>
                         <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                             {{ ucfirst(\Illuminate\Support\Carbon::parse($holiday->date)->translatedFormat('l d F')) }}
@@ -47,16 +51,18 @@
                         </div>
                     </button>
 
-                    <div class="absolute right-2 top-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                        <flux:button
-                            size="xs"
-                            variant="ghost"
-                            icon="trash"
-                            wire:click="delete({{ $holiday->id }})"
-                            wire:confirm="{{ __('Supprimer ce férié ?') }}"
-                            :label="__('Supprimer')"
-                        />
-                    </div>
+                    @can('holidays.delete')
+                        <div class="absolute right-2 top-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                            <flux:button
+                                size="xs"
+                                variant="ghost"
+                                icon="trash"
+                                wire:click="delete({{ $holiday->id }})"
+                                wire:confirm="{{ __('Supprimer ce férié ?') }}"
+                                :label="__('Supprimer')"
+                            />
+                        </div>
+                    @endcan
                 </div>
             @endforeach
         </div>

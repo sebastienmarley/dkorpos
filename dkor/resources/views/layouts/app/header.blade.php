@@ -13,9 +13,11 @@
                 <flux:navbar.item icon="home" :href="route('home')" :current="request()->routeIs('home')" wire:navigate>
                     {{ __('Accueil') }}
                 </flux:navbar.item>
-                <flux:navbar.item icon="calendar-days" :href="route('schedules.index')" :current="request()->routeIs('schedules.*')" wire:navigate>
+                @can('schedules.view')
+                    <flux:navbar.item icon="calendar-days" :href="route('schedules.index')" :current="request()->routeIs('schedules.*')" wire:navigate>
                     {{ __('Horaire') }}
                 </flux:navbar.item>
+                @endcan
             </flux:navbar>
 
             <flux:spacer />
@@ -43,9 +45,11 @@
                     <flux:sidebar.item icon="home" :href="route('home')" :current="request()->routeIs('home')" wire:navigate>
                         {{ __('Accueil') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item icon="calendar-days" :href="route('schedules.index')" :current="request()->routeIs('schedules.*')" wire:navigate>
+                    @can('schedules.view')
+                        <flux:sidebar.item icon="calendar-days" :href="route('schedules.index')" :current="request()->routeIs('schedules.*')" wire:navigate>
                         {{ __('Horaire') }}
                     </flux:sidebar.item>
+                    @endcan
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

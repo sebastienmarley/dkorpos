@@ -26,8 +26,8 @@
         <div class="w-56">
             <flux:select wire:model.live="sortRole">
                 <flux:select.option value="">{{ __('Tous les rôles') }}</flux:select.option>
-                @foreach ($this->getRoleTypes() as $roleType)
-                    <flux:select.option :value="$roleType->value">{{ $roleType->label() }}</flux:select.option>
+                @foreach ($this->visibleRoles() as $roleOption)
+                    <flux:select.option :value="$roleOption->name">{{ $roleOption->displayName() }}</flux:select.option>
                 @endforeach
             </flux:select>
         </div>
@@ -46,6 +46,7 @@
         <flux:table>
             <flux:table.columns>
                 <flux:table.column>{{ __('Nom') }}</flux:table.column>
+                <flux:table.column>{{ __('Position') }}</flux:table.column>
                 <flux:table.column>{{ __('Rôle') }}</flux:table.column>
             </flux:table.columns>
 
@@ -62,15 +63,17 @@
                             @endcan
                         </flux:table.cell>
 
+                        <flux:table.cell>{{ $user->position?->name ?? '—' }}</flux:table.cell>
+
                         <flux:table.cell>
-                            <flux:badge :color="$user->role === \App\Enums\RoleType::Admin ? 'violet' : 'blue'" size="sm">
-                                {{ $user->role->label() }}
+                            <flux:badge :color="($user->role?->level ?? 0) >= 100 ? 'violet' : 'blue'" size="sm">
+                                {{ $user->role?->displayName() }}
                             </flux:badge>
                         </flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="2" class="py-12 text-center">
+                        <flux:table.cell colspan="3" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="users" class="h-8 w-8 text-zinc-300" />
                                 <flux:text class="text-zinc-400">{{ __('Aucun utilisateur trouvé.') }}</flux:text>
@@ -87,7 +90,7 @@
         <flux:text class="mt-3 text-sm text-zinc-400">
             {{ trans_choice(':count utilisateur|:count utilisateurs', $users->count()) }}
             @if (filled($sortRole))
-                · {{ __('filtrés par rôle :') }} <strong>{{ \App\Enums\RoleType::from($sortRole)->label() }}</strong>
+                · {{ __('filtrés par rôle :') }} <strong>{{ $this->visibleRoles()->firstWhere('name', $sortRole)?->displayName() }}</strong>
             @endif
         </flux:text>
     @endif
@@ -175,11 +178,22 @@
             <flux:field>
                 <flux:label>{{ __('Rôle') }}</flux:label>
                 <flux:select wire:model="role">
-                    @foreach ($this->assignableRoles() as $roleType)
-                        <flux:select.option :value="$roleType->value">{{ $roleType->label() }}</flux:select.option>
+                    @foreach ($this->assignableRoles() as $roleOption)
+                        <flux:select.option :value="$roleOption->name">{{ $roleOption->displayName() }}</flux:select.option>
                     @endforeach
                 </flux:select>
                 <flux:error name="role" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Position') }}</flux:label>
+                <flux:select wire:model="positionId">
+                    <flux:select.option value="">{{ __('Aucune') }}</flux:select.option>
+                    @foreach ($this->positions() as $position)
+                        <flux:select.option :value="$position->id">{{ $position->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="positionId" />
             </flux:field>
 
             <flux:field>
@@ -194,10 +208,7 @@
                 <flux:error name="personalEmail" />
             </flux:field>
 
-            <div class="grid gap-4 sm:grid-cols-2">
-                <x-phone-input wire:model="phone" label="{{ __('Téléphone') }}" name="phone" />
-                <x-phone-input wire:model="cellphone" label="{{ __('Cellulaire') }}" name="cellphone" />
-            </div>
+            <x-phone-input wire:model="cellphone" label="{{ __('Cellulaire') }}" name="cellphone" />
 
             {{-- Aperçu des informations générées --}}
             @if (filled($username))

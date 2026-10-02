@@ -41,6 +41,8 @@ class Templates extends Component
 
     public function openCreateShift(): void
     {
+        $this->authorize('schedule_templates.create');
+
         $this->resetValidation();
         $this->reset(['editingShiftId', 'shiftName', 'shiftStart', 'shiftEnd', 'shiftBreak']);
         $this->showShiftModal = true;
@@ -48,6 +50,8 @@ class Templates extends Component
 
     public function openEditShift(int $id): void
     {
+        $this->authorize('schedule_templates.edit');
+
         $shift = ShiftTemplate::query()->findOrFail($id);
 
         $this->resetValidation();
@@ -61,6 +65,8 @@ class Templates extends Component
 
     public function saveShift(): void
     {
+        $this->authorize($this->editingShiftId ? 'schedule_templates.edit' : 'schedule_templates.create');
+
         $this->validate([
             'shiftName' => ['required', 'string', 'max:100', Rule::unique('shift_templates', 'name')->ignore($this->editingShiftId)],
             'shiftStart' => ['required', 'date_format:H:i'],
@@ -89,6 +95,8 @@ class Templates extends Component
 
     public function deleteShift(int $id): void
     {
+        $this->authorize('schedule_templates.delete');
+
         ShiftTemplate::query()->whereKey($id)->delete();
 
         $this->loadEntries();
@@ -99,6 +107,8 @@ class Templates extends Component
 
     public function openCreateWeek(): void
     {
+        $this->authorize('schedule_templates.create');
+
         $this->resetValidation();
         $this->reset(['editingWeekId', 'weekName']);
         $this->showWeekModal = true;
@@ -106,6 +116,8 @@ class Templates extends Component
 
     public function openRenameWeek(): void
     {
+        $this->authorize('schedule_templates.edit');
+
         $week = $this->selectedWeekTemplate();
 
         if (! $week) {
@@ -120,6 +132,8 @@ class Templates extends Component
 
     public function saveWeek(): void
     {
+        $this->authorize($this->editingWeekId ? 'schedule_templates.edit' : 'schedule_templates.create');
+
         $this->validate([
             'weekName' => ['required', 'string', 'max:100', Rule::unique('week_templates', 'name')->ignore($this->editingWeekId)],
         ]);
@@ -138,6 +152,8 @@ class Templates extends Component
 
     public function deleteWeek(): void
     {
+        $this->authorize('schedule_templates.delete');
+
         $this->selectedWeekTemplate()?->delete();
 
         $this->selectedWeekTemplateId = '';
@@ -158,6 +174,8 @@ class Templates extends Component
      */
     public function updatedEntries(mixed $value, ?string $key = null): void
     {
+        $this->authorize('schedule_templates.edit');
+
         $segments = $key === null || $key === '' ? [] : explode('.', $key);
 
         if (count($segments) === 2) {

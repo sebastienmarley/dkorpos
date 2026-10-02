@@ -1,7 +1,7 @@
 <?php
 
-use App\Enums\RoleType;
 use App\Livewire\Users\Index;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
@@ -18,13 +18,20 @@ it('autorise les utilisateurs authentifiés à accéder à la page', function ()
     $this->get(route('users.index'))->assertOk();
 });
 
+it('refuse l\'accès sans la permission users.view', function () {
+    $role = Role::create(['name' => 'visiteur', 'label' => 'Visiteur', 'level' => 0, 'guard_name' => 'web']);
+    $user = User::factory()->withRole('visiteur')->create();
+
+    $this->actingAs($user)->get(route('users.index'))->assertForbidden();
+});
+
 // ── Affichage ──────────────────────────────────────────────────────────────
 
 it('affiche uniquement les utilisateurs actifs', function () {
     $actif = User::factory()->create(['firstname' => 'Alice', 'lastname' => 'Tremblay', 'is_active' => true]);
     $inactif = User::factory()->create(['firstname' => 'Bob', 'lastname' => 'Gagnon', 'is_active' => false]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->assertSee($actif->fullName())
@@ -34,10 +41,10 @@ it('affiche uniquement les utilisateurs actifs', function () {
 // ── Filtre par rôle ────────────────────────────────────────────────────────
 
 it('filtre les utilisateurs par rôle', function () {
-    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-    $userRole = User::factory()->create(['role' => 'salesman', 'is_active' => true]);
+    $admin = User::factory()->withRole('admin')->create(['is_active' => true]);
+    $userRole = User::factory()->create(['is_active' => true]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->call('sortByRole', 'admin')
@@ -46,10 +53,10 @@ it('filtre les utilisateurs par rôle', function () {
 });
 
 it('retire le filtre de rôle quand on rappelle sortByRole avec le même rôle', function () {
-    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-    $userRole = User::factory()->create(['role' => 'salesman', 'is_active' => true]);
+    $admin = User::factory()->withRole('admin')->create(['is_active' => true]);
+    $userRole = User::factory()->create(['is_active' => true]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->call('sortByRole', 'admin')
@@ -61,7 +68,7 @@ it('retire le filtre de rôle quand on rappelle sortByRole avec le même rôle',
 // ── Modal de création ──────────────────────────────────────────────────────
 
 it('ouvre le modal de création', function () {
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
@@ -69,7 +76,7 @@ it('ouvre le modal de création', function () {
 });
 
 it('réinitialise les champs à l\'ouverture du modal', function () {
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->set('firstname', 'Jean')
@@ -82,7 +89,7 @@ it('réinitialise les champs à l\'ouverture du modal', function () {
 // ── Génération du courriel ─────────────────────────────────────────────────
 
 it('génère le courriel à partir du username lors de la saisie du nom', function () {
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->set('firstname', 'Marie')
@@ -93,7 +100,7 @@ it('génère le courriel à partir du username lors de la saisie du nom', functi
 it('met à jour le courriel généré après confirmNewEmployee', function () {
     User::factory()->create(['firstname' => 'Luc', 'lastname' => 'Roy', 'email' => 'lucroy@dkor.ca']);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->set('firstname', 'Luc')
@@ -105,13 +112,14 @@ it('met à jour le courriel généré après confirmNewEmployee', function () {
 // ── Création d'utilisateur ─────────────────────────────────────────────────
 
 it('crée un nouvel utilisateur avec le courriel généré', function () {
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
         ->set('role', 'salesman')
+        ->set('cellphone', '(514)555-1234')
         ->call('save')
         ->assertHasNoErrors()
         ->assertSet('showCreateModal', false);
@@ -132,13 +140,14 @@ it('génère un username et courriel uniques en cas de doublon de nom', function
         'is_active' => true,
     ]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
         ->set('firstname', 'Luc')
         ->set('lastname', 'Roy')
         ->set('role', 'salesman')
+        ->set('cellphone', '(514)555-1234')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -151,12 +160,12 @@ it('génère un username et courriel uniques en cas de doublon de nom', function
 // ── Validation ─────────────────────────────────────────────────────────────
 
 it('requiert le prénom et le nom', function () {
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
         ->call('save')
-        ->assertHasErrors(['firstname', 'lastname']);
+        ->assertHasErrors(['firstname', 'lastname', 'cellphone']);
 });
 
 // ── Recherche et statut ────────────────────────────────────────────────────
@@ -165,7 +174,7 @@ it('recherche un employé par nom', function () {
     $alice = User::factory()->create(['firstname' => 'Alice', 'lastname' => 'Tremblay', 'is_active' => true]);
     $bob = User::factory()->create(['firstname' => 'Bob', 'lastname' => 'Gagnon', 'is_active' => true]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->set('search', 'Tremb')
@@ -177,7 +186,7 @@ it('affiche les employés inactifs avec le filtre de statut', function () {
     $actif = User::factory()->create(['firstname' => 'Alice', 'lastname' => 'Tremblay', 'is_active' => true]);
     $inactif = User::factory()->create(['firstname' => 'Bob', 'lastname' => 'Gagnon', 'is_active' => false]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->set('statusFilter', 'inactive')
@@ -191,12 +200,13 @@ it('affiche les employés inactifs avec le filtre de statut', function () {
 // ── Mot de passe initial et réactivation ───────────────────────────────────
 
 it('génère un mot de passe temporaire aléatoire à la création', function () {
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     $component = Livewire::test(Index::class)
         ->call('openCreateModal')
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
+        ->set('cellphone', '(514)555-1234')
         ->call('save')
         ->assertSet('showCredentialsModal', true)
         ->assertSet('createdEmail', 'mariecote@dkor.ca');
@@ -212,7 +222,7 @@ it('génère un mot de passe temporaire aléatoire à la création', function ()
 it('ne réactive pas un employé inactif pendant la saisie', function () {
     $ancien = User::factory()->create(['firstname' => 'Luc', 'lastname' => 'Roy', 'username' => 'lucroy', 'is_active' => false]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->set('firstname', 'Luc')
@@ -224,13 +234,14 @@ it('ne réactive pas un employé inactif pendant la saisie', function () {
 it('demande nouvel employé ou retour quand un employé inactif porte le même nom', function () {
     User::factory()->create(['firstname' => 'Luc', 'lastname' => 'Roy', 'username' => 'lucroy', 'is_active' => false]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
         ->set('firstname', 'Luc')
         ->set('lastname', 'Roy')
         ->assertSet('inactiveMatchIds', fn ($ids) => count($ids) === 1)
+        ->set('cellphone', '(514)555-1234')
         ->call('save')
         ->assertSet('showCreateModal', true);
 
@@ -240,13 +251,14 @@ it('demande nouvel employé ou retour quand un employé inactif porte le même n
 it('crée un nouvel employé avec un nouveau nom d\'utilisateur après confirmation', function () {
     User::factory()->create(['firstname' => 'Luc', 'lastname' => 'Roy', 'username' => 'lucroy', 'email' => 'lucroy@dkor.ca', 'is_active' => false]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
         ->set('firstname', 'Luc')
         ->set('lastname', 'Roy')
         ->call('confirmNewEmployee')
+        ->set('cellphone', '(514)555-1234')
         ->call('save')
         ->assertHasNoErrors()
         ->assertSet('showCreateModal', false);
@@ -258,7 +270,7 @@ it('crée un nouvel employé avec un nouveau nom d\'utilisateur après confirmat
 it('redirige vers la fiche de l\'employé inactif quand il est le seul candidat', function () {
     $ancien = User::factory()->create(['firstname' => 'Luc', 'lastname' => 'Roy', 'username' => 'lucroy', 'is_active' => false]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->set('firstname', 'Luc')
@@ -274,7 +286,7 @@ it('filtre la liste sur les inactifs quand plusieurs employés correspondent', f
     $b = User::factory()->create(['firstname' => 'Luc', 'lastname' => 'Roy', 'username' => 'lucroy1', 'email' => 'autre@dkor.ca', 'is_active' => false]);
     $autre = User::factory()->create(['firstname' => 'Luc', 'lastname' => 'Gagnon', 'is_active' => false]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
@@ -290,45 +302,47 @@ it('filtre la liste sur les inactifs quand plusieurs employés correspondent', f
 
 // ── Autorisations par rôle ─────────────────────────────────────────────────
 
-it('interdit la création aux rôles qui ne gèrent pas les utilisateurs', function (RoleType $role) {
+it('interdit la création aux rôles qui ne gèrent pas les utilisateurs', function (string $role) {
     $this->actingAs(User::factory()->withRole($role)->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
         ->assertForbidden();
-})->with([RoleType::Salesman, RoleType::Design, RoleType::Accounting, RoleType::ThirdKey]);
+})->with(['salesman', 'design', 'accounting', 'thirdkey']);
 
-it('permet à Admin, Owner et Manager de créer un utilisateur', function (RoleType $role) {
+it('permet à Admin, Owner et Manager de créer un utilisateur', function (string $role) {
     $this->actingAs(User::factory()->withRole($role)->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
+        ->set('cellphone', '(514)555-1234')
         ->call('save')
         ->assertHasNoErrors();
 
     expect(User::where('email', 'mariecote@dkor.ca')->exists())->toBeTrue();
-})->with([RoleType::Admin, RoleType::Owner, RoleType::Manager]);
+})->with(['admin', 'owner', 'manager']);
 
-it('interdit à un Manager de créer un Admin ou un Owner', function (RoleType $cible) {
-    $this->actingAs(User::factory()->withRole(RoleType::Manager)->create());
+it('interdit à un Manager de créer un Admin ou un Owner', function (string $cible) {
+    $this->actingAs(User::factory()->withRole('manager')->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
-        ->set('role', $cible->value)
+        ->set('role', $cible)
+        ->set('cellphone', '(514)555-1234')
         ->call('save')
         ->assertHasErrors(['role']);
 
     expect(User::where('email', 'mariecote@dkor.ca')->exists())->toBeFalse();
-})->with([RoleType::Admin, RoleType::Owner]);
+})->with(['admin', 'owner']);
 
 it('cache le bouton de création et les liens de fiche aux rôles non autorisés', function () {
     $cible = User::factory()->create(['firstname' => 'Alice', 'lastname' => 'Tremblay']);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Salesman)->create());
+    $this->actingAs(User::factory()->withRole('salesman')->create());
 
     Livewire::test(Index::class)
         ->assertDontSee('Ajouter un utilisateur')
@@ -336,7 +350,7 @@ it('cache le bouton de création et les liens de fiche aux rôles non autorisés
 });
 
 it('enregistre le créateur dans last_modified_by', function () {
-    $admin = User::factory()->withRole(RoleType::Admin)->create();
+    $admin = User::factory()->withRole('admin')->create();
 
     $this->actingAs($admin);
 
@@ -344,6 +358,7 @@ it('enregistre le créateur dans last_modified_by', function () {
         ->call('openCreateModal')
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
+        ->set('cellphone', '(514)555-1234')
         ->call('save');
 
     $user = User::where('email', 'mariecote@dkor.ca')->first();
@@ -352,7 +367,7 @@ it('enregistre le créateur dans last_modified_by', function () {
 });
 
 it('affiche le message d\'erreur en toast après une redirection', function () {
-    $this->actingAs(User::factory()->withRole(RoleType::Manager)->create());
+    $this->actingAs(User::factory()->withRole('manager')->create());
 
     $this->withSession(['toast-error' => 'Vous ne pouvez pas modifier votre propre fiche.'])
         ->get(route('users.index'))
@@ -360,11 +375,11 @@ it('affiche le message d\'erreur en toast après une redirection', function () {
 });
 
 it('cache les Admin et Owner dans la liste d\'un Manager', function () {
-    $admin = User::factory()->withRole(RoleType::Admin)->create(['firstname' => 'Ada', 'lastname' => 'Admin']);
-    $owner = User::factory()->withRole(RoleType::Owner)->create(['firstname' => 'Otto', 'lastname' => 'Owner']);
+    $admin = User::factory()->withRole('admin')->create(['firstname' => 'Ada', 'lastname' => 'Admin']);
+    $owner = User::factory()->withRole('owner')->create(['firstname' => 'Otto', 'lastname' => 'Owner']);
     $vendeur = User::factory()->create(['firstname' => 'Vera', 'lastname' => 'Vendeuse']);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Manager)->create());
+    $this->actingAs(User::factory()->withRole('manager')->create());
 
     Livewire::test(Index::class)
         ->assertSee($vendeur->fullName())
@@ -375,18 +390,18 @@ it('cache les Admin et Owner dans la liste d\'un Manager', function () {
 });
 
 it('montre tous les rôles dans la liste d\'un Admin', function () {
-    $owner = User::factory()->withRole(RoleType::Owner)->create(['firstname' => 'Otto', 'lastname' => 'Owner']);
+    $owner = User::factory()->withRole('owner')->create(['firstname' => 'Otto', 'lastname' => 'Owner']);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Admin)->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)->assertSee($owner->fullName());
 });
 
-it('ne révèle pas un Admin ou un Owner à un Manager lors de la création', function (RoleType $cible) {
+it('ne révèle pas un Admin ou un Owner à un Manager lors de la création', function (string $cible) {
     User::factory()->withRole($cible)->create(['firstname' => 'Luc', 'lastname' => 'Roy', 'username' => 'lucroy', 'email' => 'lucroy@dkor.ca', 'is_active' => true]);
     User::factory()->withRole($cible)->create(['firstname' => 'Ana', 'lastname' => 'Roy', 'username' => 'anaroy', 'email' => 'anaroy@dkor.ca', 'is_active' => false]);
 
-    $this->actingAs(User::factory()->withRole(RoleType::Manager)->create());
+    $this->actingAs(User::factory()->withRole('manager')->create());
 
     Livewire::test(Index::class)
         ->set('firstname', 'Luc')
@@ -397,4 +412,4 @@ it('ne révèle pas un Admin ou un Owner à un Manager lors de la création', fu
         ->set('firstname', 'Ana')
         ->set('lastname', 'Roy')
         ->assertSet('inactiveMatchIds', []);
-})->with([RoleType::Admin, RoleType::Owner]);
+})->with(['admin', 'owner']);

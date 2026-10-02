@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Enums\RoleType;
 use App\Enums\SupplierType;
 use App\Models\Supplier;
 use App\Models\User;
@@ -18,20 +17,21 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call([PermissionSeeder::class, RoleSeeder::class]);
+
         User::updateOrCreate(
             ['email' => 'testuser@dkor.ca'],
             [
                 'firstname' => 'Test',
                 'lastname' => 'User',
                 'username' => 'testuser',
-                'role' => RoleType::Salesman,
                 'is_active' => true,
                 'first_day' => now()->subMonths(3)->toDateString(),
                 'last_day' => null,
                 'email_verified_at' => now(),
                 'password' => bcrypt('password'),
             ],
-        );
+        )->syncRoles('salesman');
 
         User::updateOrCreate(
             ['email' => 'testadmin@dkor.ca'],
@@ -39,14 +39,13 @@ class DatabaseSeeder extends Seeder
                 'firstname' => 'Test',
                 'lastname' => 'Admin',
                 'username' => 'testadmin',
-                'role' => RoleType::Admin,
                 'is_active' => true,
                 'first_day' => now()->subMonths(3)->toDateString(),
                 'last_day' => null,
                 'email_verified_at' => now(),
                 'password' => bcrypt('password'),
             ],
-        );
+        )->syncRoles('admin');
 
         Supplier::factory()->createMany([
             ['type' => SupplierType::Product, 'name' => 'Matériaux Leblanc'],
@@ -62,13 +61,12 @@ class DatabaseSeeder extends Seeder
                 'firstname' => 'Test',
                 'lastname' => 'Sale',
                 'username' => 'testsale',
-                'role' => RoleType::Salesman,
                 'is_active' => true,
                 'first_day' => now()->subMonths(3)->toDateString(),
                 'last_day' => null,
                 'email_verified_at' => now(),
                 'password' => bcrypt('password'),
             ],
-        );
+        )->syncRoles('salesman');
     }
 }

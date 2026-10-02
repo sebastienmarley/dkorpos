@@ -10,9 +10,11 @@
 
         <div class="flex items-center gap-3">
             {{-- Nouveau client --}}
-            <flux:button size="sm" variant="ghost" icon="user-plus" x-on:click="$dispatch('open-customer-create')">
-                {{ __('Nouveau client') }}
-            </flux:button>
+            @can('customers.create')
+                <flux:button size="sm" variant="ghost" icon="user-plus" x-on:click="$dispatch('open-customer-create')">
+                    {{ __('Nouveau client') }}
+                </flux:button>
+            @endcan
 
             {{-- Sélecteur d'employé --}}
             <flux:select wire:model.live="selectedUserId" class="w-48">
@@ -211,7 +213,8 @@
                                 $appointment = $appointments->get($dateKey)?->get($slotStart);
                                 $isPast = $day->copy()->startOfDay()->addMinutes($slotStart)->lt(\Carbon\Carbon::now());
 
-                                $isClickable = $openSlots[$dateKey][$slotStart] ?? false;
+                                $isClickable = ($openSlots[$dateKey][$slotStart] ?? false)
+                                    && auth()->user()->can($appointment ? 'appointments.edit' : 'appointments.create');
                                 $rowspan = $appointment ? (int) ceil($appointment->duration_minutes / $slotMinutes) : 1;
                             @endphp
 
@@ -376,9 +379,11 @@
                     @elseif (strlen($customerSearch) >= 4)
                         <div class="mt-1 flex items-center justify-between rounded-lg border border-dashed border-zinc-200 px-3 py-2 dark:border-zinc-700">
                             <flux:text class="text-sm text-zinc-400">{{ __('Aucun client trouvé.') }}</flux:text>
-                            <flux:button size="sm" variant="ghost" icon="user-plus" x-on:click="$dispatch('open-customer-create')">
-                                {{ __('Créer') }}
-                            </flux:button>
+                            @can('customers.create')
+                                <flux:button size="sm" variant="ghost" icon="user-plus" x-on:click="$dispatch('open-customer-create')">
+                                    {{ __('Créer') }}
+                                </flux:button>
+                            @endcan
                         </div>
                     @endif
                 @endif
@@ -392,17 +397,19 @@
 
             <div class="flex items-center justify-between pt-2">
                 <div>
-                    @if ($editingAppointmentId)
-                        <flux:button
-                            type="button"
-                            variant="danger"
-                            icon="trash"
-                            wire:click="deleteAppointment"
-                            wire:confirm="{{ __('Supprimer ce rendez-vous ?') }}"
-                        >
-                            {{ __('Supprimer') }}
-                        </flux:button>
-                    @endif
+                    @can('appointments.delete')
+                        @if ($editingAppointmentId)
+                            <flux:button
+                                type="button"
+                                variant="danger"
+                                icon="trash"
+                                wire:click="deleteAppointment"
+                                wire:confirm="{{ __('Supprimer ce rendez-vous ?') }}"
+                            >
+                                {{ __('Supprimer') }}
+                            </flux:button>
+                        @endif
+                    @endcan
                 </div>
 
                 <div class="flex gap-3">

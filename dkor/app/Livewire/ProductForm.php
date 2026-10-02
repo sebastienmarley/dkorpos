@@ -25,6 +25,8 @@ class ProductForm extends Component
     #[On('open-product-create')]
     public function openCreate(): void
     {
+        $this->authorize('products.create');
+
         $this->reset(['supplierId', 'model', 'cleanModel', 'cost']);
         $this->resetErrorBag();
         $this->showModal = true;
@@ -37,6 +39,8 @@ class ProductForm extends Component
 
     public function save(): void
     {
+        $this->authorize('products.create');
+
         $this->cost = $this->normalizeCost($this->cost);
         $this->cleanModel = UniqueCleanProductModel::clean($this->model);
 

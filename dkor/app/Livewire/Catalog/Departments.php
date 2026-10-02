@@ -17,6 +17,8 @@ class Departments extends Component
 
     public function openCreate(): void
     {
+        $this->authorize('departments.create');
+
         $this->editingId = null;
         $this->reset('name');
         $this->showModal = true;
@@ -24,6 +26,8 @@ class Departments extends Component
 
     public function openEdit(Department $department): void
     {
+        $this->authorize('departments.edit');
+
         $this->editingId = $department->id;
         $this->name = $department->name;
         $this->showModal = true;
@@ -31,6 +35,8 @@ class Departments extends Component
 
     public function save(): void
     {
+        $this->authorize($this->editingId ? 'departments.edit' : 'departments.create');
+
         $this->validate(['name' => ['required', 'string', 'max:255', 'unique:departments,name,'.($this->editingId ?? 'NULL')]]);
 
         if ($this->editingId) {

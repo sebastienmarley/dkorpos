@@ -75,6 +75,8 @@ class ScheduleEdit extends Component
 
     public function openCell(int $userId, string $date): void
     {
+        $this->authorize('schedule_management.edit');
+
         $this->editingUserId = $userId;
         $this->editingDate = $date;
 
@@ -114,6 +116,8 @@ class ScheduleEdit extends Component
     /** Copie les quarts de la semaine précédente vers la semaine affichée, en brouillon. */
     public function copyPreviousWeek(): void
     {
+        $this->authorize('schedule_management.edit');
+
         $start = Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY);
 
         $planned = Schedule::query()
@@ -138,6 +142,8 @@ class ScheduleEdit extends Component
     /** Applique une semaine type à la semaine affichée, en brouillon. */
     public function applyWeekTemplate(int $weekTemplateId): void
     {
+        $this->authorize('schedule_management.edit');
+
         $start = Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY);
 
         $planned = WeekTemplateEntry::query()
@@ -189,6 +195,8 @@ class ScheduleEdit extends Component
 
     public function publishWeek(): void
     {
+        $this->authorize('schedule_management.publish');
+
         $this->activeWeekSchedules()
             ->where('status', ScheduleStatus::Draft->value)
             ->update(['status' => ScheduleStatus::Published, 'last_updated_by' => auth()->user()?->id]);
@@ -196,6 +204,8 @@ class ScheduleEdit extends Component
 
     public function unpublishWeek(): void
     {
+        $this->authorize('schedule_management.publish');
+
         $publishedIds = $this->activeWeekSchedules()
             ->where('status', ScheduleStatus::Published->value)
             ->pluck('id');
@@ -229,6 +239,8 @@ class ScheduleEdit extends Component
 
     public function deleteSchedule(): void
     {
+        $this->authorize('schedule_management.edit');
+
         $schedule = Schedule::query()
             ->where('user_id', $this->editingUserId)
             ->whereDate('date', $this->editingDate)
@@ -259,6 +271,8 @@ class ScheduleEdit extends Component
 
     public function save(): void
     {
+        $this->authorize('schedule_management.edit');
+
         $current = $this->editingScheduleId ? Schedule::query()->find($this->editingScheduleId) : null;
 
         if ($current && ! in_array($current->status, ScheduleStatus::editableValues())) {

@@ -58,6 +58,8 @@ class Show extends Component
 
     public function saveGeneral(): void
     {
+        $this->authorize('products.edit');
+
         $this->cost = $this->normalizeCost($this->cost);
         $this->cleanModel = UniqueCleanProductModel::clean($this->model);
 
@@ -90,6 +92,8 @@ class Show extends Component
 
     public function saveDescription(): void
     {
+        $this->authorize('products.edit');
+
         $this->validate([
             'colorId' => ['nullable', 'exists:colors,id'],
             'size' => ['nullable', 'string', 'max:255'],

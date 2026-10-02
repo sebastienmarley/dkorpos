@@ -6,9 +6,11 @@
             <flux:text class="mt-1 text-zinc-500">{{ __('Liste de tous les produits') }}</flux:text>
         </div>
 
-        <flux:button variant="primary" icon="plus" x-on:click="$dispatch('open-product-create')">
-            {{ __('Ajouter un produit') }}
-        </flux:button>
+        @can('products.create')
+            <flux:button variant="primary" icon="plus" x-on:click="$dispatch('open-product-create')">
+                {{ __('Ajouter un produit') }}
+            </flux:button>
+        @endcan
     </div>
 
     {{-- Filtres --}}

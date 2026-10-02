@@ -6,9 +6,11 @@
             <flux:text class="mt-1 text-zinc-500">{{ __('Liste de tous les clients') }}</flux:text>
         </div>
 
-        <flux:button variant="primary" icon="plus" x-on:click="$dispatch('open-customer-create')">
-            {{ __('Ajouter un client') }}
-        </flux:button>
+        @can('customers.create')
+            <flux:button variant="primary" icon="plus" x-on:click="$dispatch('open-customer-create')">
+                {{ __('Ajouter un client') }}
+            </flux:button>
+        @endcan
     </div>
 
     {{-- Recherche --}}
@@ -57,14 +59,16 @@
                             <flux:table.cell>{{ $customer->cellphone ?: '—' }}</flux:table.cell>
 
                             <flux:table.cell align="end">
-                                <flux:button
-                                    size="sm"
-                                    variant="ghost"
-                                    icon="pencil-square"
-                                    x-on:click="$dispatch('open-customer-edit', { id: {{ $customer->id }} })"
-                                >
-                                    {{ __('Modifier') }}
-                                </flux:button>
+                                @can('customers.edit')
+                                    <flux:button
+                                        size="sm"
+                                        variant="ghost"
+                                        icon="pencil-square"
+                                        x-on:click="$dispatch('open-customer-edit', { id: {{ $customer->id }} })"
+                                    >
+                                        {{ __('Modifier') }}
+                                    </flux:button>
+                                @endcan
                             </flux:table.cell>
                         </flux:table.row>
                     @empty

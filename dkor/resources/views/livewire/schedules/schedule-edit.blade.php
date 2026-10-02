@@ -9,49 +9,53 @@
         </div>
 
         <div class="flex items-center gap-2">
-            <flux:dropdown align="end">
-                <flux:button size="sm" variant="ghost" icon="document-duplicate" icon-trailing="chevron-down">
-                    {{ __('Remplir') }}
+            @can('schedule_management.edit')
+                <flux:dropdown align="end">
+                    <flux:button size="sm" variant="ghost" icon="document-duplicate" icon-trailing="chevron-down">
+                        {{ __('Remplir') }}
+                    </flux:button>
+
+                    <flux:menu>
+                        <flux:menu.item
+                            icon="arrow-uturn-right"
+                            wire:click="copyPreviousWeek"
+                            wire:confirm="{{ __('Copier les quarts de la semaine précédente vers cette semaine ? Les quarts déjà présents ne sont pas modifiés.') }}"
+                        >
+                            {{ __('Copier la semaine précédente') }}
+                        </flux:menu.item>
+
+                        <flux:menu.separator />
+
+                        <flux:menu.group :heading="__('Semaines type')">
+                            @forelse ($weekTemplates as $weekTemplate)
+                                <flux:menu.item
+                                    wire:click="applyWeekTemplate({{ $weekTemplate->id }})"
+                                    wire:confirm="{{ __('Appliquer cette semaine type ? Les quarts déjà présents ne sont pas modifiés.') }}"
+                                >
+                                    {{ $weekTemplate->name }}
+                                </flux:menu.item>
+                            @empty
+                                <flux:menu.item disabled>{{ __('Aucune semaine type') }}</flux:menu.item>
+                            @endforelse
+                        </flux:menu.group>
+
+                        <flux:menu.separator />
+
+                        <flux:menu.item icon="cog-6-tooth" :href="route('schedules.templates')" wire:navigate>
+                            {{ __('Gérer les modèles') }}
+                        </flux:menu.item>
+                    </flux:menu>
+                </flux:dropdown>
+            @endcan
+
+            @can('schedule_management.publish')
+                <flux:button size="sm" variant="ghost" wire:click="unpublishWeek" wire:confirm="{{ __('Dépublier tous les quarts de cette semaine ?') }}">
+                    {{ __('Dépublier') }}
                 </flux:button>
-
-                <flux:menu>
-                    <flux:menu.item
-                        icon="arrow-uturn-right"
-                        wire:click="copyPreviousWeek"
-                        wire:confirm="{{ __('Copier les quarts de la semaine précédente vers cette semaine ? Les quarts déjà présents ne sont pas modifiés.') }}"
-                    >
-                        {{ __('Copier la semaine précédente') }}
-                    </flux:menu.item>
-
-                    <flux:menu.separator />
-
-                    <flux:menu.group :heading="__('Semaines type')">
-                        @forelse ($weekTemplates as $weekTemplate)
-                            <flux:menu.item
-                                wire:click="applyWeekTemplate({{ $weekTemplate->id }})"
-                                wire:confirm="{{ __('Appliquer cette semaine type ? Les quarts déjà présents ne sont pas modifiés.') }}"
-                            >
-                                {{ $weekTemplate->name }}
-                            </flux:menu.item>
-                        @empty
-                            <flux:menu.item disabled>{{ __('Aucune semaine type') }}</flux:menu.item>
-                        @endforelse
-                    </flux:menu.group>
-
-                    <flux:menu.separator />
-
-                    <flux:menu.item icon="cog-6-tooth" :href="route('schedules.templates')" wire:navigate>
-                        {{ __('Gérer les modèles') }}
-                    </flux:menu.item>
-                </flux:menu>
-            </flux:dropdown>
-
-            <flux:button size="sm" variant="ghost" wire:click="unpublishWeek" wire:confirm="{{ __('Dépublier tous les quarts de cette semaine ?') }}">
-                {{ __('Dépublier') }}
-            </flux:button>
-            <flux:button size="sm" variant="primary" wire:click="publishWeek" wire:confirm="{{ __('Publier tous les quarts de cette semaine ?') }}">
-                {{ __('Publier') }}
-            </flux:button>
+                <flux:button size="sm" variant="primary" wire:click="publishWeek" wire:confirm="{{ __('Publier tous les quarts de cette semaine ?') }}">
+                    {{ __('Publier') }}
+                </flux:button>
+            @endcan
 
             @if (! $isCurrentWeek)
                 <flux:button size="sm" variant="ghost" wire:click="goToCurrentWeek">
@@ -112,7 +116,7 @@
                                 class="px-2 py-2 text-center"
                             >
                                 <button
-                                    wire:click="openCell({{ $user->id }}, '{{ $dateKey }}')"
+                                    @can('schedule_management.edit') wire:click="openCell({{ $user->id }}, '{{ $dateKey }}')" @else disabled @endcan
                                     class="w-full min-w-20 rounded-lg border px-2 py-1.5 text-xs transition
                                         @if ($schedule?->type->isAbsence())
                                             {{ match ($schedule->type) {

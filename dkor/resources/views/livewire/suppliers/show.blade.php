@@ -80,7 +80,9 @@
                 </div>
 
                 <div class="flex justify-end pt-2">
-                    <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                    @can('suppliers.edit')
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                    @endcan
                 </div>
             </form>
         </div>
@@ -118,7 +120,9 @@
                 </div>
 
                 <div class="flex justify-end pt-2">
-                    <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                    @can('suppliers.edit')
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                    @endcan
                 </div>
             </form>
         </div>
@@ -150,7 +154,9 @@
                 </flux:field>
 
                 <div class="flex justify-end pt-2">
-                    <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                    @can('suppliers.edit')
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                    @endcan
                 </div>
             </form>
         </div>

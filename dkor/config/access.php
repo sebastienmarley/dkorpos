@@ -1,0 +1,114 @@
+<?php
+
+/*
+|--------------------------------------------------------------------------
+| Rôles et permissions par défaut
+|--------------------------------------------------------------------------
+|
+| Définition de départ utilisée par PermissionSeeder et RoleSeeder. Les permissions
+| sont les clés utilisées par les gates et les policies de l'application. Les
+| rôles sont ensuite gérés en base (niveau hiérarchique, permissions de base).
+|
+*/
+
+$pageAccess = [
+    'customers.view',
+    'customers.create',
+    'customers.edit',
+    'suppliers.view',
+    'suppliers.create',
+    'suppliers.edit',
+    'products.view',
+    'products.create',
+    'products.edit',
+    'departments.view',
+    'departments.create',
+    'departments.edit',
+    'categories.view',
+    'categories.create',
+    'categories.edit',
+    'colors.view',
+    'colors.create',
+    'colors.edit',
+    'schedules.view',
+    'schedule_management.view',
+    'schedule_management.edit',
+    'schedule_management.publish',
+    'schedule_templates.view',
+    'schedule_templates.create',
+    'schedule_templates.edit',
+    'schedule_templates.delete',
+    'holidays.view',
+    'holidays.create',
+    'holidays.edit',
+    'holidays.delete',
+    'appointments.view',
+    'appointments.create',
+    'appointments.edit',
+    'appointments.delete',
+];
+
+return [
+    /*
+     * Permissions de pages et d'actions accordées par défaut à tous les rôles
+     * (accès actuel conservé, les restrictions se font dans l'interface).
+     */
+    'page_access' => $pageAccess,
+
+    'permissions' => [
+        'users.view' => ['Voir les utilisateurs', 'Consulter la liste des utilisateurs.'],
+        'users.create' => ['Créer un utilisateur', 'Ajouter un nouvel employé.'],
+        'users.edit' => ['Modifier un utilisateur', 'Modifier la fiche, le statut et le mot de passe d\'un employé.'],
+        'users.edit_self' => ['Modifier sa propre fiche', 'Modifier sa propre fiche utilisateur.'],
+        'users.assign_permissions' => ['Attribuer des permissions supplémentaires', 'Ajouter des permissions à un utilisateur en plus de celles de son rôle.'],
+        'customers.view' => ['Voir — clients', 'Accéder à la page : clients.'],
+        'customers.create' => ['Créer — clients', 'Créer dans : clients.'],
+        'customers.edit' => ['Modifier — clients', 'Modifier dans : clients.'],
+        'suppliers.view' => ['Voir — fournisseurs', 'Accéder à la page : fournisseurs.'],
+        'suppliers.create' => ['Créer — fournisseurs', 'Créer dans : fournisseurs.'],
+        'suppliers.edit' => ['Modifier — fournisseurs', 'Modifier dans : fournisseurs.'],
+        'products.view' => ['Voir — produits', 'Accéder à la page : produits.'],
+        'products.create' => ['Créer — produits', 'Créer dans : produits.'],
+        'products.edit' => ['Modifier — produits', 'Modifier dans : produits.'],
+        'departments.view' => ['Voir — départements', 'Accéder à la page : départements.'],
+        'departments.create' => ['Créer — départements', 'Créer dans : départements.'],
+        'departments.edit' => ['Modifier — départements', 'Modifier dans : départements.'],
+        'categories.view' => ['Voir — catégories', 'Accéder à la page : catégories.'],
+        'categories.create' => ['Créer — catégories', 'Créer dans : catégories.'],
+        'categories.edit' => ['Modifier — catégories', 'Modifier dans : catégories.'],
+        'colors.view' => ['Voir — couleurs', 'Accéder à la page : couleurs.'],
+        'colors.create' => ['Créer — couleurs', 'Créer dans : couleurs.'],
+        'colors.edit' => ['Modifier — couleurs', 'Modifier dans : couleurs.'],
+        'schedules.view' => ['Voir — « Mon horaire »', 'Accéder à la page : « Mon horaire ».'],
+        'schedule_management.view' => ['Voir — gestion des horaires', 'Accéder à la page : gestion des horaires.'],
+        'schedule_management.edit' => ['Modifier — gestion des horaires', 'Modifier dans : gestion des horaires.'],
+        'schedule_management.publish' => ['Publier — gestion des horaires', 'Publier dans : gestion des horaires.'],
+        'schedule_templates.view' => ['Voir — modèles d\'horaire', 'Accéder à la page : modèles d\'horaire.'],
+        'schedule_templates.create' => ['Créer — modèles d\'horaire', 'Créer dans : modèles d\'horaire.'],
+        'schedule_templates.edit' => ['Modifier — modèles d\'horaire', 'Modifier dans : modèles d\'horaire.'],
+        'schedule_templates.delete' => ['Supprimer — modèles d\'horaire', 'Supprimer dans : modèles d\'horaire.'],
+        'holidays.view' => ['Voir — jours fériés', 'Accéder à la page : jours fériés.'],
+        'holidays.create' => ['Créer — jours fériés', 'Créer dans : jours fériés.'],
+        'holidays.edit' => ['Modifier — jours fériés', 'Modifier dans : jours fériés.'],
+        'holidays.delete' => ['Supprimer — jours fériés', 'Supprimer dans : jours fériés.'],
+        'appointments.view' => ['Voir — rendez-vous', 'Accéder à la page : rendez-vous.'],
+        'appointments.create' => ['Créer — rendez-vous', 'Créer dans : rendez-vous.'],
+        'appointments.edit' => ['Modifier — rendez-vous', 'Modifier dans : rendez-vous.'],
+        'appointments.delete' => ['Supprimer — rendez-vous', 'Supprimer dans : rendez-vous.'],
+        'roles.manage' => ['Gérer les rôles', 'Créer et modifier les rôles et leurs permissions.'],
+        'permissions.manage' => ['Gérer les permissions', 'Créer et modifier les permissions.'],
+        'positions.manage' => ['Gérer les positions', 'Créer et modifier les titres d\'emploi.'],
+    ],
+
+    'roles' => [
+        'admin' => ['label' => 'Administrateur', 'level' => 100, 'permissions' => '*'],
+        'owner' => ['label' => 'Propriétaire', 'level' => 100, 'permissions' => '*'],
+        'manager' => ['label' => 'Directeur', 'level' => 50, 'permissions' => ['users.view', 'users.create', 'users.edit', ...$pageAccess]],
+        'design' => ['label' => 'Designer', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
+        'delivery' => ['label' => 'Livreur', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
+        'warehouse' => ['label' => 'Commis entrepôt', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
+        'salesman' => ['label' => 'Vendeur', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
+        'accounting' => ['label' => 'Comptabilité', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
+        'thirdkey' => ['label' => 'Troisième clé', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
+    ],
+];

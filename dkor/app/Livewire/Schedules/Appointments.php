@@ -92,6 +92,8 @@ class Appointments extends Component
             ->with('customer')
             ->first();
 
+        $this->authorize($existing ? 'appointments.edit' : 'appointments.create');
+
         $this->editingAppointmentId = $existing?->id;
         $this->editingVersion = $existing?->updated_at?->getTimestamp() ?? 0;
         $this->title = $existing ? $existing->title : '';
@@ -126,6 +128,8 @@ class Appointments extends Component
 
     public function save(): void
     {
+        $this->authorize($this->editingAppointmentId ? 'appointments.edit' : 'appointments.create');
+
         if (! $this->editingDate || ! $this->canBookAt($this->editingDate, $this->editingStartMinute)) {
             $this->addError('title', __('Ce créneau n\'est pas disponible.'));
 
@@ -192,6 +196,8 @@ class Appointments extends Component
      */
     public function updateAppointmentTime(int $id, string $date, int $startMinute, int $durationMinutes, int $version): void
     {
+        $this->authorize('appointments.edit');
+
         $appointment = $this->employeeAppointments()->find($id);
 
         if (! $appointment) {
@@ -285,6 +291,8 @@ class Appointments extends Component
 
     public function deleteAppointment(): void
     {
+        $this->authorize('appointments.delete');
+
         if ($this->editingAppointmentId) {
             $this->employeeAppointments()->whereKey($this->editingAppointmentId)->delete();
         }

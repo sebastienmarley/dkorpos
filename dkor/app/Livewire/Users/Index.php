@@ -2,9 +2,11 @@
 
 namespace App\Livewire\Users;
 
-use App\Enums\RoleType;
+use App\Models\Position;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -33,6 +35,8 @@ class Index extends Component
 
     public string $role = 'salesman';
 
+    public ?int $positionId = null;
+
     public ?string $first_day = null;
 
     public string $username = '';
@@ -40,8 +44,6 @@ class Index extends Component
     public string $generatedEmail = '';
 
     public ?string $personalEmail = null;
-
-    public ?string $phone = null;
 
     public ?string $cellphone = null;
 
@@ -121,8 +123,8 @@ class Index extends Component
     {
         $this->authorize('create', User::class);
 
-        $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'phone', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
-        $this->role = 'salesman';
+        $this->reset(['firstname', 'lastname', 'role', 'positionId', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
+        $this->role = $this->defaultRole();
         $this->showCreateModal = true;
     }
 
@@ -133,11 +135,11 @@ class Index extends Component
         $validated = $this->validate([
             'firstname' => ['required', 'string', 'max:255'],
             'lastname' => ['required', 'string', 'max:255'],
-            'role' => ['required', 'string', 'in:'.implode(',', array_column($this->assignableRoles(), 'value'))],
+            'role' => ['required', 'string', 'in:'.$this->assignableRoles()->pluck('name')->implode(',')],
+            'positionId' => ['nullable', 'integer', 'exists:positions,id'],
             'first_day' => ['nullable', 'date'],
             'personalEmail' => ['nullable', 'email', 'max:255'],
-            'phone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
-            'cellphone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
+            'cellphone' => ['required', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
         ]);
 
         $this->inactiveMatchIds = User::inactiveMatchesForName($this->firstname, $this->lastname, Auth::user())->modelKeys();
@@ -168,16 +170,16 @@ class Index extends Component
         $user->firstname = $validated['firstname'];
         $user->lastname = $validated['lastname'];
         $user->email = $email;
-        $user->role = $validated['role'];
+        $user->position_id = $validated['positionId'];
         $user->is_active = true;
         $user->first_day = $validated['first_day'];
         $user->personal_email = $validated['personalEmail'];
-        $user->phone = filled($validated['phone']) ? $validated['phone'] : null;
-        $user->cellphone = filled($validated['cellphone']) ? $validated['cellphone'] : null;
+        $user->cellphone = $validated['cellphone'];
         $user->username = $resolved['username'];
         $plainPassword = Str::password(12);
         $user->password = $plainPassword;
         $user->markModifiedBy(Auth::user())->save();
+        $user->assignRole($validated['role']);
 
         $this->closeCreateModal();
         $this->createdEmail = $email;
@@ -189,14 +191,14 @@ class Index extends Component
 
     private function canSee(?User $user): bool
     {
-        return $user !== null && in_array($user->role, Auth::user()->visibleRoles(), true);
+        return $user !== null && Auth::user()->canSeeRole($user->role);
     }
 
     public function closeCreateModal(): void
     {
         $this->showCreateModal = false;
-        $this->reset(['firstname', 'lastname', 'role', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'phone', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
-        $this->role = 'salesman';
+        $this->reset(['firstname', 'lastname', 'role', 'positionId', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
+        $this->role = $this->defaultRole();
     }
 
     public function closeCredentialsModal(): void
@@ -209,21 +211,34 @@ class Index extends Component
         $this->sortRole = $this->sortRole === $role ? '' : $role;
     }
 
-    /** @return array<int, RoleType> */
-    public function assignableRoles(): array
+    /** @return Collection<int, Role> */
+    public function assignableRoles(): Collection
     {
         return Auth::user()->assignableRoles();
     }
 
-    /** @return array<int, RoleType> */
-    public function getRoleTypes(): array
+    /** @return Collection<int, Role> */
+    public function visibleRoles(): Collection
     {
         return Auth::user()->visibleRoles();
     }
 
+    /** @return Collection<int, Position> */
+    public function positions(): Collection
+    {
+        return Position::query()->orderBy('name')->get();
+    }
+
+    private function defaultRole(): string
+    {
+        $assignable = $this->assignableRoles();
+
+        return $assignable->contains('name', 'salesman') ? 'salesman' : (string) $assignable->last()?->name;
+    }
+
     public function render(): View
     {
-        $query = User::query()->visibleTo(Auth::user());
+        $query = User::query()->with(['roles', 'position'])->visibleTo(Auth::user());
 
         match ($this->statusFilter) {
             'inactive' => $query->where('is_active', false),
@@ -243,7 +258,7 @@ class Index extends Component
         }
 
         if (filled($this->sortRole)) {
-            $query->where('role', $this->sortRole);
+            $query->whereHas('roles', fn ($q) => $q->where('roles.name', $this->sortRole));
         }
 
         $users = $query->orderBy('lastname')->orderBy('firstname')->get();

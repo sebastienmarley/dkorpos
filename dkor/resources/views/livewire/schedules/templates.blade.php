@@ -10,9 +10,11 @@
     <section>
         <div class="mb-3 flex items-center justify-between">
             <flux:heading size="lg">{{ __('Quarts type') }}</flux:heading>
-            <flux:button size="sm" variant="primary" icon="plus" wire:click="openCreateShift">
-                {{ __('Nouveau quart type') }}
-            </flux:button>
+            @can('schedule_templates.create')
+                <flux:button size="sm" variant="primary" icon="plus" wire:click="openCreateShift">
+                    {{ __('Nouveau quart type') }}
+                </flux:button>
+            @endcan
         </div>
 
         @if ($shiftTemplates->isEmpty())
@@ -28,7 +30,7 @@
                     >
                         <button
                             type="button"
-                            wire:click="openEditShift({{ $shift->id }})"
+                            @can('schedule_templates.edit') wire:click="openEditShift({{ $shift->id }})" @else disabled @endcan
                             class="block w-full text-left"
                             aria-label="{{ __('Modifier :name', ['name' => $shift->name]) }}"
                         >
@@ -41,18 +43,20 @@
                             @endif
                         </button>
 
-                        <div class="absolute right-2 top-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                            <flux:button
-                                size="xs"
-                                variant="ghost"
-                                icon="trash"
-                                wire:click="deleteShift({{ $shift->id }})"
-                                wire:confirm="{{ $shift->entries_count > 0
-                                    ? __('Ce quart type est utilisé dans des semaines type : il sera retiré de ces cases. Supprimer ?')
-                                    : __('Supprimer ce quart type ?') }}"
-                                :label="__('Supprimer')"
-                            />
-                        </div>
+                        @can('schedule_templates.delete')
+                            <div class="absolute right-2 top-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                                <flux:button
+                                    size="xs"
+                                    variant="ghost"
+                                    icon="trash"
+                                    wire:click="deleteShift({{ $shift->id }})"
+                                    wire:confirm="{{ $shift->entries_count > 0
+                                        ? __('Ce quart type est utilisé dans des semaines type : il sera retiré de ces cases. Supprimer ?')
+                                        : __('Supprimer ce quart type ?') }}"
+                                    :label="__('Supprimer')"
+                                />
+                            </div>
+                        @endcan
                     </div>
                 @endforeach
             </div>
@@ -73,20 +77,26 @@
                 </flux:select>
 
                 @if ($selectedWeekTemplateId !== '')
-                    <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="openRenameWeek" :label="__('Renommer')" />
-                    <flux:button
-                        size="sm"
-                        variant="ghost"
-                        icon="trash"
-                        wire:click="deleteWeek"
-                        wire:confirm="{{ __('Supprimer cette semaine type ?') }}"
-                        :label="__('Supprimer')"
-                    />
+                    @can('schedule_templates.edit')
+                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="openRenameWeek" :label="__('Renommer')" />
+                    @endcan
+                    @can('schedule_templates.delete')
+                        <flux:button
+                            size="sm"
+                            variant="ghost"
+                            icon="trash"
+                            wire:click="deleteWeek"
+                            wire:confirm="{{ __('Supprimer cette semaine type ?') }}"
+                            :label="__('Supprimer')"
+                        />
+                    @endcan
                 @endif
 
-                <flux:button size="sm" variant="primary" icon="plus" wire:click="openCreateWeek">
-                    {{ __('Nouvelle semaine type') }}
-                </flux:button>
+                @can('schedule_templates.create')
+                    <flux:button size="sm" variant="primary" icon="plus" wire:click="openCreateWeek">
+                        {{ __('Nouvelle semaine type') }}
+                    </flux:button>
+                @endcan
             </div>
         </div>
 
@@ -115,7 +125,7 @@
                                 <td class="px-4 py-2 font-medium text-zinc-800 dark:text-zinc-100">{{ $user->fullName() }}</td>
                                 @foreach ($weekdayLabels as $weekday => $label)
                                     <td class="px-1 py-2">
-                                        <flux:select size="sm" wire:model.live="entries.{{ $user->id }}.{{ $weekday }}">
+                                        <flux:select size="sm" wire:model.live="entries.{{ $user->id }}.{{ $weekday }}" :disabled="! auth()->user()->can('schedule_templates.edit')">
                                             <flux:select.option value="">—</flux:select.option>
                                             @foreach ($shiftTemplates as $shift)
                                                 <flux:select.option value="{{ $shift->id }}">{{ $shift->name }}</flux:select.option>

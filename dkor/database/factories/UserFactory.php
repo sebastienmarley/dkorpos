@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Enums\RoleType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -29,7 +28,6 @@ class UserFactory extends Factory
             'firstname' => fake()->firstName(),
             'lastname' => fake()->lastName(),
             'username' => fake()->unique()->userName(),
-            'role' => RoleType::Salesman,
             'email' => fake()->unique()->safeEmail(),
             'is_active' => true,
             'first_day' => now()->subMonths(6)->toDateString(),
@@ -41,11 +39,23 @@ class UserFactory extends Factory
     }
 
     /**
-     * Indicate that the user has the given role.
+     * Sans autre rôle précisé, un usager de test est vendeur.
      */
-    public function withRole(RoleType $role): static
+    public function configure(): static
     {
-        return $this->state(fn (array $attributes) => ['role' => $role]);
+        return $this->afterCreating(function (User $user): void {
+            if ($user->roles()->doesntExist()) {
+                $user->assignRole('salesman');
+            }
+        });
+    }
+
+    /**
+     * Indicate that the user has the given role (nom technique : admin, manager, salesman…).
+     */
+    public function withRole(string $role): static
+    {
+        return $this->afterCreating(fn (User $user) => $user->syncRoles($role));
     }
 
     /**

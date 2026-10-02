@@ -76,6 +76,8 @@ class Show extends Component
 
     public function saveIdentification(): void
     {
+        $this->authorize('suppliers.edit');
+
         $validated = $this->validate([
             'type' => ['required', 'in:product,service'],
             'name' => ['required', 'string', 'max:255'],
@@ -109,6 +111,8 @@ class Show extends Component
 
     public function saveAccounting(): void
     {
+        $this->authorize('suppliers.edit');
+
         $this->validate([
             'accountNumber' => ['nullable', 'string', 'max:255'],
             'bankAccount' => ['nullable', 'string', 'max:255'],
@@ -138,6 +142,8 @@ class Show extends Component
 
     public function saveParameters(): void
     {
+        $this->authorize('suppliers.edit');
+
         $this->validate([
             'orderEmail' => ['nullable', 'email', 'max:255'],
             'priceMultiplier' => ['required', 'numeric', 'min:0.0001', 'max:9999'],

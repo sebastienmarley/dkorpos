@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\RoleType;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -16,13 +15,15 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Spatie\Permission\Traits\HasRoles;
 
 /**
  * @property int $id
  * @property string $firstname
  * @property string $lastname
  * @property string $username
- * @property RoleType $role
+ * @property-read Role|null $role
+ * @property int|null $position_id
  * @property string $email
  * @property bool $is_active
  * @property Carbon|null $first_day
@@ -36,17 +37,24 @@ use Illuminate\Support\Str;
  * @property string|null $phone
  * @property string|null $cellphone
  * @property string|null $remember_token
+ * @property string|null $address_civic
+ * @property string|null $address_apartment
+ * @property string|null $address_street
+ * @property string|null $address_city
+ * @property string|null $address_province
+ * @property string|null $address_country
+ * @property string|null $address_postal_code
  * @property Carbon|null $last_modified
  * @property int|null $last_modified_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['firstname', 'lastname', 'role', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day', 'phone', 'cellphone'])]
+#[Fillable(['firstname', 'lastname', 'position_id', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day', 'phone', 'cellphone', 'address_civic', 'address_apartment', 'address_street', 'address_city', 'address_province', 'address_country', 'address_postal_code'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'first_day', 'last_day', 'last_modified', 'last_modified_by'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, HasRoles, Notifiable;
 
     /**
      * Get the attributes that should be cast.
@@ -62,7 +70,6 @@ class User extends Authenticatable
             'last_modified' => 'datetime:Y-m-d H:i',
             'is_active' => 'boolean',
             'password' => 'hashed',
-            'role' => RoleType::class,
         ];
     }
 
@@ -211,34 +218,58 @@ class User extends Authenticatable
     }
 
     /**
-     * Rôles que cet utilisateur peut attribuer en créant ou en modifiant un usager.
-     * Vide pour les rôles qui ne gèrent pas les utilisateurs.
-     *
-     * @return array<int, RoleType>
+     * Rôle unique de l'utilisateur (les permissions supplémentaires passent par les permissions directes).
      */
-    public function assignableRoles(): array
+    public function getRoleAttribute(): ?Role
     {
-        return match ($this->role) {
-            RoleType::Admin, RoleType::Owner, RoleType::Manager => $this->visibleRoles(),
-            default => [],
-        };
+        $role = $this->roles->first();
+
+        return $role instanceof Role ? $role : null;
     }
 
     /**
-     * Rôles dont les fiches sont visibles pour cet utilisateur (un Manager ne voit ni Admin ni Owner).
-     *
-     * @return array<int, RoleType>
+     * Niveau hiérarchique du rôle (0 sans rôle).
      */
-    public function visibleRoles(): array
+    public function roleLevel(): int
     {
-        if ($this->role !== RoleType::Manager) {
-            return RoleType::cases();
+        $role = $this->role;
+
+        return $role === null ? 0 : $role->level;
+    }
+
+    /**
+     * Rôles que cet utilisateur peut attribuer en créant ou en modifiant un usager :
+     * ceux dont le niveau est inférieur ou égal au sien, s'il a le droit de créer ou modifier des usagers.
+     *
+     * @return Collection<int, Role>
+     */
+    public function assignableRoles(): Collection
+    {
+        if (! $this->canAny(['users.create', 'users.edit'])) {
+            return new Collection;
         }
 
-        return array_values(array_filter(
-            RoleType::cases(),
-            fn (RoleType $role): bool => ! in_array($role, [RoleType::Admin, RoleType::Owner], true),
-        ));
+        return Role::query()->where('level', '<=', $this->roleLevel())->orderByDesc('level')->orderBy('label')->get();
+    }
+
+    /**
+     * Rôles dont les fiches sont visibles : ceux qu'il peut gérer, sinon tous.
+     *
+     * @return Collection<int, Role>
+     */
+    public function visibleRoles(): Collection
+    {
+        $assignable = $this->assignableRoles();
+
+        return $assignable->isNotEmpty() ? $assignable : Role::query()->orderByDesc('level')->orderBy('label')->get();
+    }
+
+    /**
+     * Indique si le rôle donné fait partie des rôles visibles (un usager sans rôle l'est toujours).
+     */
+    public function canSeeRole(?Role $role): bool
+    {
+        return $role === null || $this->visibleRoles()->contains('id', $role->id);
     }
 
     /**
@@ -249,7 +280,16 @@ class User extends Authenticatable
     #[Scope]
     protected function visibleTo(Builder $query, self $viewer): void
     {
-        $query->whereIn('role', array_column($viewer->visibleRoles(), 'value'));
+        $roleIds = $viewer->visibleRoles()->modelKeys();
+
+        $query->where(fn (Builder $q) => $q->whereHas('roles', fn (Builder $r) => $r->whereIn('roles.id', $roleIds))
+            ->orWhereDoesntHave('roles'));
+    }
+
+    /** @return BelongsTo<Position, $this> */
+    public function position(): BelongsTo
+    {
+        return $this->belongsTo(Position::class);
     }
 
     /**

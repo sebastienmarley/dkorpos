@@ -33,6 +33,8 @@ class CustomerForm extends Component
     #[On('open-customer-create')]
     public function openCreate(): void
     {
+        $this->authorize('customers.create');
+
         $this->reset(['customerId', 'firstname', 'lastname', 'phone', 'cellphone', 'email']);
         $this->address = ['civic' => '', 'apartment' => '', 'street' => '', 'city' => '', 'province' => '', 'country' => 'CA', 'postal_code' => ''];
         $this->resetErrorBag();
@@ -42,6 +44,8 @@ class CustomerForm extends Component
     #[On('open-customer-edit')]
     public function openEdit(int $id): void
     {
+        $this->authorize('customers.edit');
+
         $customer = customer::findOrFail($id);
 
         $this->customerId = $customer->id;
@@ -70,6 +74,8 @@ class CustomerForm extends Component
 
     public function save(): void
     {
+        $this->authorize($this->customerId ? 'customers.edit' : 'customers.create');
+
         $validated = $this->validate([
             'firstname' => ['required', 'string', 'max:255'],
             'lastname' => ['required', 'string', 'max:255'],

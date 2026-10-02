@@ -44,7 +44,7 @@ class UserForm extends Component
             $this->firstname = $this->user->firstname;
             $this->lastname = $this->user->lastname;
             $this->email = $this->user->email;
-            $this->role = $this->user->role->value;
+            $this->role = (string) $this->user->role?->name;
             $this->is_active = (bool) $this->user->is_active;
             $this->first_day = $this->user->first_day?->toDateString();
             $this->last_day = $this->user->last_day?->toDateString();
@@ -117,7 +117,7 @@ class UserForm extends Component
                 'max:255',
                 Rule::unique(User::class, 'email')->ignore($this->user?->id),
             ],
-            'role' => ['required', 'string', 'max:255'],
+            'role' => ['required', 'string', 'exists:roles,name'],
             'is_active' => ['boolean'],
             'first_day' => ['nullable', 'date'],
             'last_day' => ['nullable', 'date', 'after_or_equal:first_day'],
@@ -141,7 +141,6 @@ class UserForm extends Component
             $user->firstname = $validated['firstname'];
             $user->lastname = $validated['lastname'];
             $user->email = $validated['email'];
-            $user->role = $validated['role'];
             $user->is_active = $validated['is_active'];
             $user->first_day = $validated['first_day'];
             $user->last_day = $validated['last_day'];
@@ -150,6 +149,7 @@ class UserForm extends Component
             $user->username = $resolved['username'];
             $user->password = bcrypt('password');
             $user->save();
+            $user->assignRole($validated['role']);
 
             $this->dispatch('user-saved', id: $user->id);
 
@@ -160,7 +160,6 @@ class UserForm extends Component
             'firstname' => $validated['firstname'],
             'lastname' => $validated['lastname'],
             'email' => $validated['email'],
-            'role' => $validated['role'],
             'is_active' => $validated['is_active'],
             'first_day' => $validated['first_day'],
             'last_day' => $validated['last_day'],
@@ -169,6 +168,7 @@ class UserForm extends Component
         ]);
         $this->user->username = $this->user->username ?: User::generateUniqueUsername($this->user->firstname, $this->user->lastname);
         $this->user->save();
+        $this->user->syncRoles($validated['role']);
 
         (new PurgeSchedulesAfterLastDay)->execute($this->user);
 

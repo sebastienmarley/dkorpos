@@ -21,6 +21,8 @@ class Categories extends Component
 
     public function openCreate(): void
     {
+        $this->authorize('categories.create');
+
         $this->editingId = null;
         $this->reset(['departmentId', 'name']);
         $this->showModal = true;
@@ -28,6 +30,8 @@ class Categories extends Component
 
     public function openEdit(Category $category): void
     {
+        $this->authorize('categories.edit');
+
         $this->editingId = $category->id;
         $this->departmentId = (string) ($category->department_id ?? '');
         $this->name = $category->name;
@@ -36,6 +40,8 @@ class Categories extends Component
 
     public function save(): void
     {
+        $this->authorize($this->editingId ? 'categories.edit' : 'categories.create');
+
         $this->validate([
             'departmentId' => ['nullable', 'exists:departments,id'],
             'name' => ['required', 'string', 'max:255'],

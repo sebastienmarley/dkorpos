@@ -4,9 +4,11 @@
             <flux:heading level="1" size="xl">{{ __('Catégories') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Gestion des catégories produits') }}</flux:text>
         </div>
-        <flux:button variant="primary" icon="plus" wire:click="openCreate">
-            {{ __('Ajouter') }}
-        </flux:button>
+        @can('categories.create')
+            <flux:button variant="primary" icon="plus" wire:click="openCreate">
+                {{ __('Ajouter') }}
+            </flux:button>
+        @endcan
     </div>
 
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -25,7 +27,9 @@
                         <flux:table.cell>{{ $category->department?->name ?? '—' }}</flux:table.cell>
                         <flux:table.cell>{{ $category->products_count }}</flux:table.cell>
                         <flux:table.cell class="text-right">
-                            <flux:button variant="ghost" size="sm" icon="pencil" wire:click="openEdit({{ $category->id }})" />
+                            @can('categories.edit')
+                                <flux:button variant="ghost" size="sm" icon="pencil" wire:click="openEdit({{ $category->id }})" />
+                            @endcan
                         </flux:table.cell>
                     </flux:table.row>
                 @empty

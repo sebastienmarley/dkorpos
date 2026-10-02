@@ -23,6 +23,8 @@ class SupplierForm extends Component
     #[On('open-supplier-create')]
     public function openCreate(): void
     {
+        $this->authorize('suppliers.create');
+
         $this->reset(['type', 'name', 'address', 'phone']);
         $this->type = 'product';
         $this->showModal = true;
@@ -30,6 +32,8 @@ class SupplierForm extends Component
 
     public function save(): void
     {
+        $this->authorize('suppliers.create');
+
         $validated = $this->validate([
             'type' => ['required', 'in:product,service'],
             'name' => ['required', 'string', 'max:255'],

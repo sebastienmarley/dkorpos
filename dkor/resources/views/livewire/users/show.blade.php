@@ -8,8 +8,8 @@
         <div class="min-w-0 flex-1">
             <flux:heading level="1" size="xl">{{ $user->fullName() }}</flux:heading>
             <div class="mt-1 flex items-center gap-2">
-                <flux:badge :color="$user->role === \App\Enums\RoleType::Admin ? 'violet' : 'blue'" size="sm">
-                    {{ $user->role->label() }}
+                <flux:badge :color="($user->role?->level ?? 0) >= 100 ? 'violet' : 'blue'" size="sm">
+                    {{ $user->role?->displayName() }}
                 </flux:badge>
                 @if (! $user->is_active)
                     <flux:badge color="zinc" size="sm">{{ __('Inactif') }}</flux:badge>
@@ -36,10 +36,26 @@
 
             <button
                 type="button"
+                @click="tab = 'address'"
+                :class="tab === 'address' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
+                class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+            >{{ __('Adresse') }}</button>
+
+            <button
+                type="button"
                 @click="tab = 'account'"
                 :class="tab === 'account' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                 class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
             >{{ __('Compte') }}</button>
+
+            @can('assignPermissions', $user)
+                <button
+                    type="button"
+                    @click="tab = 'access'"
+                    :class="tab === 'access' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
+                    class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                >{{ __('Accès') }}</button>
+            @endcan
         </div>
 
         {{-- Identification --}}
@@ -62,11 +78,25 @@
                 <flux:field>
                     <flux:label>{{ __('Rôle') }}</flux:label>
                     <flux:select wire:model="role">
-                        @foreach ($this->getRoleTypes() as $roleType)
-                            <flux:select.option :value="$roleType->value">{{ $roleType->label() }}</flux:select.option>
+                        @foreach ($this->getRoles() as $roleOption)
+                            <flux:select.option :value="$roleOption->name">{{ $roleOption->displayName() }}</flux:select.option>
                         @endforeach
+                        @unless ($this->getRoles()->contains('name', $role))
+                            <flux:select.option :value="$role">{{ $user->role?->displayName() }}</flux:select.option>
+                        @endunless
                     </flux:select>
                     <flux:error name="role" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Position') }}</flux:label>
+                    <flux:select wire:model="positionId">
+                        <flux:select.option value="">{{ __('Aucune') }}</flux:select.option>
+                        @foreach ($this->getPositions() as $position)
+                            <flux:select.option :value="$position->id">{{ $position->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="positionId" />
                 </flux:field>
 
                 <div class="grid gap-4 sm:grid-cols-2">
@@ -85,7 +115,7 @@
 
                 <flux:field>
                     <flux:label>{{ __('Courriel personnel') }}</flux:label>
-                    <flux:input wire:model="personalEmail" type="email" placeholder="prenom.nom@exemple.com" required />
+                    <flux:input wire:model="personalEmail" type="email" placeholder="prenom.nom@exemple.com" />
                     <flux:error name="personalEmail" />
                 </flux:field>
 
@@ -93,6 +123,17 @@
                     <x-phone-input wire:model="phone" label="{{ __('Téléphone') }}" name="phone" />
                     <x-phone-input wire:model="cellphone" label="{{ __('Cellulaire') }}" name="cellphone" />
                 </div>
+
+                <div class="flex justify-end pt-2">
+                    <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                </div>
+            </form>
+        </div>
+
+        {{-- Adresse --}}
+        <div x-show="tab === 'address'" x-cloak>
+            <form wire:submit="saveAddress" class="mt-6 max-w-2xl space-y-6">
+                <x-address-input prefix="address" :current-country="$address['country'] ?? 'CA'" />
 
                 <div class="flex justify-end pt-2">
                     <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
@@ -168,5 +209,51 @@
                 </div>
             </div>
         </div>
+
+        {{-- Accès --}}
+        @can('assignPermissions', $user)
+            <div x-show="tab === 'access'" x-cloak>
+                <form wire:submit="saveAccess" class="mt-6 max-w-2xl space-y-6">
+                    <flux:text class="text-sm text-zinc-500">
+                        {{ __('Les permissions du rôle sont cochées et verrouillées. Vous pouvez ajouter des permissions supplémentaires parmi celles que vous possédez.') }}
+                    </flux:text>
+
+                    @php
+                        $fromRole = $this->permissionsFromRole();
+                        $grantable = $this->grantablePermissions();
+                    @endphp
+
+                    @foreach ($this->getPermissions()->groupBy(fn ($permission) => $permission->group()) as $group => $permissions)
+                        <div>
+                            <flux:heading size="sm" class="mb-2">{{ \Illuminate\Support\Str::headline($group) }}</flux:heading>
+                            <div class="space-y-2">
+                                @foreach ($permissions as $permission)
+                                    @if (in_array($permission->name, $fromRole, true))
+                                        <flux:checkbox
+                                            :label="$permission->displayName()"
+                                            :description="__('Fournie par le rôle')"
+                                            checked
+                                            disabled
+                                        />
+                                    @else
+                                        <flux:checkbox
+                                            wire:model="extraPermissions"
+                                            :value="$permission->name"
+                                            :label="$permission->displayName()"
+                                            :description="$permission->description"
+                                            :disabled="! in_array($permission->name, $grantable, true)"
+                                        />
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+
+                    <div class="flex justify-end pt-2">
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                    </div>
+                </form>
+            </div>
+        @endcan
     </div>
 </div>

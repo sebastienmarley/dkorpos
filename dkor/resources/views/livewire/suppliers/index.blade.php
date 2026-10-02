@@ -6,9 +6,11 @@
             <flux:text class="mt-1 text-zinc-500">{{ __('Liste de tous les fournisseurs') }}</flux:text>
         </div>
 
-        <flux:button variant="primary" icon="plus" x-on:click="$dispatch('open-supplier-create')">
-            {{ __('Ajouter un fournisseur') }}
-        </flux:button>
+        @can('suppliers.create')
+            <flux:button variant="primary" icon="plus" x-on:click="$dispatch('open-supplier-create')">
+                {{ __('Ajouter un fournisseur') }}
+            </flux:button>
+        @endcan
     </div>
 
     {{-- Recherche --}}
