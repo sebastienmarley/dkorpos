@@ -109,6 +109,16 @@
                 </flux:sidebar.group>
                 @endcanany
 
+                @canany(['currencies.view'])
+                <flux:sidebar.group :heading="__('Comptabilité')" expandable :expanded="request()->routeIs('accounting.*')">
+                    @can('currencies.view')
+                        <flux:sidebar.item icon="currency-dollar" :href="route('accounting.currencies')" :current="request()->routeIs('accounting.currencies')" wire:navigate>
+                            {{ __('Devises') }}
+                        </flux:sidebar.item>
+                    @endcan
+                </flux:sidebar.group>
+                @endcanany
+
                 @canany(['users.view', 'positions.manage', 'roles.manage', 'permissions.manage'])
                     <flux:sidebar.group :heading="__('Administration')" expandable :expanded="request()->routeIs('admin.*') || request()->routeIs('users.*')">
                         @can('users.view')

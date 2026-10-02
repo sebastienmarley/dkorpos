@@ -14,13 +14,14 @@
     </div>
 
     {{-- Recherche --}}
-    <div class="mb-4">
-        <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher un fournisseur…') }}" icon="magnifying-glass" />
+    <div class="mb-4 flex items-center gap-4">
+        <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher un fournisseur…') }}" icon="magnifying-glass" class="flex-1" />
+        <flux:checkbox wire:model.live="showInactive" :label="__('Afficher les inactifs')" />
     </div>
 
     {{-- Tableau --}}
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <flux:table>
+        <flux:table :paginate="$suppliers">
             <flux:table.columns>
                 <flux:table.column>{{ __('Nom') }}</flux:table.column>
                 <flux:table.column>{{ __('Type') }}</flux:table.column>
@@ -28,16 +29,19 @@
             </flux:table.columns>
 
             <flux:table.rows>
-                @forelse ($suppliers->take(5) as $supplier)
+                @forelse ($suppliers as $supplier)
                     <flux:table.row :key="$supplier->id">
                         <flux:table.cell variant="strong">
                             <flux:link :href="route('suppliers.show', $supplier)" wire:navigate>
                                 {{ $supplier->name }}
                             </flux:link>
+                            @if (! $supplier->is_active)
+                                <flux:badge color="zinc" size="sm" class="ms-2">{{ __('Inactif') }}</flux:badge>
+                            @endif
                         </flux:table.cell>
 
                         <flux:table.cell>
-                            <flux:badge :color="$supplier->type->value === 'service' ? 'blue' : 'green'" size="sm">
+                            <flux:badge :color="$supplier->type->color()" size="sm">
                                 {{ $supplier->type->label() }}
                             </flux:badge>
                         </flux:table.cell>
@@ -63,9 +67,9 @@
         </flux:table>
     </div>
 
-    @if ($suppliers->isNotEmpty())
+    @if ($suppliers->total() > 0)
         <flux:text class="mt-3 text-sm text-zinc-400">
-            {{ trans_choice(':count fournisseur|:count fournisseurs', $suppliers->count()) }}
+            {{ trans_choice(':count fournisseur|:count fournisseurs', $suppliers->total()) }}
         </flux:text>
     @endif
 

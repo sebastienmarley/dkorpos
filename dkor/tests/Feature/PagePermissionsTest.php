@@ -10,6 +10,7 @@ dataset('pages', [
     'catalog.departments' => ['catalog.departments', 'departments.view'],
     'catalog.categories' => ['catalog.categories', 'categories.view'],
     'catalog.colors' => ['catalog.colors', 'colors.view'],
+    'accounting.currencies' => ['accounting.currencies', 'currencies.view'],
     'schedules.index' => ['schedules.index', 'schedules.view'],
     'schedules.schedule-edit' => ['schedules.schedule-edit', 'schedule_management.view'],
     'schedules.templates' => ['schedules.templates', 'schedule_templates.view'],

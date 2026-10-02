@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Accounting\Currencies;
 use App\Livewire\Catalog\Categories;
 use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
@@ -12,6 +13,7 @@ use App\Livewire\Schedules\ScheduleEdit;
 use App\Livewire\Schedules\Templates;
 use App\Livewire\SupplierForm;
 use App\Livewire\Suppliers\Show as SupplierShow;
+use App\Models\Currency;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\Supplier;
@@ -33,6 +35,8 @@ dataset('actions interdites', [
     'customers.create' => [fn () => Livewire::test(CustomerForm::class)->call('openCreate')],
     'customers.edit' => [fn () => Livewire::test(CustomerForm::class)->call('openEdit', 1)],
     'suppliers.create' => [fn () => Livewire::test(SupplierForm::class)->call('openCreate')],
+    'currencies.create' => [fn () => Livewire::test(Currencies::class)->call('openCreate')],
+    'currencies.archive' => [fn () => Livewire::test(Currencies::class)->call('toggleArchive', Currency::factory()->create()->id)],
     'products.create' => [fn () => Livewire::test(ProductForm::class)->call('openCreate')],
     'departments.create' => [fn () => Livewire::test(Departments::class)->call('openCreate')],
     'categories.create' => [fn () => Livewire::test(Categories::class)->call('openCreate')],

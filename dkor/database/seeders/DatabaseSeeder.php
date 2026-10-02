@@ -17,7 +17,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([PermissionSeeder::class, RoleSeeder::class]);
+        $this->call([PermissionSeeder::class, RoleSeeder::class, CurrencySeeder::class]);
 
         User::updateOrCreate(
             ['email' => 'testuser@dkor.ca'],
@@ -52,7 +52,7 @@ class DatabaseSeeder extends Seeder
             ['type' => SupplierType::Product, 'name' => 'Équipements Tremblay'],
             ['type' => SupplierType::Product, 'name' => 'Fournitures Roy & Fils'],
             ['type' => SupplierType::Service, 'name' => 'Services Informatiques Gagnon'],
-            ['type' => SupplierType::Service, 'name' => 'Transport Express Bouchard'],
+            ['type' => SupplierType::Shipping, 'name' => 'Transport Express Bouchard'],
         ]);
 
         User::updateOrCreate(

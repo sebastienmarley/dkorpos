@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Accounting\Currencies;
 use App\Livewire\Admin\Permissions;
 use App\Livewire\Admin\Positions;
 use App\Livewire\Admin\Roles;
@@ -45,6 +46,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('catalog/departments', Departments::class)->middleware('can:departments.view')->name('catalog.departments');
     Route::get('catalog/categories', Categories::class)->middleware('can:categories.view')->name('catalog.categories');
     Route::get('catalog/colors', Colors::class)->middleware('can:colors.view')->name('catalog.colors');
+
+    Route::get('accounting/currencies', Currencies::class)->middleware('can:currencies.view')->name('accounting.currencies');
 
     Route::get('admin/positions', Positions::class)->middleware('can:positions.manage')->name('admin.positions');
     Route::get('admin/roles', Roles::class)->middleware('can:roles.manage')->name('admin.roles');

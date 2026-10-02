@@ -3,9 +3,11 @@
 namespace App\Livewire\Suppliers;
 
 use App\Enums\SupplierType;
+use App\Models\Currency;
 use App\Models\Supplier;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 class Show extends Component
@@ -34,6 +36,8 @@ class Show extends Component
 
     public string $bankAccount = '';
 
+    public string $currencyId = '';
+
     /** @var array{civic: string, apartment: string, street: string, city: string, province: string, country: string, postal_code: string} */
     public array $paymentAddress = [
         'civic' => '', 'apartment' => '', 'street' => '',
@@ -42,10 +46,21 @@ class Show extends Component
 
     public bool $sameAsMainAddress = false;
 
+    // Transport
+    public string $prepaidAmount = '0';
+
+    public bool $collect = false;
+
+    public string $defaultShippingSupplierId = '';
+
     // Paramètres
     public string $orderEmail = '';
 
-    public string $priceMultiplier = '1';
+    public string $baseMultiplier = '2';
+
+    public string $customsFee = '0';
+
+    public string $shippingFee = '0';
 
     public bool $orderable = true;
 
@@ -64,6 +79,13 @@ class Show extends Component
         }
     }
 
+    public function updatedIsActive(bool $value): void
+    {
+        if (! $value) {
+            $this->orderable = false;
+        }
+    }
+
     public function updatedAddressCountry(): void
     {
         $this->address['province'] = '';
@@ -79,7 +101,7 @@ class Show extends Component
         $this->authorize('suppliers.edit');
 
         $validated = $this->validate([
-            'type' => ['required', 'in:product,service'],
+            'type' => ['required', Rule::enum(SupplierType::class)],
             'name' => ['required', 'string', 'max:255'],
             'address.civic' => ['nullable', 'string', 'max:20'],
             'address.apartment' => ['nullable', 'string', 'max:20'],
@@ -116,6 +138,7 @@ class Show extends Component
         $this->validate([
             'accountNumber' => ['nullable', 'string', 'max:255'],
             'bankAccount' => ['nullable', 'string', 'max:255'],
+            'currencyId' => ['nullable', 'integer', 'exists:currencies,id'],
             'paymentAddress.civic' => ['nullable', 'string', 'max:20'],
             'paymentAddress.apartment' => ['nullable', 'string', 'max:20'],
             'paymentAddress.street' => ['nullable', 'string', 'max:255'],
@@ -128,6 +151,7 @@ class Show extends Component
         $this->supplier->fill([
             'account_number' => filled($this->accountNumber) ? $this->accountNumber : null,
             'bank_account' => filled($this->bankAccount) ? $this->bankAccount : null,
+            'currency_id' => filled($this->currencyId) ? $this->currencyId : null,
             'payment_address_civic' => filled($this->paymentAddress['civic']) ? $this->paymentAddress['civic'] : null,
             'payment_address_apartment' => filled($this->paymentAddress['apartment']) ? $this->paymentAddress['apartment'] : null,
             'payment_address_street' => filled($this->paymentAddress['street']) ? $this->paymentAddress['street'] : null,
@@ -137,7 +161,40 @@ class Show extends Component
             'payment_address_postal_code' => filled($this->paymentAddress['postal_code']) ? $this->paymentAddress['postal_code'] : null,
         ])->save();
 
+        $this->supplier->unsetRelation('currency');
+
         Flux::toast(text: __('Comptabilité sauvegardée.'), variant: 'success');
+    }
+
+    public function saveTransport(): void
+    {
+        $this->authorize('suppliers.edit');
+
+        abort_unless($this->supplier->type === SupplierType::Product, 404);
+
+        $this->validate([
+            'collect' => ['boolean'],
+            'prepaidAmount' => [Rule::requiredIf(! $this->collect), 'nullable', 'numeric', 'min:0', 'max:99999999'],
+            'defaultShippingSupplierId' => [
+                'nullable',
+                'integer',
+                Rule::exists('suppliers', 'id')->where('type', SupplierType::Shipping->value),
+            ],
+        ]);
+
+        $this->supplier->fill([
+            'prepaid_amount' => filled($this->prepaidAmount) ? $this->prepaidAmount : null,
+            'collect' => $this->collect,
+            'default_shipping_supplier_id' => $this->collect && filled($this->defaultShippingSupplierId)
+                ? $this->defaultShippingSupplierId
+                : null,
+        ])->save();
+
+        if (! $this->collect) {
+            $this->defaultShippingSupplierId = '';
+        }
+
+        Flux::toast(text: __('Transport sauvegardé.'), variant: 'success');
     }
 
     public function saveParameters(): void
@@ -146,19 +203,36 @@ class Show extends Component
 
         $this->validate([
             'orderEmail' => ['nullable', 'email', 'max:255'],
-            'priceMultiplier' => ['required', 'numeric', 'min:0.0001', 'max:9999'],
+            'baseMultiplier' => ['required', 'numeric', 'min:0', 'max:9999'],
+            'customsFee' => ['required', 'numeric', 'min:0', 'max:9999'],
+            'shippingFee' => ['required', 'numeric', 'min:0', 'max:9999'],
             'orderable' => ['boolean'],
             'isActive' => ['boolean'],
         ]);
 
         $this->supplier->fill([
             'order_email' => filled($this->orderEmail) ? $this->orderEmail : null,
-            'price_multiplier' => $this->priceMultiplier,
+            'base_multiplier' => $this->baseMultiplier,
+            'customs_fee' => $this->customsFee,
+            'shipping_fee' => $this->shippingFee,
             'orderable' => $this->orderable,
             'is_active' => $this->isActive,
         ])->save();
 
+        $this->orderable = $this->supplier->orderable;
+
         Flux::toast(text: __('Paramètres sauvegardés.'), variant: 'success');
+    }
+
+    public function getComputedMultiplierProperty(): float
+    {
+        return round(
+            (float) $this->baseMultiplier
+            + $this->supplier->exchangeRate()
+            + (float) $this->customsFee
+            + (float) $this->shippingFee,
+            4,
+        );
     }
 
     /** @return array<int, SupplierType> */
@@ -184,6 +258,7 @@ class Show extends Component
         $this->email = $this->supplier->email ?? '';
         $this->accountNumber = $this->supplier->account_number ?? '';
         $this->bankAccount = (string) ($this->supplier->bank_account ?? '');
+        $this->currencyId = (string) ($this->supplier->currency_id ?? '');
         $this->paymentAddress = [
             'civic' => $this->supplier->payment_address_civic ?? '',
             'apartment' => $this->supplier->payment_address_apartment ?? '',
@@ -195,15 +270,31 @@ class Show extends Component
         ];
         $this->sameAsMainAddress = $this->address === $this->paymentAddress
             && filled($this->address['civic']);
+        $this->prepaidAmount = (string) ($this->supplier->prepaid_amount ?? '');
+        $this->collect = $this->supplier->collect;
+        $this->defaultShippingSupplierId = (string) ($this->supplier->default_shipping_supplier_id ?? '');
         $this->orderEmail = $this->supplier->order_email ?? '';
-        $this->priceMultiplier = (string) $this->supplier->price_multiplier;
+        $this->baseMultiplier = (string) $this->supplier->base_multiplier;
+        $this->customsFee = (string) $this->supplier->customs_fee;
+        $this->shippingFee = (string) $this->supplier->shipping_fee;
         $this->orderable = $this->supplier->orderable;
         $this->isActive = $this->supplier->is_active;
     }
 
     public function render(): View
     {
-        return view('livewire.suppliers.show')
+        return view('livewire.suppliers.show', [
+            'shippingSuppliers' => Supplier::query()
+                ->where('type', SupplierType::Shipping)
+                ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->supplier->default_shipping_supplier_id))
+                ->orderBy('name')
+                ->get(),
+            'currencies' => Currency::query()
+                ->where('is_archived', false)
+                ->orWhere('id', $this->supplier->currency_id)
+                ->orderBy('code')
+                ->get(),
+        ])
             ->layout('layouts.app', ['title' => $this->supplier->name]);
     }
 }

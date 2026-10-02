@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Enums\SupplierType;
 use App\Models\Supplier;
 use Illuminate\Contracts\View\View;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -35,7 +36,7 @@ class SupplierForm extends Component
         $this->authorize('suppliers.create');
 
         $validated = $this->validate([
-            'type' => ['required', 'in:product,service'],
+            'type' => ['required', Rule::enum(SupplierType::class)],
             'name' => ['required', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
             'phone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
