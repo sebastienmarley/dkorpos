@@ -27,6 +27,9 @@ use Illuminate\Support\Carbon;
  * @property string|null $account_number
  * @property int|null $bank_account
  * @property int|null $currency_id
+ * @property float $early_payment_discount_percent
+ * @property int|null $early_payment_discount_days
+ * @property bool $early_payment_next_month
  * @property string|null $payment_address_civic
  * @property string|null $payment_address_apartment
  * @property string|null $payment_address_street
@@ -51,7 +54,7 @@ use Illuminate\Support\Carbon;
     'type', 'name', 'phone', 'email',
     'address_civic', 'address_apartment', 'address_street', 'address_city',
     'address_province', 'address_country', 'address_postal_code',
-    'account_number', 'bank_account', 'currency_id',
+    'account_number', 'bank_account', 'currency_id', 'early_payment_discount_percent', 'early_payment_discount_days', 'early_payment_next_month',
     'payment_address_civic', 'payment_address_apartment', 'payment_address_street',
     'payment_address_city', 'payment_address_province', 'payment_address_country',
     'payment_address_postal_code',
@@ -68,6 +71,8 @@ class Supplier extends Model
         'shipping_fee' => 0,
         'prepaid_amount' => 0,
         'collect' => false,
+        'early_payment_discount_percent' => 0,
+        'early_payment_next_month' => false,
     ];
 
     protected $casts = [
@@ -77,6 +82,9 @@ class Supplier extends Model
         'shipping_fee' => 'float',
         'prepaid_amount' => 'float',
         'collect' => 'boolean',
+        'early_payment_discount_percent' => 'float',
+        'early_payment_discount_days' => 'integer',
+        'early_payment_next_month' => 'boolean',
         'price_multiplier' => 'float',
         'orderable' => 'boolean',
         'is_active' => 'boolean',
@@ -122,6 +130,12 @@ class Supplier extends Model
     public function defaultShippingSupplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class, 'default_shipping_supplier_id');
+    }
+
+    /** @return HasMany<SupplierOrder, $this> */
+    public function orders(): HasMany
+    {
+        return $this->hasMany(SupplierOrder::class);
     }
 
     /** @return HasMany<Product, $this> */

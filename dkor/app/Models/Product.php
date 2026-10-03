@@ -21,8 +21,12 @@ use Illuminate\Support\Carbon;
  * @property string $clean_model
  * @property string|null $supplier_model
  * @property float $cost
- * @property string|null $size
+ * @property string|null $collection
  * @property string|null $description
+ * @property float|null $length
+ * @property float|null $width
+ * @property float|null $height
+ * @property float|null $weight
  * @property bool $is_discontinued
  * @property bool $is_non_orderable
  * @property Carbon|null $created_at
@@ -33,7 +37,7 @@ use Illuminate\Support\Carbon;
  * @property-read Color|null $color
  * @property-read float $selling_price
  */
-#[Fillable(['supplier_id', 'department_id', 'category_id', 'color_id', 'model', 'clean_model', 'supplier_model', 'cost', 'size', 'description', 'is_discontinued', 'is_non_orderable'])]
+#[Fillable(['supplier_id', 'department_id', 'category_id', 'color_id', 'model', 'clean_model', 'supplier_model', 'collection', 'cost', 'description', 'length', 'width', 'height', 'weight', 'is_discontinued', 'is_non_orderable'])]
 class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
@@ -41,6 +45,10 @@ class Product extends Model
 
     protected $casts = [
         'cost' => 'float',
+        'length' => 'float',
+        'width' => 'float',
+        'height' => 'float',
+        'weight' => 'float',
         'is_discontinued' => 'boolean',
         'is_non_orderable' => 'boolean',
     ];
@@ -83,7 +91,27 @@ class Product extends Model
 
     public function getSellingPriceAttribute(): float
     {
-        return $this->cost * ($this->supplier->price_multiplier ?? 1.0);
+        return self::roundSellingPrice($this->cost * ($this->supplier->price_multiplier ?? 1.0));
+    }
+
+    public static function roundSellingPrice(float $price): float
+    {
+        if ($price < 20.0) {
+            $whole = (int) floor($price);
+
+            return ($whole + 0.99 >= $price) ? $whole + 0.99 : $whole + 1.99;
+        }
+
+        if ($price <= 100.0) {
+            return (float) (int) ceil($price);
+        }
+
+        $base = (int) ceil($price);
+        $lastDigit = $base % 10;
+
+        return (float) ($lastDigit <= 4
+            ? $base + (4 - $lastDigit)
+            : $base + (9 - $lastDigit));
     }
 
     public function getDisplayNameAttribute(): string

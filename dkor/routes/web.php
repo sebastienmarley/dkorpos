@@ -1,6 +1,10 @@
 <?php
 
 use App\Livewire\Accounting\Currencies;
+use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
+use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
+use App\Livewire\Accounting\Invoices\Index as InvoicesIndex;
+use App\Livewire\Accounting\Invoices\Show as InvoiceShow;
 use App\Livewire\Admin\Permissions;
 use App\Livewire\Admin\Positions;
 use App\Livewire\Admin\Roles;
@@ -8,8 +12,14 @@ use App\Livewire\Catalog\Categories;
 use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
 use App\Livewire\Customers\Index as CustomersIndex;
+use App\Livewire\Inventory\Movements as InventoryMovements;
+use App\Livewire\Orders\Index as SupplierOrdersIndex;
+use App\Livewire\Orders\Show as SupplierOrderShow;
 use App\Livewire\Products\Index as ProductsIndex;
 use App\Livewire\Products\Show as ProductShow;
+use App\Livewire\Receptions\Create as ReceptionCreate;
+use App\Livewire\Receptions\Index as ReceptionsIndex;
+use App\Livewire\Receptions\Show as ReceptionShow;
 use App\Livewire\Schedules\Appointments;
 use App\Livewire\Schedules\Holidays;
 use App\Livewire\Schedules\Index as SchedulesIndex;
@@ -40,6 +50,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('suppliers', SuppliersIndex::class)->middleware('can:suppliers.view')->name('suppliers.index');
     Route::get('suppliers/{supplier}', SupplierShow::class)->middleware('can:suppliers.view')->name('suppliers.show');
 
+    Route::get('supplier-orders', SupplierOrdersIndex::class)->middleware('can:supplier_orders.view')->name('supplier-orders.index');
+    Route::get('supplier-orders/{order}', SupplierOrderShow::class)->middleware('can:supplier_orders.view')->name('supplier-orders.show');
+
+    Route::get('receptions', ReceptionsIndex::class)->middleware('can:receptions.view')->name('receptions.index');
+    Route::get('receptions/create', ReceptionCreate::class)->middleware('can:receptions.create')->name('receptions.create');
+    Route::get('receptions/{reception}', ReceptionShow::class)->middleware('can:receptions.view')->name('receptions.show');
+
+    Route::get('inventory/movements', InventoryMovements::class)->middleware('can:inventory.view')->name('inventory.movements');
+
     Route::get('products', ProductsIndex::class)->middleware('can:products.view')->name('products.index');
     Route::get('products/{product}', ProductShow::class)->middleware('can:products.view')->name('products.show');
 
@@ -47,6 +66,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('catalog/categories', Categories::class)->middleware('can:categories.view')->name('catalog.categories');
     Route::get('catalog/colors', Colors::class)->middleware('can:colors.view')->name('catalog.colors');
 
+    Route::get('accounting/invoices', InvoicesIndex::class)->middleware('can:invoices.view')->name('accounting.invoices');
+    Route::get('accounting/invoices/receptions/{reception}', InvoiceForm::class)->middleware('can:invoices.view')->name('accounting.invoices.reception');
+    Route::get('accounting/invoices/create', InvoiceCreate::class)->middleware('can:invoices.create')->name('accounting.invoices.create');
+    Route::get('accounting/invoices/{invoice}', InvoiceShow::class)->whereNumber('invoice')->middleware('can:invoices.view')->name('accounting.invoices.show');
+    Route::get('accounting/invoices/orders/{order}', InvoiceForm::class)->middleware('can:invoices.view')->name('accounting.invoices.order');
     Route::get('accounting/currencies', Currencies::class)->middleware('can:currencies.view')->name('accounting.currencies');
 
     Route::get('admin/positions', Positions::class)->middleware('can:positions.manage')->name('admin.positions');

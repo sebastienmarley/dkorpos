@@ -84,6 +84,24 @@
                     </flux:sidebar.item>
                 @endcan
 
+                @can('supplier_orders.view')
+                    <flux:sidebar.item icon="truck" :href="route('supplier-orders.index')" :current="request()->routeIs('supplier-orders.*')" wire:navigate>
+                        {{ __('Commandes fournisseurs') }}
+                    </flux:sidebar.item>
+                @endcan
+
+                @can('receptions.view')
+                    <flux:sidebar.item icon="inbox-arrow-down" :href="route('receptions.index')" :current="request()->routeIs('receptions.*')" wire:navigate>
+                        {{ __('Réceptions') }}
+                    </flux:sidebar.item>
+                @endcan
+
+                @can('inventory.view')
+                    <flux:sidebar.item icon="clipboard-document-list" :href="route('inventory.movements')" :current="request()->routeIs('inventory.*')" wire:navigate>
+                        {{ __('Journal d\'inventaire') }}
+                    </flux:sidebar.item>
+                @endcan
+
                 @canany(['products.view', 'departments.view', 'categories.view', 'colors.view'])
                 <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('catalog.*')">
                     @can('products.view')
@@ -109,8 +127,13 @@
                 </flux:sidebar.group>
                 @endcanany
 
-                @canany(['currencies.view'])
+                @canany(['currencies.view', 'invoices.view'])
                 <flux:sidebar.group :heading="__('Comptabilité')" expandable :expanded="request()->routeIs('accounting.*')">
+                    @can('invoices.view')
+                        <flux:sidebar.item icon="document-text" :href="route('accounting.invoices')" :current="request()->routeIs('accounting.invoices*')" wire:navigate>
+                            {{ __('Facturation fournisseurs') }}
+                        </flux:sidebar.item>
+                    @endcan
                     @can('currencies.view')
                         <flux:sidebar.item icon="currency-dollar" :href="route('accounting.currencies')" :current="request()->routeIs('accounting.currencies')" wire:navigate>
                             {{ __('Devises') }}
