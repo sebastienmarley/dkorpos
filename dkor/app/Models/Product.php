@@ -91,7 +91,27 @@ class Product extends Model
 
     public function getSellingPriceAttribute(): float
     {
-        return $this->cost * ($this->supplier->price_multiplier ?? 1.0);
+        return self::roundSellingPrice($this->cost * ($this->supplier->price_multiplier ?? 1.0));
+    }
+
+    public static function roundSellingPrice(float $price): float
+    {
+        if ($price < 20.0) {
+            $whole = (int) floor($price);
+
+            return ($whole + 0.99 >= $price) ? $whole + 0.99 : $whole + 1.99;
+        }
+
+        if ($price <= 100.0) {
+            return (float) (int) ceil($price);
+        }
+
+        $base = (int) ceil($price);
+        $lastDigit = $base % 10;
+
+        return (float) ($lastDigit <= 4
+            ? $base + (4 - $lastDigit)
+            : $base + (9 - $lastDigit));
     }
 
     public function getDisplayNameAttribute(): string

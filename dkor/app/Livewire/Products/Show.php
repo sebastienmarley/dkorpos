@@ -130,7 +130,7 @@ class Show extends Component
     {
         $multiplier = Supplier::find($this->supplierId)->price_multiplier ?? 1.0;
 
-        return (float) $this->cost * $multiplier;
+        return Product::roundSellingPrice((float) $this->cost * $multiplier);
     }
 
     /** @return Collection<int, Supplier> */
