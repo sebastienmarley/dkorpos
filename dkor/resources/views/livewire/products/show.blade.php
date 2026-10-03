@@ -152,17 +152,46 @@
                     </flux:field>
 
                     <flux:field>
-                        <flux:label>{{ __('Taille') }}</flux:label>
-                        <flux:input wire:model="size" type="text" />
-                        <flux:error name="size" />
+                        <flux:label>{{ __('Collection') }}</flux:label>
+                        <flux:input wire:model="collection" type="text" />
+                        <flux:error name="collection" />
                     </flux:field>
                 </div>
 
                 <flux:field>
                     <flux:label>{{ __('Description') }}</flux:label>
-                    <flux:textarea wire:model="description" rows="6" />
+                    <flux:textarea wire:model="description" rows="8" />
                     <flux:error name="description" />
                 </flux:field>
+
+                <div>
+                    <flux:heading size="sm" class="mb-4">{{ __('Dimensions') }}</flux:heading>
+                    <div class="grid gap-4 sm:grid-cols-4">
+                        <flux:field>
+                            <flux:label>{{ __('Longueur') }}</flux:label>
+                            <flux:input wire:model="length" type="number" step="0.01" min="0" placeholder="0.00" />
+                            <flux:error name="length" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Largeur') }}</flux:label>
+                            <flux:input wire:model="width" type="number" step="0.01" min="0" placeholder="0.00" />
+                            <flux:error name="width" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Hauteur') }}</flux:label>
+                            <flux:input wire:model="height" type="number" step="0.01" min="0" placeholder="0.00" />
+                            <flux:error name="height" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Poids') }}</flux:label>
+                            <flux:input wire:model="weight" type="number" step="0.01" min="0" placeholder="0.00" />
+                            <flux:error name="weight" />
+                        </flux:field>
+                    </div>
+                </div>
 
                 <div class="flex justify-end pt-2">
                     @can('products.edit')

@@ -42,9 +42,17 @@ class Show extends Component
     // Description
     public string $colorId = '';
 
-    public string $size = '';
+    public string $collection = '';
 
     public string $description = '';
+
+    public string $length = '';
+
+    public string $width = '';
+
+    public string $height = '';
+
+    public string $weight = '';
 
     public function mount(Product $product): void
     {
@@ -97,14 +105,22 @@ class Show extends Component
 
         $this->validate([
             'colorId' => ['nullable', 'exists:colors,id'],
-            'size' => ['nullable', 'string', 'max:255'],
+            'collection' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'length' => ['nullable', 'numeric', 'min:0'],
+            'width' => ['nullable', 'numeric', 'min:0'],
+            'height' => ['nullable', 'numeric', 'min:0'],
+            'weight' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $this->product->fill([
             'color_id' => filled($this->colorId) ? $this->colorId : null,
-            'size' => filled($this->size) ? $this->size : null,
+            'collection' => filled($this->collection) ? $this->collection : null,
             'description' => filled($this->description) ? $this->description : null,
+            'length' => filled($this->length) ? $this->length : null,
+            'width' => filled($this->width) ? $this->width : null,
+            'height' => filled($this->height) ? $this->height : null,
+            'weight' => filled($this->weight) ? $this->weight : null,
         ])->save();
 
         Flux::toast(text: __('Description sauvegardée.'), variant: 'success');
@@ -160,8 +176,12 @@ class Show extends Component
         $this->isNonOrderable = $this->product->is_non_orderable;
         $this->cost = (string) $this->product->cost;
         $this->colorId = (string) ($this->product->color_id ?? '');
-        $this->size = $this->product->size ?? '';
+        $this->collection = $this->product->collection ?? '';
         $this->description = $this->product->description ?? '';
+        $this->length = $this->product->length !== null ? (string) $this->product->length : '';
+        $this->width = $this->product->width !== null ? (string) $this->product->width : '';
+        $this->height = $this->product->height !== null ? (string) $this->product->height : '';
+        $this->weight = $this->product->weight !== null ? (string) $this->product->weight : '';
     }
 
     public function render(): View
