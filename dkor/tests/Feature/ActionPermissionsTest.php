@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Accounting\Currencies;
+use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
 use App\Livewire\Catalog\Categories;
 use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
@@ -19,6 +20,7 @@ use App\Livewire\SupplierForm;
 use App\Livewire\Suppliers\Show as SupplierShow;
 use App\Models\Currency;
 use App\Models\Product;
+use App\Models\Reception;
 use App\Models\Role;
 use App\Models\Supplier;
 use App\Models\SupplierOrder;
@@ -47,9 +49,10 @@ dataset('actions interdites', [
     'supplier_orders.edit (annulation de ligne)' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('confirmLineCancellation', 1)],
     'supplier_orders.delete' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('deleteOrder')],
     'supplier_orders.edit (substitution)' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('openSubstitute', 1)],
-    'receptions.create' => [fn () => Livewire::test(ReceptionCreate::class)->call('save')],
+    'receptions.create' => [fn () => Livewire::test(ReceptionCreate::class)->call('start')],
     'receptions.reverse' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('openReverse', 1)],
     'inventory.move' => [fn () => Livewire::test(InventoryMovements::class)->call('openMove')],
+    'invoices.create' => [fn () => Livewire::test(InvoiceForm::class, ['reception' => Reception::factory()->create()])->call('save')],
     'products.create' => [fn () => Livewire::test(ProductForm::class)->call('openCreate')],
     'departments.create' => [fn () => Livewire::test(Departments::class)->call('openCreate')],
     'categories.create' => [fn () => Livewire::test(Categories::class)->call('openCreate')],

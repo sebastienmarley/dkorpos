@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
+use App\Enums\ReceptionStatus;
 use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
@@ -129,6 +130,16 @@ class SupplierOrder extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(SupplierOrderLine::class)->orderBy('id');
+    }
+
+    /**
+     * Lignes de réceptions terminées de cette commande (celles qui ont touché l'inventaire).
+     *
+     * @return HasManyThrough<ReceptionLine, SupplierOrderLine, $this>
+     */
+    public function completedReceptionLines(): HasManyThrough
+    {
+        return $this->receptionLines()->whereHas('reception', fn ($query) => $query->where('status', ReceptionStatus::Completed));
     }
 
     /** @return HasManyThrough<ReceptionLine, SupplierOrderLine, $this> */
@@ -284,14 +295,16 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Envoie la commande en attente; les quantités des produits passent « en commande » dans l'inventaire et la
+     * Envoie la commande (en brouillon ou en attente); les quantités des produits passent « en commande » dans l'inventaire et la
      * commande est transmise par courriel au fournisseur.
      *
      * @return bool Faux seulement si le courriel est activé mais n'a pas pu être envoyé (pas de courriel ou erreur d'envoi).
      */
     public function send(): bool
     {
-        $this->guardStatus(SupplierOrderStatus::Pending, __('Seule une commande en attente peut être envoyée.'));
+        if (! $this->status->isEditable()) {
+            throw new DomainException(__('Seule une commande en brouillon ou en attente peut être envoyée.'));
+        }
 
         DB::transaction(function (): void {
             $lines = $this->lines()->get();
@@ -349,7 +362,7 @@ class SupplierOrder extends Model
     /**
      * Réceptionne des produits de cette commande (voir Reception::record pour les règles).
      *
-     * @param  array<int, array{quantity: int|string, unit_cost: float|int|string}>  $receipts  Indexé par id de ligne.
+     * @param  array<int, array{quantity: int|string}>  $receipts  Indexé par id de ligne.
      */
     public function receive(array $receipts, int|string|null $receivedBy = null): Reception
     {
@@ -361,29 +374,27 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Applique à l'inventaire (unités FIFO, stock, « en commande ») les quantités reçues de cette commande et les
-     * consigne sur la réception. Appelé par Reception::record dans sa transaction.
+     * Applique à l'inventaire (unités FIFO au coût de la commande, stock, « en commande ») les lignes d'une réception
+     * en cours qui concernent cette commande. Les quantités sont replafonnées à ce qui reste à recevoir; une ligne
+     * qui n'a plus rien à recevoir est retirée de la réception. Appelé par Reception::complete dans sa transaction.
      *
-     * @param  Collection<int, SupplierOrderLine>  $lines
-     * @param  array<int, array{quantity: int|string, unit_cost?: float|int|string|null}>  $receipts
+     * @param  Collection<int, ReceptionLine>  $receptionLines
      */
-    public function applyReceipts(Reception $reception, Collection $lines, array $receipts): void
+    public function applyReceiptLines(Reception $reception, Collection $receptionLines): void
     {
-        foreach ($lines as $line) {
-            $quantity = min((int) $receipts[$line->id]['quantity'], $line->quantity_outstanding);
+        foreach ($receptionLines as $receptionLine) {
+            $line = $receptionLine->orderLine()->firstOrFail();
+            $quantity = min($receptionLine->quantity, $line->quantity_outstanding);
 
             if ($quantity <= 0) {
+                $receptionLine->delete();
+
                 continue;
             }
 
-            $cost = round((float) ($receipts[$line->id]['unit_cost'] ?? $line->unit_cost), 2);
+            $cost = round($line->unit_cost, 2);
 
-            $receptionLine = $reception->lines()->create([
-                'supplier_order_line_id' => $line->id,
-                'product_id' => $line->product_id,
-                'quantity' => $quantity,
-                'unit_cost' => $cost,
-            ]);
+            $receptionLine->update(['quantity' => $quantity, 'unit_cost' => $cost]);
 
             for ($i = 0; $i < $quantity; $i++) {
                 InventoryUnit::create([
@@ -396,10 +407,7 @@ class SupplierOrder extends Model
 
             $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $quantity, InventoryMovementType::Receipt, $receptionLine);
 
-            $line->update([
-                'quantity_received' => $line->quantity_received + $quantity,
-                'unit_cost' => $cost,
-            ]);
+            $line->update(['quantity_received' => $line->quantity_received + $quantity]);
         }
 
         $this->refreshStatusFromLines();
@@ -417,6 +425,14 @@ class SupplierOrder extends Model
 
         if ($line->supplier_order_id !== $this->id) {
             throw new DomainException(__('Cette réception ne concerne pas cette commande.'));
+        }
+
+        if ($receptionLine->reception->invoice()->exists()) {
+            throw new DomainException(__('Cette réception est déjà facturée : elle ne peut plus être renversée.'));
+        }
+
+        if ($receptionLine->reception->isInProgress()) {
+            throw new DomainException(__('Cette réception est en cours : il n\'y a rien à renverser.'));
         }
 
         if (! in_array($this->status, [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived, SupplierOrderStatus::Received], true)) {
@@ -656,18 +672,66 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Enregistre la facture du fournisseur sur une commande reçue.
+     * Enregistre la facture du fournisseur sur une commande reçue. Les coûts unitaires facturés remplacent ceux de
+     * la commande: ils sont reportés sur les réceptions et sur les unités d'inventaire reçues.
+     *
+     * @param  array<int, float|int|string>  $unitCosts  Coût unitaire facturé, indexé par id de ligne de commande.
      */
-    public function invoice(string $number, string $date, float $total): void
+    public function invoice(string $number, string $date, float $total, array $unitCosts = []): void
     {
+        if ($this->isProductOrder()) {
+            throw new DomainException(__('Les commandes de produits se facturent par réception, dans la comptabilité.'));
+        }
+
         $this->guardStatus(SupplierOrderStatus::Received, __('La facture se saisit une fois la commande reçue.'));
 
-        $this->update([
-            'status' => SupplierOrderStatus::Invoiced,
-            'invoice_number' => $number,
-            'invoice_date' => $date,
-            'invoice_total' => round($total, 2),
-        ]);
+        DB::transaction(function () use ($number, $date, $total, $unitCosts): void {
+            foreach ($this->lines()->get() as $line) {
+                if (isset($unitCosts[$line->id])) {
+                    $this->applyInvoicedCost($line, round((float) $unitCosts[$line->id], 2));
+                }
+            }
+
+            $this->update([
+                'status' => SupplierOrderStatus::Invoiced,
+                'invoice_number' => $number,
+                'invoice_date' => $date,
+                'invoice_total' => round($total, 2),
+            ]);
+        });
+    }
+
+    private function applyInvoicedCost(SupplierOrderLine $line, float $cost): void
+    {
+        if (round($line->unit_cost, 2) === $cost) {
+            return;
+        }
+
+        $line->update(['unit_cost' => $cost]);
+
+        $receptionLineIds = ReceptionLine::where('supplier_order_line_id', $line->id)->pluck('id');
+
+        ReceptionLine::whereIn('id', $receptionLineIds)->update(['unit_cost' => $cost]);
+        InventoryUnit::whereIn('reception_line_id', $receptionLineIds)->update(['cost' => $cost]);
+    }
+
+    /**
+     * Passe la commande à « Facturée » quand elle est entièrement reçue et que toutes ses réceptions sont facturées.
+     */
+    public function markInvoicedIfSettled(): void
+    {
+        if ($this->status !== SupplierOrderStatus::Received || ! $this->isProductOrder()) {
+            return;
+        }
+
+        $unbilled = $this->completedReceptionLines()
+            ->whereColumn('reception_lines.quantity', '>', 'reception_lines.quantity_reversed')
+            ->whereDoesntHave('reception.invoice')
+            ->exists();
+
+        if (! $unbilled) {
+            $this->update(['status' => SupplierOrderStatus::Invoiced]);
+        }
     }
 
     /**

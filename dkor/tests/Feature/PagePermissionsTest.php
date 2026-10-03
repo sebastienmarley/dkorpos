@@ -9,6 +9,7 @@ dataset('pages', [
     'receptions.index' => ['receptions.index', 'receptions.view'],
     'receptions.create' => ['receptions.create', 'receptions.create'],
     'inventory.movements' => ['inventory.movements', 'inventory.view'],
+    'accounting.invoices' => ['accounting.invoices', 'invoices.view'],
     'products.index' => ['products.index', 'products.view'],
     'supplier-orders.index' => ['supplier-orders.index', 'supplier_orders.view'],
     'catalog.departments' => ['catalog.departments', 'departments.view'],

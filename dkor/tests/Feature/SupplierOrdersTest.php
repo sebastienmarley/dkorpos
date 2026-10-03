@@ -151,14 +151,13 @@ it('met les quantités en commande à l\'envoi', function () {
         ->and(InventoryStock::where('product_id', $product->id)->first()->quantity_on_order)->toBe(10);
 });
 
-it('réceptionne partiellement puis complètement avec le coût réel', function () {
+it('réceptionne partiellement puis complètement au coût de la commande', function () {
     [$order, $product, $line] = productOrderWithLine(10, 5.0);
     sendOrder($order);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
         ->call('openReceive')
         ->set("receipts.{$line->id}.quantity", '4')
-        ->set("receipts.{$line->id}.unit_cost", '5.50')
         ->call('receive')
         ->assertHasNoErrors();
 
@@ -167,7 +166,7 @@ it('réceptionne partiellement puis complètement avec le coût réel', function
         ->and($stock->quantity_in_stock)->toBe(4)
         ->and($stock->quantity_on_order)->toBe(6)
         ->and(InventoryUnit::where('product_id', $product->id)->count())->toBe(4)
-        ->and(InventoryUnit::first()->cost)->toBe(5.5);
+        ->and(InventoryUnit::first()->cost)->toBe(5.0);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
         ->call('openReceive')
@@ -202,24 +201,6 @@ it('refuse une réception sans quantité', function () {
 
     expect($order->fresh()->status)->toBe(SupplierOrderStatus::Sent)
         ->and(InventoryUnit::count())->toBe(0);
-});
-
-it('saisit la facture d\'une commande reçue', function () {
-    [$order, , $line] = productOrderWithLine(2, 10);
-    sendOrder($order);
-    $order->fresh()->receive([$line->id => ['quantity' => 2, 'unit_cost' => 10]]);
-
-    Livewire::test(Show::class, ['order' => $order->fresh()])
-        ->call('openInvoice')
-        ->assertSet('invoiceTotal', '20.00')
-        ->set('invoiceNumber', 'F-1001')
-        ->call('saveInvoice')
-        ->assertHasNoErrors();
-
-    expect($order->fresh())
-        ->status->toBe(SupplierOrderStatus::Invoiced)
-        ->invoice_number->toBe('F-1001')
-        ->invoice_total->toBe(20.0);
 });
 
 it('refuse la facture tant que la commande n\'est pas reçue', function () {
@@ -739,11 +720,23 @@ it('refuse de mettre en attente un brouillon sans ligne', function () {
     expect($order->fresh()->status)->toBe(SupplierOrderStatus::Draft);
 });
 
-it('refuse d\'envoyer un brouillon qui n\'est pas passé par l\'attente', function () {
-    [$order] = productOrderWithLine();
+it('envoie un brouillon directement sans le mettre en attente', function () {
+    [$order, $product] = productOrderWithLine(4);
 
-    expect(fn () => $order->send())->toThrow(DomainException::class)
-        ->and($order->fresh()->status)->toBe(SupplierOrderStatus::Draft);
+    Livewire::test(Show::class, ['order' => $order])->call('send');
+
+    expect($order->fresh())->status->toBe(SupplierOrderStatus::Sent)->sent_at->not->toBeNull()
+        ->and(InventoryStock::where('product_id', $product->id)->first()->quantity_on_order)->toBe(4)
+        ->and(SupplierOrder::hasDraftFor($order->supplier_id))->toBeFalse();
+});
+
+it('envoie directement un brouillon de services et refuse une commande déjà envoyée', function () {
+    $service = SupplierOrder::factory()->service()->create();
+    SupplierOrderLine::factory()->create(['supplier_order_id' => $service->id]);
+    $service->send();
+
+    expect($service->fresh()->status)->toBe(SupplierOrderStatus::Sent)
+        ->and(fn () => $service->fresh()->send())->toThrow(DomainException::class);
 });
 
 it('garde les lignes modifiables et la commande annulable en attente', function () {
@@ -1245,4 +1238,28 @@ it('remet le focus dans la recherche après l\'ajout d\'une ligne', function () 
         ->assertHasNoErrors();
 
     expect(json_encode($component->effects['xjs'] ?? $component->effects['js'] ?? []))->toContain('data-line-search');
+});
+
+it('ne se facture pas depuis la commande pour les produits', function () {
+    [$order, , $line] = productOrderWithLine(2, 5.0);
+    sendOrder($order);
+    $order->fresh()->receive([$line->id => ['quantity' => 2]]);
+
+    Livewire::test(Show::class, ['order' => $order->fresh()])->call('openInvoice')->assertForbidden();
+
+    expect(fn () => $order->fresh()->invoice('F-1', '2026-10-03', 10))->toThrow(DomainException::class)
+        ->and($order->fresh()->status)->toBe(SupplierOrderStatus::Received);
+});
+
+it('offre le lien vers la facturation dans une commande avec une réception', function () {
+    [$order, , $line] = productOrderWithLine(2, 5.0);
+    sendOrder($order);
+
+    Livewire::test(Show::class, ['order' => $order->fresh()])->assertDontSee(route('accounting.invoices', ['search' => $order->number]));
+
+    $order->fresh()->receive([$line->id => ['quantity' => 1]]);
+
+    Livewire::test(Show::class, ['order' => $order->fresh()])
+        ->assertSee('Facturation')
+        ->assertSee(route('accounting.invoices', ['search' => $order->number]), false);
 });

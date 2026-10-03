@@ -48,12 +48,12 @@
             @endif
         @can('supplier_orders.edit')
                 @if ($status === Status::Draft)
-                    <flux:button variant="primary" icon="clock" wire:click="markPending" wire:confirm="{{ __('Mettre cette commande en attente d\'envoi? Elle ne sera plus un brouillon.') }}">
+                    <flux:button icon="clock" wire:click="markPending" wire:confirm="{{ __('Mettre cette commande en attente d\'envoi? Elle ne sera plus un brouillon.') }}">
                         {{ __('Mettre en attente') }}
                     </flux:button>
                 @endif
 
-                @if ($status === Status::Pending)
+                @if ($status->isEditable())
                     <flux:button variant="primary" icon="paper-airplane" wire:click="send" wire:confirm="{{ __('Fermer et envoyer cette commande? Les quantités passeront « en commande ».') }}">
                         {{ __('Fermer et envoyer') }}
                     </flux:button>
@@ -77,7 +77,15 @@
                     </flux:button>
                 @endif
 
-                @if ($status === Status::Received)
+                @if ($isProduct && $receptionLines->isNotEmpty())
+                    @can('invoices.view')
+                        <flux:button icon="document-text" :href="route('accounting.invoices', ['search' => $order->number])" wire:navigate>
+                            {{ __('Facturation') }}
+                        </flux:button>
+                    @endcan
+                @endif
+
+                @if (! $isProduct && $status === Status::Received)
                     <flux:button variant="primary" icon="document-text" wire:click="openInvoice">
                         {{ __('Saisir la facture') }}
                     </flux:button>
@@ -252,7 +260,7 @@
             <div class="px-4 pt-4">
                 <flux:heading size="lg">{{ __('Réceptions') }}</flux:heading>
                 @if (! $canReverse)
-                    <flux:text class="mt-1 text-sm text-zinc-500">{{ __('Les réceptions ne peuvent plus être renversées une fois la commande facturée ou annulée.') }}</flux:text>
+                    <flux:text class="mt-1 text-sm text-zinc-500">{{ __('Les réceptions facturées ne peuvent plus être renversées.') }}</flux:text>
                 @endif
             </div>
             <flux:table>
@@ -282,7 +290,7 @@
                             </flux:table.cell>
                             <flux:table.cell align="end">{{ number_format($receptionLine->unit_cost, 2) }} $</flux:table.cell>
                             <flux:table.cell align="end">
-                                @if ($canReverse && $receptionLine->quantity_net > 0)
+                                @if ($canReverse && $receptionLine->quantity_net > 0 && ! $receptionLine->reception->invoice)
                                     @can('receptions.reverse')
                                         <flux:button size="xs" variant="ghost" icon="arrow-uturn-left" wire:click="openReverse({{ $receptionLine->id }})">{{ __('Renverser') }}</flux:button>
                                     @endcan
@@ -382,7 +390,29 @@
     @endif
 
     {{-- Facture --}}
-    @if ($order->invoice_number)
+    @if ($isProduct && $invoices->isNotEmpty())
+        <div class="mt-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <flux:heading size="lg">{{ __('Factures du fournisseur') }}</flux:heading>
+            <div class="mt-2 divide-y divide-zinc-200 dark:divide-zinc-700">
+                @foreach ($invoices as $invoice)
+                    <div class="flex items-center justify-between py-2">
+                        <flux:text>
+                            <flux:link :href="route('accounting.invoices.reception', $invoice->reception)" wire:navigate>{{ $invoice->reception->number }}</flux:link>
+                            · {{ __('Facture n° :number du :date', ['number' => $invoice->invoice_number, 'date' => $invoice->invoice_date->format('Y-m-d')]) }}
+                        </flux:text>
+                        <flux:text>
+                            {{ number_format($invoice->invoice_total, 2) }} $
+                            @if ($invoice->hasVariance())
+                                <flux:badge color="red" size="sm" class="ms-2">{{ __('Écart') }} {{ number_format($invoice->variance, 2) }} $</flux:badge>
+                            @endif
+                        </flux:text>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
+    @if (! $isProduct && $order->invoice_number)
         <div class="mt-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <flux:heading size="lg">{{ __('Facture du fournisseur') }}</flux:heading>
             <flux:text class="mt-2">
@@ -509,7 +539,7 @@
     {{-- Réception --}}
     <flux:modal wire:model="showReceive" class="w-full max-w-2xl">
         <flux:heading class="mb-1">{{ __('Réceptionner la commande') }}</flux:heading>
-        <flux:text class="text-zinc-500">{{ __('Saisissez les quantités reçues et le coût réel de chaque produit.') }}</flux:text>
+        <flux:text class="text-zinc-500">{{ __('Saisissez les quantités reçues de chaque produit.') }}</flux:text>
 
         <form wire:submit="receive" class="mt-6 space-y-4">
             @foreach ($order->lines as $line)
@@ -525,10 +555,6 @@
                         <flux:input wire:model="receipts.{{ $line->id }}.quantity" type="number" min="0" max="{{ $line->quantity_outstanding }}" step="1" :label="__('Reçu')" />
                         <flux:error name="receipts.{{ $line->id }}.quantity" />
                     </div>
-                    <div class="w-32">
-                        <flux:input wire:model="receipts.{{ $line->id }}.unit_cost" type="number" min="0" step="0.01" :label="__('Coût réel')" />
-                        <flux:error name="receipts.{{ $line->id }}.unit_cost" />
-                    </div>
                 </div>
             @endforeach
 
@@ -540,10 +566,27 @@
     </flux:modal>
 
     {{-- Facture --}}
-    <flux:modal wire:model="showInvoice" class="w-full max-w-md">
+    <flux:modal wire:model="showInvoice" class="w-full max-w-lg">
         <flux:heading class="mb-1">{{ __('Facture du fournisseur') }}</flux:heading>
 
         <form wire:submit="saveInvoice" class="mt-6 space-y-4">
+            <div class="space-y-2">
+                <flux:text class="text-sm text-zinc-500">{{ __('Coûts unitaires facturés (ajustez au besoin d\'après la facture du fournisseur).') }}</flux:text>
+                @foreach ($order->lines as $line)
+                    @continue($line->status->isClosed())
+                    <div class="flex items-start gap-3" wire:key="invoice-cost-{{ $line->id }}">
+                        <div class="flex-1 pt-2">
+                            <flux:text class="font-medium">{{ $line->label }}</flux:text>
+                            <flux:text class="text-xs text-zinc-400">{{ $isProduct ? $line->quantity_received : $line->quantity }} × {{ number_format($line->unit_cost, 2) }} $</flux:text>
+                        </div>
+                        <div class="w-32">
+                            <flux:input wire:model.live.debounce.500ms="invoiceCosts.{{ $line->id }}" type="number" min="0" step="0.01" />
+                            <flux:error name="invoiceCosts.{{ $line->id }}" />
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
             <flux:field>
                 <flux:label>{{ __('Numéro de facture') }}</flux:label>
                 <flux:input wire:model="invoiceNumber" type="text" required />

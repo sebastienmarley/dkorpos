@@ -6,6 +6,7 @@ use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierType;
 use App\Models\Product;
 use App\Models\Supplier;
+use App\Models\SupplierInvoice;
 use App\Models\SupplierOrder;
 use DomainException;
 use Flux\Flux;
@@ -85,7 +86,7 @@ class Show extends Component
     // Réception
     public bool $showReceive = false;
 
-    /** @var array<int, array{quantity: string, unit_cost: string}> */
+    /** @var array<int, array{quantity: string}> */
     public array $receipts = [];
 
     // Facture
@@ -96,6 +97,9 @@ class Show extends Component
     public string $invoiceDate = '';
 
     public string $invoiceTotal = '';
+
+    /** @var array<int, string> Coût unitaire facturé par ligne de commande. */
+    public array $invoiceCosts = [];
 
     public function mount(SupplierOrder $order): void
     {
@@ -467,10 +471,7 @@ class Show extends Component
         $this->authorize('supplier_orders.edit');
 
         $this->receipts = $this->order->lines->mapWithKeys(fn ($line) => [
-            $line->id => [
-                'quantity' => (string) $line->quantity_outstanding,
-                'unit_cost' => number_format($line->unit_cost, 2, '.', ''),
-            ],
+            $line->id => ['quantity' => (string) $line->quantity_outstanding],
         ])->all();
 
         $this->resetValidation();
@@ -483,7 +484,6 @@ class Show extends Component
 
         $this->validate([
             'receipts.*.quantity' => ['required', 'integer', 'min:0', 'max:99999'],
-            'receipts.*.unit_cost' => ['required', 'numeric', 'min:0', 'max:99999999'],
         ]);
 
         $this->runTransition(fn () => $this->order->receive($this->receipts, auth()->id()), __('Réception enregistrée.'));
@@ -495,7 +495,7 @@ class Show extends Component
     {
         $this->authorize('receptions.reverse');
 
-        $receptionLine = $this->order->receptionLines()->findOrFail($receptionLineId);
+        $receptionLine = $this->order->completedReceptionLines()->findOrFail($receptionLineId);
 
         $this->reverseReceptionLineId = $receptionLine->id;
         $this->reverseQuantity = (string) $receptionLine->quantity_net;
@@ -513,7 +513,7 @@ class Show extends Component
             'reverseReason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $receptionLine = $this->order->receptionLines()->findOrFail($this->reverseReceptionLineId);
+        $receptionLine = $this->order->completedReceptionLines()->findOrFail($this->reverseReceptionLineId);
 
         $this->runTransition(
             fn () => $receptionLine->reverse((int) $this->reverseQuantity, $this->reverseReason, auth()->id()),
@@ -528,25 +528,51 @@ class Show extends Component
     {
         $this->authorize('supplier_orders.edit');
 
+        abort_if($this->order->isProductOrder(), 403);
+
         $this->invoiceNumber = '';
         $this->invoiceDate = now()->toDateString();
-        $this->invoiceTotal = number_format($this->order->total, 2, '.', '');
+        $this->invoiceCosts = $this->order->lines
+            ->reject(fn ($line) => $line->status->isClosed())
+            ->mapWithKeys(fn ($line) => [$line->id => number_format($line->unit_cost, 2, '.', '')])
+            ->all();
+        $this->refreshInvoiceTotal();
         $this->resetValidation();
         $this->showInvoice = true;
+    }
+
+    public function updatedInvoiceCosts(): void
+    {
+        $this->refreshInvoiceTotal();
+    }
+
+    /**
+     * Total facturé proposé: quantités reçues (ou commandées pour des services) aux coûts unitaires saisis.
+     */
+    private function refreshInvoiceTotal(): void
+    {
+        $total = $this->order->lines
+            ->reject(fn ($line) => $line->status->isClosed())
+            ->sum(fn ($line) => ($this->order->isProductOrder() ? $line->quantity_received : $line->quantity) * (float) ($this->invoiceCosts[$line->id] ?? $line->unit_cost));
+
+        $this->invoiceTotal = number_format($total, 2, '.', '');
     }
 
     public function saveInvoice(): void
     {
         $this->authorize('supplier_orders.edit');
 
+        abort_if($this->order->isProductOrder(), 403);
+
         $this->validate([
             'invoiceNumber' => ['required', 'string', 'max:100'],
             'invoiceDate' => ['required', 'date'],
             'invoiceTotal' => ['required', 'numeric', 'min:0', 'max:999999999'],
+            'invoiceCosts.*' => ['required', 'numeric', 'min:0', 'max:99999999'],
         ]);
 
         $this->runTransition(
-            fn () => $this->order->invoice($this->invoiceNumber, $this->invoiceDate, (float) $this->invoiceTotal),
+            fn () => $this->order->invoice($this->invoiceNumber, $this->invoiceDate, (float) $this->invoiceTotal, $this->invoiceCosts),
             __('Facture enregistrée.'),
         );
 
@@ -613,8 +639,15 @@ class Show extends Component
         $substituting = $this->showSubstitute && $this->substituteLineId !== null;
 
         return view('livewire.orders.show', [
+            'invoices' => $this->order->isProductOrder()
+                ? SupplierInvoice::query()
+                    ->whereIn('reception_id', $this->order->completedReceptionLines()->pluck('reception_lines.reception_id'))
+                    ->with('reception')
+                    ->orderBy('id')
+                    ->get()
+                : collect(),
             'receptionLines' => $this->order->isProductOrder()
-                ? $this->order->receptionLines()->with(['reception', 'orderLine.product'])->orderBy('id')->get()
+                ? $this->order->completedReceptionLines()->with(['reception.invoice', 'orderLine.product'])->orderBy('id')->get()
                 : collect(),
             'shippingSuppliers' => $this->order->isProductOrder()
                 ? Supplier::query()

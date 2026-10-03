@@ -129,6 +129,25 @@
                         </flux:select>
                         <flux:error name="currencyId" />
                     </flux:field>
+
+                    <flux:field>
+                        <flux:label>{{ __('Escompte paiement rapide (%)') }}</flux:label>
+                        <flux:input wire:model="earlyPaymentDiscountPercent" type="number" step="0.01" min="0" max="100" />
+                        <flux:error name="earlyPaymentDiscountPercent" />
+                    </flux:field>
+
+                    <flux:field>
+                        <flux:checkbox wire:model.live="earlyPaymentNextMonth" :label="__('Mois suivant')" />
+                        <flux:description>{{ __('Coché : l\'escompte est valide jusqu\'à un jour fixe du mois suivant la facturation (ex.: 2 % le 10 du mois suivant).') }}</flux:description>
+                        <flux:error name="earlyPaymentNextMonth" />
+                    </flux:field>
+
+                    <flux:field>
+                        <flux:label>{{ $earlyPaymentNextMonth ? __('Jour du mois suivant') : __('Règle de l\'escompte (jours)') }}</flux:label>
+                        <flux:input wire:model="earlyPaymentDiscountDays" type="number" step="1" min="{{ $earlyPaymentNextMonth ? 1 : 0 }}" max="{{ $earlyPaymentNextMonth ? 31 : 365 }}" placeholder="{{ $earlyPaymentNextMonth ? __('Ex.: le 10') : __('Ex.: 15 jours') }}" />
+                        <flux:description>{{ $earlyPaymentNextMonth ? __('Jour du mois suivant limite pour profiter de l\'escompte.') : __('Délai pour profiter de l\'escompte à partir de la date de facturation.') }}</flux:description>
+                        <flux:error name="earlyPaymentDiscountDays" />
+                    </flux:field>
                 </div>
 
                 <div>

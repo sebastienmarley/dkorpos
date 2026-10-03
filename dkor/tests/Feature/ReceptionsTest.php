@@ -1,17 +1,20 @@
 <?php
 
+use App\Enums\ReceptionStatus;
 use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
 use App\Livewire\Orders\Show;
 use App\Livewire\Receptions\Create;
 use App\Livewire\Receptions\Index;
+use App\Models\InventoryMovement;
 use App\Models\InventoryStock;
 use App\Models\InventoryUnit;
 use App\Models\Product;
 use App\Models\Reception;
 use App\Models\Role;
 use App\Models\Supplier;
+use App\Models\SupplierInvoice;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
@@ -48,15 +51,15 @@ function sentOrder(?Supplier $supplier = null, array $quantities = [10], float $
 it('enregistre une réception partielle: inventaire, ligne de commande et statut', function () {
     [$order, [$line]] = sentOrder(quantities: [10]);
 
-    $reception = Reception::record($order->supplier, [$line->id => ['quantity' => 4, 'unit_cost' => 5.5]], ['reference' => 'BL-1', 'received_by' => auth()->id()]);
+    $reception = Reception::record($order->supplier, [$line->id => ['quantity' => 4, 'unit_cost' => 99]], ['reference' => 'BL-1', 'received_by' => auth()->id()]);
 
     $stock = InventoryStock::where('product_id', $line->product_id)->first();
     expect($reception->number)->toBe('RC-'.str_pad((string) $reception->id, 6, '0', STR_PAD_LEFT))
         ->and($reception->reference)->toBe('BL-1')
         ->and($reception->lines)->toHaveCount(1)
-        ->and($reception->lines->first())->quantity->toBe(4)->unit_cost->toBe(5.5)->supplier_order_line_id->toBe($line->id)
-        ->and($reception->total)->toBe(22.0)
-        ->and($line->fresh())->quantity_received->toBe(4)->unit_cost->toBe(5.5)
+        ->and($reception->lines->first())->quantity->toBe(4)->unit_cost->toBe(5.0)->supplier_order_line_id->toBe($line->id)
+        ->and($reception->total)->toBe(20.0)
+        ->and($line->fresh())->quantity_received->toBe(4)->unit_cost->toBe(5.0)
         ->and($stock)->quantity_in_stock->toBe(4)->quantity_on_order->toBe(6)
         ->and(InventoryUnit::where('product_id', $line->product_id)->count())->toBe(4)
         ->and($order->fresh()->status)->toBe(SupplierOrderStatus::PartiallyReceived);
@@ -150,69 +153,85 @@ it('garde la réception depuis la page de la commande', function () {
         ->and($order->fresh()->status)->toBe(SupplierOrderStatus::Received);
 });
 
-it('liste les fournisseurs et les lignes à recevoir dans la page de création', function () {
+it('ne montre les lignes qu\'après une recherche de bon de commande du fournisseur', function () {
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product]);
     [$order, [$line]] = sentOrder($supplier, [6]);
-    [$other] = sentOrder();
+    [$other] = sentOrder($supplier, [2]);
+    [$foreign] = sentOrder();
     $done = SupplierOrder::factory()->status(SupplierOrderStatus::Received)->create(['supplier_id' => $supplier->id]);
 
     Livewire::test(Create::class)
-        ->assertViewHas('suppliers', fn ($suppliers) => $suppliers->contains('id', $supplier->id) && $suppliers->contains('id', $other->supplier_id))
+        ->assertViewHas('suppliers', fn ($suppliers) => $suppliers->contains('id', $supplier->id) && $suppliers->contains('id', $foreign->supplier_id))
         ->set('supplierId', (string) $supplier->id)
+        ->assertDontSee($order->number)
+        ->assertDontSee($other->number)
+        ->set('orderSearch', $order->number)
         ->assertSee($order->number)
+        ->assertDontSee($other->number)
         ->assertDontSee($done->number)
+        ->assertDontSee($foreign->number);
+
+    $order->update(['quote_number' => 'Q-555']);
+
+    Livewire::test(Create::class)
+        ->set('supplierId', (string) $supplier->id)
+        ->set('orderSearch', 'Q-555')
+        ->assertSee($order->number)
         ->assertDontSee($other->number);
 });
-
-it('coche une ligne pour proposer la quantité restante et le coût', function () {
+it('coche une ligne pour proposer la quantité restante, sans coût', function () {
     [$order, [$line]] = sentOrder(quantities: [6], cost: 7.25);
 
     Livewire::test(Create::class)
         ->set('supplierId', (string) $order->supplier_id)
         ->set("selected.{$line->id}", true)
         ->assertSet("quantities.{$line->id}", '6')
-        ->assertSet("costs.{$line->id}", '7.25')
+        ->assertDontSee('7.25 $')
         ->set("selected.{$line->id}", false)
         ->assertSet('quantities', []);
 });
 
-it('enregistre la réception des lignes cochées et redirige vers elle', function () {
+it('conserve la sélection de plusieurs bons de commande puis commence la réception', function () {
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product]);
     [$orderA, [$lineA]] = sentOrder($supplier, [5]);
     [$orderB, [$lineB]] = sentOrder($supplier, [5]);
+    $movementsBefore = InventoryMovement::count();
 
     Livewire::test(Create::class)
         ->set('supplierId', (string) $supplier->id)
+        ->set('orderSearch', $orderA->number)
         ->set("selected.{$lineA->id}", true)
         ->set("quantities.{$lineA->id}", '3')
-        ->set("costs.{$lineA->id}", '6')
-        ->set('reference', 'BL-42')
-        ->set('notes', 'Boîte abîmée')
-        ->call('save')
-        ->assertHasNoErrors()
+        ->set('orderSearch', $orderB->number)
+        ->set("selected.{$lineB->id}", true)
+        ->assertViewHas('selectedLines', fn ($lines) => $lines->pluck('id')->sort()->values()->all() === collect([$lineA->id, $lineB->id])->sort()->values()->all())
+        ->assertSet("quantities.{$lineA->id}", '3')
+        ->assertSet("quantities.{$lineB->id}", '5')
+        ->call('start')
         ->assertRedirect(route('receptions.show', Reception::first()));
 
     $reception = Reception::first();
-    expect($reception)->reference->toBe('BL-42')->notes->toBe('Boîte abîmée')->received_by->toBe(auth()->id())
-        ->and($reception->lines)->toHaveCount(1)
-        ->and($lineA->fresh())->quantity_received->toBe(3)->unit_cost->toBe(6.0)
-        ->and($lineB->fresh()->quantity_received)->toBe(0)
-        ->and($orderB->fresh()->status)->toBe(SupplierOrderStatus::Sent);
+    expect($reception->status)->toBe(ReceptionStatus::InProgress)
+        ->and($reception->received_by)->toBe(auth()->id())
+        ->and($reception->lines)->toHaveCount(2)
+        ->and($reception->lines->pluck('quantity', 'supplier_order_line_id')->all())->toBe([$lineA->id => 3, $lineB->id => 5])
+        ->and($lineA->fresh()->quantity_received)->toBe(0)
+        ->and(InventoryUnit::count())->toBe(0)
+        ->and(InventoryMovement::count())->toBe($movementsBefore)
+        ->and($orderA->fresh()->status)->toBe(SupplierOrderStatus::Sent);
 });
-
-it('ne reçoit pas une ligne non cochée, même avec une quantité saisie', function () {
+it('ne commence pas de réception pour une ligne non cochée, même avec une quantité saisie', function () {
     [$order, [$line]] = sentOrder();
 
     Livewire::test(Create::class)
         ->set('supplierId', (string) $order->supplier_id)
         ->set("quantities.{$line->id}", '4')
-        ->call('save')
+        ->call('start')
         ->assertNoRedirect();
 
     expect(Reception::count())->toBe(0);
 });
-
-it('refuse l\'enregistrement d\'une ligne forgée d\'un autre fournisseur', function () {
+it('refuse de commencer une réception avec une ligne forgée d\'un autre fournisseur', function () {
     [$order] = sentOrder();
     [, [$foreignLine]] = sentOrder();
 
@@ -220,13 +239,12 @@ it('refuse l\'enregistrement d\'une ligne forgée d\'un autre fournisseur', func
         ->set('supplierId', (string) $order->supplier_id)
         ->set("selected.{$foreignLine->id}", true)
         ->set("quantities.{$foreignLine->id}", '1')
-        ->call('save')
+        ->assertSet('selected', [])
+        ->call('start')
         ->assertNoRedirect();
 
-    expect(Reception::count())->toBe(0)
-        ->and($foreignLine->fresh()->quantity_received)->toBe(0);
+    expect(Reception::count())->toBe(0);
 });
-
 it('liste et recherche les réceptions', function () {
     [$order, [$line]] = sentOrder();
     $reception = Reception::record($order->supplier, [$line->id => ['quantity' => 1]], ['reference' => 'BL-777']);
@@ -311,12 +329,12 @@ it('refuse de renverser des unités déjà livrées', function () {
         ->and(InventoryUnit::count())->toBe(1);
 });
 
-it('refuse de renverser une réception une fois la commande facturée ou annulée', function () {
+it('refuse de renverser une réception une fois facturée', function () {
     [$order, [$line]] = sentOrder(quantities: [3]);
-    $receptionLine = Reception::record($order->supplier, [$line->id => ['quantity' => 3]])->lines->first();
-    $order->fresh()->invoice('F-1', '2026-10-03', 15);
+    $reception = Reception::record($order->supplier, [$line->id => ['quantity' => 3]]);
+    SupplierInvoice::record($reception, ['invoice_number' => 'F-1', 'invoice_date' => '2026-10-03', 'invoice_total' => 15]);
 
-    expect(fn () => $receptionLine->fresh()->reverse(1))->toThrow(DomainException::class)
+    expect(fn () => $reception->lines->first()->fresh()->reverse(1))->toThrow(DomainException::class)
         ->and($line->fresh()->quantity_received)->toBe(3)
         ->and(InventoryUnit::count())->toBe(3);
 });
@@ -350,4 +368,150 @@ it('ne permet pas à un usager sans la permission de renverser', function () {
         ->assertForbidden();
 
     expect($line->fresh()->quantity_received)->toBe(4);
+});
+
+it('synchronise les lignes cochées même quand Livewire met à jour tout le tableau', function () {
+    [$order, [$line, $other]] = sentOrder(quantities: [6, 3], cost: 7.25);
+
+    Livewire::test(Create::class)
+        ->set('supplierId', (string) $order->supplier_id)
+        ->set('selected', [$line->id => true, $other->id => false])
+        ->assertSet("quantities.{$line->id}", '6')
+        ->assertSet('selected', [$line->id => true]);
+});
+
+it('garde la quantité saisie en recochant une ligne déjà remplie', function () {
+    [$order, [$line]] = sentOrder(quantities: [6]);
+
+    Livewire::test(Create::class)
+        ->set('supplierId', (string) $order->supplier_id)
+        ->set("selected.{$line->id}", true)
+        ->set("quantities.{$line->id}", '2')
+        ->set('selected', [$line->id => true])
+        ->assertSet("quantities.{$line->id}", '2');
+});
+
+it('ne montre ni ne permet de modifier le coût unitaire pendant une réception', function () {
+    [$order, [$line]] = sentOrder(quantities: [6], cost: 7.25);
+
+    Livewire::test(Create::class)
+        ->set('supplierId', (string) $order->supplier_id)
+        ->set('orderSearch', $order->number)
+        ->set("selected.{$line->id}", true)
+        ->assertDontSee('7.25 $')
+        ->assertDontSee('Coût')
+        ->set("quantities.{$line->id}", '3')
+        ->call('start');
+
+    $reception = Reception::first();
+
+    Livewire::test(App\Livewire\Receptions\Show::class, ['reception' => $reception])
+        ->assertDontSee('7.25 $')
+        ->assertDontSee('Coût')
+        ->call('complete');
+
+    expect($reception->fresh()->lines->first()->unit_cost)->toBe(7.25);
+
+    $this->get(route('receptions.show', $reception))->assertOk()->assertDontSee('7.25 $')->assertDontSee('Coût');
+
+    Livewire::test(Show::class, ['order' => $order->fresh()])
+        ->call('openReceive')
+        ->assertDontSee('Coût réel');
+});
+it('termine une réception en cours: inventaire, commandes, journal et statut', function () {
+    $supplier = Supplier::factory()->create(['type' => SupplierType::Product]);
+    [$orderA, [$lineA]] = sentOrder($supplier, [5]);
+    [$orderB, [$lineB]] = sentOrder($supplier, [2]);
+    $reception = Reception::start($supplier, [$lineA->id => ['quantity' => 3], $lineB->id => ['quantity' => 2]], ['received_by' => auth()->id()]);
+
+    expect(InventoryStock::where('product_id', $lineA->product_id)->first()->quantity_in_stock)->toBe(0);
+
+    Livewire::test(App\Livewire\Receptions\Show::class, ['reception' => $reception])
+        ->assertSee('Réception en cours')
+        ->call('complete')
+        ->assertHasNoErrors();
+
+    expect($reception->fresh())->status->toBe(ReceptionStatus::Completed)->completed_at->not->toBeNull()
+        ->and($lineA->fresh()->quantity_received)->toBe(3)
+        ->and(InventoryStock::where('product_id', $lineA->product_id)->first())->quantity_in_stock->toBe(3)->quantity_on_order->toBe(2)
+        ->and(InventoryUnit::count())->toBe(5)
+        ->and($orderA->fresh()->status)->toBe(SupplierOrderStatus::PartiallyReceived)
+        ->and($orderB->fresh()->status)->toBe(SupplierOrderStatus::Received)
+        ->and(InventoryMovement::where('type', 'receipt')->count())->toBe(2);
+
+    expect(fn () => $reception->fresh()->complete())->toThrow(DomainException::class);
+});
+
+it('ajuste les quantités et retire des lignes d\'une réception en cours', function () {
+    $supplier = Supplier::factory()->create(['type' => SupplierType::Product]);
+    [, [$lineA]] = sentOrder($supplier, [5]);
+    [, [$lineB]] = sentOrder($supplier, [4]);
+    $reception = Reception::start($supplier, [$lineA->id => ['quantity' => 5], $lineB->id => ['quantity' => 4]]);
+    [$receptionLineA, $receptionLineB] = $reception->lines->all();
+
+    Livewire::test(App\Livewire\Receptions\Show::class, ['reception' => $reception])
+        ->assertSet("quantities.{$receptionLineA->id}", '5')
+        ->set("quantities.{$receptionLineA->id}", '2')
+        ->set('reference', 'BL-9')
+        ->call('saveQuantities')
+        ->assertHasNoErrors()
+        ->call('removeLine', $receptionLineB->id)
+        ->call('complete');
+
+    expect($reception->fresh())->reference->toBe('BL-9')->status->toBe(ReceptionStatus::Completed)
+        ->and($reception->fresh()->lines)->toHaveCount(1)
+        ->and($lineA->fresh()->quantity_received)->toBe(2)
+        ->and($lineB->fresh()->quantity_received)->toBe(0);
+});
+
+it('refuse une quantité hors limites dans une réception en cours', function () {
+    [$order, [$line]] = sentOrder(quantities: [4]);
+    $reception = Reception::start($order->supplier, [$line->id => ['quantity' => 4]]);
+    $receptionLine = $reception->lines->first();
+
+    foreach (['0', '5'] as $invalid) {
+        Livewire::test(App\Livewire\Receptions\Show::class, ['reception' => $reception])
+            ->set("quantities.{$receptionLine->id}", $invalid)
+            ->call('saveQuantities');
+
+        expect($receptionLine->fresh()->quantity)->toBe(4);
+    }
+});
+
+it('refuse de terminer une réception dont les lignes ont été reçues entre-temps', function () {
+    [$order, [$line]] = sentOrder(quantities: [5]);
+    $first = Reception::start($order->supplier, [$line->id => ['quantity' => 5]]);
+    $second = Reception::start($order->supplier, [$line->id => ['quantity' => 5]]);
+
+    $first->complete();
+
+    expect(fn () => $second->fresh()->complete())->toThrow(DomainException::class)
+        ->and($line->fresh()->quantity_received)->toBe(5)
+        ->and($second->fresh()->status)->toBe(ReceptionStatus::InProgress)
+        ->and(InventoryUnit::count())->toBe(5);
+});
+
+it('abandonne une réception en cours sans effet sur l\'inventaire mais pas une réception terminée', function () {
+    [$order, [$line]] = sentOrder(quantities: [4]);
+    $reception = Reception::start($order->supplier, [$line->id => ['quantity' => 4]]);
+
+    Livewire::test(App\Livewire\Receptions\Show::class, ['reception' => $reception])
+        ->call('discard')
+        ->assertRedirect(route('receptions.index'));
+
+    expect(Reception::count())->toBe(0)
+        ->and($line->fresh()->quantity_received)->toBe(0);
+
+    $done = Reception::record($order->supplier, [$line->id => ['quantity' => 4]]);
+
+    expect(fn () => $done->discard())->toThrow(DomainException::class)
+        ->and(Reception::count())->toBe(1);
+});
+
+it('ne renverse pas une réception en cours et ne l\'affiche pas dans la facturation', function () {
+    [$order, [$line]] = sentOrder(quantities: [4]);
+    $reception = Reception::start($order->supplier, [$line->id => ['quantity' => 4]]);
+
+    expect(fn () => $reception->lines->first()->reverse(1))->toThrow(DomainException::class)
+        ->and($order->fresh()->completedReceptionLines()->count())->toBe(0);
 });

@@ -38,6 +38,12 @@ class Show extends Component
 
     public string $currencyId = '';
 
+    public string $earlyPaymentDiscountPercent = '0';
+
+    public string $earlyPaymentDiscountDays = '';
+
+    public bool $earlyPaymentNextMonth = false;
+
     /** @var array{civic: string, apartment: string, street: string, city: string, province: string, country: string, postal_code: string} */
     public array $paymentAddress = [
         'civic' => '', 'apartment' => '', 'street' => '',
@@ -136,6 +142,14 @@ class Show extends Component
             'accountNumber' => ['nullable', 'string', 'max:255'],
             'bankAccount' => ['nullable', 'string', 'max:255'],
             'currencyId' => ['nullable', 'integer', 'exists:currencies,id'],
+            'earlyPaymentDiscountPercent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'earlyPaymentNextMonth' => ['boolean'],
+            'earlyPaymentDiscountDays' => [
+                Rule::requiredIf((float) $this->earlyPaymentDiscountPercent > 0),
+                'nullable', 'integer',
+                $this->earlyPaymentNextMonth ? 'min:1' : 'min:0',
+                $this->earlyPaymentNextMonth ? 'max:31' : 'max:365',
+            ],
             'paymentAddress.civic' => ['nullable', 'string', 'max:20'],
             'paymentAddress.apartment' => ['nullable', 'string', 'max:20'],
             'paymentAddress.street' => ['nullable', 'string', 'max:255'],
@@ -149,6 +163,9 @@ class Show extends Component
             'account_number' => filled($this->accountNumber) ? $this->accountNumber : null,
             'bank_account' => filled($this->bankAccount) ? $this->bankAccount : null,
             'currency_id' => filled($this->currencyId) ? $this->currencyId : null,
+            'early_payment_discount_percent' => filled($this->earlyPaymentDiscountPercent) ? $this->earlyPaymentDiscountPercent : 0,
+            'early_payment_discount_days' => filled($this->earlyPaymentDiscountDays) ? $this->earlyPaymentDiscountDays : null,
+            'early_payment_next_month' => $this->earlyPaymentNextMonth,
             'payment_address_civic' => filled($this->paymentAddress['civic']) ? $this->paymentAddress['civic'] : null,
             'payment_address_apartment' => filled($this->paymentAddress['apartment']) ? $this->paymentAddress['apartment'] : null,
             'payment_address_street' => filled($this->paymentAddress['street']) ? $this->paymentAddress['street'] : null,
@@ -256,6 +273,9 @@ class Show extends Component
         $this->accountNumber = $this->supplier->account_number ?? '';
         $this->bankAccount = (string) ($this->supplier->bank_account ?? '');
         $this->currencyId = (string) ($this->supplier->currency_id ?? '');
+        $this->earlyPaymentDiscountPercent = (string) ($this->supplier->early_payment_discount_percent ?? 0);
+        $this->earlyPaymentDiscountDays = (string) ($this->supplier->early_payment_discount_days ?? '');
+        $this->earlyPaymentNextMonth = $this->supplier->early_payment_next_month;
         $this->paymentAddress = [
             'civic' => $this->supplier->payment_address_civic ?? '',
             'apartment' => $this->supplier->payment_address_apartment ?? '',

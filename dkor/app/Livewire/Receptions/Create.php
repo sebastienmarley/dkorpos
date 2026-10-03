@@ -16,6 +16,10 @@ use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
+/**
+ * Première étape d'une réception: on cherche des bons de commande (numéro ou quote #), on choisit les lignes à
+ * recevoir avec leurs quantités, puis on commence la réception qui contient alors tous ces articles.
+ */
 class Create extends Component
 {
     #[Url(as: 'supplier')]
@@ -23,67 +27,58 @@ class Create extends Component
 
     public string $orderSearch = '';
 
-    public string $reference = '';
-
-    public string $notes = '';
-
     /** @var array<int, bool> */
     public array $selected = [];
 
     /** @var array<int, string> */
     public array $quantities = [];
 
-    /** @var array<int, string> */
-    public array $costs = [];
-
     public function updatedSupplierId(): void
     {
-        $this->reset('selected', 'quantities', 'costs', 'orderSearch');
+        $this->reset('selected', 'quantities', 'orderSearch');
         $this->resetValidation();
     }
 
     /**
-     * Cocher une ligne propose la quantité restante et son coût; la décocher efface la saisie.
+     * Cocher une ligne propose la quantité restante; la décocher efface la saisie. Livewire n'envoie pas toujours la
+     * clé modifiée (mise à jour de tout le tableau): sans clé, toutes les lignes cochées sont synchronisées.
      */
-    public function updatedSelected(mixed $value, string $lineId): void
+    public function updatedSelected(mixed $value = null, ?string $lineId = null): void
     {
-        $line = $this->openLines()->get((int) $lineId);
+        foreach ($lineId === null ? array_keys($this->selected) : [$lineId] as $key) {
+            $id = (int) $key;
+            $line = ($this->selected[$id] ?? false) ? $this->receivableLine($id) : null;
 
-        if ($value && $line) {
-            $this->quantities[$line->id] = (string) $line->quantity_outstanding;
-            $this->costs[$line->id] = number_format($line->unit_cost, 2, '.', '');
-        } else {
-            unset($this->selected[$lineId], $this->quantities[$lineId], $this->costs[$lineId]);
+            if ($line) {
+                $this->quantities[$id] ??= (string) $line->quantity_outstanding;
+            } else {
+                unset($this->selected[$id], $this->quantities[$id]);
+            }
         }
     }
 
-    public function save(): void
+    public function removeSelected(int $lineId): void
+    {
+        unset($this->selected[$lineId], $this->quantities[$lineId]);
+    }
+
+    public function start(): void
     {
         $this->authorize('receptions.create');
 
         $this->validate([
             'supplierId' => ['required', 'integer', 'exists:suppliers,id'],
-            'reference' => ['nullable', 'string', 'max:255'],
-            'notes' => ['nullable', 'string', 'max:2000'],
             'quantities.*' => ['nullable', 'integer', 'min:0', 'max:99999'],
-            'costs.*' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
         ]);
 
         $receipts = [];
 
         foreach (array_keys(array_filter($this->selected)) as $lineId) {
-            $receipts[(int) $lineId] = [
-                'quantity' => (int) ($this->quantities[$lineId] ?? 0),
-                'unit_cost' => filled($this->costs[$lineId] ?? null) ? $this->costs[$lineId] : null,
-            ];
+            $receipts[(int) $lineId] = ['quantity' => (int) ($this->quantities[$lineId] ?? 0)];
         }
 
         try {
-            $reception = Reception::record(Supplier::findOrFail($this->supplierId), $receipts, [
-                'reference' => $this->reference,
-                'notes' => $this->notes,
-                'received_by' => auth()->id(),
-            ]);
+            $reception = Reception::start(Supplier::findOrFail($this->supplierId), $receipts, ['received_by' => auth()->id()]);
         } catch (DomainException $e) {
             Flux::toast(text: $e->getMessage(), variant: 'danger');
 
@@ -94,38 +89,53 @@ class Create extends Component
     }
 
     /**
-     * Lignes encore à recevoir des commandes de produits ouvertes du fournisseur choisi, indexées par id.
-     *
-     * @return \Illuminate\Support\Collection<int, SupplierOrderLine>
+     * Ligne encore à recevoir d'une commande de produits ouverte du fournisseur choisi (null sinon).
      */
-    private function openLines(): \Illuminate\Support\Collection
-    {
-        return $this->openOrders()
-            ->flatMap(fn (SupplierOrder $order) => $order->lines)
-            ->keyBy('id');
-    }
-
-    /** @return Collection<int, SupplierOrder> */
-    private function openOrders(): Collection
+    private function receivableLine(int $lineId): ?SupplierOrderLine
     {
         if (blank($this->supplierId)) {
+            return null;
+        }
+
+        return SupplierOrderLine::query()
+            ->with(['order', 'product'])
+            ->whereKey($lineId)
+            ->whereIn('status', [SupplierOrderLineStatus::Active, SupplierOrderLineStatus::CancellationRequested])
+            ->whereColumn('quantity_received', '<', 'quantity')
+            ->whereHas('order', fn ($query) => $query
+                ->where('supplier_id', $this->supplierId)
+                ->where('type', SupplierType::Product)
+                ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived]))
+            ->first();
+    }
+
+    /**
+     * Commandes ouvertes du fournisseur dont le numéro ou le quote # correspond à la recherche (rien sans recherche).
+     *
+     * @return Collection<int, SupplierOrder>
+     */
+    private function matchingOrders(): Collection
+    {
+        if (blank($this->supplierId) || blank(trim($this->orderSearch))) {
             return new Collection;
         }
+
+        $term = trim($this->orderSearch);
 
         return SupplierOrder::query()
             ->where('supplier_id', $this->supplierId)
             ->where('type', SupplierType::Product)
             ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived])
-            ->when(filled($this->orderSearch), fn ($query) => $query->where(function ($q) {
-                $q->where('number', 'like', '%'.$this->orderSearch.'%')
-                    ->orWhere('quote_number', 'like', '%'.$this->orderSearch.'%');
-            }))
+            ->where(fn ($query) => $query
+                ->where('number', 'like', '%'.$term.'%')
+                ->orWhere('quote_number', 'like', '%'.$term.'%'))
             ->with(['lines' => fn ($query) => $query
                 ->whereIn('status', [SupplierOrderLineStatus::Active, SupplierOrderLineStatus::CancellationRequested])
                 ->whereColumn('quantity_received', '<', 'quantity'),
                 'lines.product',
             ])
             ->orderBy('id')
+            ->limit(10)
             ->get()
             ->filter(fn (SupplierOrder $order) => $order->lines->isNotEmpty())
             ->values();
@@ -133,6 +143,8 @@ class Create extends Component
 
     public function render(): View
     {
+        $selectedIds = array_keys(array_filter($this->selected));
+
         return view('livewire.receptions.create', [
             'suppliers' => Supplier::query()
                 ->where('type', SupplierType::Product)
@@ -140,7 +152,10 @@ class Create extends Component
                     ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived]))
                 ->orderBy('name')
                 ->get(),
-            'orders' => $this->openOrders(),
+            'orders' => $this->matchingOrders(),
+            'selectedLines' => $selectedIds === []
+                ? new Collection
+                : SupplierOrderLine::with(['order', 'product'])->whereKey($selectedIds)->get(),
         ])->layout('layouts.app', ['title' => __('Nouvelle réception')]);
     }
 }

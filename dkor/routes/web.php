@@ -1,6 +1,8 @@
 <?php
 
 use App\Livewire\Accounting\Currencies;
+use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
+use App\Livewire\Accounting\Invoices\Index as InvoicesIndex;
 use App\Livewire\Admin\Permissions;
 use App\Livewire\Admin\Positions;
 use App\Livewire\Admin\Roles;
@@ -62,6 +64,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('catalog/categories', Categories::class)->middleware('can:categories.view')->name('catalog.categories');
     Route::get('catalog/colors', Colors::class)->middleware('can:colors.view')->name('catalog.colors');
 
+    Route::get('accounting/invoices', InvoicesIndex::class)->middleware('can:invoices.view')->name('accounting.invoices');
+    Route::get('accounting/invoices/receptions/{reception}', InvoiceForm::class)->middleware('can:invoices.view')->name('accounting.invoices.reception');
     Route::get('accounting/currencies', Currencies::class)->middleware('can:currencies.view')->name('accounting.currencies');
 
     Route::get('admin/positions', Positions::class)->middleware('can:positions.manage')->name('admin.positions');

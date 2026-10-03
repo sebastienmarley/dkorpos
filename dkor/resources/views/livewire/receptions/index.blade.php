@@ -21,6 +21,7 @@
             <flux:table.columns>
                 <flux:table.column>{{ __('Numéro') }}</flux:table.column>
                 <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
+                <flux:table.column>{{ __('Statut') }}</flux:table.column>
                 <flux:table.column>{{ __('Bordereau') }}</flux:table.column>
                 <flux:table.column align="end">{{ __('Unités') }}</flux:table.column>
                 <flux:table.column>{{ __('Reçue le') }}</flux:table.column>
@@ -34,6 +35,7 @@
                             <flux:link :href="route('receptions.show', $reception)" wire:navigate>{{ $reception->number }}</flux:link>
                         </flux:table.cell>
                         <flux:table.cell>{{ $reception->supplier->name }}</flux:table.cell>
+                        <flux:table.cell><flux:badge :color="$reception->status->color()" size="sm">{{ $reception->status->label() }}</flux:badge></flux:table.cell>
                         <flux:table.cell>{{ $reception->reference ?: '—' }}</flux:table.cell>
                         <flux:table.cell align="end">{{ $reception->lines->sum('quantity_net') }}</flux:table.cell>
                         <flux:table.cell>{{ $reception->received_at->format('Y-m-d H:i') }}</flux:table.cell>
@@ -41,7 +43,7 @@
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="6" class="py-12 text-center">
+                        <flux:table.cell colspan="7" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="inbox-arrow-down" class="h-8 w-8 text-zinc-300" />
                                 <flux:text class="text-zinc-400">
