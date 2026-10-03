@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $product_id
+ * @property int|null $reception_line_id
  * @property float $cost
  * @property Carbon $inserted_at
  * @property Carbon|null $delivered_at
@@ -20,7 +21,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read Product $product
  */
-#[Fillable(['product_id', 'cost', 'inserted_at', 'delivered_at'])]
+#[Fillable(['product_id', 'reception_line_id', 'cost', 'inserted_at', 'delivered_at'])]
 class InventoryUnit extends Model
 {
     /** @use HasFactory<InventoryUnitFactory> */

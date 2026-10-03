@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\InventoryMovementType;
+use App\Enums\InventoryStatus;
 use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
@@ -16,6 +18,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -126,6 +129,12 @@ class SupplierOrder extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(SupplierOrderLine::class)->orderBy('id');
+    }
+
+    /** @return HasManyThrough<ReceptionLine, SupplierOrderLine, $this> */
+    public function receptionLines(): HasManyThrough
+    {
+        return $this->hasManyThrough(ReceptionLine::class, SupplierOrderLine::class, 'supplier_order_id', 'supplier_order_line_id');
     }
 
     public function getTotalAttribute(): float
@@ -278,7 +287,7 @@ class SupplierOrder extends Model
      * Envoie la commande en attente; les quantités des produits passent « en commande » dans l'inventaire et la
      * commande est transmise par courriel au fournisseur.
      *
-     * @return bool Vrai si le courriel a été envoyé (faux si le fournisseur n'a pas de courriel ou si l'envoi a échoué).
+     * @return bool Faux seulement si le courriel est activé mais n'a pas pu être envoyé (pas de courriel ou erreur d'envoi).
      */
     public function send(): bool
     {
@@ -295,14 +304,22 @@ class SupplierOrder extends Model
                 $this->guardShipping();
 
                 foreach ($lines as $line) {
-                    $this->adjustStock($line, onOrder: $line->quantity);
+                    $this->moveStock($line, null, InventoryStatus::OnOrder, $line->quantity, InventoryMovementType::OrderPlaced);
                 }
             }
 
             $this->update(['status' => SupplierOrderStatus::Sent, 'sent_at' => now()]);
         });
 
-        return $this->emailToSupplier();
+        return ! static::emailEnabled() || $this->emailToSupplier();
+    }
+
+    /**
+     * Les courriels aux fournisseurs sont-ils activés (config supplier_orders.email_enabled)?
+     */
+    public static function emailEnabled(): bool
+    {
+        return (bool) config('supplier_orders.email_enabled');
     }
 
     /**
@@ -330,48 +347,110 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Réceptionne des produits (inventaire FIFO). Le coût réel saisi remplace le coût commandé.
+     * Réceptionne des produits de cette commande (voir Reception::record pour les règles).
      *
      * @param  array<int, array{quantity: int|string, unit_cost: float|int|string}>  $receipts  Indexé par id de ligne.
      */
-    public function receive(array $receipts): void
+    public function receive(array $receipts, int|string|null $receivedBy = null): Reception
     {
         if (! $this->isProductOrder() || ! $this->status->isOpen()) {
             throw new DomainException(__('Cette commande ne peut pas être réceptionnée.'));
         }
 
-        DB::transaction(function () use ($receipts): void {
-            $received = 0;
+        return Reception::record($this->supplier, $receipts, ['received_by' => $receivedBy]);
+    }
 
-            foreach ($this->lines()->get() as $line) {
-                $quantity = min((int) ($receipts[$line->id]['quantity'] ?? 0), $line->quantity_outstanding);
+    /**
+     * Applique à l'inventaire (unités FIFO, stock, « en commande ») les quantités reçues de cette commande et les
+     * consigne sur la réception. Appelé par Reception::record dans sa transaction.
+     *
+     * @param  Collection<int, SupplierOrderLine>  $lines
+     * @param  array<int, array{quantity: int|string, unit_cost?: float|int|string|null}>  $receipts
+     */
+    public function applyReceipts(Reception $reception, Collection $lines, array $receipts): void
+    {
+        foreach ($lines as $line) {
+            $quantity = min((int) $receipts[$line->id]['quantity'], $line->quantity_outstanding);
 
-                if ($quantity <= 0) {
-                    continue;
-                }
+            if ($quantity <= 0) {
+                continue;
+            }
 
-                $cost = round((float) ($receipts[$line->id]['unit_cost'] ?? $line->unit_cost), 2);
-                $received += $quantity;
+            $cost = round((float) ($receipts[$line->id]['unit_cost'] ?? $line->unit_cost), 2);
 
-                for ($i = 0; $i < $quantity; $i++) {
-                    InventoryUnit::create([
-                        'product_id' => $line->product_id,
-                        'cost' => $cost,
-                        'inserted_at' => today(),
-                    ]);
-                }
+            $receptionLine = $reception->lines()->create([
+                'supplier_order_line_id' => $line->id,
+                'product_id' => $line->product_id,
+                'quantity' => $quantity,
+                'unit_cost' => $cost,
+            ]);
 
-                $this->adjustStock($line, inStock: $quantity, onOrder: -$quantity);
-
-                $line->update([
-                    'quantity_received' => $line->quantity_received + $quantity,
-                    'unit_cost' => $cost,
+            for ($i = 0; $i < $quantity; $i++) {
+                InventoryUnit::create([
+                    'product_id' => $line->product_id,
+                    'reception_line_id' => $receptionLine->id,
+                    'cost' => $cost,
+                    'inserted_at' => today(),
                 ]);
             }
 
-            if ($received === 0) {
-                throw new DomainException(__('Saisissez au moins une quantité à réceptionner.'));
+            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $quantity, InventoryMovementType::Receipt, $receptionLine);
+
+            $line->update([
+                'quantity_received' => $line->quantity_received + $quantity,
+                'unit_cost' => $cost,
+            ]);
+        }
+
+        $this->refreshStatusFromLines();
+    }
+
+    /**
+     * Renverse une quantité d'une réception faite par erreur, tant que la commande n'est pas facturée: les unités
+     * d'inventaire créées sont retirées (elles ne doivent pas être déjà livrées), le stock en main diminue, la
+     * quantité revient « en commande », la ligne de commande retrouve ce qu'il lui reste à recevoir et le statut de la
+     * commande est recalculé (reçue → partiellement reçue ou envoyée).
+     */
+    public function reverseReceipt(ReceptionLine $receptionLine, int $quantity, ?string $reason = null, int|string|null $reversedBy = null): void
+    {
+        $line = $receptionLine->orderLine;
+
+        if ($line->supplier_order_id !== $this->id) {
+            throw new DomainException(__('Cette réception ne concerne pas cette commande.'));
+        }
+
+        if (! in_array($this->status, [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived, SupplierOrderStatus::Received], true)) {
+            throw new DomainException(__('Une réception ne peut plus être renversée une fois la commande facturée ou annulée.'));
+        }
+
+        if ($quantity < 1 || $quantity > $receptionLine->quantity_net) {
+            throw new DomainException(__('La quantité à renverser doit être entre 1 et :max.', ['max' => $receptionLine->quantity_net]));
+        }
+
+        DB::transaction(function () use ($receptionLine, $line, $quantity, $reason, $reversedBy): void {
+            $units = InventoryUnit::query()
+                ->where('reception_line_id', $receptionLine->id)
+                ->whereNull('delivered_at')
+                ->orderByDesc('id')
+                ->limit($quantity)
+                ->get();
+
+            if ($units->count() < $quantity) {
+                throw new DomainException(__('Impossible de renverser : certaines unités reçues ont déjà été livrées ou ne sont pas retraçables.'));
             }
+
+            InventoryUnit::whereKey($units->modelKeys())->delete();
+
+            $this->moveStock($line, InventoryStatus::InStock, InventoryStatus::OnOrder, $quantity, InventoryMovementType::ReceiptReversal, $receptionLine, $reason);
+
+            $line->update(['quantity_received' => $line->quantity_received - $quantity]);
+
+            $receptionLine->update([
+                'quantity_reversed' => $receptionLine->quantity_reversed + $quantity,
+                'reversed_at' => now(),
+                'reversed_by' => $reversedBy,
+                'reversal_reason' => filled($reason) ? $reason : null,
+            ]);
 
             $this->refreshStatusFromLines();
         });
@@ -393,7 +472,7 @@ class SupplierOrder extends Model
             $line = $this->lines()->create($attributes);
 
             if ($this->isProductOrder() && $this->status->isOpen()) {
-                $this->adjustStock($line, onOrder: $line->quantity);
+                $this->moveStock($line, null, InventoryStatus::OnOrder, $line->quantity, InventoryMovementType::OrderLineAdded);
             }
 
             return $line;
@@ -420,7 +499,13 @@ class SupplierOrder extends Model
 
         DB::transaction(function () use ($line, $quantity, $unitCost): void {
             if ($this->isProductOrder() && $this->status->isOpen()) {
-                $this->adjustStock($line, onOrder: $quantity - $line->quantity);
+                $this->moveStock(
+                    $line,
+                    $quantity > $line->quantity ? null : InventoryStatus::OnOrder,
+                    $quantity > $line->quantity ? InventoryStatus::OnOrder : null,
+                    abs($quantity - $line->quantity),
+                    InventoryMovementType::OrderLineChanged,
+                );
             }
 
             $line->update(['quantity' => $quantity, 'unit_cost' => round($unitCost, 2)]);
@@ -455,7 +540,7 @@ class SupplierOrder extends Model
         $replacement = DB::transaction(function () use ($line, $product): SupplierOrderLine {
             $quantity = $line->quantity_outstanding;
 
-            $this->adjustStock($line, onOrder: -$quantity);
+            $this->moveStock($line, InventoryStatus::OnOrder, null, $quantity, InventoryMovementType::Substitution);
 
             $replacement = $this->lines()->create([
                 'product_id' => $product->id,
@@ -464,7 +549,7 @@ class SupplierOrder extends Model
                 'substituted_from_line_id' => $line->id,
             ]);
 
-            $this->adjustStock($replacement, onOrder: $quantity);
+            $this->moveStock($replacement, null, InventoryStatus::OnOrder, $quantity, InventoryMovementType::Substitution);
 
             $line->update($line->quantity_received > 0
                 ? ['quantity' => $line->quantity_received]
@@ -484,7 +569,7 @@ class SupplierOrder extends Model
      * Demande au fournisseur d'annuler ce qui reste à recevoir d'une ligne; la ligne passe « en demande d'annulation »
      * jusqu'à la réponse du fournisseur.
      *
-     * @return bool Vrai si le courriel a été envoyé (faux si le fournisseur n'a aucun courriel).
+     * @return bool Vrai si le courriel a été envoyé (faux s'il est désactivé ou si le fournisseur n'a aucun courriel).
      */
     public function requestLineCancellation(SupplierOrderLine $line, ?string $reason = null): bool
     {
@@ -506,7 +591,7 @@ class SupplierOrder extends Model
 
         $recipient = $this->supplier->order_email ?: $this->supplier->email;
 
-        if (blank($recipient)) {
+        if (! static::emailEnabled() || blank($recipient)) {
             return false;
         }
 
@@ -526,7 +611,7 @@ class SupplierOrder extends Model
 
         DB::transaction(function () use ($line): void {
             if ($this->isProductOrder()) {
-                $this->adjustStock($line, onOrder: -$line->quantity_outstanding);
+                $this->moveStock($line, InventoryStatus::OnOrder, null, $line->quantity_outstanding, InventoryMovementType::OrderLineCancelled);
             }
 
             if ($line->quantity_received > 0) {
@@ -597,7 +682,7 @@ class SupplierOrder extends Model
         DB::transaction(function (): void {
             if ($this->isProductOrder() && $this->status->isOpen()) {
                 foreach ($this->lines()->get() as $line) {
-                    $this->adjustStock($line, onOrder: -$line->quantity_outstanding);
+                    $this->moveStock($line, InventoryStatus::OnOrder, null, $line->quantity_outstanding, InventoryMovementType::OrderCancelled);
                 }
             }
 
@@ -625,9 +710,12 @@ class SupplierOrder extends Model
         if ($lines->every(fn (SupplierOrderLine $line) => $line->quantity_outstanding === 0)) {
             $this->update(['status' => SupplierOrderStatus::Received, 'received_at' => now()]);
         } else {
-            $this->update(['status' => $lines->contains(fn (SupplierOrderLine $line) => $line->quantity_received > 0)
-                ? SupplierOrderStatus::PartiallyReceived
-                : SupplierOrderStatus::Sent]);
+            $this->update([
+                'received_at' => null,
+                'status' => $lines->contains(fn (SupplierOrderLine $line) => $line->quantity_received > 0)
+                    ? SupplierOrderStatus::PartiallyReceived
+                    : SupplierOrderStatus::Sent,
+            ]);
         }
     }
 
@@ -662,18 +750,23 @@ class SupplierOrder extends Model
         }
     }
 
-    private function adjustStock(SupplierOrderLine $line, int $inStock = 0, int $onOrder = 0): void
-    {
-        if ($line->product_id === null) {
+    /**
+     * Consigne un mouvement d'inventaire pour le produit d'une ligne (rien pour une ligne libre ou une quantité nulle).
+     */
+    private function moveStock(
+        SupplierOrderLine $line,
+        ?InventoryStatus $from,
+        ?InventoryStatus $to,
+        int $quantity,
+        InventoryMovementType $type,
+        ?Model $reference = null,
+        ?string $note = null,
+    ): void {
+        if ($line->product_id === null || $quantity < 1) {
             return;
         }
 
-        $stock = InventoryStock::firstOrCreate(['product_id' => $line->product_id]);
-
-        $stock->update([
-            'quantity_in_stock' => max(0, $stock->quantity_in_stock + $inStock),
-            'quantity_on_order' => max(0, $stock->quantity_on_order + $onOrder),
-        ]);
+        InventoryMovement::record($line->product_id, $from, $to, $quantity, $type, $reference ?? $line, $note);
     }
 
     private function guardStatus(SupplierOrderStatus $expected, string $message): void

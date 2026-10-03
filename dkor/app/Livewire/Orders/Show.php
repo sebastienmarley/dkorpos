@@ -71,6 +71,15 @@ class Show extends Component
 
     public ?int $substituteProductId = null;
 
+    // Renversement d'une réception
+    public bool $showReverse = false;
+
+    public ?int $reverseReceptionLineId = null;
+
+    public string $reverseQuantity = '';
+
+    public string $reverseReason = '';
+
     // Réception
     public bool $showReceive = false;
 
@@ -336,7 +345,9 @@ class Show extends Component
         }, __('Demande d\'annulation enregistrée.'));
 
         if (! $notified && $line->fresh()->status === SupplierOrderLineStatus::CancellationRequested) {
-            Flux::toast(text: __('Aucun courriel de commande pour ce fournisseur : avisez-le manuellement.'), variant: 'warning');
+            Flux::toast(text: SupplierOrder::emailEnabled()
+                ? __('Aucun courriel de commande pour ce fournisseur : avisez-le manuellement.')
+                : __('Les courriels sont désactivés : avisez le fournisseur manuellement.'), variant: 'warning');
         }
 
         $this->showCancelRequest = false;
@@ -391,7 +402,7 @@ class Show extends Component
     {
         $this->authorize('supplier_orders.edit');
 
-        abort_unless($this->order->status->isOpen(), 403);
+        abort_unless(SupplierOrder::emailEnabled() && $this->order->status->isOpen(), 403);
 
         if ($this->order->emailToSupplier()) {
             Flux::toast(text: __('Courriel renvoyé au fournisseur.'), variant: 'success');
@@ -434,9 +445,42 @@ class Show extends Component
             'receipts.*.unit_cost' => ['required', 'numeric', 'min:0', 'max:99999999'],
         ]);
 
-        $this->runTransition(fn () => $this->order->receive($this->receipts), __('Réception enregistrée.'));
+        $this->runTransition(fn () => $this->order->receive($this->receipts, auth()->id()), __('Réception enregistrée.'));
 
         $this->showReceive = false;
+    }
+
+    public function openReverse(int $receptionLineId): void
+    {
+        $this->authorize('receptions.reverse');
+
+        $receptionLine = $this->order->receptionLines()->findOrFail($receptionLineId);
+
+        $this->reverseReceptionLineId = $receptionLine->id;
+        $this->reverseQuantity = (string) $receptionLine->quantity_net;
+        $this->reverseReason = '';
+        $this->resetValidation();
+        $this->showReverse = true;
+    }
+
+    public function reverseReceipt(): void
+    {
+        $this->authorize('receptions.reverse');
+
+        $this->validate([
+            'reverseQuantity' => ['required', 'integer', 'min:1', 'max:99999'],
+            'reverseReason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $receptionLine = $this->order->receptionLines()->findOrFail($this->reverseReceptionLineId);
+
+        $this->runTransition(
+            fn () => $receptionLine->reverse((int) $this->reverseQuantity, $this->reverseReason, auth()->id()),
+            __('Réception renversée.'),
+            'receptions.reverse',
+        );
+
+        $this->showReverse = false;
     }
 
     public function openInvoice(): void
@@ -479,9 +523,9 @@ class Show extends Component
             ->get();
     }
 
-    private function runTransition(callable $action, string $successMessage): void
+    private function runTransition(callable $action, string $successMessage, string $permission = 'supplier_orders.edit'): void
     {
-        $this->authorize('supplier_orders.edit');
+        $this->authorize($permission);
 
         try {
             $action();
@@ -503,6 +547,9 @@ class Show extends Component
         $substituting = $this->showSubstitute && $this->substituteLineId !== null;
 
         return view('livewire.orders.show', [
+            'receptionLines' => $this->order->isProductOrder()
+                ? $this->order->receptionLines()->with(['reception', 'orderLine.product'])->orderBy('id')->get()
+                : collect(),
             'shippingSuppliers' => $this->order->isProductOrder()
                 ? Supplier::query()
                     ->where('type', SupplierType::Shipping)

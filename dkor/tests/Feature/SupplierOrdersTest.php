@@ -383,6 +383,7 @@ it('ne remet pas la commande à partiellement reçue sans réception', function 
 });
 
 it('envoie une demande d\'annulation au fournisseur et met la ligne en demande', function () {
+    config(['supplier_orders.email_enabled' => true]);
     Mail::fake();
     [$order, $product, $line] = productOrderWithLine(10);
     $order->supplier->update(['order_email' => 'commandes@fournisseur.test']);
@@ -400,6 +401,7 @@ it('envoie une demande d\'annulation au fournisseur et met la ligne en demande',
 });
 
 it('utilise le courriel général si le fournisseur n\'a pas de courriel de commande, sinon avertit', function () {
+    config(['supplier_orders.email_enabled' => true]);
     Mail::fake();
     [$order, , $line] = productOrderWithLine(5);
     $order->supplier->update(['order_email' => null, 'email' => 'info@fournisseur.test']);
@@ -915,6 +917,7 @@ it('enregistre le quote # et le retrouve dans la recherche de la liste', functio
 });
 
 it('envoie la commande par courriel au courriel de commande du fournisseur', function () {
+    config(['supplier_orders.email_enabled' => true]);
     Mail::fake();
     [$order] = productOrderWithLine(2, 10);
     $order->supplier->update(['order_email' => 'commandes@fournisseur.test', 'email' => 'info@fournisseur.test']);
@@ -936,6 +939,7 @@ it('envoie la commande par courriel au courriel de commande du fournisseur', fun
 });
 
 it('mentionne le transport collect et le transporteur dans le courriel', function () {
+    config(['supplier_orders.email_enabled' => true]);
     Mail::fake();
     [$order] = productOrderWithLine();
     $order->supplier->update(['order_email' => 'commandes@fournisseur.test']);
@@ -948,6 +952,7 @@ it('mentionne le transport collect et le transporteur dans le courriel', functio
 });
 
 it('envoie la commande sans courriel de commande en utilisant le courriel général, sinon avertit', function () {
+    config(['supplier_orders.email_enabled' => true]);
     Mail::fake();
     [$order] = productOrderWithLine();
     $order->supplier->update(['order_email' => null, 'email' => 'info@fournisseur.test']);
@@ -964,6 +969,7 @@ it('envoie la commande sans courriel de commande en utilisant le courriel géné
 });
 
 it('ne bloque pas l\'envoi quand le courriel échoue', function () {
+    config(['supplier_orders.email_enabled' => true]);
     [$order] = productOrderWithLine();
     $order->supplier->update(['order_email' => 'commandes@fournisseur.test']);
     $order->markPending();
@@ -974,6 +980,7 @@ it('ne bloque pas l\'envoi quand le courriel échoue', function () {
 });
 
 it('ne courriel pas un envoi refusé et renvoie le courriel d\'une commande envoyée', function () {
+    config(['supplier_orders.email_enabled' => true]);
     Mail::fake();
     [$order] = productOrderWithLine(1, 5);
     $order->supplier->update(['prepaid_amount' => 1000, 'order_email' => 'commandes@fournisseur.test']);
@@ -990,6 +997,7 @@ it('ne courriel pas un envoi refusé et renvoie le courriel d\'une commande envo
 });
 
 it('refuse de renvoyer le courriel d\'un brouillon', function () {
+    config(['supplier_orders.email_enabled' => true]);
     [$order] = productOrderWithLine();
 
     Livewire::test(Show::class, ['order' => $order])->call('resendEmail')->assertForbidden();
@@ -1007,6 +1015,7 @@ it('conserve la date d\'envoi et l\'affiche', function () {
 });
 
 it('conserve la date du dernier courriel réellement envoyé', function () {
+    config(['supplier_orders.email_enabled' => true]);
     Mail::fake();
     $this->travelTo('2026-10-05 14:30:00');
     [$order] = productOrderWithLine();
@@ -1025,6 +1034,7 @@ it('conserve la date du dernier courriel réellement envoyé', function () {
 });
 
 it('ne met pas à jour la date du courriel quand l\'envoi échoue', function () {
+    config(['supplier_orders.email_enabled' => true]);
     [$order] = productOrderWithLine();
     $order->supplier->update(['order_email' => 'commandes@fournisseur.test']);
     $order->markPending();
@@ -1083,6 +1093,7 @@ it('efface l\'adresse quand le drop ship est désactivé', function () {
 });
 
 it('indique l\'adresse drop ship dans le courriel au fournisseur', function () {
+    config(['supplier_orders.email_enabled' => true]);
     Mail::fake();
     [$order] = productOrderWithLine();
     $order->supplier->update(['order_email' => 'commandes@fournisseur.test']);
@@ -1101,4 +1112,39 @@ it('ne modifie pas le drop ship d\'une commande envoyée ni de services', functi
     $service = SupplierOrder::factory()->service()->create();
 
     expect(fn () => $service->setDropShip(true, ['name' => 'X', ...dropShipDestination()]))->toThrow(DomainException::class);
+});
+
+it('ferme et envoie la commande sans courriel quand le courriel est désactivé', function () {
+    Mail::fake();
+    [$order] = productOrderWithLine(3, 5);
+    $order->supplier->update(['order_email' => 'commandes@fournisseur.test']);
+    $order->markPending();
+
+    expect(config('supplier_orders.email_enabled'))->toBeFalse();
+
+    Livewire::test(Show::class, ['order' => $order->fresh()])
+        ->assertDontSee('Renvoyer le courriel')
+        ->call('send');
+
+    Mail::assertNothingSent();
+    expect($order->fresh())->status->toBe(SupplierOrderStatus::Sent)->sent_at->not->toBeNull()->last_emailed_at->toBeNull();
+
+    Livewire::test(Show::class, ['order' => $order->fresh()])
+        ->assertDontSee('Renvoyer le courriel')
+        ->assertDontSee('Aucun courriel envoyé')
+        ->call('resendEmail')
+        ->assertForbidden();
+});
+
+it('enregistre la demande d\'annulation sans courriel quand les courriels sont désactivés', function () {
+    Mail::fake();
+    [$order, , $line] = productOrderWithLine(5);
+    $order->supplier->update(['order_email' => 'commandes@fournisseur.test']);
+    sendOrder($order);
+
+    expect(config('supplier_orders.email_enabled'))->toBeFalse()
+        ->and($line->fresh()->requestCancellation('Client a annulé'))->toBeFalse()
+        ->and($line->fresh())->status->toBe(SupplierOrderLineStatus::CancellationRequested)->cancellation_reason->toBe('Client a annulé');
+
+    Mail::assertNothingSent();
 });

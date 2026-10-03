@@ -124,6 +124,12 @@ class Supplier extends Model
         return $this->belongsTo(Supplier::class, 'default_shipping_supplier_id');
     }
 
+    /** @return HasMany<SupplierOrder, $this> */
+    public function orders(): HasMany
+    {
+        return $this->hasMany(SupplierOrder::class);
+    }
+
     /** @return HasMany<Product, $this> */
     public function products(): HasMany
     {

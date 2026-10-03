@@ -29,9 +29,11 @@
                 @endif
                 @if ($order->sent_at)
                     · {{ __('Envoyée le :date', ['date' => $order->sent_at->format('Y-m-d H:i')]) }}
-                    · {{ $order->last_emailed_at
-                        ? __('Dernier courriel le :date', ['date' => $order->last_emailed_at->format('Y-m-d H:i')])
-                        : __('Aucun courriel envoyé') }}
+                    @if ($order->last_emailed_at || \App\Models\SupplierOrder::emailEnabled())
+                        · {{ $order->last_emailed_at
+                            ? __('Dernier courriel le :date', ['date' => $order->last_emailed_at->format('Y-m-d H:i')])
+                            : __('Aucun courriel envoyé') }}
+                    @endif
                 @endif
             </flux:text>
         </div>
@@ -52,12 +54,12 @@
                 @endif
 
                 @if ($status === Status::Pending)
-                    <flux:button variant="primary" icon="paper-airplane" wire:click="send" wire:confirm="{{ __('Envoyer cette commande au fournisseur?') }}">
-                        {{ __('Envoyer') }}
+                    <flux:button variant="primary" icon="paper-airplane" wire:click="send" wire:confirm="{{ __('Fermer et envoyer cette commande? Les quantités passeront « en commande ».') }}">
+                        {{ __('Fermer et envoyer') }}
                     </flux:button>
                 @endif
 
-                @if ($status->isOpen())
+                @if ($status->isOpen() && \App\Models\SupplierOrder::emailEnabled())
                     <flux:button variant="ghost" icon="envelope" wire:click="resendEmail" wire:confirm="{{ __('Renvoyer la commande par courriel au fournisseur?') }}">
                         {{ __('Renvoyer le courriel') }}
                     </flux:button>
@@ -222,6 +224,56 @@
         <flux:text class="text-lg font-semibold">{{ __('Total') }} : {{ number_format($order->total, 2) }} $</flux:text>
     </div>
 
+    {{-- Réceptions (produits) --}}
+    @if ($isProduct && $receptionLines->isNotEmpty())
+        @php $canReverse = in_array($status, [Status::Sent, Status::PartiallyReceived, Status::Received], true); @endphp
+        <div class="mt-6 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="px-4 pt-4">
+                <flux:heading size="lg">{{ __('Réceptions') }}</flux:heading>
+                @if (! $canReverse)
+                    <flux:text class="mt-1 text-sm text-zinc-500">{{ __('Les réceptions ne peuvent plus être renversées une fois la commande facturée ou annulée.') }}</flux:text>
+                @endif
+            </div>
+            <flux:table>
+                <flux:table.columns>
+                    <flux:table.column>{{ __('Réception') }}</flux:table.column>
+                    <flux:table.column>{{ __('Produit') }}</flux:table.column>
+                    <flux:table.column align="end">{{ __('Reçu') }}</flux:table.column>
+                    <flux:table.column align="end">{{ __('Renversé') }}</flux:table.column>
+                    <flux:table.column align="end">{{ __('Coût') }}</flux:table.column>
+                    <flux:table.column />
+                </flux:table.columns>
+                <flux:table.rows>
+                    @foreach ($receptionLines as $receptionLine)
+                        <flux:table.row :key="$receptionLine->id">
+                            <flux:table.cell>
+                                <flux:link :href="route('receptions.show', $receptionLine->reception)" wire:navigate>{{ $receptionLine->reception->number }}</flux:link>
+                                <flux:text class="text-xs text-zinc-400">{{ $receptionLine->reception->received_at->format('Y-m-d H:i') }}</flux:text>
+                            </flux:table.cell>
+                            <flux:table.cell>{{ $receptionLine->orderLine->label }}</flux:table.cell>
+                            <flux:table.cell align="end">{{ $receptionLine->quantity }}</flux:table.cell>
+                            <flux:table.cell align="end">
+                                @if ($receptionLine->quantity_reversed > 0)
+                                    <span title="{{ $receptionLine->reversal_reason }}">{{ $receptionLine->quantity_reversed }}</span>
+                                @else
+                                    —
+                                @endif
+                            </flux:table.cell>
+                            <flux:table.cell align="end">{{ number_format($receptionLine->unit_cost, 2) }} $</flux:table.cell>
+                            <flux:table.cell align="end">
+                                @if ($canReverse && $receptionLine->quantity_net > 0)
+                                    @can('receptions.reverse')
+                                        <flux:button size="xs" variant="ghost" icon="arrow-uturn-left" wire:click="openReverse({{ $receptionLine->id }})">{{ __('Renverser') }}</flux:button>
+                                    @endcan
+                                @endif
+                            </flux:table.cell>
+                        </flux:table.row>
+                    @endforeach
+                </flux:table.rows>
+            </flux:table>
+        </div>
+    @endif
+
     {{-- Transport (produits) --}}
     @if ($isProduct)
         @php
@@ -338,6 +390,30 @@
         </form>
     </div>
 
+    {{-- Renversement d'une réception --}}
+    <flux:modal wire:model="showReverse" class="w-full max-w-md">
+        <flux:heading class="mb-1">{{ __('Renverser une réception') }}</flux:heading>
+        <flux:text class="text-zinc-500">{{ __('Les unités reçues sont retirées de l\'inventaire et la quantité revient « en commande ». Impossible si elles ont déjà été livrées.') }}</flux:text>
+
+        <form wire:submit="reverseReceipt" class="mt-6 space-y-4">
+            <flux:field>
+                <flux:label>{{ __('Quantité à renverser') }}</flux:label>
+                <flux:input wire:model="reverseQuantity" type="number" min="1" step="1" required />
+                <flux:error name="reverseQuantity" />
+            </flux:field>
+            <flux:field>
+                <flux:label>{{ __('Raison (optionnel)') }}</flux:label>
+                <flux:input wire:model="reverseReason" type="text" />
+                <flux:error name="reverseReason" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <flux:button type="button" variant="ghost" wire:click="$set('showReverse', false)">{{ __('Annuler') }}</flux:button>
+                <flux:button type="submit" variant="danger">{{ __('Renverser la réception') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
     {{-- Substitution d'un produit --}}
     <flux:modal wire:model="showSubstitute" class="w-full max-w-lg">
         <flux:heading class="mb-1">{{ __('Substituer un produit') }}</flux:heading>
@@ -393,7 +469,7 @@
     {{-- Demande d'annulation d'une ligne --}}
     <flux:modal wire:model="showCancelRequest" class="w-full max-w-md">
         <flux:heading class="mb-1">{{ __('Demander l\'annulation de la ligne') }}</flux:heading>
-        <flux:text class="text-zinc-500">{{ __('Un courriel est envoyé au fournisseur; la ligne reste « en demande d\'annulation » jusqu\'à sa réponse.') }}</flux:text>
+        <flux:text class="text-zinc-500">{{ (\App\Models\SupplierOrder::emailEnabled() ? __('Un courriel est envoyé au fournisseur; ') : __('Aucun courriel n\'est envoyé (courriels désactivés) : avisez le fournisseur; ')).__('la ligne reste « en demande d\'annulation » jusqu\'à sa réponse.') }}</flux:text>
 
         <form wire:submit="requestLineCancellation" class="mt-6 space-y-4">
             <flux:field>

@@ -5,10 +5,12 @@ use App\Livewire\Catalog\Categories;
 use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
 use App\Livewire\CustomerForm;
+use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
 use App\Livewire\Orders\Show as SupplierOrderShow;
 use App\Livewire\ProductForm;
 use App\Livewire\Products\Show as ProductShow;
+use App\Livewire\Receptions\Create as ReceptionCreate;
 use App\Livewire\Schedules\Appointments;
 use App\Livewire\Schedules\Holidays;
 use App\Livewire\Schedules\ScheduleEdit;
@@ -45,6 +47,9 @@ dataset('actions interdites', [
     'supplier_orders.edit (annulation de ligne)' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('confirmLineCancellation', 1)],
     'supplier_orders.delete' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('deleteOrder')],
     'supplier_orders.edit (substitution)' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('openSubstitute', 1)],
+    'receptions.create' => [fn () => Livewire::test(ReceptionCreate::class)->call('save')],
+    'receptions.reverse' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('openReverse', 1)],
+    'inventory.move' => [fn () => Livewire::test(InventoryMovements::class)->call('openMove')],
     'products.create' => [fn () => Livewire::test(ProductForm::class)->call('openCreate')],
     'departments.create' => [fn () => Livewire::test(Departments::class)->call('openCreate')],
     'categories.create' => [fn () => Livewire::test(Categories::class)->call('openCreate')],

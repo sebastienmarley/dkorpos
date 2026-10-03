@@ -8,10 +8,14 @@ use App\Livewire\Catalog\Categories;
 use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
 use App\Livewire\Customers\Index as CustomersIndex;
+use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
 use App\Livewire\Orders\Show as SupplierOrderShow;
 use App\Livewire\Products\Index as ProductsIndex;
 use App\Livewire\Products\Show as ProductShow;
+use App\Livewire\Receptions\Create as ReceptionCreate;
+use App\Livewire\Receptions\Index as ReceptionsIndex;
+use App\Livewire\Receptions\Show as ReceptionShow;
 use App\Livewire\Schedules\Appointments;
 use App\Livewire\Schedules\Holidays;
 use App\Livewire\Schedules\Index as SchedulesIndex;
@@ -44,6 +48,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('supplier-orders', SupplierOrdersIndex::class)->middleware('can:supplier_orders.view')->name('supplier-orders.index');
     Route::get('supplier-orders/{order}', SupplierOrderShow::class)->middleware('can:supplier_orders.view')->name('supplier-orders.show');
+
+    Route::get('receptions', ReceptionsIndex::class)->middleware('can:receptions.view')->name('receptions.index');
+    Route::get('receptions/create', ReceptionCreate::class)->middleware('can:receptions.create')->name('receptions.create');
+    Route::get('receptions/{reception}', ReceptionShow::class)->middleware('can:receptions.view')->name('receptions.show');
+
+    Route::get('inventory/movements', InventoryMovements::class)->middleware('can:inventory.view')->name('inventory.movements');
 
     Route::get('products', ProductsIndex::class)->middleware('can:products.view')->name('products.index');
     Route::get('products/{product}', ProductShow::class)->middleware('can:products.view')->name('products.show');
