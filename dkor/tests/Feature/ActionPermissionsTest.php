@@ -5,6 +5,8 @@ use App\Livewire\Catalog\Categories;
 use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
 use App\Livewire\CustomerForm;
+use App\Livewire\Orders\Index as SupplierOrdersIndex;
+use App\Livewire\Orders\Show as SupplierOrderShow;
 use App\Livewire\ProductForm;
 use App\Livewire\Products\Show as ProductShow;
 use App\Livewire\Schedules\Appointments;
@@ -17,6 +19,7 @@ use App\Models\Currency;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\Supplier;
+use App\Models\SupplierOrder;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -37,6 +40,11 @@ dataset('actions interdites', [
     'suppliers.create' => [fn () => Livewire::test(SupplierForm::class)->call('openCreate')],
     'currencies.create' => [fn () => Livewire::test(Currencies::class)->call('openCreate')],
     'currencies.archive' => [fn () => Livewire::test(Currencies::class)->call('toggleArchive', Currency::factory()->create()->id)],
+    'supplier_orders.create' => [fn () => Livewire::test(SupplierOrdersIndex::class)->call('openCreate')],
+    'supplier_orders.edit' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('send')],
+    'supplier_orders.edit (annulation de ligne)' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('confirmLineCancellation', 1)],
+    'supplier_orders.delete' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('deleteOrder')],
+    'supplier_orders.edit (substitution)' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('openSubstitute', 1)],
     'products.create' => [fn () => Livewire::test(ProductForm::class)->call('openCreate')],
     'departments.create' => [fn () => Livewire::test(Departments::class)->call('openCreate')],
     'categories.create' => [fn () => Livewire::test(Categories::class)->call('openCreate')],

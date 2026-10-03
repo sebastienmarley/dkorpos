@@ -84,6 +84,12 @@
                     </flux:sidebar.item>
                 @endcan
 
+                @can('supplier_orders.view')
+                    <flux:sidebar.item icon="truck" :href="route('supplier-orders.index')" :current="request()->routeIs('supplier-orders.*')" wire:navigate>
+                        {{ __('Commandes fournisseurs') }}
+                    </flux:sidebar.item>
+                @endcan
+
                 @canany(['products.view', 'departments.view', 'categories.view', 'colors.view'])
                 <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('catalog.*')">
                     @can('products.view')

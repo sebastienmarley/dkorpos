@@ -8,6 +8,8 @@ use App\Livewire\Catalog\Categories;
 use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
 use App\Livewire\Customers\Index as CustomersIndex;
+use App\Livewire\Orders\Index as SupplierOrdersIndex;
+use App\Livewire\Orders\Show as SupplierOrderShow;
 use App\Livewire\Products\Index as ProductsIndex;
 use App\Livewire\Products\Show as ProductShow;
 use App\Livewire\Schedules\Appointments;
@@ -39,6 +41,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('suppliers', SuppliersIndex::class)->middleware('can:suppliers.view')->name('suppliers.index');
     Route::get('suppliers/{supplier}', SupplierShow::class)->middleware('can:suppliers.view')->name('suppliers.show');
+
+    Route::get('supplier-orders', SupplierOrdersIndex::class)->middleware('can:supplier_orders.view')->name('supplier-orders.index');
+    Route::get('supplier-orders/{order}', SupplierOrderShow::class)->middleware('can:supplier_orders.view')->name('supplier-orders.show');
 
     Route::get('products', ProductsIndex::class)->middleware('can:products.view')->name('products.index');
     Route::get('products/{product}', ProductShow::class)->middleware('can:products.view')->name('products.show');
