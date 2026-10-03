@@ -47,7 +47,7 @@ class ProductForm extends Component
         $this->validate([
             'supplierId' => ['required', 'exists:suppliers,id'],
             'model' => ['required', 'string', 'max:255', new UniqueCleanProductModel($this->supplierId)],
-            'cost' => ['required', 'numeric', 'min:0'],
+            'cost' => ['required', 'numeric', 'min:0.01'],
         ]);
 
         $product = Product::create([

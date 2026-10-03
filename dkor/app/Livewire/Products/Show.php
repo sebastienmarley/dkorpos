@@ -71,7 +71,7 @@ class Show extends Component
             'categoryId' => ['nullable', 'exists:categories,id'],
             'isDiscontinued' => ['boolean'],
             'isNonOrderable' => ['boolean'],
-            'cost' => ['required', 'numeric', 'min:0'],
+            'cost' => ['required', 'numeric', 'min:0.01'],
         ]);
 
         $this->product->fill([
