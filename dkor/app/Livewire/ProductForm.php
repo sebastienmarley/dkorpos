@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Enums\SupplierType;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Rules\UniqueCleanProductModel;
@@ -71,7 +72,7 @@ class ProductForm extends Component
     /** @return Collection<int, Supplier> */
     public function getSuppliers(): Collection
     {
-        return Supplier::where('is_active', true)->orderBy('name')->get();
+        return Supplier::where('type', SupplierType::Product)->where('is_active', true)->orderBy('name')->get();
     }
 
     public function render(): View

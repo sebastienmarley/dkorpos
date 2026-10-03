@@ -42,6 +42,8 @@ class Show extends Component
     // Nouvelle ligne
     public string $productId = '';
 
+    public string $productSearch = '';
+
     public string $description = '';
 
     public string $quantity = '1';
@@ -171,7 +173,26 @@ class Show extends Component
 
     public function updatedProductId(): void
     {
-        $product = $this->orderableProducts()->firstWhere('id', (int) $this->productId);
+        $this->fillCostFromProduct();
+    }
+
+    public function selectProduct(int $productId): void
+    {
+        $this->authorize('supplier_orders.edit');
+
+        $this->productId = (string) $this->orderableProducts()->findOrFail($productId)->id;
+        $this->productSearch = '';
+        $this->fillCostFromProduct();
+    }
+
+    public function clearProduct(): void
+    {
+        $this->reset('productId', 'productSearch', 'unitCost');
+    }
+
+    private function fillCostFromProduct(): void
+    {
+        $product = filled($this->productId) ? $this->orderableProducts()->find((int) $this->productId) : null;
 
         $this->unitCost = $product ? number_format($product->cost, 2, '.', '') : '';
     }
@@ -512,14 +533,39 @@ class Show extends Component
         $this->showInvoice = false;
     }
 
-    /** @return Collection<int, Product> */
-    private function orderableProducts(): Collection
+    /** @return Builder<Product> */
+    private function orderableProducts(): Builder
     {
         return Product::query()
             ->where('supplier_id', $this->order->supplier_id)
             ->where('is_discontinued', false)
-            ->where('is_non_orderable', false)
+            ->where('is_non_orderable', false);
+    }
+
+    /**
+     * Produits commandables du fournisseur dont l'id, le modèle ou le modèle fournisseur correspond à la recherche.
+     *
+     * @return Collection<int, Product>
+     */
+    private function searchOrderableProducts(string $term): Collection
+    {
+        $term = trim($term);
+
+        if ($term === '') {
+            return new Collection;
+        }
+
+        return $this->orderableProducts()
+            ->where(function ($query) use ($term) {
+                $query->where('model', 'like', '%'.$term.'%')
+                    ->orWhere('supplier_model', 'like', '%'.$term.'%');
+
+                if (ctype_digit($term)) {
+                    $query->orWhere('id', (int) $term);
+                }
+            })
             ->orderBy('model')
+            ->limit(10)
             ->get();
     }
 
@@ -566,14 +612,21 @@ class Show extends Component
                     ->when(filled($this->substituteSearch), fn ($query) => $query->where(function ($q) {
                         $q->where('model', 'like', '%'.$this->substituteSearch.'%')
                             ->orWhere('supplier_model', 'like', '%'.$this->substituteSearch.'%');
+
+                        if (ctype_digit(trim($this->substituteSearch))) {
+                            $q->orWhere('id', (int) trim($this->substituteSearch));
+                        }
                     }))
                     ->orderBy('model')
                     ->limit(10)
                     ->get()
                 : collect(),
-            'products' => $this->order->isProductOrder() && ($this->order->status->isEditable() || $this->order->status->isOpen())
-                ? $this->orderableProducts()
-                : collect(),
+            'productResults' => $this->order->isProductOrder() && blank($this->productId)
+                ? $this->searchOrderableProducts($this->productSearch)
+                : new Collection,
+            'selectedProduct' => $this->order->isProductOrder() && filled($this->productId)
+                ? $this->orderableProducts()->find((int) $this->productId)
+                : null,
         ])->layout('layouts.app', ['title' => $this->order->number]);
     }
 }

@@ -195,11 +195,30 @@
                 <form wire:submit="addLine" class="flex flex-wrap items-start gap-3 border-t border-zinc-200 p-4 dark:border-zinc-700">
                     <div class="min-w-64 flex-1">
                         @if ($isProduct)
-                            <flux:select wire:model.live="productId" :placeholder="__('Choisir un produit…')">
-                                @foreach ($products as $product)
-                                    <flux:select.option :value="$product->id">{{ $product->display_name }}</flux:select.option>
-                                @endforeach
-                            </flux:select>
+                            @if ($selectedProduct)
+                                <div class="flex items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700">
+                                    <span>{{ $selectedProduct->display_name }} <span class="text-xs text-zinc-400">#{{ $selectedProduct->id }}</span></span>
+                                    <flux:button type="button" size="xs" variant="ghost" wire:click="clearProduct">{{ __('Changer') }}</flux:button>
+                                </div>
+                            @else
+                                <div class="relative">
+                                    <flux:input wire:model.live.debounce.300ms="productSearch" icon="magnifying-glass" autocomplete="off" :placeholder="__('Rechercher un produit (id ou modèle)…')" />
+
+                                    @if (filled($productSearch))
+                                        <div class="absolute z-10 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                                            @forelse ($productResults as $result)
+                                                <button type="button" wire:key="product-result-{{ $result->id }}" wire:click="selectProduct({{ $result->id }})"
+                                                    class="flex w-full items-center justify-between px-3 py-2 text-start hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                                                    <span>{{ $result->display_name }}</span>
+                                                    <span class="text-sm text-zinc-400">#{{ $result->id }} · {{ number_format($result->cost, 2) }} $</span>
+                                                </button>
+                                            @empty
+                                                <div class="p-3 text-center"><flux:text class="text-zinc-400">{{ __('Aucun produit trouvé.') }}</flux:text></div>
+                                            @endforelse
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
                             <flux:error name="productId" />
                         @else
                             <flux:input wire:model="description" :placeholder="__('Description du service')" />

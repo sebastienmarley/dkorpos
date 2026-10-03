@@ -1148,3 +1148,74 @@ it('enregistre la demande d\'annulation sans courriel quand les courriels sont d
 
     Mail::assertNothingSent();
 });
+
+it('cherche le produit à ajouter par id, modèle ou modèle fournisseur, sans charger tout le catalogue', function () {
+    $order = SupplierOrder::factory()->create();
+    $byModel = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Fauteuil Zephyr', 'supplier_model' => 'FZ-1']);
+    $bySupplierModel = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Banc', 'supplier_model' => 'ZEPH-9']);
+    $foreign = Product::factory()->create(['model' => 'Fauteuil Étranger']);
+    $blocked = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Fauteuil Bloqué', 'is_non_orderable' => true]);
+    Product::factory()->count(30)->create(['supplier_id' => $order->supplier_id, 'model' => 'Chaise']);
+
+    $ids = fn ($component) => $component->viewData('productResults')->pluck('id')->all();
+
+    $component = Livewire::test(Show::class, ['order' => $order])
+        ->assertViewHas('productResults', fn ($results) => $results->isEmpty());
+
+    $component->set('productSearch', 'Fauteuil');
+    expect($ids($component))->toBe([$byModel->id]);
+
+    $component->set('productSearch', 'zeph');
+    expect($ids($component))->toEqualCanonicalizing([$byModel->id, $bySupplierModel->id]);
+
+    $component->set('productSearch', (string) $bySupplierModel->id);
+    expect($ids($component))->toContain($bySupplierModel->id)->not->toContain($foreign->id)->not->toContain($blocked->id);
+
+    $component->set('productSearch', 'Chaise');
+    expect($ids($component))->toHaveCount(10);
+});
+
+it('choisit le produit trouvé, propose son coût puis l\'ajoute à la commande', function () {
+    $order = SupplierOrder::factory()->create();
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Fauteuil Zéphyr', 'cost' => 42.5]);
+
+    Livewire::test(Show::class, ['order' => $order])
+        ->set('productSearch', 'Zéphyr')
+        ->call('selectProduct', $product->id)
+        ->assertSet('productId', (string) $product->id)
+        ->assertSet('productSearch', '')
+        ->assertSet('unitCost', '42.50')
+        ->assertSee('Fauteuil Zéphyr')
+        ->set('quantity', '2')
+        ->call('addLine')
+        ->assertHasNoErrors()
+        ->assertSet('productId', '');
+
+    expect($order->lines()->first())->product_id->toBe($product->id)->quantity->toBe(2)->unit_cost->toBe(42.5);
+});
+
+it('refuse de choisir un produit d\'un autre fournisseur et permet de changer de produit', function () {
+    $order = SupplierOrder::factory()->create();
+    $own = Product::factory()->create(['supplier_id' => $order->supplier_id]);
+
+    $component = Livewire::test(Show::class, ['order' => $order])
+        ->call('selectProduct', Product::factory()->create()->id)
+        ->assertNotFound();
+
+    Livewire::test(Show::class, ['order' => $order])
+        ->call('selectProduct', $own->id)
+        ->call('clearProduct')
+        ->assertSet('productId', '')
+        ->assertSet('unitCost', '');
+});
+
+it('cherche aussi par id le produit de substitution', function () {
+    [$order, , $line] = productOrderWithLine();
+    sendOrder($order);
+    $target = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Cible']);
+
+    Livewire::test(Show::class, ['order' => $order->fresh()])
+        ->call('openSubstitute', $line->id)
+        ->set('substituteSearch', (string) $target->id)
+        ->assertViewHas('substituteResults', fn ($results) => $results->pluck('id')->contains($target->id));
+});
