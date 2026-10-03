@@ -77,18 +77,12 @@
                     </flux:button>
                 @endif
 
-                @if ($isProduct && $receptionLines->isNotEmpty())
+                @if (($isProduct && $receptionLines->isNotEmpty()) || (! $isProduct && in_array($status, [Status::Received, Status::Invoiced], true)))
                     @can('invoices.view')
                         <flux:button icon="document-text" :href="route('accounting.invoices', ['search' => $order->number])" wire:navigate>
                             {{ __('Facturation') }}
                         </flux:button>
                     @endcan
-                @endif
-
-                @if (! $isProduct && $status === Status::Received)
-                    <flux:button variant="primary" icon="document-text" wire:click="openInvoice">
-                        {{ __('Saisir la facture') }}
-                    </flux:button>
                 @endif
 
                 @if ($status->isEditable() || $status->isOpen())
@@ -390,14 +384,14 @@
     @endif
 
     {{-- Facture --}}
-    @if ($isProduct && $invoices->isNotEmpty())
+    @if ($invoices->isNotEmpty())
         <div class="mt-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <flux:heading size="lg">{{ __('Factures du fournisseur') }}</flux:heading>
             <div class="mt-2 divide-y divide-zinc-200 dark:divide-zinc-700">
                 @foreach ($invoices as $invoice)
                     <div class="flex items-center justify-between py-2">
                         <flux:text>
-                            <flux:link :href="route('accounting.invoices.reception', $invoice->reception)" wire:navigate>{{ $invoice->reception->number }}</flux:link>
+                            <flux:link :href="$invoice->reception ? route('accounting.invoices.reception', $invoice->reception) : route('accounting.invoices.order', $order)" wire:navigate>{{ $invoice->reception?->number ?? $order->number }}</flux:link>
                             · {{ __('Facture n° :number du :date', ['number' => $invoice->invoice_number, 'date' => $invoice->invoice_date->format('Y-m-d')]) }}
                         </flux:text>
                         <flux:text>
@@ -412,18 +406,6 @@
         </div>
     @endif
 
-    @if (! $isProduct && $order->invoice_number)
-        <div class="mt-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-            <flux:heading size="lg">{{ __('Facture du fournisseur') }}</flux:heading>
-            <flux:text class="mt-2">
-                {{ __('N° :number du :date — :total $', [
-                    'number' => $order->invoice_number,
-                    'date' => $order->invoice_date->format('Y-m-d'),
-                    'total' => number_format($order->invoice_total, 2),
-                ]) }}
-            </flux:text>
-        </div>
-    @endif
 
     {{-- Notes --}}
     <div class="mt-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -565,48 +547,4 @@
         </form>
     </flux:modal>
 
-    {{-- Facture --}}
-    <flux:modal wire:model="showInvoice" class="w-full max-w-lg">
-        <flux:heading class="mb-1">{{ __('Facture du fournisseur') }}</flux:heading>
-
-        <form wire:submit="saveInvoice" class="mt-6 space-y-4">
-            <div class="space-y-2">
-                <flux:text class="text-sm text-zinc-500">{{ __('Coûts unitaires facturés (ajustez au besoin d\'après la facture du fournisseur).') }}</flux:text>
-                @foreach ($order->lines as $line)
-                    @continue($line->status->isClosed())
-                    <div class="flex items-start gap-3" wire:key="invoice-cost-{{ $line->id }}">
-                        <div class="flex-1 pt-2">
-                            <flux:text class="font-medium">{{ $line->label }}</flux:text>
-                            <flux:text class="text-xs text-zinc-400">{{ $isProduct ? $line->quantity_received : $line->quantity }} × {{ number_format($line->unit_cost, 2) }} $</flux:text>
-                        </div>
-                        <div class="w-32">
-                            <flux:input wire:model.live.debounce.500ms="invoiceCosts.{{ $line->id }}" type="number" min="0" step="0.01" />
-                            <flux:error name="invoiceCosts.{{ $line->id }}" />
-                        </div>
-                    </div>
-                @endforeach
-            </div>
-
-            <flux:field>
-                <flux:label>{{ __('Numéro de facture') }}</flux:label>
-                <flux:input wire:model="invoiceNumber" type="text" required />
-                <flux:error name="invoiceNumber" />
-            </flux:field>
-            <flux:field>
-                <flux:label>{{ __('Date de la facture') }}</flux:label>
-                <flux:input wire:model="invoiceDate" type="date" required />
-                <flux:error name="invoiceDate" />
-            </flux:field>
-            <flux:field>
-                <flux:label>{{ __('Total facturé') }}</flux:label>
-                <flux:input wire:model="invoiceTotal" type="number" min="0" step="0.01" required />
-                <flux:error name="invoiceTotal" />
-            </flux:field>
-
-            <div class="flex justify-end gap-3 pt-2">
-                <flux:button type="button" variant="ghost" wire:click="$set('showInvoice', false)">{{ __('Annuler') }}</flux:button>
-                <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
-            </div>
-        </form>
-    </flux:modal>
 </div>

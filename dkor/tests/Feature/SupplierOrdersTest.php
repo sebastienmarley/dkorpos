@@ -203,19 +203,6 @@ it('refuse une réception sans quantité', function () {
         ->and(InventoryUnit::count())->toBe(0);
 });
 
-it('refuse la facture tant que la commande n\'est pas reçue', function () {
-    [$order] = productOrderWithLine();
-    sendOrder($order);
-
-    Livewire::test(Show::class, ['order' => $order->fresh()])
-        ->set('invoiceNumber', 'F-1')
-        ->set('invoiceDate', '2026-10-02')
-        ->set('invoiceTotal', '10')
-        ->call('saveInvoice');
-
-    expect($order->fresh()->status)->toBe(SupplierOrderStatus::Sent);
-});
-
 it('retire de l\'inventaire en commande le restant à l\'annulation', function () {
     [$order, $product, $line] = productOrderWithLine(10);
     sendOrder($order);
@@ -238,7 +225,7 @@ it('annule un brouillon sans toucher à l\'inventaire', function () {
         ->and(InventoryStock::where('product_id', $product->id)->exists())->toBeFalse();
 });
 
-it('complète puis facture une commande de services sans effet sur l\'inventaire', function () {
+it('complète une commande de services sans effet sur l\'inventaire', function () {
     $order = SupplierOrder::factory()->service()->create();
     SupplierOrderLine::factory()->create(['supplier_order_id' => $order->id, 'quantity' => 2, 'unit_cost' => 100]);
 
@@ -246,13 +233,13 @@ it('complète puis facture une commande de services sans effet sur l\'inventaire
     expect($order->fresh()->status)->toBe(SupplierOrderStatus::Sent);
 
     $component->call('complete');
-    expect($order->fresh()->status)->toBe(SupplierOrderStatus::Received);
 
-    $component->call('openInvoice')->set('invoiceNumber', 'S-9')->call('saveInvoice');
-
-    expect($order->fresh()->status)->toBe(SupplierOrderStatus::Invoiced)
+    expect($order->fresh()->status)->toBe(SupplierOrderStatus::Received)
         ->and(InventoryStock::count())->toBe(0)
         ->and(InventoryUnit::count())->toBe(0);
+
+    $component->assertSee(route('accounting.invoices', ['search' => $order->number]), false)
+        ->assertDontSee('Saisir la facture');
 });
 
 it('filtre la liste par type et par statut', function () {
@@ -1238,17 +1225,6 @@ it('remet le focus dans la recherche après l\'ajout d\'une ligne', function () 
         ->assertHasNoErrors();
 
     expect(json_encode($component->effects['xjs'] ?? $component->effects['js'] ?? []))->toContain('data-line-search');
-});
-
-it('ne se facture pas depuis la commande pour les produits', function () {
-    [$order, , $line] = productOrderWithLine(2, 5.0);
-    sendOrder($order);
-    $order->fresh()->receive([$line->id => ['quantity' => 2]]);
-
-    Livewire::test(Show::class, ['order' => $order->fresh()])->call('openInvoice')->assertForbidden();
-
-    expect(fn () => $order->fresh()->invoice('F-1', '2026-10-03', 10))->toThrow(DomainException::class)
-        ->and($order->fresh()->status)->toBe(SupplierOrderStatus::Received);
 });
 
 it('offre le lien vers la facturation dans une commande avec une réception', function () {

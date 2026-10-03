@@ -2,7 +2,7 @@
     <div class="mb-6">
         <flux:link :href="route('accounting.invoices')" wire:navigate class="text-sm">← {{ __('Facturation fournisseurs') }}</flux:link>
         <div class="mt-1 flex items-center gap-3">
-            <flux:heading level="1" size="xl">{{ $reception->number }}</flux:heading>
+            <flux:heading level="1" size="xl">{{ $number }}</flux:heading>
             @if ($invoice)
                 <flux:badge color="green" size="sm">{{ __('Facturée') }}</flux:badge>
             @else
@@ -10,8 +10,8 @@
             @endif
         </div>
         <flux:text class="mt-1 text-zinc-500">
-            <flux:link :href="route('suppliers.show', $reception->supplier)" wire:navigate>{{ $reception->supplier->name }}</flux:link>
-            · {{ __('Reçue le :date', ['date' => ($reception->completed_at ?? $reception->received_at)->format('Y-m-d')]) }}
+            <flux:link :href="route('suppliers.show', $supplier)" wire:navigate>{{ $supplier->name }}</flux:link>
+            · {{ $isService ? __('Complétée le :date', ['date' => $documentDate->format('Y-m-d')]) : __('Reçue le :date', ['date' => $documentDate->format('Y-m-d')]) }}
             ·
             @foreach ($orders as $order)
                 <flux:link :href="route('supplier-orders.show', $order)" wire:navigate>{{ $order->number }}</flux:link>{{ $order->quote_number ? ' (quote # '.$order->quote_number.')' : '' }}{{ ! $loop->last ? ', ' : '' }}
@@ -32,7 +32,7 @@
                 <flux:table.rows>
                     @foreach ($invoice->lines as $invoiceLine)
                         <flux:table.row :key="$invoiceLine->id">
-                            <flux:table.cell variant="strong">{{ $invoiceLine->receptionLine->orderLine->label }}</flux:table.cell>
+                            <flux:table.cell variant="strong">{{ $invoiceLine->label }}</flux:table.cell>
                             <flux:table.cell align="end">{{ $invoiceLine->quantity }}</flux:table.cell>
                             <flux:table.cell align="end">{{ number_format($invoiceLine->unit_cost, 2) }} $</flux:table.cell>
                             <flux:table.cell align="end">{{ number_format($invoiceLine->total, 2) }} $</flux:table.cell>
@@ -84,15 +84,15 @@
                         <flux:error name="invoiceDate" />
                     </flux:field>
                     <flux:field>
-                        <flux:label>{{ __('Date de réception') }}</flux:label>
-                        <flux:input value="{{ ($reception->completed_at ?? $reception->received_at)->format('Y-m-d') }}" type="date" disabled />
+                        <flux:label>{{ $isService ? __('Date de complétion') : __('Date de réception') }}</flux:label>
+                        <flux:input value="{{ $documentDate->format('Y-m-d') }}" type="date" disabled />
                     </flux:field>
                 </div>
 
                 <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                     <flux:table>
                         <flux:table.columns>
-                            <flux:table.column>{{ __('Produit') }}</flux:table.column>
+                            <flux:table.column>{{ $isService ? __('Description') : __('Produit') }}</flux:table.column>
                             <flux:table.column>{{ __('Commande') }}</flux:table.column>
                             <flux:table.column align="end">{{ __('Quantité') }}</flux:table.column>
                             <flux:table.column align="end">{{ __('Coût réel') }}</flux:table.column>
@@ -101,14 +101,14 @@
                         <flux:table.rows>
                             @foreach ($lines as $line)
                                 <flux:table.row :key="$line->id">
-                                    <flux:table.cell variant="strong">{{ $line->orderLine->label }}</flux:table.cell>
-                                    <flux:table.cell>{{ $line->orderLine->order->number }}</flux:table.cell>
-                                    <flux:table.cell align="end">{{ $line->quantity_net }}</flux:table.cell>
+                                    <flux:table.cell variant="strong">{{ $line->label }}</flux:table.cell>
+                                    <flux:table.cell>{{ $line instanceof \App\Models\ReceptionLine ? $line->orderLine->order->number : $line->order->number }}</flux:table.cell>
+                                    <flux:table.cell align="end">{{ $line->billable_quantity }}</flux:table.cell>
                                     <flux:table.cell align="end">
                                         <flux:input wire:model.live.debounce.400ms="unitCosts.{{ $line->id }}" type="number" min="0" step="0.01" class="w-28" />
                                         <flux:error name="unitCosts.{{ $line->id }}" />
                                     </flux:table.cell>
-                                    <flux:table.cell align="end">{{ number_format($line->quantity_net * (float) ($unitCosts[$line->id] ?? $line->unit_cost), 2) }} $</flux:table.cell>
+                                    <flux:table.cell align="end">{{ number_format($line->billable_quantity * (float) ($unitCosts[$line->id] ?? $line->unit_cost), 2) }} $</flux:table.cell>
                                 </flux:table.row>
                             @endforeach
                         </flux:table.rows>
@@ -172,7 +172,7 @@
                 </div>
             </form>
         @else
-            <flux:text class="text-zinc-400">{{ __('Cette réception n\'est pas encore facturée.') }}</flux:text>
+            <flux:text class="text-zinc-400">{{ $isService ? __('Cette commande n\'est pas encore facturée.') : __('Cette réception n\'est pas encore facturée.') }}</flux:text>
         @endcan
     @endif
 </div>

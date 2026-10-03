@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Accounting\Currencies;
+use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
 use App\Livewire\Catalog\Categories;
 use App\Livewire\Catalog\Colors;
@@ -53,6 +54,7 @@ dataset('actions interdites', [
     'receptions.reverse' => [fn () => Livewire::test(SupplierOrderShow::class, ['order' => SupplierOrder::factory()->create()])->call('openReverse', 1)],
     'inventory.move' => [fn () => Livewire::test(InventoryMovements::class)->call('openMove')],
     'invoices.create' => [fn () => Livewire::test(InvoiceForm::class, ['reception' => Reception::factory()->create()])->call('save')],
+    'invoices.create (facture libre)' => [fn () => Livewire::test(InvoiceCreate::class)->call('save')],
     'products.create' => [fn () => Livewire::test(ProductForm::class)->call('openCreate')],
     'departments.create' => [fn () => Livewire::test(Departments::class)->call('openCreate')],
     'categories.create' => [fn () => Livewire::test(Categories::class)->call('openCreate')],

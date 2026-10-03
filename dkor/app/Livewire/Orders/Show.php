@@ -89,18 +89,6 @@ class Show extends Component
     /** @var array<int, array{quantity: string}> */
     public array $receipts = [];
 
-    // Facture
-    public bool $showInvoice = false;
-
-    public string $invoiceNumber = '';
-
-    public string $invoiceDate = '';
-
-    public string $invoiceTotal = '';
-
-    /** @var array<int, string> Coût unitaire facturé par ligne de commande. */
-    public array $invoiceCosts = [];
-
     public function mount(SupplierOrder $order): void
     {
         $this->order = $order;
@@ -524,61 +512,6 @@ class Show extends Component
         $this->showReverse = false;
     }
 
-    public function openInvoice(): void
-    {
-        $this->authorize('supplier_orders.edit');
-
-        abort_if($this->order->isProductOrder(), 403);
-
-        $this->invoiceNumber = '';
-        $this->invoiceDate = now()->toDateString();
-        $this->invoiceCosts = $this->order->lines
-            ->reject(fn ($line) => $line->status->isClosed())
-            ->mapWithKeys(fn ($line) => [$line->id => number_format($line->unit_cost, 2, '.', '')])
-            ->all();
-        $this->refreshInvoiceTotal();
-        $this->resetValidation();
-        $this->showInvoice = true;
-    }
-
-    public function updatedInvoiceCosts(): void
-    {
-        $this->refreshInvoiceTotal();
-    }
-
-    /**
-     * Total facturé proposé: quantités reçues (ou commandées pour des services) aux coûts unitaires saisis.
-     */
-    private function refreshInvoiceTotal(): void
-    {
-        $total = $this->order->lines
-            ->reject(fn ($line) => $line->status->isClosed())
-            ->sum(fn ($line) => ($this->order->isProductOrder() ? $line->quantity_received : $line->quantity) * (float) ($this->invoiceCosts[$line->id] ?? $line->unit_cost));
-
-        $this->invoiceTotal = number_format($total, 2, '.', '');
-    }
-
-    public function saveInvoice(): void
-    {
-        $this->authorize('supplier_orders.edit');
-
-        abort_if($this->order->isProductOrder(), 403);
-
-        $this->validate([
-            'invoiceNumber' => ['required', 'string', 'max:100'],
-            'invoiceDate' => ['required', 'date'],
-            'invoiceTotal' => ['required', 'numeric', 'min:0', 'max:999999999'],
-            'invoiceCosts.*' => ['required', 'numeric', 'min:0', 'max:99999999'],
-        ]);
-
-        $this->runTransition(
-            fn () => $this->order->invoice($this->invoiceNumber, $this->invoiceDate, (float) $this->invoiceTotal, $this->invoiceCosts),
-            __('Facture enregistrée.'),
-        );
-
-        $this->showInvoice = false;
-    }
-
     /** @return Builder<Product> */
     private function orderableProducts(): Builder
     {
@@ -645,7 +578,7 @@ class Show extends Component
                     ->with('reception')
                     ->orderBy('id')
                     ->get()
-                : collect(),
+                : SupplierInvoice::query()->where('supplier_order_id', $this->order->id)->get(),
             'receptionLines' => $this->order->isProductOrder()
                 ? $this->order->completedReceptionLines()->with(['reception.invoice', 'orderLine.product'])->orderBy('id')->get()
                 : collect(),

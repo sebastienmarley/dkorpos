@@ -12,16 +12,19 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $supplier_invoice_id
- * @property int $reception_line_id
+ * @property int|null $reception_line_id
+ * @property int|null $supplier_order_line_id
  * @property int $quantity
  * @property float $unit_cost
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read SupplierInvoice $invoice
- * @property-read ReceptionLine $receptionLine
+ * @property-read ReceptionLine|null $receptionLine
+ * @property-read SupplierOrderLine|null $orderLine
+ * @property-read string $label
  * @property-read float $total
  */
-#[Fillable(['supplier_invoice_id', 'reception_line_id', 'quantity', 'unit_cost'])]
+#[Fillable(['supplier_invoice_id', 'reception_line_id', 'supplier_order_line_id', 'quantity', 'unit_cost'])]
 class SupplierInvoiceLine extends Model
 {
     /** @use HasFactory<SupplierInvoiceLineFactory> */
@@ -42,6 +45,17 @@ class SupplierInvoiceLine extends Model
     public function receptionLine(): BelongsTo
     {
         return $this->belongsTo(ReceptionLine::class);
+    }
+
+    /** @return BelongsTo<SupplierOrderLine, $this> */
+    public function orderLine(): BelongsTo
+    {
+        return $this->belongsTo(SupplierOrderLine::class, 'supplier_order_line_id');
+    }
+
+    public function getLabelAttribute(): string
+    {
+        return $this->reception_line_id !== null ? $this->receptionLine->label : (string) $this->orderLine->label;
     }
 
     public function getTotalAttribute(): float

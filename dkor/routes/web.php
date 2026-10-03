@@ -1,8 +1,10 @@
 <?php
 
 use App\Livewire\Accounting\Currencies;
+use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
 use App\Livewire\Accounting\Invoices\Index as InvoicesIndex;
+use App\Livewire\Accounting\Invoices\Show as InvoiceShow;
 use App\Livewire\Admin\Permissions;
 use App\Livewire\Admin\Positions;
 use App\Livewire\Admin\Roles;
@@ -66,6 +68,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('accounting/invoices', InvoicesIndex::class)->middleware('can:invoices.view')->name('accounting.invoices');
     Route::get('accounting/invoices/receptions/{reception}', InvoiceForm::class)->middleware('can:invoices.view')->name('accounting.invoices.reception');
+    Route::get('accounting/invoices/create', InvoiceCreate::class)->middleware('can:invoices.create')->name('accounting.invoices.create');
+    Route::get('accounting/invoices/{invoice}', InvoiceShow::class)->whereNumber('invoice')->middleware('can:invoices.view')->name('accounting.invoices.show');
+    Route::get('accounting/invoices/orders/{order}', InvoiceForm::class)->middleware('can:invoices.view')->name('accounting.invoices.order');
     Route::get('accounting/currencies', Currencies::class)->middleware('can:currencies.view')->name('accounting.currencies');
 
     Route::get('admin/positions', Positions::class)->middleware('can:positions.manage')->name('admin.positions');

@@ -27,6 +27,8 @@ use Illuminate\Support\Carbon;
  * @property-read Product|null $product
  * @property-read float $total
  * @property-read int $quantity_net
+ * @property-read int $billable_quantity
+ * @property-read string $label
  */
 #[Fillable(['reception_id', 'supplier_order_line_id', 'product_id', 'quantity', 'unit_cost', 'quantity_reversed', 'reversed_at', 'reversed_by', 'reversal_reason'])]
 class ReceptionLine extends Model
@@ -63,6 +65,16 @@ class ReceptionLine extends Model
     public function getQuantityNetAttribute(): int
     {
         return $this->quantity - $this->quantity_reversed;
+    }
+
+    public function getBillableQuantityAttribute(): int
+    {
+        return $this->quantity_net;
+    }
+
+    public function getLabelAttribute(): string
+    {
+        return $this->orderLine->label;
     }
 
     public function getTotalAttribute(): float

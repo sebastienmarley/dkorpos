@@ -30,6 +30,7 @@ use Illuminate\Support\Carbon;
  * @property-read Product|null $product
  * @property-read float $total
  * @property-read int $quantity_outstanding
+ * @property-read int $billable_quantity
  */
 #[Fillable(['supplier_order_id', 'product_id', 'description', 'quantity', 'unit_cost', 'quantity_received', 'status', 'cancellation_reason', 'cancellation_requested_at', 'cancelled_at', 'substituted_from_line_id'])]
 class SupplierOrderLine extends Model
@@ -105,6 +106,12 @@ class SupplierOrderLine extends Model
     public function requestCancellation(?string $reason = null): bool
     {
         return $this->order->requestLineCancellation($this, $reason);
+    }
+
+    /** Quantité à facturer: ce qui est reçu pour un produit, la quantité commandée pour un service. */
+    public function getBillableQuantityAttribute(): int
+    {
+        return $this->product_id !== null ? $this->quantity_received : $this->quantity;
     }
 
     public function getLabelAttribute(): string

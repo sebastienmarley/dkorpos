@@ -2,13 +2,16 @@
 
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
+use App\Livewire\Accounting\Invoices\Create;
 use App\Livewire\Accounting\Invoices\Form;
 use App\Livewire\Accounting\Invoices\Index;
 use App\Livewire\Orders\Show;
 use App\Livewire\Suppliers\Show as SupplierShow;
+use App\Models\InventoryMovement;
 use App\Models\InventoryUnit;
 use App\Models\Product;
 use App\Models\Reception;
+use App\Models\Role;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierOrder;
@@ -313,4 +316,203 @@ it('valide le jour du mois suivant et l\'enregistre avec le fournisseur', functi
     expect($supplier->fresh())->early_payment_next_month->toBeTrue()->early_payment_discount_days->toBe(10);
 
     Livewire::test(SupplierShow::class, ['supplier' => $supplier->fresh()])->assertSet('earlyPaymentNextMonth', true);
+});
+
+function completedServiceOrder(?Supplier $supplier = null, float $cost = 100.0): SupplierOrder
+{
+    $order = SupplierOrder::factory()->service()->create(['supplier_id' => $supplier?->id ?? Supplier::factory()->create(['type' => SupplierType::Service])->id]);
+    SupplierOrderLine::factory()->create(['supplier_order_id' => $order->id, 'quantity' => 2, 'unit_cost' => $cost]);
+    $order->send();
+    $order->fresh()->complete();
+
+    return $order->fresh();
+}
+
+it('trouve les commandes de services complétées dans la facturation, avec les réceptions', function () {
+    $service = completedServiceOrder();
+    $pending = SupplierOrder::factory()->service()->status(SupplierOrderStatus::Sent)->create();
+    [$order, [$line]] = orderToInvoice(quantities: [3]);
+    $reception = receive($order, $line, 3);
+
+    Livewire::test(Index::class)
+        ->assertSee($service->number)->assertSee('Services')
+        ->assertSee($reception->number)->assertSee('Produits')
+        ->assertDontSee($pending->number)
+        ->set('search', $service->number)
+        ->assertSee($service->number)->assertDontSee($reception->number)
+        ->set('search', 'RC-')
+        ->assertSee($reception->number)->assertDontSee($service->number);
+
+    $service->update(['quote_number' => 'Q-SERV']);
+
+    Livewire::test(Index::class)->set('search', 'Q-SERV')->assertSee($service->number)->assertDontSee($reception->number);
+});
+
+it('facture une commande de services: coûts réels, frais, écart et statut facturée', function () {
+    $order = completedServiceOrder(cost: 100);
+    $line = $order->lines->first();
+
+    Livewire::test(Form::class, ['order' => $order])
+        ->assertSee($order->number)
+        ->assertSet("unitCosts.{$line->id}", '100.00')
+        ->set("unitCosts.{$line->id}", '110')
+        ->set('invoiceNumber', 'S-1')
+        ->set('invoiceDate', '2026-10-05')
+        ->set('freightFee', '5')
+        ->set('taxes', '33')
+        ->set('invoiceTotal', '258')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $invoice = SupplierInvoice::first();
+    expect($invoice)
+        ->supplier_order_id->toBe($order->id)->reception_id->toBeNull()
+        ->merchandise_total->toBe(220.0)->computed_total->toBe(258.0)->variance->toBe(0.0)
+        ->and($invoice->lines->first())->supplier_order_line_id->toBe($line->id)->reception_line_id->toBeNull()->quantity->toBe(2)->unit_cost->toBe(110.0)
+        ->and($line->fresh()->unit_cost)->toBe(110.0)
+        ->and($order->fresh()->status)->toBe(SupplierOrderStatus::Invoiced);
+
+    Livewire::test(Form::class, ['order' => $order->fresh()])
+        ->assertSee('Facturée')->assertSee('S-1')->assertDontSee('Enregistrer la facture');
+
+    Livewire::test(Index::class)->assertDontSee($order->number)->set('includeInvoiced', true)->assertSee($order->number)->assertSee('S-1');
+});
+
+it('applique l\'escompte du fournisseur à une facture de services', function () {
+    $supplier = Supplier::factory()->create(['type' => SupplierType::Service, 'early_payment_discount_percent' => 1, 'early_payment_discount_days' => 15]);
+    $order = completedServiceOrder($supplier);
+
+    SupplierInvoice::recordForOrder($order, ['invoice_number' => 'S-2', 'invoice_date' => '2026-10-01', 'invoice_total' => 200]);
+
+    expect(SupplierInvoice::first())->discount_amount->toBe(2.0)
+        ->and(SupplierInvoice::first()->discount_due_date->format('Y-m-d'))->toBe('2026-10-16');
+});
+
+it('refuse de facturer une commande de services non complétée, déjà facturée ou de produits', function () {
+    $sent = SupplierOrder::factory()->service()->status(SupplierOrderStatus::Sent)->create();
+    $order = completedServiceOrder();
+    $details = ['invoice_number' => 'S-3', 'invoice_date' => '2026-10-01', 'invoice_total' => 10];
+
+    expect(fn () => SupplierInvoice::recordForOrder($sent, $details))->toThrow(DomainException::class);
+
+    SupplierInvoice::recordForOrder($order, $details);
+
+    expect(fn () => SupplierInvoice::recordForOrder($order->fresh(), [...$details, 'invoice_number' => 'S-4']))->toThrow(DomainException::class);
+
+    [$productOrder] = orderToInvoice();
+    expect(fn () => SupplierInvoice::recordForOrder($productOrder, $details))->toThrow(DomainException::class);
+
+    $this->get(route('accounting.invoices.order', $sent))->assertNotFound();
+    $this->get(route('accounting.invoices.order', $productOrder))->assertNotFound();
+});
+
+it('liste la facture de services dans la commande', function () {
+    $order = completedServiceOrder();
+    SupplierInvoice::recordForOrder($order, ['invoice_number' => 'S-ORD', 'invoice_date' => '2026-10-01', 'invoice_total' => 200]);
+
+    Livewire::test(Show::class, ['order' => $order->fresh()])
+        ->assertSee('S-ORD')
+        ->assertSee(route('accounting.invoices.order', $order), false);
+});
+
+it('crée une facture libre rattachée à un fournisseur, sans document', function () {
+    $supplier = Supplier::factory()->create(['type' => SupplierType::Service, 'is_active' => true]);
+
+    Livewire::test(Create::class)
+        ->set('supplierId', (string) $supplier->id)
+        ->set('invoiceNumber', 'L-100')
+        ->set('invoiceDate', '2026-10-05')
+        ->set('description', 'Abonnement annuel')
+        ->set('merchandiseTotal', '200')
+        ->set('freightFee', '10')
+        ->set('taxes', '31.50')
+        ->set('invoiceTotal', '241.50')
+        ->call('save')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('accounting.invoices.show', SupplierInvoice::first()));
+
+    $invoice = SupplierInvoice::first();
+    expect($invoice)
+        ->supplier_id->toBe($supplier->id)->reception_id->toBeNull()->supplier_order_id->toBeNull()
+        ->description->toBe('Abonnement annuel')
+        ->merchandise_total->toBe(200.0)->computed_total->toBe(241.5)->variance->toBe(0.0)
+        ->and($invoice->isStandalone())->toBeTrue()
+        ->and($invoice->lines)->toHaveCount(0)
+        ->and(InventoryMovement::count())->toBe(0);
+
+    $this->get(route('accounting.invoices.show', $invoice))->assertOk()->assertSee('L-100')->assertSee('Abonnement annuel')->assertSee('Libre');
+});
+
+it('compare le montant d\'une facture libre et applique l\'escompte du fournisseur', function () {
+    $supplier = Supplier::factory()->create(['is_active' => true, 'early_payment_discount_percent' => 2, 'early_payment_discount_days' => 10, 'early_payment_next_month' => true]);
+
+    $component = Livewire::test(Create::class)
+        ->set('supplierId', (string) $supplier->id)
+        ->set('invoiceDate', '2026-10-20')
+        ->set('merchandiseTotal', '100')
+        ->set('taxes', '15')
+        ->set('invoiceTotal', '120');
+
+    expect($component->viewData('totals'))->toMatchArray(['computed_total' => 115.0, 'variance' => 5.0, 'discount_amount' => 2.4]);
+
+    $component->set('invoiceNumber', 'L-200')->call('save')->assertHasNoErrors();
+
+    expect(SupplierInvoice::first())->variance->toBe(5.0)
+        ->and(SupplierInvoice::first()->discount_due_date->format('Y-m-d'))->toBe('2026-11-10');
+});
+
+it('valide la facture libre: fournisseur actif, numéro unique et montants', function () {
+    $supplier = Supplier::factory()->create(['is_active' => true]);
+    $inactive = Supplier::factory()->create(['is_active' => false]);
+    SupplierInvoice::recordStandalone($supplier, ['invoice_number' => 'L-1', 'invoice_date' => '2026-10-01', 'merchandise_total' => 10, 'invoice_total' => 10]);
+
+    Livewire::test(Create::class)
+        ->call('save')
+        ->assertHasErrors(['supplierId', 'invoiceNumber', 'merchandiseTotal', 'invoiceTotal']);
+
+    Livewire::test(Create::class)
+        ->set('supplierId', (string) $inactive->id)
+        ->set('invoiceNumber', 'L-2')->set('merchandiseTotal', '5')->set('invoiceTotal', '5')
+        ->call('save')
+        ->assertHasErrors('supplierId');
+
+    Livewire::test(Create::class)
+        ->set('supplierId', (string) $supplier->id)
+        ->set('invoiceNumber', 'L-1')->set('merchandiseTotal', '5')->set('invoiceTotal', '5')
+        ->call('save')
+        ->assertHasErrors('invoiceNumber');
+
+    Livewire::test(Create::class)
+        ->set('supplierId', (string) $supplier->id)
+        ->set('invoiceNumber', 'L-3')->set('merchandiseTotal', '-5')->set('invoiceTotal', '5')
+        ->call('save')
+        ->assertHasErrors('merchandiseTotal');
+
+    expect(SupplierInvoice::count())->toBe(1);
+});
+
+it('retrouve les factures libres dans la facturation et ouvre la bonne vue pour les autres', function () {
+    $supplier = Supplier::factory()->create(['name' => 'Fournisseur Unique', 'is_active' => true]);
+    $standalone = SupplierInvoice::recordStandalone($supplier, ['invoice_number' => 'L-77', 'invoice_date' => '2026-10-01', 'description' => 'Frais divers', 'merchandise_total' => 10, 'invoice_total' => 10]);
+    [$order, [$line]] = orderToInvoice(quantities: [2]);
+    $linked = SupplierInvoice::record(receive($order, $line, 2), ['invoice_number' => 'F-LINK', 'invoice_date' => '2026-10-01', 'invoice_total' => 10]);
+
+    Livewire::test(Index::class)->assertDontSee('L-77')
+        ->set('includeInvoiced', true)
+        ->assertSee('L-77')->assertSee('Libre')
+        ->set('search', 'Frais divers')->assertSee('L-77')
+        ->set('search', 'Unique')->assertSee('L-77')
+        ->set('search', 'L-77')->assertSee('L-77');
+
+    $this->get(route('accounting.invoices.show', $standalone))->assertOk();
+    $this->get(route('accounting.invoices.show', $linked))->assertRedirect(route('accounting.invoices.reception', $linked->reception_id));
+});
+
+it('limite la création de facture libre à la permission invoices.create', function () {
+    $role = Role::create(['name' => 'lecture_factures', 'label' => 'Lecture', 'level' => 0, 'guard_name' => 'web']);
+    $role->givePermissionTo(['invoices.view']);
+    $this->actingAs(User::factory()->withRole('lecture_factures')->create());
+
+    $this->get(route('accounting.invoices.create'))->assertForbidden();
+    Livewire::test(Index::class)->assertDontSee('Nouvelle facture');
 });

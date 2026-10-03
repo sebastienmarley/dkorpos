@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -47,9 +48,6 @@ use Throwable;
  * @property Carbon|null $sent_at
  * @property Carbon|null $last_emailed_at
  * @property Carbon|null $received_at
- * @property string|null $invoice_number
- * @property Carbon|null $invoice_date
- * @property float|null $invoice_total
  * @property int|null $created_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -59,7 +57,7 @@ use Throwable;
  * @property-read Collection<int, SupplierOrderLine> $lines
  * @property-read float $total
  */
-#[Fillable(['number', 'quote_number', 'type', 'supplier_id', 'status', 'is_collect', 'shipping_supplier_id', 'is_drop_ship', 'drop_ship_name', 'drop_ship_address_civic', 'drop_ship_address_apartment', 'drop_ship_address_street', 'drop_ship_address_city', 'drop_ship_address_province', 'drop_ship_address_country', 'drop_ship_address_postal_code', 'notes', 'sent_at', 'last_emailed_at', 'received_at', 'invoice_number', 'invoice_date', 'invoice_total', 'created_by'])]
+#[Fillable(['number', 'quote_number', 'type', 'supplier_id', 'status', 'is_collect', 'shipping_supplier_id', 'is_drop_ship', 'drop_ship_name', 'drop_ship_address_civic', 'drop_ship_address_apartment', 'drop_ship_address_street', 'drop_ship_address_city', 'drop_ship_address_province', 'drop_ship_address_country', 'drop_ship_address_postal_code', 'notes', 'sent_at', 'last_emailed_at', 'received_at', 'created_by'])]
 class SupplierOrder extends Model
 {
     /** @use HasFactory<SupplierOrderFactory> */
@@ -77,8 +75,6 @@ class SupplierOrder extends Model
         'sent_at' => 'datetime',
         'last_emailed_at' => 'datetime',
         'received_at' => 'datetime',
-        'invoice_date' => 'date',
-        'invoice_total' => 'float',
         'is_collect' => 'boolean',
         'is_drop_ship' => 'boolean',
     ];
@@ -124,6 +120,12 @@ class SupplierOrder extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** @return HasOne<SupplierInvoice, $this> */
+    public function supplierInvoice(): HasOne
+    {
+        return $this->hasOne(SupplierInvoice::class);
     }
 
     /** @return HasMany<SupplierOrderLine, $this> */
@@ -669,50 +671,6 @@ class SupplierOrder extends Model
         }
 
         $this->update(['status' => SupplierOrderStatus::Received, 'received_at' => now()]);
-    }
-
-    /**
-     * Enregistre la facture du fournisseur sur une commande reçue. Les coûts unitaires facturés remplacent ceux de
-     * la commande: ils sont reportés sur les réceptions et sur les unités d'inventaire reçues.
-     *
-     * @param  array<int, float|int|string>  $unitCosts  Coût unitaire facturé, indexé par id de ligne de commande.
-     */
-    public function invoice(string $number, string $date, float $total, array $unitCosts = []): void
-    {
-        if ($this->isProductOrder()) {
-            throw new DomainException(__('Les commandes de produits se facturent par réception, dans la comptabilité.'));
-        }
-
-        $this->guardStatus(SupplierOrderStatus::Received, __('La facture se saisit une fois la commande reçue.'));
-
-        DB::transaction(function () use ($number, $date, $total, $unitCosts): void {
-            foreach ($this->lines()->get() as $line) {
-                if (isset($unitCosts[$line->id])) {
-                    $this->applyInvoicedCost($line, round((float) $unitCosts[$line->id], 2));
-                }
-            }
-
-            $this->update([
-                'status' => SupplierOrderStatus::Invoiced,
-                'invoice_number' => $number,
-                'invoice_date' => $date,
-                'invoice_total' => round($total, 2),
-            ]);
-        });
-    }
-
-    private function applyInvoicedCost(SupplierOrderLine $line, float $cost): void
-    {
-        if (round($line->unit_cost, 2) === $cost) {
-            return;
-        }
-
-        $line->update(['unit_cost' => $cost]);
-
-        $receptionLineIds = ReceptionLine::where('supplier_order_line_id', $line->id)->pluck('id');
-
-        ReceptionLine::whereIn('id', $receptionLineIds)->update(['unit_cost' => $cost]);
-        InventoryUnit::whereIn('reception_line_id', $receptionLineIds)->update(['cost' => $cost]);
     }
 
     /**
