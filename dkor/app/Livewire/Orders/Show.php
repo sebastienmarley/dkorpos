@@ -183,11 +183,29 @@ class Show extends Component
         $this->productId = (string) $this->orderableProducts()->findOrFail($productId)->id;
         $this->productSearch = '';
         $this->fillCostFromProduct();
+
+        $this->js("document.querySelector('[data-line-quantity] input')?.select()");
+    }
+
+    /**
+     * Touche Entrée dans la recherche: choisit le premier résultat de ce qui a été saisi.
+     */
+    public function selectFirstProduct(string $term): void
+    {
+        $this->authorize('supplier_orders.edit');
+
+        $first = $this->searchOrderableProducts($term)->first();
+
+        if ($first !== null) {
+            $this->selectProduct($first->id);
+        }
     }
 
     public function clearProduct(): void
     {
         $this->reset('productId', 'productSearch', 'unitCost');
+
+        $this->js("document.querySelector('[data-line-search] input')?.focus()");
     }
 
     private function fillCostFromProduct(): void
@@ -243,9 +261,11 @@ class Show extends Component
             ? ['product_id' => $this->productId, 'quantity' => $this->quantity, 'unit_cost' => $this->unitCost]
             : ['description' => $this->description, 'quantity' => $this->quantity, 'unit_cost' => $this->unitCost]);
 
-        $this->reset('productId', 'description', 'unitCost');
+        $this->reset('productId', 'productSearch', 'description', 'unitCost');
         $this->quantity = '1';
         $this->order->unsetRelation('lines');
+
+        $this->js("document.querySelector('[data-line-search] input')?.focus()");
     }
 
     public function startEditLine(int $lineId): void

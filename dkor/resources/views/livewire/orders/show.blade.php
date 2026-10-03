@@ -201,7 +201,7 @@
                                     <flux:button type="button" size="xs" variant="ghost" wire:click="clearProduct">{{ __('Changer') }}</flux:button>
                                 </div>
                             @else
-                                <div class="relative">
+                                <div class="relative" data-line-search x-on:keydown.enter.prevent="$wire.selectFirstProduct($event.target.value)">
                                     <flux:input wire:model.live.debounce.300ms="productSearch" icon="magnifying-glass" autocomplete="off" :placeholder="__('Rechercher un produit (id ou modèle)…')" />
 
                                     @if (filled($productSearch))
@@ -221,11 +221,13 @@
                             @endif
                             <flux:error name="productId" />
                         @else
-                            <flux:input wire:model="description" :placeholder="__('Description du service')" />
+                            <div data-line-search>
+                                <flux:input wire:model="description" :placeholder="__('Description du service')" />
+                            </div>
                             <flux:error name="description" />
                         @endif
                     </div>
-                    <div class="w-28">
+                    <div class="w-28" data-line-quantity>
                         <flux:input wire:model="quantity" type="number" min="1" step="1" :placeholder="__('Qté')" />
                         <flux:error name="quantity" />
                     </div>

@@ -1219,3 +1219,30 @@ it('cherche aussi par id le produit de substitution', function () {
         ->set('substituteSearch', (string) $target->id)
         ->assertViewHas('substituteResults', fn ($results) => $results->pluck('id')->contains($target->id));
 });
+
+it('choisit le premier résultat avec Entrée et ramène le focus sur la quantité', function () {
+    $order = SupplierOrder::factory()->create();
+    $first = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Chaise A', 'cost' => 12]);
+    Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Chaise B']);
+
+    $component = Livewire::test(Show::class, ['order' => $order])
+        ->call('selectFirstProduct', 'Chaise')
+        ->assertSet('productId', (string) $first->id)
+        ->assertSet('unitCost', '12.00');
+
+    expect(json_encode($component->effects['xjs'] ?? $component->effects['js'] ?? []))->toContain('data-line-quantity');
+
+    Livewire::test(Show::class, ['order' => $order])->call('selectFirstProduct', 'introuvable')->assertSet('productId', '');
+});
+
+it('remet le focus dans la recherche après l\'ajout d\'une ligne', function () {
+    $order = SupplierOrder::factory()->create();
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 3]);
+
+    $component = Livewire::test(Show::class, ['order' => $order])
+        ->call('selectProduct', $product->id)
+        ->call('addLine')
+        ->assertHasNoErrors();
+
+    expect(json_encode($component->effects['xjs'] ?? $component->effects['js'] ?? []))->toContain('data-line-search');
+});
