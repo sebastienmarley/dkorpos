@@ -15,11 +15,12 @@ use Illuminate\Support\Carbon;
  * @property int $price_list_id
  * @property string $name
  * @property float $discount_percent
+ * @property Carbon|null $applied_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read PriceList $priceList
  */
-#[Fillable(['price_list_id', 'name', 'discount_percent'])]
+#[Fillable(['price_list_id', 'name', 'discount_percent', 'applied_at'])]
 class PriceListList extends Model
 {
     /** @use HasFactory<PriceListListFactory> */
@@ -27,7 +28,7 @@ class PriceListList extends Model
 
     protected function casts(): array
     {
-        return ['discount_percent' => 'float'];
+        return ['discount_percent' => 'float', 'applied_at' => 'datetime'];
     }
 
     /** @return BelongsTo<PriceList, $this> */

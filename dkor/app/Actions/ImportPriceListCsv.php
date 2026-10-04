@@ -4,18 +4,16 @@ namespace App\Actions;
 
 use App\Models\PriceListItem;
 use App\Models\PriceListList;
-use App\Models\Product;
-use App\Models\ProductUpc;
 use App\Rules\UniqueCleanProductModel;
-use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
  * Importe un CSV (séparateur « ; ») dans une liste de prix, par lots de 200 lignes.
  *
- * Les lignes sans modèle ou dont le coût est vide, invalide ou égal à 0 sont ignorées. Les autres sont toutes conservées. Quand le modèle nettoyé existe déjà chez le fournisseur, le produit
- * est mis à jour (coût avec l'escompte de la liste, IMAP, collection, description, dimensions) et son UPC est ajouté à sa liste d'UPC sans jamais en retirer (un UPC qui n'est pas composé uniquement de chiffres est vidé) ; sinon la ligne est seulement conservée.
- * Les cellules vides ne remplacent jamais une valeur existante du produit.
+ * Les lignes sans modèle ou dont le coût est vide, invalide ou égal à 0 sont ignorées, de même qu'un modèle déjà présent
+ * dans une autre liste de la même liste de prix (ou répété dans le fichier) : il est unique par liste de prix.
+ * Un UPC qui n'est pas composé uniquement de chiffres est vidé. Les autres lignes sont toutes conservées.
+ * Les produits sont mis à jour tout de suite si la liste de prix a déjà débuté, sinon à sa date de début (voir ApplyPriceLists).
  */
 class ImportPriceListCsv
 {
@@ -24,8 +22,10 @@ class ImportPriceListCsv
     /** @var list<string> */
     private const REQUIRED_HEADERS = ['modele', 'cout'];
 
+    public function __construct(private readonly ApplyPriceListItems $apply) {}
+
     /**
-     * @return array{rows: int, matched: int}
+     * @return array{rows: int, matched: int, duplicates: int, pending: bool}
      */
     public function handle(PriceListList $list, string $path): array
     {
@@ -38,8 +38,17 @@ class ImportPriceListCsv
         try {
             $columns = $this->readHeader($handle);
             $list->items()->delete();
+            $list->update(['applied_at' => null]);
 
-            $totals = ['rows' => 0, 'matched' => 0];
+            $taken = PriceListItem::query()
+                ->whereHas('priceListList', fn ($query) => $query
+                    ->where('price_list_id', $list->price_list_id)
+                    ->whereKeyNot($list->id))
+                ->pluck('clean_model')
+                ->flip()
+                ->all();
+
+            $totals = ['rows' => 0, 'matched' => 0, 'duplicates' => 0, 'pending' => false];
             $batch = [];
 
             while (($row = fgetcsv($handle, 0, ';')) !== false) {
@@ -49,6 +58,13 @@ class ImportPriceListCsv
                     continue;
                 }
 
+                if (isset($taken[$record['clean_model']])) {
+                    $totals['duplicates']++;
+
+                    continue;
+                }
+
+                $taken[$record['clean_model']] = true;
                 $batch[] = $record;
 
                 if (count($batch) === self::BATCH_SIZE) {
@@ -59,6 +75,12 @@ class ImportPriceListCsv
 
             if ($batch !== []) {
                 $this->flush($list, $batch, $totals);
+            }
+
+            if ($list->priceList->starts_on->isFuture()) {
+                $totals['pending'] = true;
+            } else {
+                $totals['matched'] = $this->apply->handle($list);
             }
 
             return $totals;
@@ -130,60 +152,19 @@ class ImportPriceListCsv
 
     /**
      * @param  list<array<string, mixed>>  $batch
-     * @param  array{rows: int, matched: int}  $totals
+     * @param  array{rows: int, matched: int, duplicates: int, pending: bool}  $totals
      */
     private function flush(PriceListList $list, array $batch, array &$totals): void
     {
-        DB::transaction(function () use ($list, $batch, &$totals): void {
-            $products = Product::query()
-                ->where('supplier_id', $list->priceList->supplier_id)
-                ->whereIn('clean_model', array_unique(array_column($batch, 'clean_model')))
-                ->get()
-                ->keyBy('clean_model');
+        $now = now();
 
-            $now = now();
-            $rows = [];
-            $upcs = [];
+        PriceListItem::query()->insert(array_map(fn (array $record): array => $record + [
+            'price_list_list_id' => $list->id,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $batch));
 
-            foreach ($batch as $record) {
-                $product = $products->get($record['clean_model']);
-
-                $rows[] = $record + [
-                    'price_list_list_id' => $list->id,
-                    'product_id' => $product?->id,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-
-                if ($product !== null) {
-                    $this->updateProduct($product, $record, $list->discount_percent);
-                    $totals['matched']++;
-
-                    if ($record['upc'] !== null) {
-                        $upcs[] = ['product_id' => $product->id, 'upc' => $record['upc'], 'created_at' => $now, 'updated_at' => $now];
-                    }
-                }
-            }
-
-            PriceListItem::query()->insert($rows);
-            ProductUpc::query()->insertOrIgnore($upcs);
-            $totals['rows'] += count($rows);
-        });
-    }
-
-    /**
-     * @param  array<string, mixed>  $record
-     */
-    private function updateProduct(Product $product, array $record, float $discountPercent): void
-    {
-        $changes = array_filter(
-            array_intersect_key($record, array_flip(['imap', 'collection', 'description', 'length', 'width', 'height', 'weight'])),
-            fn (mixed $value): bool => $value !== null,
-        );
-
-        $changes['cost'] = max(0.01, round($record['cost'] * (1 - $discountPercent / 100), 2));
-
-        $product->update($changes);
+        $totals['rows'] += count($batch);
     }
 
     private function normalizeHeader(string $label): string

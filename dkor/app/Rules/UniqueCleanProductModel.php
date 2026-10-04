@@ -11,6 +11,7 @@ class UniqueCleanProductModel implements ValidationRule
     public function __construct(
         private readonly int|string $supplierId,
         private readonly ?int $ignoreProductId = null,
+        private readonly string $column = 'clean_model',
     ) {}
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
@@ -19,7 +20,7 @@ class UniqueCleanProductModel implements ValidationRule
 
         $exists = DB::table('products')
             ->where('supplier_id', $this->supplierId)
-            ->where('clean_model', $clean)
+            ->where($this->column, $clean)
             ->when($this->ignoreProductId, fn ($q) => $q->where('id', '!=', $this->ignoreProductId))
             ->exists();
 

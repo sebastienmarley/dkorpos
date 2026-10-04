@@ -25,25 +25,20 @@
             </flux:table.columns>
 
             <flux:table.rows>
-                @forelse ($suppliers as $supplier)
-                    @php $list = $supplier->priceLists->first(); @endphp
-                    <flux:table.row :key="$supplier->id">
+                @forelse ($priceLists as $list)
+                    <flux:table.row :key="$list->id">
                         <flux:table.cell variant="strong">
-                            @if ($list)
-                                <a href="{{ route('catalog.price-lists.show', $list) }}" wire:navigate class="hover:underline">{{ $supplier->name }}</a>
-                            @else
-                                {{ $supplier->name }}
-                            @endif
+                            <a href="{{ route('catalog.price-lists.show', $list) }}" wire:navigate class="hover:underline">{{ $list->supplier->name }}</a>
                         </flux:table.cell>
                         <flux:table.cell>
-                            @if ($list)
-                                <flux:badge color="green" size="sm">{{ __('Oui') }}</flux:badge>
+                            @if ($list->isUpcoming())
+                                <flux:badge color="blue" size="sm">{{ __('À venir') }}</flux:badge>
                             @else
-                                <flux:badge color="zinc" size="sm">{{ __('Aucune') }}</flux:badge>
+                                <flux:badge color="green" size="sm">{{ __('Active') }}</flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>{{ $list?->starts_on->toDateString() ?? '—' }}</flux:table.cell>
-                        <flux:table.cell>{{ $list?->ends_on->toDateString() ?? '—' }}</flux:table.cell>
+                        <flux:table.cell>{{ $list->starts_on->toDateString() }}</flux:table.cell>
+                        <flux:table.cell>{{ $list->ends_on->toDateString() }}</flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>

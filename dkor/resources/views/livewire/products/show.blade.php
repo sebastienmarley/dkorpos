@@ -73,11 +73,11 @@
                     <flux:field>
                         <div class="flex items-center gap-1.5">
                             <flux:label>{{ __('Modèle fournisseur') }}</flux:label>
-                            <flux:tooltip content="{{ __('Référence utilisée par le fournisseur.') }}">
+                            <flux:tooltip content="{{ $supplierModelLocked ? __('Verrouillé : le produit est dans une liste de prix.') : __('Référence utilisée par le fournisseur et dans les commandes.') }}">
                                 <flux:icon name="information-circle" class="h-4 w-4 text-zinc-400" />
                             </flux:tooltip>
                         </div>
-                        <flux:input wire:model="supplierModel" type="text" />
+                        <flux:input wire:model="supplierModel" type="text" required :disabled="$supplierModelLocked" />
                         <flux:error name="supplierModel" />
                     </flux:field>
                 </div>

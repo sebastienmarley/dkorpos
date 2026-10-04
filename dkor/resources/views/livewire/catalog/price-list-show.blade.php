@@ -30,7 +30,10 @@
         <div class="grid gap-4 sm:grid-cols-2">
             <flux:field>
                 <flux:label>{{ __('Date de début') }}</flux:label>
-                <flux:input wire:model="startsOn" type="date" required :disabled="! $priceList->isActive()" />
+                <flux:input wire:model="startsOn" type="date" required :disabled="! $priceList->isActive() || $startDateLocked" />
+                @if ($startDateLocked && $priceList->isActive())
+                    <flux:description>{{ __('La liste est en cours : la date de début est verrouillée.') }}</flux:description>
+                @endif
                 <flux:error name="startsOn" />
             </flux:field>
 
@@ -73,7 +76,10 @@
                 </div>
                 @can('price_lists.edit')
                     @if ($priceList->isActive())
-                        <flux:button size="sm" icon="arrow-up-tray" wire:click="openImport({{ $list->id }})">{{ __('Importer') }}</flux:button>
+                        <div class="flex items-center gap-2">
+                            <flux:button size="sm" icon="arrow-up-tray" wire:click="openImport({{ $list->id }})">{{ __('Importer') }}</flux:button>
+                            <flux:button size="sm" variant="ghost" icon="trash" wire:click="deleteList({{ $list->id }})" wire:confirm="{{ __('Supprimer cette liste et tous ses produits importés ?') }}" />
+                        </div>
                     @endif
                 @endcan
             </div>

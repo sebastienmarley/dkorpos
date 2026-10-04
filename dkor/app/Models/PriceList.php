@@ -67,12 +67,22 @@ class PriceList extends Model
         return Carbon::today()->addYears(5)->endOfYear()->startOfDay();
     }
 
-    public static function supplierHasActiveList(int $supplierId, ?int $exceptId = null): bool
+    /**
+     * Une liste active (non archivée) du fournisseur couvre-t-elle une partie de la période ?
+     */
+    public static function supplierHasActiveListOverlapping(int $supplierId, string $startsOn, string $endsOn, ?int $exceptId = null): bool
     {
         return static::query()
             ->active()
             ->where('supplier_id', $supplierId)
+            ->whereDate('starts_on', '<=', $endsOn)
+            ->whereDate('ends_on', '>=', $startsOn)
             ->when($exceptId, fn (Builder $query) => $query->whereKeyNot($exceptId))
             ->exists();
+    }
+
+    public function isUpcoming(): bool
+    {
+        return $this->isActive() && $this->starts_on->isFuture();
     }
 }

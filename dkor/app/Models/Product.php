@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Rules\UniqueCleanProductModel;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property string $model
  * @property string $clean_model
  * @property string|null $supplier_model
+ * @property string|null $supplier_clean_model
  * @property float $cost
  * @property float|null $imap
  * @property string|null $collection
@@ -54,6 +57,29 @@ class Product extends Model
         'is_discontinued' => 'boolean',
         'is_non_orderable' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (Product $product): void {
+            if (blank($product->supplier_model) && filled($product->model)) {
+                $product->supplier_model = $product->model;
+            }
+
+            if ($product->isDirty('supplier_model') || blank($product->supplier_clean_model)) {
+                $product->supplier_clean_model = filled($product->supplier_model)
+                    ? UniqueCleanProductModel::clean($product->supplier_model)
+                    : null;
+            }
+        });
+    }
+
+    public function isInPriceList(): bool
+    {
+        return PriceListItem::query()
+            ->where('clean_model', $this->supplier_clean_model)
+            ->whereHas('priceListList.priceList', fn (Builder $query) => $query->where('supplier_id', $this->supplier_id))
+            ->exists();
+    }
 
     /** @return BelongsTo<Supplier, $this> */
     public function supplier(): BelongsTo

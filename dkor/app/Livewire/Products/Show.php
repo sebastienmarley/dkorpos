@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Rules\UniqueCleanProductModel;
+use Closure;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -78,8 +79,20 @@ class Show extends Component
 
         $this->validate([
             'supplierId' => ['required', 'exists:suppliers,id'],
-            'model' => ['required', 'string', 'max:255', new UniqueCleanProductModel($this->supplierId, $this->product->id)],
-            'supplierModel' => ['nullable', 'string', 'max:255'],
+            'model' => ['required', 'string', 'max:255', new UniqueCleanProductModel($this->supplierId, $this->product->id), new UniqueCleanProductModel($this->supplierId, $this->product->id, 'supplier_clean_model')],
+            'supplierModel' => [
+                'required', 'string', 'max:255',
+                new UniqueCleanProductModel($this->supplierId, $this->product->id, 'supplier_clean_model'),
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    if ($value !== $this->product->supplier_model && $this->product->isInPriceList()) {
+                        $fail(__('Le modèle fournisseur ne peut pas être modifié : le produit est dans une liste de prix.'));
+                    }
+
+                    if (filled($value) && UniqueCleanProductModel::clean($value) !== $this->cleanModel) {
+                        $fail(__('Le modèle fournisseur doit correspondre au modèle une fois nettoyé.'));
+                    }
+                },
+            ],
             'departmentId' => ['nullable', 'exists:departments,id'],
             'categoryId' => ['nullable', 'exists:categories,id'],
             'isDiscontinued' => ['boolean'],
@@ -91,7 +104,7 @@ class Show extends Component
             'supplier_id' => $this->supplierId,
             'model' => $this->model,
             'clean_model' => $this->cleanModel,
-            'supplier_model' => filled($this->supplierModel) ? $this->supplierModel : null,
+            'supplier_model' => $this->supplierModel,
             'department_id' => filled($this->departmentId) ? $this->departmentId : null,
             'category_id' => filled($this->categoryId) ? $this->categoryId : null,
             'is_discontinued' => $this->isDiscontinued,
@@ -212,7 +225,8 @@ class Show extends Component
 
     public function render(): View
     {
-        return view('livewire.products.show', ['upcs' => $this->product->upcs()->orderBy('id')->get()])
+        return view('livewire.products.show', [
+            'supplierModelLocked' => $this->product->isInPriceList(), 'upcs' => $this->product->upcs()->orderBy('id')->get()])
             ->layout('layouts.app', ['title' => $this->product->model]);
     }
 }

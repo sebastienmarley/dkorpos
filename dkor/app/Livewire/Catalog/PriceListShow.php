@@ -44,14 +44,29 @@ class PriceListShow extends Component
         $this->authorize('price_lists.edit');
         abort_unless($this->priceList->isActive(), 403);
 
+        if ($this->startDateLocked()) {
+            $this->startsOn = $this->priceList->starts_on->toDateString();
+        }
+
         $this->validate([
             'startsOn' => ['required', 'date'],
             'endsOn' => ['required', 'date', 'after_or_equal:startsOn'],
         ]);
 
+        if (PriceList::supplierHasActiveListOverlapping($this->priceList->supplier_id, $this->startsOn, $this->endsOn, $this->priceList->id)) {
+            $this->addError('startsOn', __('Une autre liste active de ce fournisseur couvre cette période.'));
+
+            return;
+        }
+
         $this->priceList->update(['starts_on' => $this->startsOn, 'ends_on' => $this->endsOn]);
 
         Flux::toast(text: __('Liste de prix mise à jour.'), variant: 'success');
+    }
+
+    private function startDateLocked(): bool
+    {
+        return $this->priceList->starts_on->lte(today());
     }
 
     public function archive(): void
@@ -90,6 +105,16 @@ class PriceListShow extends Component
         Flux::toast(text: __('Liste ajoutée.'), variant: 'success');
     }
 
+    public function deleteList(int $listId): void
+    {
+        $this->authorize('price_lists.edit');
+        abort_unless($this->priceList->isActive(), 403);
+
+        $this->priceList->lists()->findOrFail($listId)->delete();
+
+        Flux::toast(text: __('Liste supprimée.'), variant: 'success');
+    }
+
     public function openImport(int $listId): void
     {
         $this->authorize('price_lists.edit');
@@ -124,12 +149,19 @@ class PriceListShow extends Component
         $this->importingId = null;
         $this->file = null;
 
-        Flux::toast(text: __(':rows lignes importées, :matched produits mis à jour.', $result), variant: 'success');
+        Flux::toast(
+            text: ($result['pending']
+                ? __(':rows lignes importées. Les produits seront mis à jour le :date.', ['rows' => $result['rows'], 'date' => $this->priceList->starts_on->toDateString()])
+                : __(':rows lignes importées, :matched produits mis à jour.', $result))
+                .($result['duplicates'] > 0 ? ' '.__(':duplicates modèles ignorés (déjà dans une autre liste).', $result) : ''),
+            variant: 'success',
+        );
     }
 
     public function render(): View
     {
         return view('livewire.catalog.price-list-show', [
+            'startDateLocked' => $this->startDateLocked(),
             'lists' => $this->priceList->lists()->withCount('items')->orderBy('name')->get(),
             'history' => PriceList::query()
                 ->where('supplier_id', $this->priceList->supplier_id)

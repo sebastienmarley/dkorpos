@@ -43,8 +43,8 @@ class PriceLists extends Component
             'endsOn' => ['required', 'date', 'after_or_equal:startsOn'],
         ]);
 
-        if (PriceList::supplierHasActiveList((int) $this->supplierId)) {
-            $this->addError('supplierId', __('Ce fournisseur a déjà une liste de prix active.'));
+        if (PriceList::supplierHasActiveListOverlapping((int) $this->supplierId, $this->startsOn, $this->endsOn)) {
+            $this->addError('supplierId', __('Ce fournisseur a déjà une liste de prix active pendant cette période.'));
 
             return;
         }
@@ -61,22 +61,24 @@ class PriceLists extends Component
 
     public function render(): View
     {
-        $suppliers = filled($this->search)
-            ? Supplier::query()
-                ->where('type', SupplierType::Product)
-                ->where('name', 'like', '%'.$this->search.'%')
-                ->whereHas('priceLists', fn ($query) => $query->active())
-                ->with(['priceLists' => fn ($query) => $query->active()])
-                ->orderBy('name')
+        $priceLists = filled($this->search)
+            ? PriceList::query()
+                ->active()
+                ->with('supplier')
+                ->whereHas('supplier', fn ($query) => $query
+                    ->where('type', SupplierType::Product)
+                    ->where('name', 'like', '%'.$this->search.'%'))
+                ->orderBy('starts_on')
                 ->get()
+                ->sortBy(fn (PriceList $list) => $list->supplier->name)
+                ->values()
             : collect();
 
         return view('livewire.catalog.price-lists', [
-            'suppliers' => $suppliers,
+            'priceLists' => $priceLists,
             'creatableSuppliers' => Supplier::query()
                 ->where('type', SupplierType::Product)
                 ->where('is_active', true)
-                ->whereDoesntHave('priceLists', fn ($query) => $query->active())
                 ->orderBy('name')
                 ->get(['id', 'name']),
         ])->layout('layouts.app', ['title' => __('Listes de prix')]);

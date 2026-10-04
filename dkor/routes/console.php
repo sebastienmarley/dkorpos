@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\ApplyPriceLists;
 use App\Console\Commands\ArchiveExpiredPriceLists;
 use App\Console\Commands\DeactivateExpiredEmployees;
 use App\Console\Commands\RefreshVacationBalances;
@@ -14,3 +15,4 @@ Artisan::command('inspire', function () {
 Schedule::command(DeactivateExpiredEmployees::class)->dailyAt('00:01');
 Schedule::command(RefreshVacationBalances::class)->dailyAt('00:05');
 Schedule::command(ArchiveExpiredPriceLists::class)->dailyAt('04:00');
+Schedule::command(ApplyPriceLists::class)->dailyAt('05:00');
