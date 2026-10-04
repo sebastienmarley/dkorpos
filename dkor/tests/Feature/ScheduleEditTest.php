@@ -8,6 +8,10 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
+beforeEach(function () {
+    $this->admin = User::factory()->withRole('admin')->create();
+});
+
 // ── Accès ──────────────────────────────────────────────────────────────────
 
 it('redirige les invités vers la page de connexion', function () {
@@ -26,7 +30,7 @@ it('affiche les employés actifs dans le tableau', function () {
     $active = User::factory()->create(['firstname' => 'Alice', 'lastname' => 'Roy', 'is_active' => true]);
     User::factory()->create(['is_active' => false]);
 
-    $this->actingAs($active);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->assertSee('Alice Roy');
@@ -36,7 +40,7 @@ it('n\'affiche pas les employés inactifs', function () {
     $user = User::factory()->create();
     $inactive = User::factory()->create(['firstname' => 'Bob', 'lastname' => 'Inactif', 'is_active' => false]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->assertDontSee('Bob Inactif');
@@ -53,7 +57,7 @@ it('affiche les heures déjà saisies dans les cellules', function () {
         'end_time' => '16:30',
     ]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->assertSee('08:30')
@@ -79,7 +83,7 @@ it('calcule le total des heures hebdomadaires en déduisant les pauses', functio
         'break_minutes' => 30,
     ]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->assertSee('15h00');
@@ -90,7 +94,7 @@ it('calcule le total des heures hebdomadaires en déduisant les pauses', functio
 it('ouvre le modal avec les champs vides pour une nouvelle cellule', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
@@ -117,7 +121,7 @@ it('ouvre le modal avec les données existantes pour une cellule déjà remplie'
         'notes' => 'Réunion matin',
     ]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -134,7 +138,7 @@ it('crée un nouvel horaire pour une cellule vide', function () {
 
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -160,7 +164,7 @@ it('met à jour un horaire existant sans créer de doublon', function () {
 
     Schedule::factory()->forDate($date)->create(['user_id' => $user->id, 'start_time' => '09:00', 'end_time' => '17:00']);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -178,7 +182,7 @@ it('sauvegarde les notes', function () {
 
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -197,7 +201,7 @@ it('permet de sauvegarder sans heures', function () {
 
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -211,7 +215,7 @@ it('ferme le modal après une sauvegarde réussie', function () {
 
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -228,7 +232,7 @@ it('rejette un format d\'heure invalide', function () {
 
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -243,7 +247,7 @@ it('rejette une heure de fin antérieure à l\'heure de début', function () {
 
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -258,7 +262,7 @@ it('rejette une heure de début sans heure de fin', function () {
 
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -272,7 +276,7 @@ it('rejette une heure de fin sans heure de début', function () {
 
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -286,7 +290,7 @@ it('rejette une valeur de pause non autorisée', function () {
 
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -303,7 +307,7 @@ it('crée un quart avec le statut non publiée par défaut', function () {
     $user = User::factory()->create();
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -319,7 +323,7 @@ it('sauvegarde le statut publiée', function () {
     $user = User::factory()->create();
     $date = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -338,7 +342,7 @@ it('charge le statut existant à l\'ouverture du modal', function () {
 
     Schedule::factory()->forDate($date)->published()->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -351,7 +355,7 @@ it('refuse de modifier un quart avec le statut fermée', function () {
 
     Schedule::factory()->forDate($date)->withStatus(ScheduleStatus::Closed)->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -367,7 +371,7 @@ it('refuse de modifier un quart avec le statut payée', function () {
 
     Schedule::factory()->forDate($date)->withStatus(ScheduleStatus::Paid)->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -386,7 +390,7 @@ it('publie tous les quarts de la semaine', function () {
     Schedule::factory()->forDate($start->toDateString())->create(['user_id' => $user->id]);
     Schedule::factory()->forDate($start->copy()->addDay()->toDateString())->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('publishWeek');
@@ -402,7 +406,7 @@ it('dépublie les quarts draft et published de la semaine', function () {
     Schedule::factory()->forDate($start->toDateString())->published()->create(['user_id' => $user->id]);
     Schedule::factory()->forDate($start->copy()->addDay()->toDateString())->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('unpublishWeek');
@@ -417,7 +421,7 @@ it('ne dépublie pas les quarts fermés ou payés', function () {
 
     Schedule::factory()->forDate($start->toDateString())->withStatus(ScheduleStatus::Closed)->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('unpublishWeek');
@@ -435,7 +439,7 @@ it('supprime un quart de travail existant', function () {
 
     Schedule::factory()->forDate($date)->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -453,7 +457,7 @@ it('ne supprime pas le quart d\'un autre employé', function () {
 
     Schedule::factory()->forDate($date)->create(['user_id' => $other->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -469,7 +473,7 @@ it('refuse un quart de travail avant le premier jour de l\'employé', function (
         'first_day' => '2026-09-15',
     ]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, '2026-09-10')
@@ -486,7 +490,7 @@ it('accepte un quart de travail le jour du premier jour de l\'employé', functio
         'first_day' => '2026-09-15',
     ]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, '2026-09-15')
@@ -503,7 +507,7 @@ it('accepte un quart de travail après le premier jour de l\'employé', function
         'first_day' => '2026-09-15',
     ]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, '2026-09-20')
@@ -516,7 +520,7 @@ it('accepte un quart de travail après le premier jour de l\'employé', function
 it('refuse un quart de travail quand l\'employé n\'a pas de date d\'entrée en fonction', function () {
     $user = User::factory()->create(['first_day' => null]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, '2026-09-10')
@@ -534,7 +538,7 @@ it('refuse un quart de travail après le dernier jour de l\'employé', function 
         'last_day' => '2026-09-20',
     ]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, '2026-09-25')
@@ -552,7 +556,7 @@ it('accepte un quart de travail le jour du dernier jour de l\'employé', functio
         'last_day' => '2026-09-20',
     ]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, '2026-09-20')
@@ -570,7 +574,7 @@ it('accepte un quart de travail avant le dernier jour de l\'employé', function 
         'last_day' => '2026-09-20',
     ]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, '2026-09-15')
@@ -585,7 +589,7 @@ it('accepte un quart de travail avant le dernier jour de l\'employé', function 
 it('navigue à la semaine précédente', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     $component = Livewire::test(ScheduleEdit::class);
     $initialWeek = $component->get('weekStart');
@@ -599,7 +603,7 @@ it('navigue à la semaine précédente', function () {
 it('navigue à la semaine suivante', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     $component = Livewire::test(ScheduleEdit::class);
     $initialWeek = $component->get('weekStart');
@@ -613,7 +617,7 @@ it('navigue à la semaine suivante', function () {
 it('retourne à la semaine courante', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('previousWeek')
@@ -630,7 +634,7 @@ it('ne republie pas les quarts fermés ou payés en publiant la semaine', functi
     Schedule::factory()->forDate($start->toDateString())->withStatus(ScheduleStatus::Closed)->create(['user_id' => $user->id]);
     Schedule::factory()->forDate($start->copy()->addDay()->toDateString())->withStatus(ScheduleStatus::Paid)->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)->call('publishWeek');
 
@@ -645,7 +649,7 @@ it('ne publie pas les quarts des employés inactifs', function () {
 
     Schedule::factory()->forDate($date)->create(['user_id' => $inactive->id]);
 
-    $this->actingAs($active);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)->call('publishWeek');
 
@@ -659,7 +663,7 @@ it('refuse de dépublier une semaine qui contient des rendez-vous à venir', fun
     Schedule::factory()->forDate($today)->published()->create(['user_id' => $user->id]);
     Appointment::factory()->create(['user_id' => $user->id, 'date' => $today, 'start_minute' => 600, 'duration_minutes' => 60]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('unpublishWeek')
@@ -681,7 +685,7 @@ it('refuse de raccourcir un quart si un rendez-vous se retrouve hors horaire', f
     $date = Carbon::today()->addDays(2)->toDateString();
     scheduleWithAppointment($user, $date);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -697,7 +701,7 @@ it('accepte de modifier un quart tant que les rendez-vous restent dans l\'horair
     $date = Carbon::today()->addDays(2)->toDateString();
     scheduleWithAppointment($user, $date);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -713,7 +717,7 @@ it('refuse de repasser un quart en brouillon si des rendez-vous y sont pris', fu
     $date = Carbon::today()->addDays(2)->toDateString();
     scheduleWithAppointment($user, $date);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -727,7 +731,7 @@ it('refuse de supprimer un quart qui contient des rendez-vous', function () {
     $date = Carbon::today()->addDays(2)->toDateString();
     scheduleWithAppointment($user, $date);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -742,7 +746,7 @@ it('ne tient pas compte des rendez-vous passés', function () {
     $date = Carbon::today()->subDays(2)->toDateString();
     scheduleWithAppointment($user, $date);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -760,7 +764,7 @@ it('refuse de supprimer un quart payé', function () {
 
     Schedule::factory()->forDate($date)->withStatus(ScheduleStatus::Paid)->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -774,7 +778,7 @@ it('refuse d\'assigner un statut fermé ou payé depuis le module', function () 
     $user = User::factory()->create();
     $date = Carbon::today()->addDay()->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -788,8 +792,8 @@ it('refuse d\'assigner un statut fermé ou payé depuis le module', function () 
 // ── Auteur et concurrence ──────────────────────────────────────────────────
 
 it('enregistre l\'auteur de la création et de la dernière modification', function () {
-    $creator = User::factory()->create();
-    $editor = User::factory()->create();
+    $creator = User::factory()->withRole('admin')->create();
+    $editor = User::factory()->withRole('admin')->create();
     $date = Carbon::today()->addDay()->toDateString();
 
     $this->actingAs($creator);
@@ -816,7 +820,7 @@ it('refuse d\'enregistrer un quart modifié par quelqu\'un d\'autre entre-temps'
     $date = Carbon::today()->addDay()->toDateString();
     $schedule = Schedule::factory()->forDate($date)->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     $component = Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)
@@ -834,7 +838,7 @@ it('refuse d\'enregistrer un quart supprimé par quelqu\'un d\'autre entre-temps
     $date = Carbon::today()->addDay()->toDateString();
     $schedule = Schedule::factory()->forDate($date)->create(['user_id' => $user->id]);
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     $component = Livewire::test(ScheduleEdit::class)->call('openCell', $user->id, $date);
 
@@ -849,7 +853,7 @@ it('refuse de créer un quart déjà créé par quelqu\'un d\'autre entre-temps'
     $user = User::factory()->create();
     $date = Carbon::today()->addDay()->toDateString();
 
-    $this->actingAs($user);
+    $this->actingAs($this->admin);
 
     $component = Livewire::test(ScheduleEdit::class)
         ->call('openCell', $user->id, $date)

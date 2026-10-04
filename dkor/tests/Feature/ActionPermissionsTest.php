@@ -97,10 +97,20 @@ it('autorise l\'action avec la permission directe', function () {
 
 it('accorde les permissions d\'actions aux rôles par défaut', function (string $permission) {
     expect(User::factory()->create()->can($permission))->toBeTrue();
-})->with(['customers.create', 'suppliers.edit', 'products.create', 'colors.edit', 'schedule_management.publish', 'holidays.delete', 'appointments.create']);
+})->with(['customers.create', 'products.create', 'appointments.create']);
+
+it('accorde les permissions d\'actions au rôle comptabilité', function (string $permission) {
+    expect(User::factory()->withRole('accounting')->create()->can($permission))->toBeTrue();
+})->with(['suppliers.edit']);
+
+it('accorde les permissions d\'actions aux rôles admin et propriétaire', function (string $permission) {
+    expect(User::factory()->withRole('admin')->create()->can($permission))->toBeTrue();
+})->with(['colors.edit', 'schedule_management.publish', 'holidays.delete']);
 
 it('masque les boutons d\'ajout sans la permission', function () {
-    $this->actingAs(usagerLectureSeule());
+    $user = usagerLectureSeule();
+    $user->givePermissionTo('colors.view');
+    $this->actingAs($user);
 
     $this->get(route('customers.index'))->assertOk()->assertDontSee('Ajouter un client');
     $this->get(route('catalog.colors'))->assertOk()->assertDontSee('Ajouter');

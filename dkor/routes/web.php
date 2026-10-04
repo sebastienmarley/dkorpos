@@ -25,6 +25,8 @@ use App\Livewire\Schedules\Holidays;
 use App\Livewire\Schedules\Index as SchedulesIndex;
 use App\Livewire\Schedules\ScheduleEdit;
 use App\Livewire\Schedules\Templates;
+use App\Livewire\Stores\Index as StoresIndex;
+use App\Livewire\Stores\Show as StoreShow;
 use App\Livewire\Suppliers\Index as SuppliersIndex;
 use App\Livewire\Suppliers\Show as SupplierShow;
 use App\Livewire\Users\Index as UsersIndex;
@@ -72,6 +74,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('accounting/invoices/{invoice}', InvoiceShow::class)->whereNumber('invoice')->middleware('can:invoices.view')->name('accounting.invoices.show');
     Route::get('accounting/invoices/orders/{order}', InvoiceForm::class)->middleware('can:invoices.view')->name('accounting.invoices.order');
     Route::get('accounting/currencies', Currencies::class)->middleware('can:currencies.view')->name('accounting.currencies');
+
+    Route::get('stores', StoresIndex::class)->middleware('can:stores.view')->name('stores.index');
+    Route::get('stores/{store}', StoreShow::class)->middleware('can:stores.view')->name('stores.show');
 
     Route::get('admin/positions', Positions::class)->middleware('can:positions.manage')->name('admin.positions');
     Route::get('admin/roles', Roles::class)->middleware('can:roles.manage')->name('admin.roles');

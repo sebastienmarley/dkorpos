@@ -142,6 +142,12 @@
                 </flux:sidebar.group>
                 @endcanany
 
+                @can('stores.view')
+                    <flux:sidebar.item icon="building-storefront" :href="route('stores.index')" :current="request()->routeIs('stores.*')" wire:navigate>
+                        {{ __('Magasins') }}
+                    </flux:sidebar.item>
+                @endcan
+
                 @canany(['users.view', 'positions.manage', 'roles.manage', 'permissions.manage'])
                     <flux:sidebar.group :heading="__('Administration')" expandable :expanded="request()->routeIs('admin.*') || request()->routeIs('users.*')">
                         @can('users.view')

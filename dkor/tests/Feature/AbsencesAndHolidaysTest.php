@@ -18,7 +18,7 @@ use Livewire\Livewire;
 beforeEach(function () {
     Carbon::setTestNow(Carbon::parse('2026-09-28 07:00:00'));
 
-    $this->admin = User::factory()->create();
+    $this->admin = User::factory()->withRole('admin')->create();
     $this->employee = User::factory()->create();
     $this->actingAs($this->admin);
 

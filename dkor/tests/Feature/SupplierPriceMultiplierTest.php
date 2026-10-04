@@ -26,7 +26,7 @@ it('calcule le multiplicateur à partir des quatre composantes', function () {
 });
 
 it('sauvegarde les composantes et recalcule le multiplicateur', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
     $supplier = Supplier::factory()->for(Currency::factory()->create(['rate' => 1.3]))->create(['type' => SupplierType::Product]);
 
     Livewire::test(SupplierShow::class, ['supplier' => $supplier])
@@ -41,7 +41,7 @@ it('sauvegarde les composantes et recalcule le multiplicateur', function () {
 });
 
 it('refuse une composante négative', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(SupplierShow::class, ['supplier' => Supplier::factory()->create(['type' => SupplierType::Product])])
         ->set('shippingFee', '-1')
@@ -61,7 +61,7 @@ it('recalcule le multiplicateur des fournisseurs quand le taux de la devise chan
 });
 
 it('recalcule le multiplicateur quand la devise du fournisseur change', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
     $currency = Currency::factory()->create(['rate' => 1.35]);
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'base_multiplier' => 2, 'customs_fee' => 0, 'shipping_fee' => 0]);
 
@@ -74,7 +74,7 @@ it('recalcule le multiplicateur quand la devise du fournisseur change', function
 });
 
 it('accepte le type de fournisseur expédition', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(SupplierForm::class)
         ->call('openCreate')
@@ -94,7 +94,7 @@ it('accepte le type de fournisseur expédition', function () {
 });
 
 it('exige un montant prepaid sauf si collect est coché', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product]);
 
     Livewire::test(SupplierShow::class, ['supplier' => $supplier])
@@ -121,7 +121,7 @@ it('exige un montant prepaid sauf si collect est coché', function () {
 });
 
 it('affiche l\'onglet transport seulement pour les fournisseurs de produits', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(SupplierShow::class, ['supplier' => Supplier::factory()->create(['type' => SupplierType::Product])])
         ->assertSee('Montant prepaid');
@@ -135,7 +135,7 @@ it('affiche l\'onglet transport seulement pour les fournisseurs de produits', fu
 });
 
 it('enregistre le fournisseur d\'expédition par défaut seulement si collect', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
     $shipping = Supplier::factory()->create(['type' => SupplierType::Shipping, 'name' => 'Transport Alpha']);
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product]);
 
@@ -155,7 +155,7 @@ it('enregistre le fournisseur d\'expédition par défaut seulement si collect', 
 });
 
 it('refuse un fournisseur par défaut qui n\'est pas de type expédition', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
     $other = Supplier::factory()->create(['type' => SupplierType::Product]);
 
     Livewire::test(SupplierShow::class, ['supplier' => Supplier::factory()->create(['type' => SupplierType::Product])])
@@ -166,7 +166,7 @@ it('refuse un fournisseur par défaut qui n\'est pas de type expédition', funct
 });
 
 it('met commandable à faux quand le fournisseur est désactivé depuis l\'identification', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
     $supplier = Supplier::factory()->create(['type' => SupplierType::Shipping, 'orderable' => true, 'is_active' => true]);
 
     Livewire::test(SupplierShow::class, ['supplier' => $supplier])
@@ -179,7 +179,7 @@ it('met commandable à faux quand le fournisseur est désactivé depuis l\'ident
 });
 
 it('affiche l\'onglet info commande sauf pour un fournisseur d\'expédition', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(SupplierShow::class, ['supplier' => Supplier::factory()->create(['type' => SupplierType::Product])])
         ->assertSee('Info commande');
