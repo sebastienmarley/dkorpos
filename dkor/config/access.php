@@ -51,12 +51,15 @@ $accountingAccess = [
     'invoices.edit',
     'invoices.delete',
 ];
+
 return [
     /*
      * Permissions de pages et d'actions accordées par défaut à tous les rôles
      * (accès actuel conservé, les restrictions se font dans l'interface).
      */
     'page_access' => $pageAccess,
+    'warehouse_access' => $warehouseAccess,
+    'accounting_access' => $accountingAccess,
 
     'permissions' => [
         'users.view' => ['Voir les utilisateurs', 'Consulter la liste des utilisateurs.'],
@@ -96,6 +99,8 @@ return [
         'currencies.edit' => ['Modifier — devises', 'Modifier dans : devises.'],
         'invoices.view' => ['Voir — facturation fournisseurs', 'Accéder à la page : facturation fournisseurs.'],
         'invoices.create' => ['Créer — facturation fournisseurs', 'Saisir la facture d\'une réception.'],
+        'invoices.edit' => ['Modifier — facturation fournisseurs', 'Modifier une facture fournisseur existante.'],
+        'invoices.delete' => ['Supprimer — facturation fournisseurs', 'Supprimer une facture fournisseur.'],
         'schedules.view' => ['Voir — « Mon horaire »', 'Accéder à la page : « Mon horaire ».'],
         'schedule_management.view' => ['Voir — gestion des horaires', 'Accéder à la page : gestion des horaires.'],
         'schedule_management.edit' => ['Modifier — gestion des horaires', 'Modifier dans : gestion des horaires.'],
@@ -126,9 +131,9 @@ return [
         'manager' => ['label' => 'Directeur', 'level' => 50, 'permissions' => ['users.view', 'users.create', 'users.edit', ...$pageAccess]],
         'design' => ['label' => 'Designer', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
         'delivery' => ['label' => 'Livreur', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
-        'warehouse' => ['label' => 'Commis entrepôt', 'level' => 10, 'permissions' => ['users.view', ...$warehouseAccess]],
-        'salesman' => ['label' => 'Vendeur', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
-        'accounting' => ['label' => 'Comptabilité', 'level' => 10, 'permissions' => ['users.view', ...$accountingAccess]],
+        'warehouse' => ['label' => 'Commis entrepôt', 'level' => 10, 'permissions' => [...$warehouseAccess]],
+        'salesman' => ['label' => 'Vendeur', 'level' => 10, 'permissions' => [...$pageAccess]],
+        'accounting' => ['label' => 'Comptabilité', 'level' => 10, 'permissions' => [...$accountingAccess]],
         'thirdkey' => ['label' => 'Troisième clé', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
     ],
 ];

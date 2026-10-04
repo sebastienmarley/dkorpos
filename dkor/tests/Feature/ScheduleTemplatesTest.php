@@ -13,7 +13,7 @@ use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
 beforeEach(function () {
-    $this->admin = User::factory()->create();
+    $this->admin = User::factory()->withRole('admin')->create();
     $this->actingAs($this->admin);
 });
 
