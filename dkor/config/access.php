@@ -125,6 +125,9 @@ return [
         'appointments.delete' => ['Supprimer — rendez-vous', 'Supprimer dans : rendez-vous.'],
         'roles.manage' => ['Gérer les rôles', 'Créer et modifier les rôles et leurs permissions.'],
         'permissions.manage' => ['Gérer les permissions', 'Créer et modifier les permissions.'],
+        'stores.view' => ['Voir — magasins', 'Accéder à la page : magasins.'],
+        'stores.create' => ['Créer — magasins', 'Créer dans : magasins.'],
+        'stores.edit' => ['Modifier — magasins', 'Modifier dans : magasins.'],
         'positions.manage' => ['Gérer les positions', 'Créer et modifier les titres d\'emploi.'],
     ],
 
