@@ -18,8 +18,8 @@ it('redirige les invités vers la page de connexion', function () {
     $this->get(route('schedules.schedule-edit'))->assertRedirect(route('login'));
 });
 
-it('autorise les utilisateurs authentifiés à accéder à la page', function () {
-    $this->actingAs(User::factory()->create());
+it('autorise les utilisateurs ayant la permission schedule_management.view à accéder à la page', function () {
+    $this->actingAs(User::factory()->create()->givePermissionTo('schedule_management.view'));
 
     $this->get(route('schedules.schedule-edit'))->assertOk();
 });

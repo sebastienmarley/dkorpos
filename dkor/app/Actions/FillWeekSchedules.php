@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Enums\ScheduleStatus;
 use App\Models\Appointment;
 use App\Models\Holiday;
+use App\Models\PayrollPeriod;
 use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  * Crée en brouillon les quarts proposés (copie de semaine ou semaine type).
  *
  * Ne remplace jamais un quart existant, quel que soit son statut, et ignore les cases où l'employé
- * n'est pas en fonction, est inactif, tombe un férié fermé, ou a déjà des rendez-vous qui ne tiendraient pas dans le quart.
+ * n'est pas en fonction, est inactif, tombe dans une période de paie verrouillée ou un férié fermé, ou a déjà des rendez-vous qui ne tiendraient pas dans le quart.
  */
 class FillWeekSchedules
 {
@@ -48,7 +49,7 @@ class FillWeekSchedules
      */
     private function fill(?User $employee, array $shift): string
     {
-        if (! $employee || ! $employee->is_active || ! $this->isInService($employee, $shift['date'])) {
+        if (! $employee || ! $employee->is_active || ! $this->isInService($employee, $shift['date']) || PayrollPeriod::isDateLocked($shift['date'])) {
             return 'unavailable';
         }
 

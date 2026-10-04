@@ -8,6 +8,7 @@ use App\Enums\InsurancePlan;
 use App\Models\Permission;
 use App\Models\Position;
 use App\Models\Role;
+use App\Models\Store;
 use App\Models\User;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -34,6 +35,8 @@ class Show extends Component
     public string $role = 'salesman';
 
     public ?int $positionId = null;
+
+    public ?int $storeId = null;
 
     public ?string $firstDay = null;
 
@@ -70,7 +73,7 @@ class Show extends Component
 
     public ?string $bonusStep = null;
 
-    public ?string $vacationHoursPerDay = null;
+    public ?string $hoursPerDay = null;
 
     /** Jours de vacances cumulés dans l'année de référence (calculés, lecture seule). */
     public ?string $vacationDaysAccrued = null;
@@ -126,6 +129,7 @@ class Show extends Component
             'lastname' => ['required', 'string', 'max:255'],
             'role' => ['required', 'string', 'in:'.$this->allowedRoleNames()->implode(',')],
             'positionId' => ['nullable', 'integer', 'exists:positions,id'],
+            'storeId' => ['nullable', 'integer', 'exists:stores,id'],
             'firstDay' => ['required', 'date'],
             'lastDay' => ['nullable', 'date', 'after_or_equal:firstDay'],
             'personalEmail' => ['nullable', 'email', 'max:255'],
@@ -137,6 +141,7 @@ class Show extends Component
             'firstname' => $validated['firstname'],
             'lastname' => $validated['lastname'],
             'position_id' => $validated['positionId'],
+            'store_id' => $validated['storeId'],
             'first_day' => $validated['firstDay'],
             'last_day' => filled($validated['lastDay']) ? $validated['lastDay'] : null,
             'personal_email' => filled($validated['personalEmail']) ? $validated['personalEmail'] : null,
@@ -194,9 +199,9 @@ class Show extends Component
             'weeklySalesTarget' => [Rule::requiredIf($this->hasBonus), 'nullable', 'integer', 'regex:/^\d{1,7}$/', 'gt:0'],
             'bonusAmount' => [Rule::requiredIf($this->hasBonus), 'nullable', 'integer', 'regex:/^\d{1,7}$/', 'gt:0'],
             'bonusStep' => [Rule::requiredIf($this->hasBonus), 'nullable', 'integer', 'regex:/^\d{1,7}$/', 'gt:0'],
-            'vacationHoursPerDay' => ['nullable', 'numeric', 'regex:/^\d{1,2}(\.\d{1,2})?$/', 'gt:0', 'max:24'],
+            'hoursPerDay' => ['nullable', 'numeric', 'regex:/^\d{1,2}(\.\d{1,2})?$/', 'gt:0', 'max:24'],
         ], [
-            'vacationHoursPerDay.*' => __('Entrez un nombre d\'heures entre 0 et 24, avec au plus 2 décimales.'),
+            'hoursPerDay.*' => __('Entrez un nombre d\'heures entre 0 et 24, avec au plus 2 décimales.'),
             'hourlyRate.regex' => __('Entrez un montant valide avec au plus 2 décimales (chiffres seulement).'),
             'weeklySalary.regex' => __('Entrez un montant valide avec au plus 2 décimales (chiffres seulement).'),
             'commissionRate.regex' => __('Entrez un pourcentage valide avec au plus 2 décimales (chiffres seulement).'),
@@ -222,7 +227,7 @@ class Show extends Component
             'weekly_sales_target' => $validated['hasBonus'] ? (int) $validated['weeklySalesTarget'] : null,
             'bonus_amount' => $validated['hasBonus'] ? (int) $validated['bonusAmount'] : null,
             'bonus_step' => $validated['hasBonus'] ? (int) $validated['bonusStep'] : null,
-            'vacation_hours_per_day' => filled($validated['vacationHoursPerDay']) ? $validated['vacationHoursPerDay'] : null,
+            'hours_per_day' => filled($validated['hoursPerDay']) ? $validated['hoursPerDay'] : null,
         ])->markModifiedBy(Auth::user())->save();
 
         app(CalculateVacationBalance::class)->refresh($this->user);
@@ -341,6 +346,12 @@ class Show extends Component
         return Auth::user()->assignableRoles();
     }
 
+    /** @return Collection<int, Store> */
+    public function getStores(): Collection
+    {
+        return Store::query()->where('is_active', true)->orWhere('id', $this->user->store_id)->orderBy('name')->get();
+    }
+
     /** @return Collection<int, Position> */
     public function getPositions(): Collection
     {
@@ -391,6 +402,7 @@ class Show extends Component
         $this->lastname = $this->user->lastname;
         $this->role = (string) $this->user->role?->name;
         $this->positionId = $this->user->position_id;
+        $this->storeId = $this->user->store_id;
         $this->selectedPermissions = $this->user->getAllPermissions()->pluck('name')->all();
         $this->firstDay = $this->user->first_day?->format('Y-m-d');
         $this->lastDay = $this->user->last_day?->format('Y-m-d');
@@ -411,7 +423,7 @@ class Show extends Component
             $this->weeklySalesTarget = $this->user->weekly_sales_target === null ? null : (string) $this->user->weekly_sales_target;
             $this->bonusAmount = $this->user->bonus_amount === null ? null : (string) $this->user->bonus_amount;
             $this->bonusStep = $this->user->bonus_step === null ? null : (string) $this->user->bonus_step;
-            $this->vacationHoursPerDay = $this->user->vacation_hours_per_day;
+            $this->hoursPerDay = $this->user->hours_per_day;
 
             $balance = app(CalculateVacationBalance::class)->calculate($this->user);
             $this->vacationDaysAccrued = number_format($balance['days_accrued'], 2, '.', '');

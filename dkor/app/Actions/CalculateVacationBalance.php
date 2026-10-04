@@ -10,7 +10,8 @@ use Carbon\CarbonInterface;
 /**
  * Calcule le solde de vacances d'un employé selon la Loi sur les normes du travail du Québec.
  *
- * - Année de référence commune (config vacations.reference_year_start) : le cumul repart à chaque début d'année.
+ * - Année de référence : date de début d'accumulation du magasin de l'employé (MM-JJ), sinon
+ *   config vacations.reference_year_start ; le cumul repart à chaque début d'année.
  * - Droit annuel selon l'ancienneté à la date du calcul : moins d'un an = 1 jour par mois de service
  *   (maximum 10), 1 an et plus = 10 jours, 3 ans et plus = 15 jours.
  * - Acquisition progressive au prorata des jours écoulés : prendre ses vacances tôt dans l'année
@@ -26,8 +27,8 @@ class CalculateVacationBalance
     public function calculate(User $user, ?CarbonInterface $date = null): array
     {
         $date = CarbonImmutable::parse($date ?? now())->startOfDay();
-        $referenceStart = $this->referenceYearStart($date);
-        $hoursPerDay = (float) ($user->vacation_hours_per_day ?? config('vacations.default_hours_per_day'));
+        $referenceStart = $this->referenceYearStart($date, $user);
+        $hoursPerDay = (float) ($user->hours_per_day ?? config('vacations.default_hours_per_day'));
 
         /** @var list<string> $vacationDates */
         $vacationDates = $user->schedules()
@@ -71,15 +72,42 @@ class CalculateVacationBalance
         ])->saveQuietly();
     }
 
-    public function referenceYearStart(CarbonInterface $date): CarbonImmutable
+    /**
+     * Début de l'année de référence contenant la date : jour MM-JJ du magasin de l'employé, sinon la config.
+     */
+    public function referenceYearStart(CarbonInterface $date, ?User $user = null): CarbonImmutable
     {
-        $start = CarbonImmutable::create(
-            $date->year,
+        [$month, $day] = self::monthDay(
+            $user?->store?->vacation_accrual_start,
             (int) config('vacations.reference_year_start.month'),
             (int) config('vacations.reference_year_start.day'),
-        )->startOfDay();
+        );
+
+        return self::yearStartContaining($date, $month, $day);
+    }
+
+    /**
+     * Début de l'année (au jour MM-JJ donné) qui contient la date.
+     */
+    public static function yearStartContaining(CarbonInterface $date, int $month, int $day): CarbonImmutable
+    {
+        $start = CarbonImmutable::create($date->year, $month, $day)->startOfDay();
 
         return $start->greaterThan($date) ? $start->subYear() : $start;
+    }
+
+    /**
+     * Décompose un jour « MM-JJ » ; valeur de repli si vide ou invalide.
+     *
+     * @return array{0: int, 1: int}
+     */
+    public static function monthDay(?string $value, int $defaultMonth, int $defaultDay): array
+    {
+        if ($value !== null && preg_match('/^(\d{2})-(\d{2})$/', $value, $matches) === 1 && checkdate((int) $matches[1], (int) $matches[2], 2024)) {
+            return [(int) $matches[1], (int) $matches[2]];
+        }
+
+        return [$defaultMonth, $defaultDay];
     }
 
     /**
@@ -96,7 +124,7 @@ class CalculateVacationBalance
         }
 
         $carry = 0.0;
-        $yearStart = $this->referenceYearStart(CarbonImmutable::parse($user->first_day));
+        $yearStart = $this->referenceYearStart(CarbonImmutable::parse($user->first_day), $user);
 
         while ($yearStart->lessThan($currentReferenceStart)) {
             $yearEnd = $yearStart->addYear();
