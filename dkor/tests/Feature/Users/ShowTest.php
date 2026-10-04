@@ -225,7 +225,7 @@ it('permet à un rôle personnalisé de gérer selon son niveau', function () {
 
 it('permet l\'édition de sa propre fiche avec users.edit_self', function () {
     $employe = employeComplet();
-    $employe->givePermissionTo('users.edit_self');
+    $employe->givePermissionTo(['users.view', 'users.edit_self']);
 
     $this->actingAs($employe);
 
@@ -786,13 +786,13 @@ it('affiche les jours de vacances cumulés et enregistre les heures par jour', f
         ->assertSet('vacationDaysAccrued', '7.56')
         ->assertSet('vacationReferenceStart', '2026-05-01')
         ->assertSee('Jours de vacances cumulés')
-        ->set('vacationHoursPerDay', '7.5')
+        ->set('hoursPerDay', '7.5')
         ->call('saveHr')
         ->assertHasNoErrors();
 
     $user->refresh();
 
-    expect($user->vacation_hours_per_day)->toBe('7.50')
+    expect($user->hours_per_day)->toBe('7.50')
         ->and($user->vacation_hours_available)->toBe('56.70');
 });
 
@@ -802,9 +802,9 @@ it('refuse des heures par jour invalides', function (string $valeur) {
     $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Show::class, ['user' => $user])
-        ->set('vacationHoursPerDay', $valeur)
+        ->set('hoursPerDay', $valeur)
         ->call('saveHr')
-        ->assertHasErrors(['vacationHoursPerDay']);
+        ->assertHasErrors(['hoursPerDay']);
 })->with(['0', '25', '7.555', '1e1', 'abc']);
 
 it('ne calcule pas les vacances pour qui ne voit pas l\'onglet RH', function () {

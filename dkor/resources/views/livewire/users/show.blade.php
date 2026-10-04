@@ -117,6 +117,17 @@
                         <flux:error name="positionId" />
                     </flux:field>
 
+                    <flux:field>
+                        <flux:label>{{ __('Magasin') }}</flux:label>
+                        <flux:select wire:model="storeId">
+                            <flux:select.option value="">{{ __('Aucun') }}</flux:select.option>
+                            @foreach ($this->getStores() as $store)
+                                <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="storeId" />
+                    </flux:field>
+
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>
                             <flux:label>{{ __('Premier jour') }}</flux:label>
@@ -265,13 +276,13 @@
 
                             <flux:field>
                                 <flux:label class="inline-flex items-center gap-1.5">
-                                    {{ __('Heures par jour de vacances') }}
-                                    <flux:tooltip :content="__('Vide : :hours h par défaut.', ['hours' => config('vacations.default_hours_per_day')])">
+                                    {{ __('Heures par jour') }}
+                                    <flux:tooltip :content="__('Heures payées pour une journée de vacances ou de maladie. Vide : :hours h par défaut.', ['hours' => config('vacations.default_hours_per_day')])">
                                         <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
                                     </flux:tooltip>
                                 </flux:label>
-                                <flux:input wire:model="vacationHoursPerDay" type="text" inputmode="decimal" autocomplete="off" :placeholder="config('vacations.default_hours_per_day')" x-data x-on:input.capture="$el.value = $el.value.replace(/,/g, '.').replace(/[^\d.]/g, '').replace(/^(\d*\.?)(.*)$/, (m, a, b) => a + b.replace(/\./g, '')).replace(/(\.\d{2}).*/, '$1')" />
-                                <flux:error name="vacationHoursPerDay" />
+                                <flux:input wire:model="hoursPerDay" type="text" inputmode="decimal" autocomplete="off" :placeholder="config('vacations.default_hours_per_day')" x-data x-on:input.capture="$el.value = $el.value.replace(/,/g, '.').replace(/[^\d.]/g, '').replace(/^(\d*\.?)(.*)$/, (m, a, b) => a + b.replace(/\./g, '')).replace(/(\.\d{2}).*/, '$1')" />
+                                <flux:error name="hoursPerDay" />
                             </flux:field>
                         </div>
                     </div>

@@ -84,7 +84,7 @@ it('ne compte que les vacances de l\'année de référence déjà passées', fun
 });
 
 it('utilise les heures par jour de l\'employé', function () {
-    $user = User::factory()->create(['first_day' => '2020-01-15', 'vacation_hours_per_day' => '7.50']);
+    $user = User::factory()->create(['first_day' => '2020-01-15', 'hours_per_day' => '7.50']);
     vacances($user, '2026-05-04');
 
     $balance = solde($user, '2026-10-31');

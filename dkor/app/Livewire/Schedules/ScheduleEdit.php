@@ -7,6 +7,7 @@ use App\Enums\ScheduleStatus;
 use App\Enums\ScheduleType;
 use App\Models\Appointment;
 use App\Models\Holiday;
+use App\Models\PayrollPeriod;
 use App\Models\Schedule;
 use App\Models\ShiftTemplate;
 use App\Models\User;
@@ -76,6 +77,12 @@ class ScheduleEdit extends Component
     public function openCell(int $userId, string $date): void
     {
         $this->authorize('schedule_management.edit');
+
+        if (PayrollPeriod::isDateLocked($date)) {
+            Flux::toast(text: __('Cette journée fait partie d\'une période de paie verrouillée.'), heading: __('Horaire verrouillé'), variant: 'danger');
+
+            return;
+        }
 
         $this->editingUserId = $userId;
         $this->editingDate = $date;
@@ -241,6 +248,12 @@ class ScheduleEdit extends Component
     {
         $this->authorize('schedule_management.edit');
 
+        if (PayrollPeriod::isDateLocked($this->editingDate)) {
+            $this->addError('editingDate', __('Cette journée fait partie d\'une période de paie verrouillée.'));
+
+            return;
+        }
+
         $schedule = Schedule::query()
             ->where('user_id', $this->editingUserId)
             ->whereDate('date', $this->editingDate)
@@ -272,6 +285,12 @@ class ScheduleEdit extends Component
     public function save(): void
     {
         $this->authorize('schedule_management.edit');
+
+        if (PayrollPeriod::isDateLocked($this->editingDate)) {
+            $this->addError('editingDate', __('Cette journée fait partie d\'une période de paie verrouillée.'));
+
+            return;
+        }
 
         $current = $this->editingScheduleId ? Schedule::query()->find($this->editingScheduleId) : null;
 
@@ -429,7 +448,7 @@ class ScheduleEdit extends Component
             $text = trans_choice(':count jour enregistré.|:count jours enregistrés.', $saved);
 
             if ($skipped > 0) {
-                $text .= ' '.trans_choice(':count jour ignoré (quart fermé ou payé, hors période de travail, ou rendez-vous déjà pris).|:count jours ignorés (quart fermé ou payé, hors période de travail, ou rendez-vous déjà pris).', $skipped);
+                $text .= ' '.trans_choice(':count jour ignoré (quart fermé ou payé, période de paie verrouillée, hors période de travail, ou rendez-vous déjà pris).|:count jours ignorés (quart fermé ou payé, période de paie verrouillée, hors période de travail, ou rendez-vous déjà pris).', $skipped);
             }
 
             Flux::toast(text: $text, heading: __('Absence enregistrée'), variant: $skipped > 0 ? 'warning' : 'success');
@@ -450,6 +469,7 @@ class ScheduleEdit extends Component
         $existing = Schedule::query()->where('user_id', $employee->id)->whereDate('date', $date)->first();
 
         if (! $inService
+            || PayrollPeriod::isDateLocked($date)
             || ($existing && ! in_array($existing->status, ScheduleStatus::editableValues()))
             || Appointment::countOutsideWindow($employee->id, $date, null) > 0) {
             return false;

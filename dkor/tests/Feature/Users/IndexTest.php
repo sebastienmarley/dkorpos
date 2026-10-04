@@ -12,8 +12,8 @@ it('redirige les invités vers la page de connexion', function () {
     $this->get(route('users.index'))->assertRedirect(route('login'));
 });
 
-it('autorise les utilisateurs authentifiés à accéder à la page', function () {
-    $this->actingAs(User::factory()->create());
+it('autorise les utilisateurs ayant la permission users.view à accéder à la page', function () {
+    $this->actingAs(User::factory()->create()->givePermissionTo('users.view'));
 
     $this->get(route('users.index'))->assertOk();
 });

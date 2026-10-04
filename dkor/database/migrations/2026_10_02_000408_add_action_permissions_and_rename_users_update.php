@@ -21,11 +21,24 @@ return new class extends Migration
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
+        // Permissions d'actions de l'époque. Seules celles créées ici sont accordées à tous les rôles :
+        // sur une installation neuve, RoleSeeder les a déjà réparties selon config/access.php.
+        $actions = [
+            'customers.create', 'customers.edit', 'suppliers.create', 'suppliers.edit', 'products.create', 'products.edit',
+            'departments.create', 'departments.edit', 'categories.create', 'categories.edit', 'colors.create', 'colors.edit',
+            'schedule_management.edit', 'schedule_management.publish',
+            'schedule_templates.create', 'schedule_templates.edit', 'schedule_templates.delete',
+            'holidays.create', 'holidays.edit', 'holidays.delete',
+            'appointments.create', 'appointments.edit', 'appointments.delete',
+        ];
+
+        $existing = Permission::whereIn('name', $actions)->pluck('name')->all();
+
         (new PermissionSeeder)->run();
 
-        $permissions = Permission::whereIn('name', config('access.page_access'))->get();
+        $created = Permission::whereIn('name', array_diff($actions, $existing))->get();
 
-        Role::all()->each(fn (Role $role) => $role->givePermissionTo($permissions));
+        Role::all()->each(fn (Role $role) => $role->givePermissionTo($created));
     }
 
     public function down(): void

@@ -125,6 +125,8 @@
                                                 \App\Enums\ScheduleType::Vacation => 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
                                                 default => 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-300',
                                             } }}
+                                        @elseif ($schedule?->type === \App\Enums\ScheduleType::Training)
+                                            border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300
                                         @elseif ($schedule?->start_time)
                                             border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50
                                         @elseif ($isToday)
@@ -138,14 +140,21 @@
                                         <div class="font-medium">{{ $schedule->type->label() }}</div>
                                         @if ($schedule->status === \App\Enums\ScheduleStatus::Published)
                                             <div class="mt-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">● {{ __('Publiée') }}</div>
+                                        @elseif ($schedule->status === \App\Enums\ScheduleStatus::Closed)
+                                            <div class="mt-0.5 text-[10px] font-medium text-zinc-500">🔒 {{ __('Fermée') }}</div>
                                         @endif
                                     @elseif ($schedule?->start_time)
+                                        @if ($schedule->type === \App\Enums\ScheduleType::Training)
+                                            <div class="font-medium">{{ $schedule->type->label() }}</div>
+                                        @endif
                                         <div>{{ substr($schedule->start_time, 0, 5) }}</div>
                                         @if ($schedule->end_time)
                                             <div class="text-blue-500 dark:text-blue-400">{{ substr($schedule->end_time, 0, 5) }}</div>
                                         @endif
                                         @if ($schedule->status === \App\Enums\ScheduleStatus::Published)
                                             <div class="mt-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">● {{ __('Publiée') }}</div>
+                                        @elseif ($schedule->status === \App\Enums\ScheduleStatus::Closed)
+                                            <div class="mt-0.5 text-[10px] font-medium text-zinc-500">🔒 {{ __('Fermée') }}</div>
                                         @endif
                                     @else
                                         <span>+</span>
@@ -219,8 +228,8 @@
                 <flux:error name="scheduleType" />
             </flux:field>
 
-            @if ($scheduleType === 'work')
-                @if ($shiftTemplates->isNotEmpty())
+            @if (\App\Enums\ScheduleType::tryFrom($scheduleType)?->hasHours())
+                @if ($scheduleType === 'work' && $shiftTemplates->isNotEmpty())
                     <flux:field>
                         <flux:label>{{ __('Quart type') }}</flux:label>
                         <flux:select wire:model.live="shiftTemplateId">
@@ -263,7 +272,7 @@
                 <flux:error name="status" />
             </flux:field>
 
-            @if ($scheduleType === 'work')
+            @if (\App\Enums\ScheduleType::tryFrom($scheduleType)?->hasHours())
                 <flux:field>
                     <flux:label>{{ __('Pause non payée') }}</flux:label>
                     <flux:select wire:model="breakMinutes">

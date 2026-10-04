@@ -36,6 +36,8 @@ $warehouseAccess = [
 ];
 
 $accountingAccess = [
+    'payroll.view',
+    'payroll.lock',
     'users.view',
     'users.view_hr',
     'users.edit_hr',
@@ -122,6 +124,8 @@ return [
         'appointments.create' => ['Créer — rendez-vous', 'Créer dans : rendez-vous.'],
         'appointments.edit' => ['Modifier — rendez-vous', 'Modifier dans : rendez-vous.'],
         'appointments.delete' => ['Supprimer — rendez-vous', 'Supprimer dans : rendez-vous.'],
+        'payroll.view' => ['Voir — paie', 'Accéder à la page de paie et télécharger le rapport.'],
+        'payroll.lock' => ['Verrouiller — paie', 'Verrouiller et déverrouiller les horaires d\'une période de paie.'],
         'roles.manage' => ['Gérer les rôles', 'Créer et modifier les rôles et leurs permissions.'],
         'permissions.manage' => ['Gérer les permissions', 'Créer et modifier les permissions.'],
         'stores.view' => ['Voir — magasins', 'Accéder à la page : magasins.'],

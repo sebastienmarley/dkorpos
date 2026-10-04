@@ -127,11 +127,16 @@
                 </flux:sidebar.group>
                 @endcanany
 
-                @canany(['currencies.view', 'invoices.view'])
+                @canany(['currencies.view', 'invoices.view', 'payroll.view'])
                 <flux:sidebar.group :heading="__('Comptabilité')" expandable :expanded="request()->routeIs('accounting.*')">
                     @can('invoices.view')
                         <flux:sidebar.item icon="document-text" :href="route('accounting.invoices')" :current="request()->routeIs('accounting.invoices*')" wire:navigate>
                             {{ __('Facturation fournisseurs') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('payroll.view')
+                        <flux:sidebar.item icon="banknotes" :href="route('accounting.payroll')" :current="request()->routeIs('accounting.payroll')" wire:navigate>
+                            {{ __('Paie') }}
                         </flux:sidebar.item>
                     @endcan
                     @can('currencies.view')

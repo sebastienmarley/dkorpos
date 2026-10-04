@@ -29,6 +29,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $username
  * @property-read Role|null $role
  * @property int|null $position_id
+ * @property int|null $store_id
  * @property string $email
  * @property bool $is_active
  * @property Carbon|null $first_day
@@ -54,7 +55,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property int|null $weekly_sales_target
  * @property int|null $bonus_amount
  * @property int|null $bonus_step
- * @property string|null $vacation_hours_per_day
+ * @property string|null $hours_per_day
  * @property string|null $vacation_days_accrued
  * @property string|null $vacation_hours_available
  * @property Carbon|null $vacation_balance_computed_at
@@ -70,7 +71,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['firstname', 'lastname', 'position_id', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day', 'phone', 'cellphone', 'address_civic', 'address_apartment', 'address_street', 'address_city', 'address_province', 'address_country', 'address_postal_code', 'is_full_time', 'has_group_insurance', 'insurance_plan', 'is_salaried', 'hourly_rate', 'weekly_salary', 'has_commission', 'commission_rate', 'has_bonus', 'weekly_sales_target', 'bonus_amount', 'bonus_step', 'vacation_hours_per_day'])]
+#[Fillable(['firstname', 'lastname', 'position_id', 'store_id', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day', 'phone', 'cellphone', 'address_civic', 'address_apartment', 'address_street', 'address_city', 'address_province', 'address_country', 'address_postal_code', 'is_full_time', 'has_group_insurance', 'insurance_plan', 'is_salaried', 'hourly_rate', 'weekly_salary', 'has_commission', 'commission_rate', 'has_bonus', 'weekly_sales_target', 'bonus_amount', 'bonus_step', 'hours_per_day'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'first_day', 'last_day', 'last_modified', 'last_modified_by', 'vacation_hours_available'])]
 class User extends Authenticatable
 {
@@ -118,7 +119,7 @@ class User extends Authenticatable
             'weekly_sales_target' => 'integer',
             'bonus_amount' => 'integer',
             'bonus_step' => 'integer',
-            'vacation_hours_per_day' => 'decimal:2',
+            'hours_per_day' => 'decimal:2',
             'vacation_days_accrued' => 'decimal:2',
             'vacation_hours_available' => 'decimal:2',
             'vacation_balance_computed_at' => 'datetime',
@@ -399,6 +400,12 @@ class User extends Authenticatable
 
         $query->where(fn (Builder $q) => $q->whereHas('roles', fn (Builder $r) => $r->whereIn('roles.id', $roleIds))
             ->orWhereDoesntHave('roles'));
+    }
+
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     /** @return BelongsTo<Position, $this> */

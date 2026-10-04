@@ -41,6 +41,10 @@ it('autorise la page avec la permission', function (string $route, string $permi
     $this->actingAs($user)->get(route($route))->assertOk();
 })->with('pages');
 
-it('accorde les permissions de page aux rôles par défaut', function (string $route, string $permission) {
-    expect(User::factory()->create()->can($permission))->toBeTrue();
+it('accorde les permissions de page selon config/access.php', function (string $route, string $permission) {
+    foreach (config('access.roles') as $name => $definition) {
+        if ($definition['permissions'] === '*' || in_array($permission, $definition['permissions'], true)) {
+            expect(User::factory()->withRole($name)->create()->can($permission))->toBeTrue("{$name} / {$permission}");
+        }
+    }
 })->with('pages');
