@@ -110,7 +110,7 @@
                                     <flux:select wire:model="{{ $kind }}AccrualMonth" class="flex-1">
                                         <flux:select.option value="">{{ __('Mois') }}</flux:select.option>
                                         @foreach ($months as $number => $monthName)
-                                            <flux:select.option value="{{ $number }}">{{ ucfirst($monthName) }}</flux:select.option>
+                                            <flux:select.option value="{{ $number }}">{{ $monthName }}</flux:select.option>
                                         @endforeach
                                     </flux:select>
                                     <flux:select wire:model="{{ $kind }}AccrualDay" class="w-24">

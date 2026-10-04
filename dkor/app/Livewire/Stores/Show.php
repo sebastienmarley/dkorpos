@@ -7,7 +7,6 @@ use App\Models\Store;
 use Closure;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -239,9 +238,11 @@ class Show extends Component
     public function render(): View
     {
         return view('livewire.stores.show', [
-            'months' => collect(range(1, 12))->mapWithKeys(fn (int $month) => [
-                $month => Carbon::create(2001, $month, 1)->locale('fr')->isoFormat('MMMM'),
-            ])->all(),
+            'months' => [
+                1 => __('Janvier'), 2 => __('Février'), 3 => __('Mars'), 4 => __('Avril'),
+                5 => __('Mai'), 6 => __('Juin'), 7 => __('Juillet'), 8 => __('Août'),
+                9 => __('Septembre'), 10 => __('Octobre'), 11 => __('Novembre'), 12 => __('Décembre'),
+            ],
             'physicalStores' => Store::query()
                 ->where('type', StoreType::Physical)
                 ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->store->warehouse_store_id)->orWhere('id', $this->store->shipping_warehouse_id))
