@@ -54,13 +54,13 @@
                 @forelse ($users as $user)
                     <flux:table.row :key="$user->id">
                         <flux:table.cell variant="strong">
-                            @can('update', $user)
+                            @if (auth()->user()->can('update', $user) || auth()->user()->can('viewHr', $user))
                                 <flux:link :href="route('users.show', $user)" wire:navigate>
                                     {{ $user->fullName() }}
                                 </flux:link>
                             @else
                                 {{ $user->fullName() }}
-                            @endcan
+                            @endif
                         </flux:table.cell>
 
                         <flux:table.cell>{{ $user->position?->name ?? '—' }}</flux:table.cell>

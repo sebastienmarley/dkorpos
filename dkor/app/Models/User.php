@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\InsurancePlan;
+use BackedEnum;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -9,11 +11,14 @@ use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Str;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -37,6 +42,22 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $phone
  * @property string|null $cellphone
  * @property string|null $remember_token
+ * @property bool $is_full_time
+ * @property bool $has_group_insurance
+ * @property InsurancePlan|null $insurance_plan
+ * @property bool $is_salaried
+ * @property string|null $hourly_rate
+ * @property string|null $weekly_salary
+ * @property bool $has_commission
+ * @property string|null $commission_rate
+ * @property bool $has_bonus
+ * @property int|null $weekly_sales_target
+ * @property int|null $bonus_amount
+ * @property int|null $bonus_step
+ * @property string|null $vacation_hours_per_day
+ * @property string|null $vacation_days_accrued
+ * @property string|null $vacation_hours_available
+ * @property Carbon|null $vacation_balance_computed_at
  * @property string|null $address_civic
  * @property string|null $address_apartment
  * @property string|null $address_street
@@ -49,12 +70,28 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['firstname', 'lastname', 'position_id', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day', 'phone', 'cellphone', 'address_civic', 'address_apartment', 'address_street', 'address_city', 'address_province', 'address_country', 'address_postal_code'])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'first_day', 'last_day', 'last_modified', 'last_modified_by'])]
+#[Fillable(['firstname', 'lastname', 'position_id', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day', 'phone', 'cellphone', 'address_civic', 'address_apartment', 'address_street', 'address_city', 'address_province', 'address_country', 'address_postal_code', 'is_full_time', 'has_group_insurance', 'insurance_plan', 'is_salaried', 'hourly_rate', 'weekly_salary', 'has_commission', 'commission_rate', 'has_bonus', 'weekly_sales_target', 'bonus_amount', 'bonus_step', 'vacation_hours_per_day'])]
+#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'first_day', 'last_day', 'last_modified', 'last_modified_by', 'vacation_hours_available'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasRoles, Notifiable;
+    use HasFactory, Notifiable;
+
+    use HasRoles {
+        HasRoles::hasPermissionTo as traitHasPermissionTo;
+        HasRoles::getAllPermissions as traitGetAllPermissions;
+    }
+
+    protected $attributes = [
+        'is_full_time' => false,
+        'has_group_insurance' => false,
+        'is_salaried' => false,
+        'has_commission' => false,
+        'has_bonus' => false,
+    ];
+
+    /** @var SupportCollection<int, string>|null */
+    private ?SupportCollection $deniedPermissionNames = null;
 
     /**
      * Get the attributes that should be cast.
@@ -69,6 +106,22 @@ class User extends Authenticatable
             'last_day' => 'date',
             'last_modified' => 'datetime:Y-m-d H:i',
             'is_active' => 'boolean',
+            'is_full_time' => 'boolean',
+            'has_group_insurance' => 'boolean',
+            'insurance_plan' => InsurancePlan::class,
+            'is_salaried' => 'boolean',
+            'hourly_rate' => 'decimal:2',
+            'weekly_salary' => 'decimal:2',
+            'has_commission' => 'boolean',
+            'commission_rate' => 'decimal:2',
+            'has_bonus' => 'boolean',
+            'weekly_sales_target' => 'integer',
+            'bonus_amount' => 'integer',
+            'bonus_step' => 'integer',
+            'vacation_hours_per_day' => 'decimal:2',
+            'vacation_days_accrued' => 'decimal:2',
+            'vacation_hours_available' => 'decimal:2',
+            'vacation_balance_computed_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -215,6 +268,68 @@ class User extends Authenticatable
         $this->attributes['username'] = blank($value)
             ? null
             : self::generateUniqueUsername($this->firstname ?? '', $this->lastname ?? '');
+    }
+
+    /**
+     * Permissions retirées à cet usager : elles priment sur celles de son rôle et sur ses permissions directes.
+     *
+     * @return BelongsToMany<Permission, $this>
+     */
+    public function deniedPermissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'user_denied_permissions');
+    }
+
+    /**
+     * Noms des permissions retirées (lus une seule fois par instance).
+     *
+     * @return SupportCollection<int, string>
+     */
+    public function deniedPermissionNames(): SupportCollection
+    {
+        return $this->deniedPermissionNames ??= $this->deniedPermissions()->pluck('name');
+    }
+
+    /**
+     * Synchronise les permissions retirées.
+     *
+     * @param  array<int, string>  $names
+     */
+    public function syncDeniedPermissions(array $names): void
+    {
+        $this->deniedPermissions()->sync(Permission::whereIn('name', $names)->pluck('id')->all());
+        $this->deniedPermissionNames = null;
+    }
+
+    /**
+     * Une permission retirée à l'usager prime sur son rôle et sur ses permissions directes.
+     *
+     * @param  string|int|Permission|BackedEnum  $permission
+     */
+    public function hasPermissionTo($permission, ?string $guardName = null): bool
+    {
+        $name = is_string($permission) ? $permission : ($permission instanceof Permission ? $permission->name : null);
+
+        if ($name !== null && $this->deniedPermissionNames()->contains($name)) {
+            return false;
+        }
+
+        return $this->traitHasPermissionTo($permission, $guardName);
+    }
+
+    /**
+     * Permissions effectives : celles du rôle et les directes, moins les permissions retirées.
+     *
+     * @return Collection<int, Model>
+     */
+    public function getAllPermissions(): Collection
+    {
+        $denied = $this->deniedPermissionNames();
+
+        return new Collection(array_values(array_filter(
+            $this->traitGetAllPermissions()->all(),
+            fn (Model $permission): bool => ! $denied->contains($permission->getAttribute('name')),
+        )));
     }
 
     /**

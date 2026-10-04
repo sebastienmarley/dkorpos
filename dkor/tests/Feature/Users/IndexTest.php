@@ -245,7 +245,7 @@ it('demande nouvel employé ou retour quand un employé inactif porte le même n
         ->call('save')
         ->assertSet('showCreateModal', true);
 
-    expect(User::where('firstname', 'Luc')->count())->toBe(1);
+    expect(User::where('firstname', 'Luc')->where('lastname', 'Roy')->count())->toBe(1);
 });
 
 it('crée un nouvel employé avec un nouveau nom d\'utilisateur après confirmation', function () {
