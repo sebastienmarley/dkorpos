@@ -216,10 +216,15 @@
                     </div>
 
                     <div class="space-y-4">
-                        <flux:field variant="inline">
-                            <flux:checkbox wire:model.live="hasBonus" :label="__('Avec primes')" />
-                            <flux:error name="hasBonus" />
-                        </flux:field>
+                        <div class="flex items-center gap-2">
+                            <flux:field variant="inline">
+                                <flux:checkbox wire:model.live="hasBonus" :label="__('Avec primes')" />
+                                <flux:error name="hasBonus" />
+                            </flux:field>
+                            <flux:tooltip :content="__('Une prime est versée pour chaque tranche dépassant l\'objectif de ventes hebdomadaires.')">
+                                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                            </flux:tooltip>
+                        </div>
 
                         @if ($hasBonus)
                             <div class="grid gap-4 sm:grid-cols-3">
@@ -241,9 +246,6 @@
                                     <flux:error name="bonusStep" />
                                 </flux:field>
                             </div>
-                            <flux:text class="text-sm text-zinc-500">
-                                {{ __('Une prime est versée pour chaque tranche dépassant l\'objectif de ventes hebdomadaires.') }}
-                            </flux:text>
                         @endif
                     </div>
 
@@ -252,17 +254,23 @@
 
                         <div class="grid gap-4 sm:grid-cols-2">
                             <flux:field>
-                                <flux:label>{{ __('Jours de vacances cumulés') }}</flux:label>
+                                <flux:label class="inline-flex items-center gap-1.5">
+                                    {{ __('Jours de vacances cumulés') }}
+                                    <flux:tooltip :content="__('Calculé depuis le :date selon l\'ancienneté et l\'horaire.', ['date' => \Illuminate\Support\Carbon::parse($vacationReferenceStart)->translatedFormat('j F Y')])">
+                                        <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                                    </flux:tooltip>
+                                </flux:label>
                                 <flux:input :value="$vacationDaysAccrued" readonly disabled />
-                                <flux:description>
-                                    {{ __('Calculé depuis le :date selon l\'ancienneté et l\'horaire.', ['date' => \Illuminate\Support\Carbon::parse($vacationReferenceStart)->translatedFormat('j F Y')]) }}
-                                </flux:description>
                             </flux:field>
 
                             <flux:field>
-                                <flux:label>{{ __('Heures par jour de vacances') }}</flux:label>
+                                <flux:label class="inline-flex items-center gap-1.5">
+                                    {{ __('Heures par jour de vacances') }}
+                                    <flux:tooltip :content="__('Vide : :hours h par défaut.', ['hours' => config('vacations.default_hours_per_day')])">
+                                        <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                                    </flux:tooltip>
+                                </flux:label>
                                 <flux:input wire:model="vacationHoursPerDay" type="text" inputmode="decimal" autocomplete="off" :placeholder="config('vacations.default_hours_per_day')" x-data x-on:input.capture="$el.value = $el.value.replace(/,/g, '.').replace(/[^\d.]/g, '').replace(/^(\d*\.?)(.*)$/, (m, a, b) => a + b.replace(/\./g, '')).replace(/(\.\d{2}).*/, '$1')" />
-                                <flux:description>{{ __('Vide : :hours h par défaut.', ['hours' => config('vacations.default_hours_per_day')]) }}</flux:description>
                                 <flux:error name="vacationHoursPerDay" />
                             </flux:field>
                         </div>
