@@ -102,7 +102,7 @@
                     </flux:sidebar.item>
                 @endcan
 
-                @canany(['products.view', 'departments.view', 'categories.view', 'colors.view'])
+                @canany(['products.view', 'departments.view', 'categories.view', 'colors.view', 'price_lists.view'])
                 <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('catalog.*')">
                     @can('products.view')
                         <flux:sidebar.item icon="cube" :href="route('products.index')" :current="request()->routeIs('products.*')" wire:navigate>
@@ -122,6 +122,11 @@
                     @can('colors.view')
                         <flux:sidebar.item icon="swatch" :href="route('catalog.colors')" :current="request()->routeIs('catalog.colors')" wire:navigate>
                             {{ __('Couleurs') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('price_lists.view')
+                        <flux:sidebar.item icon="currency-dollar" :href="route('catalog.price-lists')" :current="request()->routeIs('catalog.price-lists*')" wire:navigate>
+                            {{ __('Listes de prix') }}
                         </flux:sidebar.item>
                     @endcan
                 </flux:sidebar.group>

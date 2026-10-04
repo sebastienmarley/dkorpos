@@ -159,6 +159,12 @@
                     </flux:field>
                 </div>
 
+                <flux:field class="max-w-xs">
+                    <flux:label>{{ __('IMAP ($)') }}</flux:label>
+                    <flux:input wire:model="imap" type="number" step="0.01" min="0" placeholder="0.00" />
+                    <flux:error name="imap" />
+                </flux:field>
+
                 <flux:field>
                     <flux:label>{{ __('Description') }}</flux:label>
                     <flux:textarea wire:model="description" rows="8" />
@@ -200,6 +206,32 @@
                     @endcan
                 </div>
             </form>
+        </div>
+
+        {{-- UPC --}}
+        <div x-show="tab === 'description'" x-cloak class="mt-8 max-w-2xl">
+            <flux:heading size="sm" class="mb-3">{{ __('UPC') }}</flux:heading>
+            <div class="mb-3 flex flex-wrap gap-2">
+                @forelse ($upcs as $upc)
+                    <flux:badge wire:key="upc-{{ $upc->id }}" class="font-mono">
+                        {{ $upc->upc }}
+                        @can('products.edit')
+                            <button type="button" wire:click="removeUpc({{ $upc->id }})" class="ml-1 text-zinc-400 hover:text-red-500" aria-label="{{ __('Retirer') }}">&times;</button>
+                        @endcan
+                    </flux:badge>
+                @empty
+                    <flux:text class="text-zinc-400">{{ __('Aucun UPC.') }}</flux:text>
+                @endforelse
+            </div>
+            @can('products.edit')
+                <form wire:submit="addUpc" class="flex max-w-sm items-start gap-2">
+                    <flux:field class="flex-1">
+                        <flux:input wire:model="newUpc" type="text" :placeholder="__('Ajouter un UPC')" />
+                        <flux:error name="newUpc" />
+                    </flux:field>
+                    <flux:button type="submit">{{ __('Ajouter') }}</flux:button>
+                </form>
+            @endcan
         </div>
 
         {{-- Photos --}}

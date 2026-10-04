@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property string $clean_model
  * @property string|null $supplier_model
  * @property float $cost
+ * @property float|null $imap
  * @property string|null $collection
  * @property string|null $description
  * @property float|null $length
@@ -37,7 +38,7 @@ use Illuminate\Support\Carbon;
  * @property-read Color|null $color
  * @property-read float $selling_price
  */
-#[Fillable(['supplier_id', 'department_id', 'category_id', 'color_id', 'model', 'clean_model', 'supplier_model', 'collection', 'cost', 'description', 'length', 'width', 'height', 'weight', 'is_discontinued', 'is_non_orderable'])]
+#[Fillable(['supplier_id', 'department_id', 'category_id', 'color_id', 'model', 'clean_model', 'supplier_model', 'collection', 'cost', 'imap', 'description', 'length', 'width', 'height', 'weight', 'is_discontinued', 'is_non_orderable'])]
 class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
@@ -45,6 +46,7 @@ class Product extends Model
 
     protected $casts = [
         'cost' => 'float',
+        'imap' => 'float',
         'length' => 'float',
         'width' => 'float',
         'height' => 'float',
@@ -81,6 +83,12 @@ class Product extends Model
     public function inventoryUnits(): HasMany
     {
         return $this->hasMany(InventoryUnit::class);
+    }
+
+    /** @return HasMany<ProductUpc, $this> */
+    public function upcs(): HasMany
+    {
+        return $this->hasMany(ProductUpc::class);
     }
 
     /** @return HasOne<InventoryStock, $this> */
