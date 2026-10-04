@@ -36,6 +36,9 @@ $warehouseAccess = [
 ];
 
 $accountingAccess = [
+    'users.view',
+    'users.view_hr',
+    'users.edit_hr',
     'suppliers.view',
     'suppliers.create',
     'suppliers.edit',
@@ -66,6 +69,8 @@ return [
         'users.create' => ['Créer un utilisateur', 'Ajouter un nouvel employé.'],
         'users.edit' => ['Modifier un utilisateur', 'Modifier la fiche, le statut et le mot de passe d\'un employé.'],
         'users.edit_self' => ['Modifier sa propre fiche', 'Modifier sa propre fiche utilisateur.'],
+        'users.view_hr' => ['Voir les informations RH', 'Consulter l\'onglet RH (temps plein, assurances, salaire, commission) d\'un employé.'],
+        'users.edit_hr' => ['Modifier les informations RH', 'Modifier l\'onglet RH d\'un employé (sauf le sien).'],
         'users.assign_permissions' => ['Attribuer des permissions supplémentaires', 'Ajouter des permissions à un utilisateur en plus de celles de son rôle.'],
         'customers.view' => ['Voir — clients', 'Accéder à la page : clients.'],
         'customers.create' => ['Créer — clients', 'Créer dans : clients.'],

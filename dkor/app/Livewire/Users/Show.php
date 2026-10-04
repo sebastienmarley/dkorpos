@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Users;
 
+use App\Actions\CalculateVacationBalance;
 use App\Actions\PurgeSchedulesAfterLastDay;
+use App\Enums\InsurancePlan;
 use App\Models\Permission;
 use App\Models\Position;
 use App\Models\Role;
@@ -13,6 +15,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
@@ -42,6 +45,38 @@ class Show extends Component
 
     public ?string $cellphone = null;
 
+    // RH
+    public bool $isFullTime = false;
+
+    public bool $hasGroupInsurance = false;
+
+    public ?string $insurancePlan = null;
+
+    public bool $isSalaried = false;
+
+    public ?string $hourlyRate = null;
+
+    public ?string $weeklySalary = null;
+
+    public bool $hasCommission = false;
+
+    public ?string $commissionRate = null;
+
+    public bool $hasBonus = false;
+
+    public ?string $weeklySalesTarget = null;
+
+    public ?string $bonusAmount = null;
+
+    public ?string $bonusStep = null;
+
+    public ?string $vacationHoursPerDay = null;
+
+    /** Jours de vacances cumulés dans l'année de référence (calculés, lecture seule). */
+    public ?string $vacationDaysAccrued = null;
+
+    public ?string $vacationReferenceStart = null;
+
     // Adresse
     /** @var array{civic: string, apartment: string, street: string, city: string, province: string, country: string, postal_code: string} */
     public array $address = [
@@ -54,9 +89,9 @@ class Show extends Component
 
     public ?string $generatedPassword = null;
 
-    // Accès : permissions supplémentaires (en plus de celles du rôle)
+    // Accès : permissions effectives (celles du rôle, plus les ajouts, moins les retraits)
     /** @var array<int, string> */
-    public array $extraPermissions = [];
+    public array $selectedPermissions = [];
 
     public function mount(User $user): void
     {
@@ -71,9 +106,14 @@ class Show extends Component
 
         abort_unless($viewer->canSeeRole($user->role), 404);
 
-        $this->authorize('update', $user);
+        abort_unless($viewer->can('update', $user) || $viewer->can('viewHr', $user), 403);
 
         $this->user = $user;
+
+        if ($viewer->cannot('update', $user)) {
+            $this->activeTab = 'hr';
+        }
+
         $this->fillFromModel();
     }
 
@@ -110,7 +150,92 @@ class Show extends Component
 
         (new PurgeSchedulesAfterLastDay)->execute($this->user);
 
+        // Le premier et le dernier jour changent l'ancienneté et la période d'acquisition des vacances.
+        app(CalculateVacationBalance::class)->refresh($this->user);
+
         Flux::toast(text: __('Identification sauvegardée.'), variant: 'success');
+    }
+
+    public function updatedHasGroupInsurance(bool $value): void
+    {
+        if (! $value) {
+            $this->insurancePlan = null;
+        }
+    }
+
+    public function updatedHasCommission(bool $value): void
+    {
+        if (! $value) {
+            $this->commissionRate = null;
+        }
+    }
+
+    public function updatedHasBonus(bool $value): void
+    {
+        if (! $value) {
+            $this->reset(['weeklySalesTarget', 'bonusAmount', 'bonusStep']);
+        }
+    }
+
+    public function saveHr(): void
+    {
+        $this->authorize('editHr', $this->user);
+
+        $validated = $this->validate([
+            'isFullTime' => ['boolean'],
+            'hasGroupInsurance' => ['boolean'],
+            'insurancePlan' => [Rule::requiredIf($this->hasGroupInsurance), 'nullable', Rule::enum(InsurancePlan::class)],
+            'isSalaried' => ['boolean'],
+            'hourlyRate' => ['nullable', 'numeric', 'regex:/^\d{1,4}(\.\d{1,2})?$/', 'gt:0'],
+            'weeklySalary' => ['nullable', 'numeric', 'regex:/^\d{1,5}(\.\d{1,2})?$/', 'gt:0'],
+            'hasCommission' => ['boolean'],
+            'commissionRate' => [Rule::requiredIf($this->hasCommission), 'nullable', 'numeric', 'regex:/^\d{1,3}(\.\d{1,2})?$/', 'gt:0', 'max:100'],
+            'hasBonus' => ['boolean'],
+            'weeklySalesTarget' => [Rule::requiredIf($this->hasBonus), 'nullable', 'integer', 'regex:/^\d{1,7}$/', 'gt:0'],
+            'bonusAmount' => [Rule::requiredIf($this->hasBonus), 'nullable', 'integer', 'regex:/^\d{1,7}$/', 'gt:0'],
+            'bonusStep' => [Rule::requiredIf($this->hasBonus), 'nullable', 'integer', 'regex:/^\d{1,7}$/', 'gt:0'],
+            'vacationHoursPerDay' => ['nullable', 'numeric', 'regex:/^\d{1,2}(\.\d{1,2})?$/', 'gt:0', 'max:24'],
+        ], [
+            'vacationHoursPerDay.*' => __('Entrez un nombre d\'heures entre 0 et 24, avec au plus 2 décimales.'),
+            'hourlyRate.regex' => __('Entrez un montant valide avec au plus 2 décimales (chiffres seulement).'),
+            'weeklySalary.regex' => __('Entrez un montant valide avec au plus 2 décimales (chiffres seulement).'),
+            'commissionRate.regex' => __('Entrez un pourcentage valide avec au plus 2 décimales (chiffres seulement).'),
+            'commissionRate.gt' => __('La commission doit être supérieure à 0.'),
+            'weeklySalesTarget.*' => __('Entrez un montant entier supérieur à 0 (chiffres seulement).'),
+            'bonusAmount.*' => __('Entrez un montant entier supérieur à 0 (chiffres seulement).'),
+            'bonusStep.*' => __('Entrez un montant entier supérieur à 0 (chiffres seulement).'),
+            'hourlyRate.gt' => __('Le taux horaire doit être supérieur à 0.'),
+            'weeklySalary.gt' => __('Le salaire hebdomadaire doit être supérieur à 0.'),
+        ]);
+
+        $this->user->fill([
+            'is_full_time' => $validated['isFullTime'],
+            'has_group_insurance' => $validated['hasGroupInsurance'],
+            'insurance_plan' => $validated['hasGroupInsurance'] ? $validated['insurancePlan'] : null,
+            'is_salaried' => $validated['isSalaried'],
+            // Taux horaire et salaire hebdomadaire sont mutuellement exclusifs.
+            'hourly_rate' => $validated['isSalaried'] || blank($validated['hourlyRate']) ? null : $validated['hourlyRate'],
+            'weekly_salary' => ! $validated['isSalaried'] || blank($validated['weeklySalary']) ? null : $validated['weeklySalary'],
+            'has_commission' => $validated['hasCommission'],
+            'commission_rate' => $validated['hasCommission'] ? $validated['commissionRate'] : null,
+            'has_bonus' => $validated['hasBonus'],
+            'weekly_sales_target' => $validated['hasBonus'] ? (int) $validated['weeklySalesTarget'] : null,
+            'bonus_amount' => $validated['hasBonus'] ? (int) $validated['bonusAmount'] : null,
+            'bonus_step' => $validated['hasBonus'] ? (int) $validated['bonusStep'] : null,
+            'vacation_hours_per_day' => filled($validated['vacationHoursPerDay']) ? $validated['vacationHoursPerDay'] : null,
+        ])->markModifiedBy(Auth::user())->save();
+
+        app(CalculateVacationBalance::class)->refresh($this->user);
+
+        $this->fillFromModel();
+
+        Flux::toast(text: __('Informations RH sauvegardées.'), variant: 'success');
+    }
+
+    /** @return array<int, InsurancePlan> */
+    public function getInsurancePlans(): array
+    {
+        return InsurancePlan::cases();
     }
 
     public function updatedAddressCountry(): void
@@ -174,11 +299,31 @@ class Show extends Component
         $actor = Auth::user();
         $grantable = $actor->getAllPermissions()->pluck('name');
         $fromRole = $this->user->getPermissionsViaRoles()->pluck('name');
+        $selected = collect($this->selectedPermissions);
 
-        $kept = $this->user->getDirectPermissions()->pluck('name')->reject(fn (string $name) => $grantable->contains($name));
-        $added = collect($this->extraPermissions)->intersect($grantable)->diff($fromRole);
+        $direct = $this->user->getDirectPermissions()->pluck('name');
+        $denied = $this->user->deniedPermissionNames();
 
-        $this->user->syncPermissions($kept->merge($added)->unique()->values()->all());
+        // On ne touche qu'aux permissions que l'acteur possède lui-même : les autres restent telles quelles.
+        foreach (Permission::pluck('name') as $name) {
+            if (! $grantable->contains($name)) {
+                continue;
+            }
+
+            $direct = $direct->reject(fn (string $n) => $n === $name);
+            $denied = $denied->reject(fn (string $n) => $n === $name);
+
+            if ($selected->contains($name)) {
+                if (! $fromRole->contains($name)) {
+                    $direct->push($name);
+                }
+            } elseif ($fromRole->contains($name)) {
+                $denied->push($name);
+            }
+        }
+
+        $this->user->syncPermissions($direct->unique()->values()->all());
+        $this->user->syncDeniedPermissions($denied->unique()->values()->all());
         $this->user->markModifiedBy($actor)->save();
 
         $this->fillFromModel();
@@ -246,12 +391,33 @@ class Show extends Component
         $this->lastname = $this->user->lastname;
         $this->role = (string) $this->user->role?->name;
         $this->positionId = $this->user->position_id;
-        $this->extraPermissions = $this->user->getDirectPermissions()->pluck('name')->all();
+        $this->selectedPermissions = $this->user->getAllPermissions()->pluck('name')->all();
         $this->firstDay = $this->user->first_day?->format('Y-m-d');
         $this->lastDay = $this->user->last_day?->format('Y-m-d');
         $this->personalEmail = $this->user->personal_email;
         $this->phone = $this->user->phone;
         $this->cellphone = $this->user->cellphone;
+        // Les informations RH ne sont chargées (donc envoyées au navigateur) que pour qui a le droit de les voir.
+        if (Auth::user()->can('viewHr', $this->user)) {
+            $this->isFullTime = $this->user->is_full_time;
+            $this->hasGroupInsurance = $this->user->has_group_insurance;
+            $this->insurancePlan = $this->user->insurance_plan?->value;
+            $this->isSalaried = $this->user->is_salaried;
+            $this->hourlyRate = $this->user->hourly_rate;
+            $this->weeklySalary = $this->user->weekly_salary;
+            $this->hasCommission = $this->user->has_commission;
+            $this->commissionRate = $this->user->commission_rate;
+            $this->hasBonus = $this->user->has_bonus;
+            $this->weeklySalesTarget = $this->user->weekly_sales_target === null ? null : (string) $this->user->weekly_sales_target;
+            $this->bonusAmount = $this->user->bonus_amount === null ? null : (string) $this->user->bonus_amount;
+            $this->bonusStep = $this->user->bonus_step === null ? null : (string) $this->user->bonus_step;
+            $this->vacationHoursPerDay = $this->user->vacation_hours_per_day;
+
+            $balance = app(CalculateVacationBalance::class)->calculate($this->user);
+            $this->vacationDaysAccrued = number_format($balance['days_accrued'], 2, '.', '');
+            $this->vacationReferenceStart = $balance['reference_start']->toDateString();
+        }
+
         $this->address = [
             'civic' => $this->user->address_civic ?? '',
             'apartment' => $this->user->address_apartment ?? '',

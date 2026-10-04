@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\CalculateVacationBalance;
 use App\Enums\ScheduleStatus;
 use App\Enums\ScheduleType;
 use Database\Factories\ScheduleFactory;
@@ -42,6 +43,24 @@ class Schedule extends Model
             $schedule->created_by ??= $authorId;
             $schedule->last_updated_by ??= $authorId;
         });
+
+        // Une journée de vacances ajoutée, déplacée ou retirée change le solde de l'employé.
+        $refreshVacationBalance = function (Schedule $schedule): void {
+            $wasVacation = $schedule->getOriginal('type') === ScheduleType::Vacation
+                || $schedule->getOriginal('type') === ScheduleType::Vacation->value;
+
+            if ($schedule->type !== ScheduleType::Vacation && ! $wasVacation) {
+                return;
+            }
+
+            $userIds = array_unique(array_filter([$schedule->user_id, $schedule->getOriginal('user_id')]));
+
+            User::query()->whereKey($userIds)->get()
+                ->each(fn (User $user) => app(CalculateVacationBalance::class)->refresh($user));
+        };
+
+        static::saved($refreshVacationBalance);
+        static::deleted($refreshVacationBalance);
 
         static::updating(function (Schedule $schedule): void {
             $authorId = auth()->user()?->id;
