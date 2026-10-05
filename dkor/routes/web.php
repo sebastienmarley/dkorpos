@@ -12,6 +12,8 @@ use App\Livewire\Admin\Roles;
 use App\Livewire\Catalog\Categories;
 use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
+use App\Livewire\Catalog\PriceLists;
+use App\Livewire\Catalog\PriceListShow;
 use App\Livewire\Customers\Index as CustomersIndex;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
@@ -68,6 +70,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('catalog/departments', Departments::class)->middleware('can:departments.view')->name('catalog.departments');
     Route::get('catalog/categories', Categories::class)->middleware('can:categories.view')->name('catalog.categories');
     Route::get('catalog/colors', Colors::class)->middleware('can:colors.view')->name('catalog.colors');
+    Route::get('catalog/price-lists', PriceLists::class)->middleware('can:price_lists.view')->name('catalog.price-lists');
+    Route::get('catalog/price-lists/{priceList}', PriceListShow::class)->middleware('can:price_lists.view')->name('catalog.price-lists.show');
 
     Route::get('accounting/invoices', InvoicesIndex::class)->middleware('can:invoices.view')->name('accounting.invoices');
     Route::get('accounting/invoices/receptions/{reception}', InvoiceForm::class)->middleware('can:invoices.view')->name('accounting.invoices.reception');

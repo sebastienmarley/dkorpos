@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Rules\UniqueCleanProductModel;
+use Closure;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -42,6 +43,10 @@ class Show extends Component
     // Description
     public string $colorId = '';
 
+    public string $imap = '';
+
+    public string $newUpc = '';
+
     public string $collection = '';
 
     public string $description = '';
@@ -74,8 +79,20 @@ class Show extends Component
 
         $this->validate([
             'supplierId' => ['required', 'exists:suppliers,id'],
-            'model' => ['required', 'string', 'max:255', new UniqueCleanProductModel($this->supplierId, $this->product->id)],
-            'supplierModel' => ['nullable', 'string', 'max:255'],
+            'model' => ['required', 'string', 'max:255', new UniqueCleanProductModel($this->supplierId, $this->product->id), new UniqueCleanProductModel($this->supplierId, $this->product->id, 'supplier_clean_model')],
+            'supplierModel' => [
+                'required', 'string', 'max:255',
+                new UniqueCleanProductModel($this->supplierId, $this->product->id, 'supplier_clean_model'),
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    if ($value !== $this->product->supplier_model && $this->product->isInPriceList()) {
+                        $fail(__('Le modèle fournisseur ne peut pas être modifié : le produit est dans une liste de prix.'));
+                    }
+
+                    if (filled($value) && UniqueCleanProductModel::clean($value) !== $this->cleanModel) {
+                        $fail(__('Le modèle fournisseur doit correspondre au modèle une fois nettoyé.'));
+                    }
+                },
+            ],
             'departmentId' => ['nullable', 'exists:departments,id'],
             'categoryId' => ['nullable', 'exists:categories,id'],
             'isDiscontinued' => ['boolean'],
@@ -87,7 +104,7 @@ class Show extends Component
             'supplier_id' => $this->supplierId,
             'model' => $this->model,
             'clean_model' => $this->cleanModel,
-            'supplier_model' => filled($this->supplierModel) ? $this->supplierModel : null,
+            'supplier_model' => $this->supplierModel,
             'department_id' => filled($this->departmentId) ? $this->departmentId : null,
             'category_id' => filled($this->categoryId) ? $this->categoryId : null,
             'is_discontinued' => $this->isDiscontinued,
@@ -105,6 +122,7 @@ class Show extends Component
 
         $this->validate([
             'colorId' => ['nullable', 'exists:colors,id'],
+            'imap' => ['nullable', 'numeric', 'min:0'],
             'collection' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'length' => ['nullable', 'numeric', 'min:0'],
@@ -115,6 +133,7 @@ class Show extends Component
 
         $this->product->fill([
             'color_id' => filled($this->colorId) ? $this->colorId : null,
+            'imap' => filled($this->imap) ? $this->imap : null,
             'collection' => filled($this->collection) ? $this->collection : null,
             'description' => filled($this->description) ? $this->description : null,
             'length' => filled($this->length) ? $this->length : null,
@@ -124,6 +143,25 @@ class Show extends Component
         ])->save();
 
         Flux::toast(text: __('Description sauvegardée.'), variant: 'success');
+    }
+
+    public function addUpc(): void
+    {
+        $this->authorize('products.edit');
+
+        $this->newUpc = trim($this->newUpc);
+
+        $this->validate(['newUpc' => ['required', 'regex:/^\d+$/', 'max:255']]);
+
+        $this->product->upcs()->firstOrCreate(['upc' => $this->newUpc]);
+        $this->reset('newUpc');
+    }
+
+    public function removeUpc(int $upcId): void
+    {
+        $this->authorize('products.edit');
+
+        $this->product->upcs()->whereKey($upcId)->delete();
     }
 
     public function getSellingPrice(): float
@@ -176,6 +214,7 @@ class Show extends Component
         $this->isNonOrderable = $this->product->is_non_orderable;
         $this->cost = (string) $this->product->cost;
         $this->colorId = (string) ($this->product->color_id ?? '');
+        $this->imap = $this->product->imap !== null ? (string) $this->product->imap : '';
         $this->collection = $this->product->collection ?? '';
         $this->description = $this->product->description ?? '';
         $this->length = $this->product->length !== null ? (string) $this->product->length : '';
@@ -186,7 +225,8 @@ class Show extends Component
 
     public function render(): View
     {
-        return view('livewire.products.show')
+        return view('livewire.products.show', [
+            'supplierModelLocked' => $this->product->isInPriceList(), 'upcs' => $this->product->upcs()->orderBy('id')->get()])
             ->layout('layouts.app', ['title' => $this->product->model]);
     }
 }
