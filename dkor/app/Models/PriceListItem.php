@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\PriceListItemFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -45,6 +46,20 @@ class PriceListItem extends Model
             'height' => 'float',
             'weight' => 'float',
         ];
+    }
+
+    /**
+     * Lignes des listes de prix actives du fournisseur (non archivées et déjà commencées).
+     *
+     * @param  Builder<PriceListItem>  $query
+     * @return Builder<PriceListItem>
+     */
+    public function scopeInActiveLists(Builder $query, int $supplierId): Builder
+    {
+        return $query->whereHas('priceListList.priceList', fn (Builder $priceLists) => $priceLists
+            ->active()
+            ->where('supplier_id', $supplierId)
+            ->whereDate('starts_on', '<=', today()));
     }
 
     /** @return BelongsTo<PriceListList, $this> */
