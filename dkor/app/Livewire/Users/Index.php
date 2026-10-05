@@ -4,6 +4,7 @@ namespace App\Livewire\Users;
 
 use App\Models\Position;
 use App\Models\Role;
+use App\Models\Store;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -36,6 +37,8 @@ class Index extends Component
     public string $role = 'salesman';
 
     public ?int $positionId = null;
+
+    public ?int $storeId = null;
 
     public ?string $first_day = null;
 
@@ -123,7 +126,7 @@ class Index extends Component
     {
         $this->authorize('create', User::class);
 
-        $this->reset(['firstname', 'lastname', 'role', 'positionId', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
+        $this->reset(['firstname', 'lastname', 'role', 'positionId', 'storeId', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
         $this->role = $this->defaultRole();
         $this->showCreateModal = true;
     }
@@ -137,6 +140,7 @@ class Index extends Component
             'lastname' => ['required', 'string', 'max:255'],
             'role' => ['required', 'string', 'in:'.$this->assignableRoles()->pluck('name')->implode(',')],
             'positionId' => ['nullable', 'integer', 'exists:positions,id'],
+            'storeId' => ['required', 'integer', 'exists:stores,id'],
             'first_day' => ['nullable', 'date'],
             'personalEmail' => ['nullable', 'email', 'max:255'],
             'cellphone' => ['required', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
@@ -171,6 +175,7 @@ class Index extends Component
         $user->lastname = $validated['lastname'];
         $user->email = $email;
         $user->position_id = $validated['positionId'];
+        $user->store_id = $validated['storeId'];
         $user->is_active = true;
         $user->first_day = $validated['first_day'];
         $user->personal_email = $validated['personalEmail'];
@@ -197,7 +202,7 @@ class Index extends Component
     public function closeCreateModal(): void
     {
         $this->showCreateModal = false;
-        $this->reset(['firstname', 'lastname', 'role', 'positionId', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
+        $this->reset(['firstname', 'lastname', 'role', 'positionId', 'storeId', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
         $this->role = $this->defaultRole();
     }
 
@@ -221,6 +226,12 @@ class Index extends Component
     public function visibleRoles(): Collection
     {
         return Auth::user()->visibleRoles();
+    }
+
+    /** @return Collection<int, Store> */
+    public function stores(): Collection
+    {
+        return Store::query()->where('is_active', true)->orderBy('name')->get();
     }
 
     /** @return Collection<int, Position> */

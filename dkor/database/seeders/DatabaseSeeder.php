@@ -2,7 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Enums\StoreType;
 use App\Enums\SupplierType;
+use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -19,12 +21,18 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([PermissionSeeder::class, RoleSeeder::class, CurrencySeeder::class]);
 
+        $store = Store::firstOrCreate(
+            ['name' => 'Magasin principal'],
+            ['type' => StoreType::Physical, 'opening_hours' => Store::defaultOpeningHours(), 'is_active' => true],
+        );
+
         User::updateOrCreate(
             ['email' => 'testuser@dkor.ca'],
             [
                 'firstname' => 'Test',
                 'lastname' => 'User',
                 'username' => 'testuser',
+                'store_id' => $store->id,
                 'is_active' => true,
                 'first_day' => now()->subMonths(3)->toDateString(),
                 'last_day' => null,
@@ -39,6 +47,7 @@ class DatabaseSeeder extends Seeder
                 'firstname' => 'Test',
                 'lastname' => 'Admin',
                 'username' => 'testadmin',
+                'store_id' => $store->id,
                 'is_active' => true,
                 'first_day' => now()->subMonths(3)->toDateString(),
                 'last_day' => null,
@@ -61,6 +70,7 @@ class DatabaseSeeder extends Seeder
                 'firstname' => 'Test',
                 'lastname' => 'Sale',
                 'username' => 'testsale',
+                'store_id' => $store->id,
                 'is_active' => true,
                 'first_day' => now()->subMonths(3)->toDateString(),
                 'last_day' => null,

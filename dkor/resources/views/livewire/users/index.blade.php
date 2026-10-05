@@ -197,6 +197,17 @@
             </flux:field>
 
             <flux:field>
+                <flux:label>{{ __('Magasin') }}</flux:label>
+                <flux:select wire:model="storeId" required>
+                    <flux:select.option value="">{{ __('Choisir un magasin') }}</flux:select.option>
+                    @foreach ($this->stores() as $store)
+                        <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="storeId" />
+            </flux:field>
+
+            <flux:field>
                 <flux:label>{{ __('Premier jour') }}</flux:label>
                 <flux:input wire:model="first_day" type="date" />
                 <flux:error name="first_day" />

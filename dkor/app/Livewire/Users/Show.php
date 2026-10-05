@@ -129,7 +129,7 @@ class Show extends Component
             'lastname' => ['required', 'string', 'max:255'],
             'role' => ['required', 'string', 'in:'.$this->allowedRoleNames()->implode(',')],
             'positionId' => ['nullable', 'integer', 'exists:positions,id'],
-            'storeId' => ['nullable', 'integer', 'exists:stores,id'],
+            'storeId' => ['required', 'integer', 'exists:stores,id'],
             'firstDay' => ['required', 'date'],
             'lastDay' => ['nullable', 'date', 'after_or_equal:firstDay'],
             'personalEmail' => ['nullable', 'email', 'max:255'],

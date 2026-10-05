@@ -2,6 +2,7 @@
 
 use App\Livewire\Users\Index;
 use App\Models\Role;
+use App\Models\Store;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
@@ -111,6 +112,18 @@ it('met à jour le courriel généré après confirmNewEmployee', function () {
 
 // ── Création d'utilisateur ─────────────────────────────────────────────────
 
+it('exige un magasin à la création d\'un utilisateur', function () {
+    $this->actingAs(User::factory()->withRole('admin')->create());
+
+    Livewire::test(Index::class)
+        ->call('openCreateModal')
+        ->set('firstname', 'Marie')
+        ->set('lastname', 'Cote')
+        ->set('cellphone', '(514)555-1234')
+        ->call('save')
+        ->assertHasErrors(['storeId' => 'required']);
+});
+
 it('crée un nouvel utilisateur avec le courriel généré', function () {
     $this->actingAs(User::factory()->withRole('admin')->create());
 
@@ -120,6 +133,7 @@ it('crée un nouvel utilisateur avec le courriel généré', function () {
         ->set('lastname', 'Cote')
         ->set('role', 'salesman')
         ->set('cellphone', '(514)555-1234')
+        ->set('storeId', Store::factory()->create()->id)
         ->call('save')
         ->assertHasNoErrors()
         ->assertSet('showCreateModal', false);
@@ -148,6 +162,7 @@ it('génère un username et courriel uniques en cas de doublon de nom', function
         ->set('lastname', 'Roy')
         ->set('role', 'salesman')
         ->set('cellphone', '(514)555-1234')
+        ->set('storeId', Store::factory()->create()->id)
         ->call('save')
         ->assertHasNoErrors();
 
@@ -207,6 +222,7 @@ it('génère un mot de passe temporaire aléatoire à la création', function ()
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
         ->set('cellphone', '(514)555-1234')
+        ->set('storeId', Store::factory()->create()->id)
         ->call('save')
         ->assertSet('showCredentialsModal', true)
         ->assertSet('createdEmail', 'mariecote@dkor.ca');
@@ -242,6 +258,7 @@ it('demande nouvel employé ou retour quand un employé inactif porte le même n
         ->set('lastname', 'Roy')
         ->assertSet('inactiveMatchIds', fn ($ids) => count($ids) === 1)
         ->set('cellphone', '(514)555-1234')
+        ->set('storeId', Store::factory()->create()->id)
         ->call('save')
         ->assertSet('showCreateModal', true);
 
@@ -259,6 +276,7 @@ it('crée un nouvel employé avec un nouveau nom d\'utilisateur après confirmat
         ->set('lastname', 'Roy')
         ->call('confirmNewEmployee')
         ->set('cellphone', '(514)555-1234')
+        ->set('storeId', Store::factory()->create()->id)
         ->call('save')
         ->assertHasNoErrors()
         ->assertSet('showCreateModal', false);
@@ -318,6 +336,7 @@ it('permet à Admin, Owner et Manager de créer un utilisateur', function (strin
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
         ->set('cellphone', '(514)555-1234')
+        ->set('storeId', Store::factory()->create()->id)
         ->call('save')
         ->assertHasNoErrors();
 
@@ -333,6 +352,7 @@ it('interdit à un Manager de créer un Admin ou un Owner', function (string $ci
         ->set('lastname', 'Cote')
         ->set('role', $cible)
         ->set('cellphone', '(514)555-1234')
+        ->set('storeId', Store::factory()->create()->id)
         ->call('save')
         ->assertHasErrors(['role']);
 
@@ -359,6 +379,7 @@ it('enregistre le créateur dans last_modified_by', function () {
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
         ->set('cellphone', '(514)555-1234')
+        ->set('storeId', Store::factory()->create()->id)
         ->call('save');
 
     $user = User::where('email', 'mariecote@dkor.ca')->first();

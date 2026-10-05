@@ -42,6 +42,17 @@ it('affiche la fiche et préremplit les champs', function () {
         ->assertSet('personalEmail', 'alice@exemple.com');
 });
 
+it('exige un magasin pour sauvegarder l\'identification', function () {
+    $user = employeComplet();
+
+    $this->actingAs(User::factory()->withRole('admin')->create());
+
+    Livewire::test(Show::class, ['user' => $user])
+        ->set('storeId', null)
+        ->call('saveIdentification')
+        ->assertHasErrors(['storeId' => 'required']);
+});
+
 it('sauvegarde l\'identification', function () {
     $user = employeComplet();
 
