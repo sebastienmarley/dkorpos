@@ -56,6 +56,7 @@ dataset('actions interdites', [
     'invoices.create' => [fn () => Livewire::test(InvoiceForm::class, ['reception' => Reception::factory()->create()])->call('save')],
     'invoices.create (facture libre)' => [fn () => Livewire::test(InvoiceCreate::class)->call('save')],
     'products.create' => [fn () => Livewire::test(ProductForm::class)->call('openCreate')],
+    'products.create (liste de prix)' => [fn () => Livewire::test(ProductForm::class)->call('selectFromPriceList', 1)],
     'departments.create' => [fn () => Livewire::test(Departments::class)->call('openCreate')],
     'categories.create' => [fn () => Livewire::test(Categories::class)->call('openCreate')],
     'colors.create' => [fn () => Livewire::test(Colors::class)->call('openCreate')],

@@ -3,6 +3,7 @@
 use App\Enums\SupplierType;
 use App\Livewire\Catalog\PriceLists;
 use App\Livewire\Catalog\PriceListShow;
+use App\Livewire\ProductForm;
 use App\Livewire\Products\Show;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
@@ -499,4 +500,70 @@ it('permet de changer la date de début d\'une liste future', function () {
         ->assertHasNoErrors();
 
     expect($list->fresh()->starts_on->toDateString())->toBe('2027-03-01');
+});
+
+function itemInActiveList(array $listAttributes = [], array $itemAttributes = []): PriceListItem
+{
+    $list = PriceListList::factory()->for(PriceList::factory()->create($listAttributes))->create(['discount_percent' => 10]);
+
+    return PriceListItem::factory()->for($list)->create($itemAttributes + ['model' => 'Chaise X-1', 'clean_model' => 'chaisex1', 'cost' => 100, 'collection' => 'Nordique', 'upc' => '999', 'imap' => 150]);
+}
+
+it('cherche dans les listes actives du fournisseur par modèle ou collection', function () {
+    $item = itemInActiveList();
+    $supplierId = $item->priceListList->priceList->supplier_id;
+    $archived = itemInActiveList(['archived_at' => now(), 'supplier_id' => $supplierId], ['model' => 'Archivée', 'clean_model' => 'archivee']);
+    $upcoming = itemInActiveList(['starts_on' => '2027-01-01', 'supplier_id' => $supplierId], ['model' => 'Future', 'clean_model' => 'future']);
+    $otherSupplier = itemInActiveList([], ['model' => 'Chaise Z', 'clean_model' => 'chaisez']);
+
+    $component = Livewire::test(ProductForm::class)->set('supplierId', (string) $supplierId);
+
+    expect($component->set('catalogSearch', 'chaise')->instance()->getCatalogResults()->pluck('id')->all())->toBe([$item->id])
+        ->and($component->set('catalogSearch', 'nordi')->instance()->getCatalogResults()->pluck('id')->all())->toBe([$item->id])
+        ->and($component->set('catalogSearch', 'archiv')->instance()->getCatalogResults())->toBeEmpty()
+        ->and($component->set('catalogSearch', 'futur')->instance()->getCatalogResults())->toBeEmpty();
+});
+
+it('crée le produit à la sélection avec les données de la ligne et l\'escompte', function () {
+    $item = itemInActiveList();
+    $supplierId = $item->priceListList->priceList->supplier_id;
+
+    Livewire::test(ProductForm::class)
+        ->set('supplierId', (string) $supplierId)
+        ->call('selectFromPriceList', $item->id)
+        ->assertDispatched('product-saved');
+
+    $product = Product::firstOrFail();
+
+    expect($product)->supplier_id->toBe($supplierId)->model->toBe('Chaise X-1')->supplier_clean_model->toBe('chaisex1')
+        ->cost->toBe(90.0)->imap->toBe(150.0)->collection->toBe('Nordique')
+        ->and($product->upcs()->pluck('upc')->all())->toBe(['999'])
+        ->and($item->fresh()->product_id)->toBe($product->id);
+});
+
+it('ne recrée pas un produit qui existe déjà chez le fournisseur', function () {
+    $item = itemInActiveList();
+    $supplierId = $item->priceListList->priceList->supplier_id;
+    $existing = Product::factory()->create(['supplier_id' => $supplierId, 'model' => 'chaise x 1', 'clean_model' => 'chaisex1', 'supplier_model' => 'chaise x 1', 'cost' => 5]);
+
+    Livewire::test(ProductForm::class)
+        ->set('supplierId', (string) $supplierId)
+        ->call('selectFromPriceList', $item->id);
+
+    expect(Product::count())->toBe(1)->and($existing->fresh()->cost)->toBe(5.0)->and($item->fresh()->product_id)->toBe($existing->id);
+});
+
+it('refuse de créer depuis une ligne archivée ou d\'un autre fournisseur', function () {
+    $archived = itemInActiveList(['archived_at' => now()]);
+    $other = itemInActiveList();
+
+    Livewire::test(ProductForm::class)
+        ->set('supplierId', (string) $archived->priceListList->priceList->supplier_id)
+        ->call('selectFromPriceList', $archived->id)
+        ->assertNotFound();
+
+    Livewire::test(ProductForm::class)
+        ->set('supplierId', (string) Supplier::factory()->create(['type' => SupplierType::Product])->id)
+        ->call('selectFromPriceList', $other->id)
+        ->assertNotFound();
 });
