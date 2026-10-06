@@ -14,6 +14,7 @@ use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
 use App\Livewire\Catalog\PriceLists;
 use App\Livewire\Catalog\PriceListShow;
+use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
 use App\Livewire\Customers\Index as CustomersIndex;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
@@ -51,6 +52,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('users/{user}', UserShow::class)->middleware('can:users.view')->name('users.show');
 
     Route::get('customers', CustomersIndex::class)->middleware('can:customers.view')->name('customers.index');
+
+    Route::get('customer-orders', CustomerOrdersIndex::class)->middleware('can:customer_orders.view')->name('customer-orders.index');
 
     Route::get('suppliers', SuppliersIndex::class)->middleware('can:suppliers.view')->name('suppliers.index');
     Route::get('suppliers/{supplier}', SupplierShow::class)->middleware('can:suppliers.view')->name('suppliers.show');
