@@ -51,3 +51,6 @@ Pour en revenir à mon point initial, je suis très content du résultat de la j
 J'ai énormément progressé ce weekend, ça me fait un peu peur d'aller aussi vite, j'ai dit la même chose la semaine dernière, mais j'ai tellement hâte de développer le système de vente que je pense que je m'attaque trop rapidement aux composantes qui gravite autour. Je me questionne à savoir si j'ai fait le bon choix d'ordre de développement. Aurait-ce été plus simple de commencer par les ventes et bâtir les modules au fur et à mesure que ventes en a besoin ? Ou bien ma méthode de bâtir les composantes que je crois avoir besoin avant de faire les ventes va me permettre de construire les ventes sur une base plus solide. Vais-je me retrouver avec du code mort sans le savoir ? Comme mon user Form de départ. Ai-je fabriquer des assets qui ne seront pas utiliser au final.  
 Les commandes fournisseurs d'hier mon fait réaliser que je vais avoir besoin d'un système d'impression. Je me demande si PrintNodeJS pourrait fonctionner et permettre d'imprimer sur n'importe quel imprimante du réseau local même si on se trouve à l'extérieur, et comme c'est une application dans un navigateur web, les imprimantes par défaut de l'appareil sont aussi disponible.  
 La semaine prochaine je me lance dans les ventes!
+
+# Jour 7
+Blogue, ajout d'un dossier doc/adr en prévision du jalon 2.
