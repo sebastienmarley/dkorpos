@@ -88,13 +88,17 @@ class Index extends Component
     {
         $this->authorize('customer_orders.assign_salespeople');
 
-        $rows = array_map(
+        $rows = array_values(array_map(
             fn (array $row): array => ['user_id' => $row['user_id'], 'percent' => (int) $row['percent']],
             $this->salespeopleDraft,
-        );
+        ));
 
         if (array_sum(array_column($rows, 'percent')) === 99) {
-            $rows[0]['percent']++;
+            $rows = array_map(
+                fn (array $row, int $index): array => ['user_id' => $row['user_id'], 'percent' => $row['percent'] + ($index === 0 ? 1 : 0)],
+                $rows,
+                array_keys($rows),
+            );
         }
 
         $this->salespeopleDraft = $rows;
