@@ -130,3 +130,100 @@ it('signale un UPC inconnu', function () {
         ->assertHasErrors('upcScan')
         ->assertSet('productIds', []);
 });
+
+it('définit l\'utilisateur connecté comme vendeur par défaut à 100 %', function () {
+    Livewire::test(Index::class)
+        ->assertSet('salespeople', [['user_id' => $this->user->id, 'percent' => 100]]);
+});
+
+it('cache le bouton vendeur et refuse la modification sans permission', function () {
+    Livewire::test(Index::class)
+        ->assertDontSee('Ajouter un vendeur')
+        ->call('openSalespeopleModal')
+        ->assertForbidden();
+});
+
+describe('gestion des vendeurs', function () {
+    beforeEach(function () {
+        $this->user->givePermissionTo('customer_orders.assign_salespeople');
+        $this->other = User::factory()->withRole('visiteur')->create();
+        $this->third = User::factory()->withRole('visiteur')->create();
+    });
+
+    it('affiche le bouton vendeur', function () {
+        Livewire::test(Index::class)->assertSee('Ajouter un vendeur');
+    });
+
+    it('répartit la vente entre deux vendeurs', function () {
+        Livewire::test(Index::class)
+            ->call('openSalespeopleModal')
+            ->set('salespeopleDraft', [
+                ['user_id' => $this->user->id, 'percent' => 75],
+                ['user_id' => $this->other->id, 'percent' => 25],
+            ])
+            ->call('saveSalespeople')
+            ->assertHasNoErrors()
+            ->assertSet('salespeople', [
+                ['user_id' => $this->user->id, 'percent' => 75],
+                ['user_id' => $this->other->id, 'percent' => 25],
+            ]);
+    });
+
+    it('ajoute 1 au premier vendeur quand la somme est de 99', function () {
+        Livewire::test(Index::class)
+            ->call('openSalespeopleModal')
+            ->set('salespeopleDraft', [
+                ['user_id' => $this->user->id, 'percent' => 33],
+                ['user_id' => $this->other->id, 'percent' => 33],
+                ['user_id' => $this->third->id, 'percent' => 33],
+            ])
+            ->call('saveSalespeople')
+            ->assertHasNoErrors()
+            ->assertSet('salespeople.0.percent', 34)
+            ->assertSet('salespeople.1.percent', 33)
+            ->assertSet('salespeople.2.percent', 33);
+    });
+
+    it('refuse une somme différente de 100', function () {
+        Livewire::test(Index::class)
+            ->call('openSalespeopleModal')
+            ->set('salespeopleDraft', [
+                ['user_id' => $this->user->id, 'percent' => 50],
+                ['user_id' => $this->other->id, 'percent' => 25],
+            ])
+            ->call('saveSalespeople')
+            ->assertHasErrors('salespeopleDraft')
+            ->assertSet('salespeople', [['user_id' => $this->user->id, 'percent' => 100]]);
+    });
+
+    it('refuse le même vendeur deux fois', function () {
+        Livewire::test(Index::class)
+            ->call('openSalespeopleModal')
+            ->set('salespeopleDraft', [
+                ['user_id' => $this->user->id, 'percent' => 50],
+                ['user_id' => $this->user->id, 'percent' => 50],
+            ])
+            ->call('saveSalespeople')
+            ->assertHasErrors('salespeopleDraft.1.user_id');
+    });
+
+    it('limite à 3 vendeurs', function () {
+        Livewire::test(Index::class)
+            ->call('openSalespeopleModal')
+            ->call('addSalesperson')
+            ->call('addSalesperson')
+            ->call('addSalesperson')
+            ->assertCount('salespeopleDraft', 3);
+    });
+});
+
+it('désactive dans les autres lignes un vendeur déjà choisi', function () {
+    $this->user->givePermissionTo('customer_orders.assign_salespeople');
+    $other = User::factory()->withRole('visiteur')->create();
+
+    Livewire::test(Index::class)
+        ->call('openSalespeopleModal')
+        ->call('addSalesperson')
+        ->set('salespeopleDraft.1.user_id', $other->id)
+        ->assertSeeHtmlInOrder(['value="'.$other->id.'"', 'disabled']);
+});

@@ -26,6 +26,10 @@ $pageAccess = [
     'appointments.delete',
 ];
 
+$managementAccess = [
+    'customer_orders.assign_salespeople',
+];
+
 $warehouseAccess = [
     'suppliers.view',
     'supplier_orders.view',
@@ -82,6 +86,7 @@ return [
         'customers.create' => ['Créer — clients', 'Créer dans : clients.'],
         'customers.edit' => ['Modifier — clients', 'Modifier dans : clients.'],
         'customer_orders.view' => ['Voir — commandes clients', 'Accéder à la page : commandes clients.'],
+        'customer_orders.assign_salespeople' => ['Gérer les vendeurs — commandes clients', 'Modifier les vendeurs et la répartition de la vente dans : commandes clients.'],
         'suppliers.view' => ['Voir — fournisseurs', 'Accéder à la page : fournisseurs.'],
         'suppliers.create' => ['Créer — fournisseurs', 'Créer dans : fournisseurs.'],
         'suppliers.edit' => ['Modifier — fournisseurs', 'Modifier dans : fournisseurs.'],
@@ -145,7 +150,7 @@ return [
     'roles' => [
         'admin' => ['label' => 'Administrateur', 'level' => 100, 'permissions' => '*'],
         'owner' => ['label' => 'Propriétaire', 'level' => 100, 'permissions' => '*'],
-        'manager' => ['label' => 'Directeur', 'level' => 50, 'permissions' => ['users.view', 'users.create', 'users.edit', ...$pageAccess]],
+        'manager' => ['label' => 'Directeur', 'level' => 50, 'permissions' => ['users.view', 'users.create', 'users.edit', ...$pageAccess, ...$managementAccess]],
         'design' => ['label' => 'Designer', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
         'delivery' => ['label' => 'Livreur', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
         'warehouse' => ['label' => 'Commis entrepôt', 'level' => 10, 'permissions' => [...$warehouseAccess]],

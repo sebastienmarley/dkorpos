@@ -6,11 +6,19 @@
             <flux:text class="mt-1 text-zinc-500">{{ __('Commandes de vente aux clients') }}</flux:text>
         </div>
 
-        @can('customers.view')
-            <flux:button variant="primary" icon="user-plus" wire:click="openCustomerModal">
-                {{ __('Ajouter un client') }}
-            </flux:button>
-        @endcan
+        <div class="flex flex-col items-end gap-2">
+            @can('customers.view')
+                <flux:button variant="primary" icon="user-plus" wire:click="openCustomerModal">
+                    {{ __('Ajouter un client') }}
+                </flux:button>
+            @endcan
+
+            @can('customer_orders.assign_salespeople')
+                <flux:button icon="users" wire:click="openSalespeopleModal">
+                    {{ __('Ajouter un vendeur') }}
+                </flux:button>
+            @endcan
+        </div>
     </div>
 
     {{-- Produits --}}
@@ -51,6 +59,61 @@
             <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="clearCustomer" :label="__('Retirer')" />
         </div>
     @endif
+
+    {{-- Vendeurs --}}
+    <div class="mb-6 max-w-md text-sm text-zinc-600 dark:text-zinc-300">
+        <span class="font-medium">{{ __('Vendeur(s)') }} :</span>
+        @foreach ($salespeople as $salesperson)
+            <span wire:key="salesperson-{{ $loop->index }}">{{ $salespeopleNames[$salesperson['user_id']]?->fullName() }}@if (! $loop->last), @endif</span>
+        @endforeach
+    </div>
+
+    @can('customer_orders.assign_salespeople')
+        <flux:modal wire:model="showSalespeopleModal" class="w-full max-w-lg">
+            <flux:heading class="mb-1">{{ __('Vendeurs') }}</flux:heading>
+            <flux:text class="text-zinc-500">{{ __('Répartir la vente entre un maximum de 3 vendeurs. La somme doit être de 100 %.') }}</flux:text>
+
+            <form wire:submit="saveSalespeople" class="mt-6 space-y-3">
+                @foreach ($salespeopleDraft as $index => $row)
+                    <div wire:key="draft-{{ $index }}" class="flex items-start gap-2">
+                        <div class="flex-1">
+                            <flux:select wire:model="salespeopleDraft.{{ $index }}.user_id">
+                                <flux:select.option value="">{{ __('Sélectionner un employé…') }}</flux:select.option>
+                                @foreach ($this->getEmployees() as $employee)
+                                    <flux:select.option :value="$employee->id" :disabled="collect($salespeopleDraft)->except($index)->pluck('user_id')->contains($employee->id)">{{ $employee->fullName() }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                            <flux:error name="salespeopleDraft.{{ $index }}.user_id" />
+                        </div>
+
+                        <div class="w-28">
+                            <flux:select wire:model="salespeopleDraft.{{ $index }}.percent">
+                                @foreach (collect(\App\Livewire\CustomerOrders\Index::PERCENT_OPTIONS)->when(! in_array((int) $row['percent'], \App\Livewire\CustomerOrders\Index::PERCENT_OPTIONS, true), fn ($options) => $options->push((int) $row['percent']))->sort() as $percent)
+                                    <flux:select.option :value="$percent">{{ $percent }} %</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                            <flux:error name="salespeopleDraft.{{ $index }}.percent" />
+                        </div>
+
+                        @if (count($salespeopleDraft) > 1)
+                            <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removeSalesperson({{ $index }})" :label="__('Retirer')" />
+                        @endif
+                    </div>
+                @endforeach
+
+                <flux:error name="salespeopleDraft" />
+
+                @if (count($salespeopleDraft) < \App\Livewire\CustomerOrders\Index::MAX_SALESPEOPLE)
+                    <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addSalesperson">{{ __('Ajouter un vendeur') }}</flux:button>
+                @endif
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <flux:button type="button" variant="ghost" wire:click="$set('showSalespeopleModal', false)">{{ __('Annuler') }}</flux:button>
+                    <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
+                </div>
+            </form>
+        </flux:modal>
+    @endcan
 
     {{-- Recherche de client --}}
     <flux:modal wire:model="showCustomerModal" class="w-full max-w-lg">

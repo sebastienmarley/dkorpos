@@ -9,9 +9,11 @@ use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductUpc;
 use App\Models\Supplier;
+use App\Models\User;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -23,7 +25,20 @@ class Index extends Component
 
     public string $customerSearch = '';
 
+    public const MAX_SALESPEOPLE = 3;
+
+    /** @var array<int, int> */
+    public const PERCENT_OPTIONS = [0, 25, 33, 50, 67, 75, 100];
+
     public string $upcScan = '';
+
+    public bool $showSalespeopleModal = false;
+
+    /** @var array<int, array{user_id: int|string, percent: int|string}> */
+    public array $salespeople = [];
+
+    /** @var array<int, array{user_id: int|string, percent: int|string}> */
+    public array $salespeopleDraft = [];
 
     public bool $showProductModal = false;
 
@@ -35,6 +50,79 @@ class Index extends Component
 
     /** @var array<int, int> */
     public array $productIds = [];
+
+    public function mount(): void
+    {
+        $this->salespeople = [['user_id' => auth()->id(), 'percent' => 100]];
+    }
+
+    public function openSalespeopleModal(): void
+    {
+        $this->authorize('customer_orders.assign_salespeople');
+
+        $this->salespeopleDraft = $this->salespeople;
+        $this->resetErrorBag();
+        $this->showSalespeopleModal = true;
+    }
+
+    public function addSalesperson(): void
+    {
+        $this->authorize('customer_orders.assign_salespeople');
+
+        if (count($this->salespeopleDraft) < self::MAX_SALESPEOPLE) {
+            $this->salespeopleDraft[] = ['user_id' => '', 'percent' => 0];
+        }
+    }
+
+    public function removeSalesperson(int $index): void
+    {
+        $this->authorize('customer_orders.assign_salespeople');
+
+        if (count($this->salespeopleDraft) > 1) {
+            unset($this->salespeopleDraft[$index]);
+            $this->salespeopleDraft = array_values($this->salespeopleDraft);
+        }
+    }
+
+    public function saveSalespeople(): void
+    {
+        $this->authorize('customer_orders.assign_salespeople');
+
+        $rows = array_map(
+            fn (array $row): array => ['user_id' => $row['user_id'], 'percent' => (int) $row['percent']],
+            $this->salespeopleDraft,
+        );
+
+        if (array_sum(array_column($rows, 'percent')) === 99) {
+            $rows[0]['percent']++;
+        }
+
+        $this->salespeopleDraft = $rows;
+
+        $this->validate([
+            'salespeopleDraft' => ['required', 'array', 'min:1', 'max:'.self::MAX_SALESPEOPLE],
+            'salespeopleDraft.*.user_id' => ['required', 'integer', 'distinct', Rule::exists('users', 'id')->where('is_active', true)],
+            'salespeopleDraft.*.percent' => ['required', 'integer', 'min:0', 'max:100'],
+        ]);
+
+        if (array_sum(array_column($rows, 'percent')) !== 100) {
+            $this->addError('salespeopleDraft', __('La somme des pourcentages doit être de 100 %.'));
+
+            return;
+        }
+
+        $this->salespeople = array_map(
+            fn (array $row): array => ['user_id' => (int) $row['user_id'], 'percent' => $row['percent']],
+            $rows,
+        );
+        $this->showSalespeopleModal = false;
+    }
+
+    /** @return Collection<int, User> */
+    public function getEmployees(): Collection
+    {
+        return User::query()->where('is_active', true)->orderBy('lastname')->orderBy('firstname')->get();
+    }
 
     public function openCustomerModal(): void
     {
@@ -211,6 +299,7 @@ class Index extends Component
         return view('livewire.customer-orders.index', [
             'customerResults' => $customerResults,
             'products' => Product::query()->with('supplier')->whereKey($this->productIds)->get(),
+            'salespeopleNames' => User::query()->whereKey(array_column($this->salespeople, 'user_id'))->get()->keyBy('id'),
             'selectedCustomer' => $this->selectedCustomerId ? customer::find($this->selectedCustomerId) : null,
         ])->layout('layouts.app', ['title' => __('Commandes clients')]);
     }
