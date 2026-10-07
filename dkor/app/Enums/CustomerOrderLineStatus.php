@@ -47,4 +47,16 @@ enum CustomerOrderLineStatus: string
             self::Cancelled => 'red',
         };
     }
+
+    /** Une ligne peut être modifiée ou retirée tant que la marchandise n'est pas reçue ni sortie. */
+    public function isEditable(): bool
+    {
+        return in_array($this, [self::InStock, self::OnOrder], true);
+    }
+
+    /** Les lignes annulées, retournées ou remboursées ne comptent plus dans le solde de la commande. */
+    public function isBillable(): bool
+    {
+        return ! in_array($this, [self::Cancelled, self::Returned, self::Refunded], true);
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use Database\Factories\CustomerOrderFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property int $id
@@ -70,5 +72,73 @@ class CustomerOrder extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(CustomerOrderLine::class);
+    }
+
+    /**
+     * Ajoute une unité du produit à la commande : la quantité de sa ligne modifiable est augmentée,
+     * sinon une ligne est créée au prix vendant. Le statut dépend de la quantité disponible en stock.
+     */
+    public function addProduct(Product $product): CustomerOrderLine
+    {
+        return DB::transaction(function () use ($product): CustomerOrderLine {
+            $line = $this->lines()
+                ->where('product_id', $product->id)
+                ->whereIn('status', [CustomerOrderLineStatus::InStock, CustomerOrderLineStatus::OnOrder])
+                ->lockForUpdate()
+                ->first();
+
+            $quantity = ($line->quantity ?? 0) + 1;
+            $status = ($product->inventoryStock?->quantityAvailable() ?? 0) >= $quantity
+                ? CustomerOrderLineStatus::InStock
+                : CustomerOrderLineStatus::OnOrder;
+
+            if ($line === null) {
+                $line = $this->lines()->create([
+                    'product_id' => $product->id,
+                    'quantity' => $quantity,
+                    'unit_price' => $product->selling_price,
+                    'status' => $status,
+                ]);
+            } else {
+                $line->update(['quantity' => $quantity, 'status' => $status]);
+            }
+
+            $this->recalculateBalance();
+
+            return $line;
+        });
+    }
+
+    public function recalculateBalance(): void
+    {
+        $this->update([
+            'balance_due' => round($this->lines()->get()
+                ->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable())
+                ->sum(fn (CustomerOrderLine $line): float => $line->total), 2),
+        ]);
+    }
+
+    /**
+     * Répartition de la vente entre les vendeurs, dans l'ordre où ils ont été enregistrés.
+     *
+     * @return array<int, array{user_id: int, percent: int}>
+     */
+    public function salespeopleShares(): array
+    {
+        return $this->salespeople()->newPivotQuery()
+            ->orderBy('id')
+            ->get(['user_id', 'percent'])
+            ->map(fn (object $row): array => ['user_id' => (int) $row->user_id, 'percent' => (int) $row->percent])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{user_id: int, percent: int}>  $salespeople
+     */
+    public function syncSalespeople(array $salespeople): void
+    {
+        $this->salespeople()->sync(collect($salespeople)->mapWithKeys(
+            fn (array $row): array => [$row['user_id'] => ['percent' => $row['percent']]],
+        )->all());
     }
 }
