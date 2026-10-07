@@ -15,7 +15,16 @@
 
     {{-- Produits --}}
     <div class="mb-6">
-        <flux:button icon="plus" wire:click="openProductModal">{{ __('Ajouter un produit') }}</flux:button>
+        <div class="flex items-start gap-3">
+            <flux:button icon="plus" wire:click="openProductModal">{{ __('Ajouter un produit') }}</flux:button>
+
+            <form wire:submit="scanUpc" class="w-64">
+                <flux:field>
+                    <flux:input wire:model="upcScan" icon="qr-code" inputmode="numeric" autocomplete="off" autofocus :placeholder="__('Scanner un UPC…')" />
+                    <flux:error name="upcScan" />
+                </flux:field>
+            </form>
+        </div>
 
         @if ($products->isNotEmpty())
             <div class="mt-3 divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-900">

@@ -108,3 +108,25 @@ it('refuse la création depuis la liste de prix sans permission', function () {
         ->call('addFromPriceList', $item->id)
         ->assertForbidden();
 });
+
+it('ajoute le produit rattaché à un UPC scanné', function () {
+    $product = Product::factory()->create();
+    $product->upcs()->create(['upc' => '012345678905']);
+
+    Livewire::test(Index::class)
+        ->set('upcScan', '012345678905')
+        ->call('scanUpc')
+        ->assertSet('productIds', [$product->id])
+        ->assertSet('upcScan', '')
+        ->set('upcScan', '012345678905')
+        ->call('scanUpc')
+        ->assertSet('productIds', [$product->id]);
+});
+
+it('signale un UPC inconnu', function () {
+    Livewire::test(Index::class)
+        ->set('upcScan', '999')
+        ->call('scanUpc')
+        ->assertHasErrors('upcScan')
+        ->assertSet('productIds', []);
+});

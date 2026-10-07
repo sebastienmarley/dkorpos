@@ -7,6 +7,7 @@ use App\Enums\SupplierType;
 use App\Models\customer;
 use App\Models\PriceListItem;
 use App\Models\Product;
+use App\Models\ProductUpc;
 use App\Models\Supplier;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -21,6 +22,8 @@ class Index extends Component
     public ?int $selectedCustomerId = null;
 
     public string $customerSearch = '';
+
+    public string $upcScan = '';
 
     public bool $showProductModal = false;
 
@@ -79,6 +82,30 @@ class Index extends Component
         }
 
         $this->showProductModal = false;
+    }
+
+    public function scanUpc(): void
+    {
+        $upc = trim($this->upcScan);
+
+        if ($upc === '') {
+            return;
+        }
+
+        $productUpc = ProductUpc::query()->where('upc', $upc)->first();
+
+        if ($productUpc === null) {
+            $this->addError('upcScan', __('Aucun produit trouvé pour cet UPC.'));
+
+            return;
+        }
+
+        $this->resetErrorBag('upcScan');
+        $this->upcScan = '';
+
+        if (! in_array($productUpc->product_id, $this->productIds, true)) {
+            $this->productIds[] = $productUpc->product_id;
+        }
     }
 
     public function removeProduct(int $id): void
