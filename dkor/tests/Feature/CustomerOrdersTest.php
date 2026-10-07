@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\CustomerOrderStatus;
 use App\Livewire\CustomerOrders\Index;
 use App\Models\customer;
+use App\Models\CustomerOrder;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\PriceListList;
@@ -226,4 +228,20 @@ it('désactive dans les autres lignes un vendeur déjà choisi', function () {
         ->call('addSalesperson')
         ->set('salespeopleDraft.1.user_id', $other->id)
         ->assertSeeHtmlInOrder(['value="'.$other->id.'"', 'disabled']);
+});
+
+it('crée une commande client nouvelle avec ses vendeurs et leur part', function () {
+    $other = User::factory()->withRole('visiteur')->create();
+    $order = CustomerOrder::factory()->create();
+
+    $order->salespeople()->attach([
+        $this->user->id => ['percent' => 67],
+        $other->id => ['percent' => 33],
+    ]);
+
+    $order = $order->fresh();
+
+    expect($order->status)->toBe(CustomerOrderStatus::New)
+        ->and($order->balance_due)->toBe(0.0)
+        ->and($order->salespeople->pluck('pivot.percent', 'id')->all())->toBe([$this->user->id => 67, $other->id => 33]);
 });
