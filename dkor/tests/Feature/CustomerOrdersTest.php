@@ -1,9 +1,11 @@
 <?php
 
+use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Livewire\CustomerOrders\Index;
 use App\Models\customer;
 use App\Models\CustomerOrder;
+use App\Models\CustomerOrderLine;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\PriceListList;
@@ -244,4 +246,15 @@ it('crée une commande client nouvelle avec ses vendeurs et leur part', function
     expect($order->status)->toBe(CustomerOrderStatus::New)
         ->and($order->balance_due)->toBe(0.0)
         ->and($order->salespeople->pluck('pivot.percent', 'id')->all())->toBe([$this->user->id => 67, $other->id => 33]);
+});
+
+it('rattache des lignes à une commande client', function () {
+    $order = CustomerOrder::factory()->create();
+    $line = CustomerOrderLine::factory()->for($order, 'order')->create(['quantity' => 2, 'unit_price' => 149.99, 'note' => 'Livrer au sous-sol']);
+
+    expect($order->lines->pluck('id')->all())->toBe([$line->id])
+        ->and($line->fresh()->status)->toBe(CustomerOrderLineStatus::InStock)
+        ->and($line->total)->toBe(299.98)
+        ->and($line->delivered_at)->toBeNull()
+        ->and($line->returned_at)->toBeNull();
 });

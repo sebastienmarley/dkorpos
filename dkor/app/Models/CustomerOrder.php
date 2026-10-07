@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -23,6 +24,7 @@ use Illuminate\Support\Carbon;
  * @property-read customer $customer
  * @property-read User|null $creator
  * @property-read Collection<int, User> $salespeople
+ * @property-read Collection<int, CustomerOrderLine> $lines
  */
 #[Fillable(['customer_id', 'status', 'balance_due', 'created_by'])]
 class CustomerOrder extends Model
@@ -62,5 +64,11 @@ class CustomerOrder extends Model
         return $this->belongsToMany(User::class, 'customer_order_salesperson')
             ->withPivot('percent')
             ->withTimestamps();
+    }
+
+    /** @return HasMany<CustomerOrderLine, $this> */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(CustomerOrderLine::class);
     }
 }
