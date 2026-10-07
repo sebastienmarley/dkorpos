@@ -78,6 +78,12 @@
                     </flux:sidebar.item>
                 @endcan
 
+                @can('customer_orders.view')
+                    <flux:sidebar.item icon="shopping-cart" :href="route('customer-orders.index')" :current="request()->routeIs('customer-orders.*')" wire:navigate>
+                        {{ __('Commandes clients') }}
+                    </flux:sidebar.item>
+                @endcan
+
                 @can('suppliers.view')
                     <flux:sidebar.item icon="building-storefront" :href="route('suppliers.index')" :current="request()->routeIs('suppliers.*')" wire:navigate>
                         {{ __('Fournisseurs') }}

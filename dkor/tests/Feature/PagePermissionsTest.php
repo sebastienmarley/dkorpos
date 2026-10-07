@@ -5,6 +5,7 @@ use App\Models\User;
 
 dataset('pages', [
     'customers.index' => ['customers.index', 'customers.view'],
+    'customer-orders.index' => ['customer-orders.index', 'customer_orders.view'],
     'suppliers.index' => ['suppliers.index', 'suppliers.view'],
     'receptions.index' => ['receptions.index', 'receptions.view'],
     'receptions.create' => ['receptions.create', 'receptions.create'],
