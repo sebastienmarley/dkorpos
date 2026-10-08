@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CustomerOrderLineStatus;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
 use App\Enums\ReceptionStatus;
@@ -297,8 +298,8 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Envoie la commande (en brouillon ou en attente); les quantités des produits passent « en commande » dans l'inventaire et la
-     * commande est transmise par courriel au fournisseur.
+     * Envoie la commande (en brouillon ou en attente); les quantités des produits passent « en commande » dans l'inventaire, les
+     * lignes de commandes clients liées passent à « Commandé » et la commande est transmise par courriel au fournisseur.
      *
      * @return bool Faux seulement si le courriel est activé mais n'a pas pu être envoyé (pas de courriel ou erreur d'envoi).
      */
@@ -322,6 +323,11 @@ class SupplierOrder extends Model
                     $this->moveStock($line, null, InventoryStatus::OnOrder, $line->quantity, InventoryMovementType::OrderPlaced);
                 }
             }
+
+            CustomerOrderLine::query()
+                ->whereIn('supplier_order_line_id', $lines->pluck('id'))
+                ->where('status', CustomerOrderLineStatus::OnOrder)
+                ->update(['status' => CustomerOrderLineStatus::Ordered]);
 
             $this->update(['status' => SupplierOrderStatus::Sent, 'sent_at' => now()]);
         });

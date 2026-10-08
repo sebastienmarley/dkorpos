@@ -186,7 +186,13 @@ class Show extends Component
     {
         $this->authorize('customer_orders.edit');
 
-        $this->order->addProduct(Product::findOrFail($id));
+        try {
+            $this->order->addProduct(Product::findOrFail($id));
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
 
         $this->showProductModal = false;
     }

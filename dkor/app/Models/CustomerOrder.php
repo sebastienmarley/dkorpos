@@ -6,6 +6,8 @@ use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
+use App\Enums\SupplierOrderStatus;
+use App\Enums\SupplierType;
 use Database\Factories\CustomerOrderFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -79,8 +81,10 @@ class CustomerOrder extends Model
 
     /**
      * Ajoute le produit à la commande : la quantité est d'abord réservée dans le stock disponible, le reste
-     * est mis en commande. La ligne modifiable existante du produit est augmentée, sinon une ligne est créée
-     * au prix vendant.
+     * est mis en commande sur le brouillon de commande fournisseur. La ligne modifiable existante du produit est
+     * augmentée, sinon une ligne est créée au prix vendant.
+     *
+     * @throws DomainException si une quantité doit être commandée et que le produit ne peut pas l'être.
      */
     public function addProduct(Product $product, int $quantity = 1): CustomerOrderLine
     {
@@ -106,6 +110,7 @@ class CustomerOrder extends Model
             $this->fillLineQuantities($line, $line->quantity_reserved + $reserved, $line->quantity_on_order + $quantity - $reserved);
             $line->save();
 
+            $this->syncSupplierLine($line);
             $this->recalculateBalance();
 
             return $line;
@@ -115,7 +120,7 @@ class CustomerOrder extends Model
     /**
      * Ajuste la répartition d'une ligne entre le stock réservé et la partie en commande. Le stock libéré
      * redevient disponible pour les autres clients; toute augmentation de la réservation vérifie d'abord
-     * que le stock est encore disponible.
+     * que le stock est encore disponible. La ligne de commande fournisseur suit la partie en commande.
      *
      * @throws DomainException si la ligne n'est plus modifiable ou si le stock est insuffisant.
      */
@@ -143,6 +148,7 @@ class CustomerOrder extends Model
             $this->fillLineQuantities($line, $reserved, $onOrder);
             $line->save();
 
+            $this->syncSupplierLine($line);
             $this->recalculateBalance();
         });
     }
@@ -181,7 +187,8 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Retire une ligne modifiable et remet son stock réservé en disponibilité.
+     * Retire une ligne modifiable : son stock réservé redevient disponible et sa ligne de commande fournisseur
+     * (non envoyée) est supprimée.
      *
      * @throws DomainException si la ligne n'est plus modifiable.
      */
@@ -198,10 +205,91 @@ class CustomerOrder extends Model
                 $this->moveReservation($line->product_id, InventoryStatus::ReservedCustomer, InventoryStatus::InStock, $line->quantity_reserved);
             }
 
+            $this->detachSupplierLine($line);
             $line->delete();
 
             $this->recalculateBalance();
         });
+    }
+
+    /**
+     * Fait suivre la quantité « en commande » d'une ligne par sa ligne de commande fournisseur : ajoutée au
+     * brouillon du fournisseur du produit (créé au besoin), ajustée, ou supprimée quand plus rien n'est à commander.
+     *
+     * @throws DomainException si le produit ne peut pas être commandé ou si la commande fournisseur est déjà envoyée.
+     */
+    private function syncSupplierLine(CustomerOrderLine $line): void
+    {
+        if ($line->quantity_on_order === 0) {
+            $this->detachSupplierLine($line);
+
+            return;
+        }
+
+        $supplierLine = $line->supplierOrderLine()->with('order')->first();
+
+        if ($supplierLine !== null) {
+            if ($supplierLine->quantity !== $line->quantity_on_order) {
+                $this->guardSupplierLineEditable($supplierLine);
+                $supplierLine->order->updateLine($supplierLine, $line->quantity_on_order, $supplierLine->unit_cost);
+            }
+
+            return;
+        }
+
+        $product = $line->product()->with('supplier')->firstOrFail();
+
+        if ($product->is_non_orderable || ! $product->supplier->is_active || ! $product->supplier->orderable || $product->supplier->type !== SupplierType::Product) {
+            throw new DomainException(__('Le produit :model ne peut pas être commandé chez :supplier : il faut le prendre en stock.', [
+                'model' => $product->model,
+                'supplier' => $product->supplier->name,
+            ]));
+        }
+
+        $draft = SupplierOrder::query()
+            ->where('supplier_id', $product->supplier_id)
+            ->where('status', SupplierOrderStatus::Draft)
+            ->lockForUpdate()
+            ->first()
+            ?? SupplierOrder::create([
+                'type' => SupplierType::Product,
+                'supplier_id' => $product->supplier_id,
+                'created_by' => auth()->id(),
+            ]);
+
+        $supplierLine = $draft->addLine([
+            'product_id' => $product->id,
+            'quantity' => $line->quantity_on_order,
+            'unit_cost' => $product->cost,
+        ]);
+
+        $line->update(['supplier_order_line_id' => $supplierLine->id]);
+    }
+
+    /**
+     * Supprime la ligne de commande fournisseur liée (seulement si la commande fournisseur n'est pas envoyée).
+     */
+    private function detachSupplierLine(CustomerOrderLine $line): void
+    {
+        $supplierLine = $line->supplierOrderLine()->with('order')->first();
+
+        if ($supplierLine === null) {
+            return;
+        }
+
+        $this->guardSupplierLineEditable($supplierLine);
+
+        $line->update(['supplier_order_line_id' => null]);
+        $supplierLine->delete();
+    }
+
+    private function guardSupplierLineEditable(SupplierOrderLine $supplierLine): void
+    {
+        if (! $supplierLine->order->status->isEditable()) {
+            throw new DomainException(__('La commande fournisseur :number est déjà envoyée : la quantité commandée ne peut plus être modifiée ici.', [
+                'number' => $supplierLine->order->number,
+            ]));
+        }
     }
 
     private function fillLineQuantities(CustomerOrderLine $line, int $reserved, int $onOrder): void

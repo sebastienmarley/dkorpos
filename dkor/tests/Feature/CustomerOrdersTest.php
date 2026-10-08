@@ -4,8 +4,10 @@ use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
+use App\Enums\SupplierOrderStatus;
 use App\Livewire\CustomerOrders\Index;
 use App\Livewire\CustomerOrders\Show;
+use App\Livewire\Orders\Show as SupplierOrderShow;
 use App\Models\customer;
 use App\Models\CustomerOrder;
 use App\Models\CustomerOrderLine;
@@ -16,6 +18,8 @@ use App\Models\PriceListItem;
 use App\Models\PriceListList;
 use App\Models\Product;
 use App\Models\Role;
+use App\Models\SupplierOrder;
+use App\Models\SupplierOrderLine;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -514,4 +518,107 @@ it('rattache des lignes à une commande client', function () {
         ->and($line->total)->toBe(299.98)
         ->and($line->delivered_at)->toBeNull()
         ->and($line->returned_at)->toBeNull();
+});
+
+describe('lien avec les commandes fournisseurs', function () {
+    beforeEach(function () {
+        $this->order = CustomerOrder::factory()->create();
+    });
+
+    it('met la quantité à commander sur le brouillon du fournisseur, créé au besoin', function () {
+        $product = Product::factory()->create(['cost' => 40]);
+
+        $line = $this->order->addProduct($product);
+        $this->order->addProduct($product);
+
+        $supplierOrder = SupplierOrder::sole();
+        $supplierLine = $supplierOrder->lines()->sole();
+
+        expect($supplierOrder)->supplier_id->toBe($product->supplier_id)->status->toBe(SupplierOrderStatus::Draft)
+            ->and($supplierLine)->product_id->toBe($product->id)->quantity->toBe(2)->unit_cost->toBe(40.0)
+            ->and($line->fresh()->supplier_order_line_id)->toBe($supplierLine->id);
+    });
+
+    it('utilise le brouillon existant du fournisseur', function () {
+        $product = Product::factory()->create();
+        $draft = SupplierOrder::factory()->create(['supplier_id' => $product->supplier_id]);
+
+        $this->order->addProduct($product);
+
+        expect(SupplierOrder::count())->toBe(1)
+            ->and($draft->lines()->sole()->product_id)->toBe($product->id);
+    });
+
+    it('ne commande rien quand le stock couvre la quantité', function () {
+        $product = Product::factory()->create();
+        InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 2, 'quantity_reserved' => 0]);
+
+        $this->order->addProduct($product, 2);
+
+        expect(SupplierOrderLine::count())->toBe(0);
+    });
+
+    it('ajuste puis supprime la ligne fournisseur quand la quantité en commande change', function () {
+        $product = Product::factory()->create();
+        InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 1, 'quantity_reserved' => 0]);
+        $line = $this->order->addProduct($product, 3);
+
+        expect(SupplierOrderLine::sole()->quantity)->toBe(2);
+
+        $this->order->adjustLine($line, 1, 1);
+        expect(SupplierOrderLine::sole()->quantity)->toBe(1);
+
+        $this->order->adjustLine($line, 1, 0);
+        expect(SupplierOrderLine::count())->toBe(0)
+            ->and($line->fresh()->supplier_order_line_id)->toBeNull();
+    });
+
+    it('retire la ligne client, sa ligne fournisseur et libère son stock', function () {
+        $product = Product::factory()->create();
+        InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 1, 'quantity_reserved' => 0]);
+        $line = $this->order->addProduct($product, 2);
+
+        Livewire::test(Show::class, ['order' => $this->order])->call('removeLine', $line->id);
+
+        expect($this->order->lines()->count())->toBe(0)
+            ->and(SupplierOrderLine::count())->toBe(0)
+            ->and($product->inventoryStock()->sole()->quantity_in_stock)->toBe(1);
+    });
+
+    it('passe la ligne client à « Commandé » à l\'envoi et ne permet plus de la retirer', function () {
+        $product = Product::factory()->create();
+        $line = $this->order->addProduct($product);
+
+        SupplierOrder::sole()->send();
+
+        expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::Ordered);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->assertDontSeeHtml('removeLine('.$line->id.')')
+            ->call('removeLine', $line->id);
+
+        expect($line->fresh())->not->toBeNull()
+            ->and(SupplierOrderLine::count())->toBe(1);
+    });
+
+    it('refuse de commander un produit non commandable', function () {
+        $product = Product::factory()->create(['is_non_orderable' => true]);
+
+        Livewire::test(Show::class, ['order' => $this->order])->call('addProduct', $product->id);
+
+        expect($this->order->lines()->count())->toBe(0)
+            ->and(SupplierOrder::count())->toBe(0);
+    });
+
+    it('refuse de supprimer de la commande fournisseur une ligne liée à un client', function () {
+        $this->user->givePermissionTo(['supplier_orders.view', 'supplier_orders.edit']);
+        $this->order->addProduct(Product::factory()->create());
+        $supplierLine = SupplierOrderLine::sole();
+
+        Livewire::test(SupplierOrderShow::class, ['order' => $supplierLine->order])
+            ->assertSee(__('commande #:id', ['id' => $this->order->id]))
+            ->call('removeLine', $supplierLine->id);
+
+        expect($supplierLine->fresh())->not->toBeNull();
+    });
 });

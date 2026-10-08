@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $customer_order_id
  * @property int $product_id
+ * @property int|null $supplier_order_line_id
  * @property int $quantity
  * @property int $quantity_reserved
  * @property int $quantity_on_order
@@ -26,9 +27,10 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read CustomerOrder $order
  * @property-read Product $product
+ * @property-read SupplierOrderLine|null $supplierOrderLine
  * @property-read float $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'note', 'status', 'delivered_at', 'returned_at'])]
+#[Fillable(['customer_order_id', 'product_id', 'supplier_order_line_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'note', 'status', 'delivered_at', 'returned_at'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
@@ -59,6 +61,12 @@ class CustomerOrderLine extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /** @return BelongsTo<SupplierOrderLine, $this> */
+    public function supplierOrderLine(): BelongsTo
+    {
+        return $this->belongsTo(SupplierOrderLine::class);
     }
 
     public function getTotalAttribute(): float

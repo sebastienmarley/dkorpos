@@ -6,6 +6,7 @@ enum CustomerOrderLineStatus: string
 {
     case InStock = 'in_stock';
     case OnOrder = 'on_order';
+    case Ordered = 'ordered';
     case Received = 'received';
     case InDelivery = 'in_delivery';
     case Delivered = 'delivered';
@@ -21,6 +22,7 @@ enum CustomerOrderLineStatus: string
         return match ($this) {
             self::InStock => __('En inventaire'),
             self::OnOrder => __('En commande'),
+            self::Ordered => __('Commandé'),
             self::Received => __('Reçu'),
             self::InDelivery => __('En livraison'),
             self::Delivered => __('Livré'),
@@ -38,6 +40,7 @@ enum CustomerOrderLineStatus: string
         return match ($this) {
             self::InStock => 'zinc',
             self::OnOrder => 'yellow',
+            self::Ordered => 'sky',
             self::Received => 'lime',
             self::InDelivery, self::Shipped => 'blue',
             self::Delivered, self::PickedUp => 'green',
