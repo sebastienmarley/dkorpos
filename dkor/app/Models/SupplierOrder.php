@@ -416,6 +416,9 @@ class SupplierOrder extends Model
             $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $quantity, InventoryMovementType::Receipt, $receptionLine);
 
             $line->update(['quantity_received' => $line->quantity_received + $quantity]);
+
+            $customerLine = $line->customerOrderLine()->with('order')->first();
+            $customerLine?->order->applySupplierReceipt($customerLine, $quantity);
         }
 
         $this->refreshStatusFromLines();
@@ -464,6 +467,9 @@ class SupplierOrder extends Model
             }
 
             InventoryUnit::whereKey($units->modelKeys())->delete();
+
+            $customerLine = $line->customerOrderLine()->with('order')->first();
+            $customerLine?->order->applySupplierReceiptReversal($customerLine, $quantity);
 
             $this->moveStock($line, InventoryStatus::InStock, InventoryStatus::OnOrder, $quantity, InventoryMovementType::ReceiptReversal, $receptionLine, $reason);
 
@@ -536,7 +542,7 @@ class SupplierOrder extends Model
             $line->update(['quantity' => $quantity, 'unit_cost' => round($unitCost, 2)]);
 
             $customerLine = $line->customerOrderLine()->with('order')->first();
-            $customerLine?->order->applySupplierQuantity($customerLine, $quantity);
+            $customerLine?->order->applySupplierQuantity($customerLine, $quantity - $line->quantity_received);
 
             if ($this->status->isOpen()) {
                 $this->refreshStatusFromLines();
@@ -779,7 +785,7 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Retire de la ligne de commande client liée la quantité annulée (tout sauf ce qui est déjà reçu).
+     * Retire de la ligne de commande client liée ce qui ne sera plus reçu (le déjà reçu reste réservé au client).
      */
     private function cancelCustomerQuantity(SupplierOrderLine $line): void
     {

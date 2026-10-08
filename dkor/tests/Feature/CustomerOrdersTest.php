@@ -706,11 +706,15 @@ describe('lien avec les commandes fournisseurs', function () {
             $line = $this->order->addProduct($this->product, 3);
             $supplierOrder = SupplierOrder::sole();
             $supplierOrder->send();
-            SupplierOrderLine::sole()->update(['quantity_received' => 1]);
+            $supplierOrder->fresh()->receive([SupplierOrderLine::sole()->id => ['quantity' => 1, 'unit_cost' => 5]]);
 
-            $supplierOrder->substituteLine(SupplierOrderLine::sole(), $this->substitute);
+            $supplierOrder->fresh()->substituteLine(SupplierOrderLine::sole(), $this->substitute);
 
-            expect($line->fresh())->quantity_on_order->toBe(1)->status->toBe(CustomerOrderLineStatus::Ordered)
+            expect($line->fresh())
+                ->quantity_reserved->toBe(1)
+                ->quantity_on_order->toBe(0)
+                ->quantity->toBe(1)
+                ->status->toBe(CustomerOrderLineStatus::Received)
                 ->and($this->order->lines()->where('product_id', $this->substitute->id)->sole()->quantity_on_order)->toBe(2);
         });
     });
@@ -758,15 +762,86 @@ describe('lien avec les commandes fournisseurs', function () {
             $supplierOrder = SupplierOrder::sole();
             $supplierOrder->send();
             $supplierLine = SupplierOrderLine::sole();
-            $supplierLine->update(['quantity_received' => 1]);
+            $supplierOrder->fresh()->receive([$supplierLine->id => ['quantity' => 1, 'unit_cost' => 5]]);
 
-            $supplierOrder->requestLineCancellation($supplierLine->fresh());
-            $supplierOrder->confirmLineCancellation($supplierLine->fresh());
+            $supplierOrder->fresh()->requestLineCancellation($supplierLine->fresh());
+            $supplierOrder->fresh()->confirmLineCancellation($supplierLine->fresh());
 
             expect($line->fresh())
-                ->quantity_on_order->toBe(1)
+                ->quantity_reserved->toBe(1)
+                ->quantity_on_order->toBe(0)
                 ->quantity->toBe(1)
-                ->status->toBe(CustomerOrderLineStatus::Ordered);
+                ->status->toBe(CustomerOrderLineStatus::Received);
+        });
+    });
+
+    describe('réception fournisseur', function () {
+        beforeEach(function () {
+            $this->product = Product::factory()->create();
+            $this->line = $this->order->addProduct($this->product, 3);
+            $this->supplierOrder = SupplierOrder::sole();
+            $this->supplierOrder->send();
+            $this->supplierLine = SupplierOrderLine::sole();
+        });
+
+        it('réserve au client les unités reçues et garde le reste en commande', function () {
+            $this->supplierOrder->fresh()->receive([$this->supplierLine->id => ['quantity' => 2, 'unit_cost' => 5]]);
+
+            expect($this->line->fresh())
+                ->quantity_reserved->toBe(2)
+                ->quantity_on_order->toBe(1)
+                ->quantity->toBe(3)
+                ->status->toBe(CustomerOrderLineStatus::Ordered)
+                ->and($this->product->inventoryStock()->sole())
+                ->quantity_in_stock->toBe(0)
+                ->quantity_reserved->toBe(2)
+                ->quantity_on_order->toBe(1);
+        });
+
+        it('passe la ligne client à « Reçu » quand tout est reçu', function () {
+            $this->supplierOrder->fresh()->receive([$this->supplierLine->id => ['quantity' => 3, 'unit_cost' => 5]]);
+
+            expect($this->line->fresh())
+                ->quantity_reserved->toBe(3)
+                ->quantity_on_order->toBe(0)
+                ->status->toBe(CustomerOrderLineStatus::Received);
+        });
+
+        it('libère la réservation au renversement d\'une réception', function () {
+            $reception = $this->supplierOrder->fresh()->receive([$this->supplierLine->id => ['quantity' => 3, 'unit_cost' => 5]]);
+
+            $this->supplierOrder->fresh()->reverseReceipt($reception->lines()->sole(), 1);
+
+            expect($this->line->fresh())
+                ->quantity_reserved->toBe(2)
+                ->quantity_on_order->toBe(1)
+                ->status->toBe(CustomerOrderLineStatus::Ordered)
+                ->and($this->product->inventoryStock()->sole())
+                ->quantity_in_stock->toBe(0)
+                ->quantity_reserved->toBe(2)
+                ->quantity_on_order->toBe(1);
+        });
+
+        it('refuse de renverser une réception déjà livrée au client', function () {
+            $reception = $this->supplierOrder->fresh()->receive([$this->supplierLine->id => ['quantity' => 3, 'unit_cost' => 5]]);
+            $this->line->update(['status' => CustomerOrderLineStatus::Delivered]);
+
+            expect(fn () => $this->supplierOrder->fresh()->reverseReceipt($reception->lines()->sole(), 1))
+                ->toThrow(DomainException::class);
+
+            expect($this->supplierLine->fresh()->quantity_received)->toBe(3)
+                ->and($this->line->fresh()->quantity_reserved)->toBe(3);
+        });
+
+        it('ne compte que ce qui reste à recevoir quand la quantité fournisseur change après une réception', function () {
+            $this->supplierOrder->fresh()->receive([$this->supplierLine->id => ['quantity' => 1, 'unit_cost' => 5]]);
+
+            $this->supplierOrder->fresh()->updateLine($this->supplierLine->fresh(), 4, $this->supplierLine->unit_cost);
+
+            expect($this->line->fresh())
+                ->quantity_reserved->toBe(1)
+                ->quantity_on_order->toBe(3)
+                ->quantity->toBe(4);
         });
     });
 });

@@ -155,7 +155,7 @@ class CustomerOrder extends Model
 
     /**
      * Répercute sur une ligne la quantité modifiée de sa ligne de commande fournisseur : la quantité « en commande »
-     * (et donc la quantité totale vendue) suit; le statut et le stock réservé ne changent pas.
+     * (ce qui reste à recevoir, et donc la quantité totale vendue) suit; le statut et le stock réservé ne changent pas.
      */
     public function applySupplierQuantity(CustomerOrderLine $line, int $onOrder): void
     {
@@ -176,28 +176,75 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Répercute l'annulation par le fournisseur de la quantité commandée d'une ligne : seule la quantité déjà reçue
-     * reste « en commande ». Le stock réservé est conservé; une ligne sans réservation ni réception est annulée.
+     * Répercute une réception de marchandise : les unités reçues sont aussitôt réservées au client (elles ne sont
+     * pas disponibles pour les autres) et passent de « en commande » à « en stock » sur la ligne. Une fois tout reçu,
+     * la ligne passe à « Reçu ».
+     */
+    public function applySupplierReceipt(CustomerOrderLine $line, int $quantity): void
+    {
+        DB::transaction(function () use ($line, $quantity): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+            $quantity = min($quantity, $line->quantity_on_order);
+
+            if ($quantity < 1) {
+                return;
+            }
+
+            $this->moveReservation($line->product_id, InventoryStatus::InStock, InventoryStatus::ReservedCustomer, $quantity);
+
+            $onOrder = $line->quantity_on_order - $quantity;
+
+            $line->update([
+                'quantity_reserved' => $line->quantity_reserved + $quantity,
+                'quantity_on_order' => $onOrder,
+                'status' => $onOrder === 0 ? CustomerOrderLineStatus::Received : CustomerOrderLineStatus::Ordered,
+            ]);
+        });
+    }
+
+    /**
+     * Répercute le renversement d'une réception faite par erreur : la réservation des unités est libérée (le
+     * fournisseur les remet ensuite « en commande ») et la ligne redevient « Commandé ».
+     *
+     * @throws DomainException si la marchandise est déjà sortie pour le client.
+     */
+    public function applySupplierReceiptReversal(CustomerOrderLine $line, int $quantity): void
+    {
+        DB::transaction(function () use ($line, $quantity): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if (! in_array($line->status, [CustomerOrderLineStatus::Ordered, CustomerOrderLineStatus::Received], true) || $line->quantity_reserved < $quantity) {
+                throw new DomainException(__('La marchandise de la commande client #:id est déjà sortie : la réception ne peut plus être renversée.', ['id' => $this->id]));
+            }
+
+            $this->moveReservation($line->product_id, InventoryStatus::ReservedCustomer, InventoryStatus::InStock, $quantity);
+
+            $line->update([
+                'quantity_reserved' => $line->quantity_reserved - $quantity,
+                'quantity_on_order' => $line->quantity_on_order + $quantity,
+                'status' => CustomerOrderLineStatus::Ordered,
+            ]);
+        });
+    }
+
+    /**
+     * Répercute l'annulation par le fournisseur de ce qui reste à recevoir sur une ligne. Le stock réservé (y compris
+     * ce qui est déjà reçu) est conservé; une ligne sans réservation ni réception est annulée.
      */
     public function applySupplierCancellation(CustomerOrderLine $line, int $quantityReceived): void
     {
         DB::transaction(function () use ($line, $quantityReceived): void {
             $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
 
-            if ($quantityReceived > 0) {
-                $line->update([
-                    'quantity_on_order' => $quantityReceived,
-                    'quantity' => $line->quantity_reserved + $quantityReceived,
-                ]);
-            } elseif ($line->quantity_reserved > 0) {
+            if ($line->quantity_reserved === 0) {
+                $line->update(['status' => CustomerOrderLineStatus::Cancelled]);
+            } else {
                 $line->update([
                     'quantity_on_order' => 0,
                     'quantity' => $line->quantity_reserved,
-                    'status' => CustomerOrderLineStatus::InStock,
-                    'supplier_order_line_id' => null,
+                    'status' => $quantityReceived > 0 ? CustomerOrderLineStatus::Received : CustomerOrderLineStatus::InStock,
+                    'supplier_order_line_id' => $quantityReceived > 0 ? $line->supplier_order_line_id : null,
                 ]);
-            } else {
-                $line->update(['status' => CustomerOrderLineStatus::Cancelled]);
             }
 
             $this->recalculateBalance();
@@ -205,15 +252,14 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Répercute une substitution fournisseur : la quantité qui reste à recevoir passe sur le produit de
-     * remplacement, au même prix vendant. Sans stock réservé ni réception, la ligne change simplement de produit;
-     * sinon elle garde sa partie réservée ou reçue et une nouvelle ligne « Commandé » est créée pour le substitut.
+     * Répercute une substitution fournisseur : ce qui reste à recevoir passe sur le produit de remplacement, au même
+     * prix vendant. Sans stock réservé ni réception, la ligne change simplement de produit; sinon elle garde sa
+     * partie réservée ou reçue et une nouvelle ligne « Commandé » est créée pour le substitut.
      */
     public function applySupplierSubstitution(CustomerOrderLine $line, int $quantityReceived, SupplierOrderLine $replacement): CustomerOrderLine
     {
         return DB::transaction(function () use ($line, $quantityReceived, $replacement): CustomerOrderLine {
             $line = $this->lines()->with('product')->lockForUpdate()->findOrFail($line->id);
-            $replacement->loadMissing('product');
 
             $note = __('Substitut fournisseur de :model.', ['model' => $line->product->model]);
 
@@ -232,9 +278,9 @@ class CustomerOrder extends Model
             }
 
             $line->update([
-                'quantity_on_order' => $quantityReceived,
-                'quantity' => $line->quantity_reserved + $quantityReceived,
-                'status' => $quantityReceived > 0 ? $line->status : CustomerOrderLineStatus::InStock,
+                'quantity_on_order' => 0,
+                'quantity' => $line->quantity_reserved,
+                'status' => $quantityReceived > 0 ? CustomerOrderLineStatus::Received : CustomerOrderLineStatus::InStock,
                 'supplier_order_line_id' => $quantityReceived > 0 ? $line->supplier_order_line_id : null,
             ]);
 
