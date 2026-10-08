@@ -4,7 +4,10 @@ namespace App\Models;
 
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
+use App\Enums\InventoryMovementType;
+use App\Enums\InventoryStatus;
 use Database\Factories\CustomerOrderFactory;
+use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -75,38 +78,119 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Ajoute une unité du produit à la commande : la quantité de sa ligne modifiable est augmentée,
-     * sinon une ligne est créée au prix vendant. Le statut dépend de la quantité disponible en stock.
+     * Ajoute le produit à la commande : la quantité est d'abord réservée dans le stock disponible, le reste
+     * est mis en commande. La ligne modifiable existante du produit est augmentée, sinon une ligne est créée
+     * au prix vendant.
      */
-    public function addProduct(Product $product): CustomerOrderLine
+    public function addProduct(Product $product, int $quantity = 1): CustomerOrderLine
     {
-        return DB::transaction(function () use ($product): CustomerOrderLine {
+        if ($quantity < 1) {
+            throw new DomainException(__('La quantité doit être d\'au moins 1.'));
+        }
+
+        return DB::transaction(function () use ($product, $quantity): CustomerOrderLine {
             $line = $this->lines()
                 ->where('product_id', $product->id)
                 ->whereIn('status', [CustomerOrderLineStatus::InStock, CustomerOrderLineStatus::OnOrder])
                 ->lockForUpdate()
-                ->first();
+                ->first()
+                ?? $this->lines()->make(['product_id' => $product->id, 'unit_price' => $product->selling_price]);
 
-            $quantity = ($line->quantity ?? 0) + 1;
-            $status = ($product->inventoryStock?->quantityAvailable() ?? 0) >= $quantity
-                ? CustomerOrderLineStatus::InStock
-                : CustomerOrderLineStatus::OnOrder;
+            $available = InventoryStock::query()->lockForUpdate()->where('product_id', $product->id)->value('quantity_in_stock') ?? 0;
+            $reserved = min((int) $available, $quantity);
 
-            if ($line === null) {
-                $line = $this->lines()->create([
-                    'product_id' => $product->id,
-                    'quantity' => $quantity,
-                    'unit_price' => $product->selling_price,
-                    'status' => $status,
-                ]);
-            } else {
-                $line->update(['quantity' => $quantity, 'status' => $status]);
+            if ($reserved > 0) {
+                $this->moveReservation($product->id, InventoryStatus::InStock, InventoryStatus::ReservedCustomer, $reserved);
             }
+
+            $this->fillLineQuantities($line, $line->quantity_reserved + $reserved, $line->quantity_on_order + $quantity - $reserved);
+            $line->save();
 
             $this->recalculateBalance();
 
             return $line;
         });
+    }
+
+    /**
+     * Ajuste la répartition d'une ligne entre le stock réservé et la partie en commande. Le stock libéré
+     * redevient disponible pour les autres clients; toute augmentation de la réservation vérifie d'abord
+     * que le stock est encore disponible.
+     *
+     * @throws DomainException si la ligne n'est plus modifiable ou si le stock est insuffisant.
+     */
+    public function adjustLine(CustomerOrderLine $line, int $reserved, int $onOrder): void
+    {
+        if ($reserved < 0 || $onOrder < 0 || $reserved + $onOrder < 1) {
+            throw new DomainException(__('La quantité totale de la ligne doit être d\'au moins 1.'));
+        }
+
+        DB::transaction(function () use ($line, $reserved, $onOrder): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if (! $line->status->isEditable()) {
+                throw new DomainException(__('Cette ligne ne peut plus être modifiée.'));
+            }
+
+            $difference = $reserved - $line->quantity_reserved;
+
+            if ($difference > 0) {
+                $this->moveReservation($line->product_id, InventoryStatus::InStock, InventoryStatus::ReservedCustomer, $difference);
+            } elseif ($difference < 0) {
+                $this->moveReservation($line->product_id, InventoryStatus::ReservedCustomer, InventoryStatus::InStock, -$difference);
+            }
+
+            $this->fillLineQuantities($line, $reserved, $onOrder);
+            $line->save();
+
+            $this->recalculateBalance();
+        });
+    }
+
+    /**
+     * Retire une ligne modifiable et remet son stock réservé en disponibilité.
+     *
+     * @throws DomainException si la ligne n'est plus modifiable.
+     */
+    public function removeLine(CustomerOrderLine $line): void
+    {
+        DB::transaction(function () use ($line): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if (! $line->status->isEditable()) {
+                throw new DomainException(__('Cette ligne ne peut plus être retirée.'));
+            }
+
+            if ($line->quantity_reserved > 0) {
+                $this->moveReservation($line->product_id, InventoryStatus::ReservedCustomer, InventoryStatus::InStock, $line->quantity_reserved);
+            }
+
+            $line->delete();
+
+            $this->recalculateBalance();
+        });
+    }
+
+    private function fillLineQuantities(CustomerOrderLine $line, int $reserved, int $onOrder): void
+    {
+        $line->fill([
+            'quantity_reserved' => $reserved,
+            'quantity_on_order' => $onOrder,
+            'quantity' => $reserved + $onOrder,
+            'status' => $onOrder > 0 ? CustomerOrderLineStatus::OnOrder : CustomerOrderLineStatus::InStock,
+        ]);
+    }
+
+    private function moveReservation(int $productId, InventoryStatus $from, InventoryStatus $to, int $quantity): void
+    {
+        InventoryMovement::record(
+            $productId,
+            $from,
+            $to,
+            $quantity,
+            $to === InventoryStatus::ReservedCustomer ? InventoryMovementType::CustomerReservation : InventoryMovementType::CustomerReservationReleased,
+            $this,
+        );
     }
 
     public function recalculateBalance(): void

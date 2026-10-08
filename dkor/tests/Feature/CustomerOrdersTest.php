@@ -2,10 +2,15 @@
 
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
+use App\Enums\InventoryMovementType;
+use App\Enums\InventoryStatus;
 use App\Livewire\CustomerOrders\Index;
+use App\Livewire\CustomerOrders\Show;
 use App\Models\customer;
 use App\Models\CustomerOrder;
 use App\Models\CustomerOrderLine;
+use App\Models\InventoryMovement;
+use App\Models\InventoryStock;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\PriceListList;
@@ -17,235 +22,419 @@ use Livewire\Livewire;
 beforeEach(function () {
     Role::create(['name' => 'visiteur', 'label' => 'Visiteur', 'level' => 0, 'guard_name' => 'web']);
     $this->user = User::factory()->withRole('visiteur')->create();
-    $this->user->givePermissionTo(['customer_orders.view', 'customers.view', 'customers.create']);
+    $this->user->givePermissionTo(['customer_orders.view', 'customer_orders.create', 'customer_orders.edit', 'customers.view', 'customers.create']);
     $this->actingAs($this->user);
 });
 
-it('trouve un client existant et le sélectionne', function () {
-    $customer = customer::factory()->create(['firstname' => 'Marguerite', 'lastname' => 'Tremblay']);
+describe('index', function () {
+    it('liste les commandes et cherche par numéro ou par client', function () {
+        $tremblay = CustomerOrder::factory()->for(customer::factory()->state(['firstname' => 'Marguerite', 'lastname' => 'Tremblay']))->create();
+        $gagnon = CustomerOrder::factory()->for(customer::factory()->state(['firstname' => 'Paul', 'lastname' => 'Gagnon']))->create();
 
-    Livewire::test(Index::class)
-        ->call('openCustomerModal')
-        ->set('customerSearch', 'Margu')
-        ->assertSee('Tremblay')
-        ->call('selectCustomer', $customer->id)
-        ->assertSet('selectedCustomerId', $customer->id)
-        ->assertSet('showCustomerModal', false);
+        Livewire::test(Index::class)
+            ->assertSee('Tremblay')
+            ->assertSee('Gagnon')
+            ->set('search', 'Tremb')
+            ->assertSee('Tremblay')
+            ->assertDontSee('Gagnon')
+            ->set('search', (string) $gagnon->id)
+            ->assertSee('Gagnon');
+
+        expect($tremblay->id)->not->toBe($gagnon->id);
+    });
+
+    it('filtre les commandes par statut', function () {
+        CustomerOrder::factory()->for(customer::factory()->state(['lastname' => 'Bouchard']))->create();
+        CustomerOrder::factory()->status(CustomerOrderStatus::Delivered)->for(customer::factory()->state(['lastname' => 'Pelletier']))->create();
+
+        Livewire::test(Index::class)
+            ->set('statusFilter', CustomerOrderStatus::Delivered->value)
+            ->assertSee('Pelletier')
+            ->assertDontSee('Bouchard');
+    });
+
+    it('crée une commande pour un client trouvé avec l\'utilisateur comme vendeur à 100 %', function () {
+        $customer = customer::factory()->create(['firstname' => 'Marguerite', 'lastname' => 'Tremblay']);
+
+        $component = Livewire::test(Index::class)
+            ->call('openCreate')
+            ->set('customerSearch', 'Margu')
+            ->assertSee('Tremblay')
+            ->call('create', $customer->id);
+
+        $order = CustomerOrder::sole();
+
+        $component->assertRedirect(route('customer-orders.show', $order));
+
+        expect($order->customer_id)->toBe($customer->id)
+            ->and($order->status)->toBe(CustomerOrderStatus::New)
+            ->and($order->created_by)->toBe($this->user->id)
+            ->and($order->salespeople->pluck('pivot.percent', 'id')->all())->toBe([$this->user->id => 100]);
+    });
+
+    it('crée la commande pour le client créé via le formulaire client', function () {
+        $customer = customer::factory()->create();
+
+        Livewire::test(Index::class)
+            ->call('openCreate')
+            ->dispatch('customer-saved', id: $customer->id);
+
+        expect(CustomerOrder::sole()->customer_id)->toBe($customer->id);
+    });
+
+    it('refuse la création sans permission', function () {
+        $this->user->revokePermissionTo('customer_orders.create');
+
+        Livewire::test(Index::class)
+            ->assertDontSeeHtml('wire:click="openCreate"')
+            ->call('create', customer::factory()->create()->id)
+            ->assertForbidden();
+
+        expect(CustomerOrder::count())->toBe(0);
+    });
 });
 
-it('sélectionne le client créé via le formulaire client', function () {
-    $customer = customer::factory()->create();
-
-    Livewire::test(Index::class)
-        ->dispatch('customer-saved', id: $customer->id)
-        ->assertSet('selectedCustomerId', $customer->id);
-});
-
-it('permet de retirer le client sélectionné', function () {
-    $customer = customer::factory()->create();
-
-    Livewire::test(Index::class)
-        ->call('selectCustomer', $customer->id)
-        ->call('clearCustomer')
-        ->assertSet('selectedCustomerId', null)
-        ->assertSet('customerSearch', '');
-});
-
-it('cherche un produit par ID sans fournisseur', function () {
-    $product = Product::factory()->create();
-    Product::factory()->create(['model' => 'AUTRE']);
-
-    $component = Livewire::test(Index::class)->set('productSearch', (string) $product->id);
-
-    expect($component->instance()->getProductResults()->pluck('id')->all())->toBe([$product->id]);
-
-    $component->set('productSearch', 'AUTRE');
-    expect($component->instance()->getProductResults())->toBeEmpty();
-});
-
-it('cherche un produit par modèle dans un fournisseur', function () {
-    $product = Product::factory()->create(['model' => 'SOFA-100']);
-    Product::factory()->create(['model' => 'SOFA-200']);
-
-    $component = Livewire::test(Index::class)
-        ->set('productSupplierId', (string) $product->supplier_id)
-        ->set('productSearch', 'SOFA');
-
-    expect($component->instance()->getProductResults()->pluck('id')->all())->toBe([$product->id]);
-});
-
-it('ajoute et retire un produit', function () {
-    $product = Product::factory()->create();
-
-    Livewire::test(Index::class)
-        ->call('addProduct', $product->id)
-        ->assertSet('productIds', [$product->id])
-        ->call('removeProduct', $product->id)
-        ->assertSet('productIds', []);
-});
-
-it('crée le produit depuis la liste de prix du fournisseur et l\'ajoute', function () {
-    $this->user->givePermissionTo('products.create');
-    $priceList = PriceList::factory()->create(['starts_on' => today()->subDay(), 'ends_on' => today()->addMonth()]);
-    $list = PriceListList::factory()->create(['price_list_id' => $priceList->id]);
-    $item = PriceListItem::factory()->create(['price_list_list_id' => $list->id, 'model' => 'TABLE-9', 'clean_model' => 'TABLE9']);
-
-    $component = Livewire::test(Index::class)
-        ->set('productSupplierId', (string) $priceList->supplier_id)
-        ->set('priceListSearch', 'TABLE');
-
-    expect($component->instance()->getPriceListResults()->pluck('id')->all())->toBe([$item->id]);
-
-    $component->call('addFromPriceList', $item->id);
-
-    $product = Product::where('supplier_id', $priceList->supplier_id)->where('model', 'TABLE-9')->firstOrFail();
-    expect($component->get('productIds'))->toBe([$product->id]);
-});
-
-it('refuse la création depuis la liste de prix sans permission', function () {
-    $priceList = PriceList::factory()->create(['starts_on' => today()->subDay(), 'ends_on' => today()->addMonth()]);
-    $list = PriceListList::factory()->create(['price_list_id' => $priceList->id]);
-    $item = PriceListItem::factory()->create(['price_list_list_id' => $list->id]);
-
-    Livewire::test(Index::class)
-        ->set('productSupplierId', (string) $priceList->supplier_id)
-        ->call('addFromPriceList', $item->id)
-        ->assertForbidden();
-});
-
-it('ajoute le produit rattaché à un UPC scanné', function () {
-    $product = Product::factory()->create();
-    $product->upcs()->create(['upc' => '012345678905']);
-
-    Livewire::test(Index::class)
-        ->set('upcScan', '012345678905')
-        ->call('scanUpc')
-        ->assertSet('productIds', [$product->id])
-        ->assertSet('upcScan', '')
-        ->set('upcScan', '012345678905')
-        ->call('scanUpc')
-        ->assertSet('productIds', [$product->id]);
-});
-
-it('signale un UPC inconnu', function () {
-    Livewire::test(Index::class)
-        ->set('upcScan', '999')
-        ->call('scanUpc')
-        ->assertHasErrors('upcScan')
-        ->assertSet('productIds', []);
-});
-
-it('définit l\'utilisateur connecté comme vendeur par défaut à 100 %', function () {
-    Livewire::test(Index::class)
-        ->assertSet('salespeople', [['user_id' => $this->user->id, 'percent' => 100]]);
-});
-
-it('cache le bouton vendeur et refuse la modification sans permission', function () {
-    Livewire::test(Index::class)
-        ->assertDontSee('Ajouter un vendeur')
-        ->call('openSalespeopleModal')
-        ->assertForbidden();
-});
-
-describe('gestion des vendeurs', function () {
+describe('show', function () {
     beforeEach(function () {
-        $this->user->givePermissionTo('customer_orders.assign_salespeople');
-        $this->other = User::factory()->withRole('visiteur')->create();
-        $this->third = User::factory()->withRole('visiteur')->create();
+        $this->order = CustomerOrder::factory()->create();
+        $this->order->syncSalespeople([['user_id' => $this->user->id, 'percent' => 100]]);
     });
 
-    it('affiche le bouton vendeur', function () {
-        Livewire::test(Index::class)->assertSee('Ajouter un vendeur');
+    it('affiche la commande', function () {
+        $this->get(route('customer-orders.show', $this->order))
+            ->assertOk()
+            ->assertSee($this->order->customer->lastname);
     });
 
-    it('répartit la vente entre deux vendeurs', function () {
-        Livewire::test(Index::class)
+    it('change le client de la commande', function () {
+        $customer = customer::factory()->create();
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openCustomerModal')
+            ->call('selectCustomer', $customer->id)
+            ->assertSet('showCustomerModal', false);
+
+        expect($this->order->fresh()->customer_id)->toBe($customer->id);
+    });
+
+    it('cherche un produit par ID sans fournisseur', function () {
+        $product = Product::factory()->create();
+        Product::factory()->create(['model' => 'AUTRE']);
+
+        $component = Livewire::test(Show::class, ['order' => $this->order])->set('productSearch', (string) $product->id);
+
+        expect($component->instance()->getProductResults()->pluck('id')->all())->toBe([$product->id]);
+
+        $component->set('productSearch', 'AUTRE');
+        expect($component->instance()->getProductResults())->toBeEmpty();
+    });
+
+    it('cherche un produit par modèle dans un fournisseur', function () {
+        $product = Product::factory()->create(['model' => 'SOFA-100']);
+        Product::factory()->create(['model' => 'SOFA-200']);
+
+        $component = Livewire::test(Show::class, ['order' => $this->order])
+            ->set('productSupplierId', (string) $product->supplier_id)
+            ->set('productSearch', 'SOFA');
+
+        expect($component->instance()->getProductResults()->pluck('id')->all())->toBe([$product->id]);
+    });
+
+    it('réserve le stock dès l\'ajout du produit, au prix vendant, et met à jour le solde', function () {
+        $product = Product::factory()->create(['cost' => 50]);
+        InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 5, 'quantity_reserved' => 0]);
+
+        Livewire::test(Show::class, ['order' => $this->order])->call('addProduct', $product->id);
+
+        $line = $this->order->lines()->sole();
+        $stock = $product->inventoryStock()->sole();
+
+        expect($line->status)->toBe(CustomerOrderLineStatus::InStock)
+            ->and($line->quantity)->toBe(1)
+            ->and($line->quantity_reserved)->toBe(1)
+            ->and($line->quantity_on_order)->toBe(0)
+            ->and($line->unit_price)->toBe($product->selling_price)
+            ->and($stock->quantity_in_stock)->toBe(4)
+            ->and($stock->quantity_reserved)->toBe(1)
+            ->and($this->order->fresh()->balance_due)->toBe($product->selling_price);
+
+        expect(InventoryMovement::sole())
+            ->type->toBe(InventoryMovementType::CustomerReservation)
+            ->from_status->toBe(InventoryStatus::InStock)
+            ->to_status->toBe(InventoryStatus::ReservedCustomer)
+            ->reference_id->toBe($this->order->id);
+    });
+
+    it('prend d\'abord le stock disponible puis met le reste en commande', function () {
+        $product = Product::factory()->create();
+        InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 1, 'quantity_reserved' => 0]);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('addProduct', $product->id)
+            ->call('addProduct', $product->id)
+            ->assertSet('lineQuantities', [$this->order->lines()->sole()->id => ['reserved' => 1, 'on_order' => 1]]);
+
+        $line = $this->order->lines()->sole();
+
+        expect($line->quantity)->toBe(2)
+            ->and($line->quantity_reserved)->toBe(1)
+            ->and($line->quantity_on_order)->toBe(1)
+            ->and($line->status)->toBe(CustomerOrderLineStatus::OnOrder)
+            ->and($product->inventoryStock()->sole()->quantity_in_stock)->toBe(0);
+    });
+
+    it('met tout en commande sans stock', function () {
+        $product = Product::factory()->create();
+
+        Livewire::test(Show::class, ['order' => $this->order])->call('addProduct', $product->id);
+
+        expect($this->order->lines()->sole())
+            ->quantity_reserved->toBe(0)
+            ->quantity_on_order->toBe(1)
+            ->status->toBe(CustomerOrderLineStatus::OnOrder);
+    });
+
+    it('libère le stock quand on réduit la réservation', function () {
+        $product = Product::factory()->create();
+        InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 3, 'quantity_reserved' => 0]);
+        $line = $this->order->addProduct($product, 3);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->set("lineQuantities.{$line->id}.reserved", 1)
+            ->assertHasNoErrors();
+
+        expect($line->fresh())
+            ->quantity_reserved->toBe(1)
+            ->quantity_on_order->toBe(0)
+            ->quantity->toBe(1)
+            ->and($product->inventoryStock()->sole())
+            ->quantity_in_stock->toBe(2)
+            ->quantity_reserved->toBe(1);
+    });
+
+    it('déplace des unités réservées vers la commande et inversement si le stock est encore disponible', function () {
+        $product = Product::factory()->create();
+        InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 2, 'quantity_reserved' => 0]);
+        $line = $this->order->addProduct($product, 2);
+
+        $component = Livewire::test(Show::class, ['order' => $this->order])
+            ->set("lineQuantities.{$line->id}.on_order", 1)
+            ->set("lineQuantities.{$line->id}.reserved", 1);
+
+        expect($line->fresh())->quantity_reserved->toBe(1)->quantity_on_order->toBe(1)
+            ->and($product->inventoryStock()->sole()->quantity_in_stock)->toBe(1);
+
+        $component->set("lineQuantities.{$line->id}.reserved", 2)
+            ->set("lineQuantities.{$line->id}.on_order", 0)
+            ->assertHasNoErrors();
+
+        expect($line->fresh())->quantity_reserved->toBe(2)->quantity_on_order->toBe(0)
+            ->status->toBe(CustomerOrderLineStatus::InStock)
+            ->and($product->inventoryStock()->sole()->quantity_in_stock)->toBe(0);
+    });
+
+    it('refuse d\'augmenter la réservation quand le stock libéré a été pris par un autre client', function () {
+        $product = Product::factory()->create();
+        InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 1, 'quantity_reserved' => 0]);
+        $line = $this->order->addProduct($product);
+
+        $component = Livewire::test(Show::class, ['order' => $this->order])
+            ->set("lineQuantities.{$line->id}.on_order", 1)
+            ->set("lineQuantities.{$line->id}.reserved", 0)
+            ->assertHasNoErrors();
+
+        CustomerOrder::factory()->create()->addProduct($product);
+
+        $component->set("lineQuantities.{$line->id}.reserved", 1)
+            ->assertHasErrors("lineQuantities.{$line->id}")
+            ->assertSet("lineQuantities.{$line->id}.reserved", 0);
+
+        expect($line->fresh()->quantity_reserved)->toBe(0)
+            ->and($product->inventoryStock()->sole()->quantity_reserved)->toBe(1);
+    });
+
+    it('refuse une ligne à quantité nulle', function () {
+        $line = $this->order->addProduct(Product::factory()->create());
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->set("lineQuantities.{$line->id}.on_order", 0)
+            ->assertHasErrors("lineQuantities.{$line->id}");
+
+        expect($line->fresh()->quantity)->toBe(1);
+    });
+
+    it('retire une ligne, libère son stock et recalcule le solde', function () {
+        $product = Product::factory()->create();
+        InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 1, 'quantity_reserved' => 0]);
+        $line = $this->order->addProduct($product);
+
+        Livewire::test(Show::class, ['order' => $this->order])->call('removeLine', $line->id);
+
+        expect($this->order->lines()->count())->toBe(0)
+            ->and($this->order->fresh()->balance_due)->toBe(0.0)
+            ->and($product->inventoryStock()->sole())
+            ->quantity_in_stock->toBe(1)
+            ->quantity_reserved->toBe(0);
+    });
+
+    it('ne retire pas une ligne livrée', function () {
+        $line = CustomerOrderLine::factory()->for($this->order, 'order')->status(CustomerOrderLineStatus::Delivered)->create();
+
+        Livewire::test(Show::class, ['order' => $this->order])->call('removeLine', $line->id);
+
+        expect($line->fresh())->not->toBeNull();
+    });
+
+    it('ajoute le produit rattaché à un UPC scanné', function () {
+        $product = Product::factory()->create();
+        $product->upcs()->create(['upc' => '012345678905']);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->set('upcScan', '012345678905')
+            ->call('scanUpc')
+            ->assertSet('upcScan', '');
+
+        expect($this->order->lines()->sole()->product_id)->toBe($product->id);
+    });
+
+    it('signale un UPC inconnu', function () {
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->set('upcScan', '999')
+            ->call('scanUpc')
+            ->assertHasErrors('upcScan');
+
+        expect($this->order->lines()->count())->toBe(0);
+    });
+
+    it('crée le produit depuis la liste de prix du fournisseur et l\'ajoute', function () {
+        $this->user->givePermissionTo('products.create');
+        $priceList = PriceList::factory()->create(['starts_on' => today()->subDay(), 'ends_on' => today()->addMonth()]);
+        $list = PriceListList::factory()->create(['price_list_id' => $priceList->id]);
+        $item = PriceListItem::factory()->create(['price_list_list_id' => $list->id, 'model' => 'TABLE-9', 'clean_model' => 'TABLE9']);
+
+        $component = Livewire::test(Show::class, ['order' => $this->order])
+            ->set('productSupplierId', (string) $priceList->supplier_id)
+            ->set('priceListSearch', 'TABLE');
+
+        expect($component->instance()->getPriceListResults()->pluck('id')->all())->toBe([$item->id]);
+
+        $component->call('addFromPriceList', $item->id);
+
+        $product = Product::where('supplier_id', $priceList->supplier_id)->where('model', 'TABLE-9')->firstOrFail();
+        expect($this->order->lines()->sole()->product_id)->toBe($product->id);
+    });
+
+    it('refuse la création depuis la liste de prix sans permission', function () {
+        $priceList = PriceList::factory()->create(['starts_on' => today()->subDay(), 'ends_on' => today()->addMonth()]);
+        $list = PriceListList::factory()->create(['price_list_id' => $priceList->id]);
+        $item = PriceListItem::factory()->create(['price_list_list_id' => $list->id]);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->set('productSupplierId', (string) $priceList->supplier_id)
+            ->call('addFromPriceList', $item->id)
+            ->assertForbidden();
+    });
+
+    it('refuse les modifications sans permission', function () {
+        $this->user->revokePermissionTo('customer_orders.edit');
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->assertDontSee('Ajouter un produit')
+            ->call('addProduct', Product::factory()->create()->id)
+            ->assertForbidden();
+    });
+
+    it('cache le bouton vendeur et refuse la modification sans permission', function () {
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->assertDontSee('Ajouter un vendeur')
             ->call('openSalespeopleModal')
-            ->set('salespeopleDraft', [
-                ['user_id' => $this->user->id, 'percent' => 75],
-                ['user_id' => $this->other->id, 'percent' => 25],
-            ])
-            ->call('saveSalespeople')
-            ->assertHasNoErrors()
-            ->assertSet('salespeople', [
-                ['user_id' => $this->user->id, 'percent' => 75],
-                ['user_id' => $this->other->id, 'percent' => 25],
-            ]);
+            ->assertForbidden();
     });
 
-    it('ajoute 1 au premier vendeur quand la somme est de 99', function () {
-        Livewire::test(Index::class)
-            ->call('openSalespeopleModal')
-            ->set('salespeopleDraft', [
-                ['user_id' => $this->user->id, 'percent' => 33],
-                ['user_id' => $this->other->id, 'percent' => 33],
-                ['user_id' => $this->third->id, 'percent' => 33],
-            ])
-            ->call('saveSalespeople')
-            ->assertHasNoErrors()
-            ->assertSet('salespeople.0.percent', 34)
-            ->assertSet('salespeople.1.percent', 33)
-            ->assertSet('salespeople.2.percent', 33);
+    describe('vendeurs', function () {
+        beforeEach(function () {
+            $this->user->givePermissionTo('customer_orders.assign_salespeople');
+            $this->other = User::factory()->withRole('visiteur')->create();
+            $this->third = User::factory()->withRole('visiteur')->create();
+        });
+
+        it('ouvre le modal avec les vendeurs de la commande', function () {
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->assertSee('Ajouter un vendeur')
+                ->call('openSalespeopleModal')
+                ->assertSet('salespeopleDraft', [['user_id' => $this->user->id, 'percent' => 100]]);
+        });
+
+        it('répartit la vente entre deux vendeurs', function () {
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->call('openSalespeopleModal')
+                ->set('salespeopleDraft', [
+                    ['user_id' => $this->user->id, 'percent' => 75],
+                    ['user_id' => $this->other->id, 'percent' => 25],
+                ])
+                ->call('saveSalespeople')
+                ->assertHasNoErrors();
+
+            expect($this->order->salespeople()->get()->pluck('pivot.percent', 'id')->all())
+                ->toBe([$this->user->id => 75, $this->other->id => 25]);
+        });
+
+        it('ajoute 1 au premier vendeur quand la somme est de 99', function () {
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->call('openSalespeopleModal')
+                ->set('salespeopleDraft', [
+                    ['user_id' => $this->user->id, 'percent' => 33],
+                    ['user_id' => $this->other->id, 'percent' => 33],
+                    ['user_id' => $this->third->id, 'percent' => 33],
+                ])
+                ->call('saveSalespeople')
+                ->assertHasNoErrors();
+
+            expect($this->order->salespeople()->get()->pluck('pivot.percent', 'id')->all())
+                ->toBe([$this->user->id => 34, $this->other->id => 33, $this->third->id => 33]);
+        });
+
+        it('refuse une somme différente de 100', function () {
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->call('openSalespeopleModal')
+                ->set('salespeopleDraft', [
+                    ['user_id' => $this->user->id, 'percent' => 50],
+                    ['user_id' => $this->other->id, 'percent' => 25],
+                ])
+                ->call('saveSalespeople')
+                ->assertHasErrors('salespeopleDraft');
+
+            expect($this->order->salespeople()->get()->pluck('pivot.percent', 'id')->all())->toBe([$this->user->id => 100]);
+        });
+
+        it('refuse le même vendeur deux fois', function () {
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->call('openSalespeopleModal')
+                ->set('salespeopleDraft', [
+                    ['user_id' => $this->user->id, 'percent' => 50],
+                    ['user_id' => $this->user->id, 'percent' => 50],
+                ])
+                ->call('saveSalespeople')
+                ->assertHasErrors('salespeopleDraft.1.user_id');
+        });
+
+        it('désactive dans les autres lignes un vendeur déjà choisi', function () {
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->call('openSalespeopleModal')
+                ->call('addSalesperson')
+                ->set('salespeopleDraft.1.user_id', $this->other->id)
+                ->assertSeeHtmlInOrder(['value="'.$this->other->id.'"', 'disabled']);
+        });
+
+        it('limite à 3 vendeurs', function () {
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->call('openSalespeopleModal')
+                ->call('addSalesperson')
+                ->call('addSalesperson')
+                ->call('addSalesperson')
+                ->assertCount('salespeopleDraft', 3);
+        });
     });
-
-    it('refuse une somme différente de 100', function () {
-        Livewire::test(Index::class)
-            ->call('openSalespeopleModal')
-            ->set('salespeopleDraft', [
-                ['user_id' => $this->user->id, 'percent' => 50],
-                ['user_id' => $this->other->id, 'percent' => 25],
-            ])
-            ->call('saveSalespeople')
-            ->assertHasErrors('salespeopleDraft')
-            ->assertSet('salespeople', [['user_id' => $this->user->id, 'percent' => 100]]);
-    });
-
-    it('refuse le même vendeur deux fois', function () {
-        Livewire::test(Index::class)
-            ->call('openSalespeopleModal')
-            ->set('salespeopleDraft', [
-                ['user_id' => $this->user->id, 'percent' => 50],
-                ['user_id' => $this->user->id, 'percent' => 50],
-            ])
-            ->call('saveSalespeople')
-            ->assertHasErrors('salespeopleDraft.1.user_id');
-    });
-
-    it('limite à 3 vendeurs', function () {
-        Livewire::test(Index::class)
-            ->call('openSalespeopleModal')
-            ->call('addSalesperson')
-            ->call('addSalesperson')
-            ->call('addSalesperson')
-            ->assertCount('salespeopleDraft', 3);
-    });
-});
-
-it('désactive dans les autres lignes un vendeur déjà choisi', function () {
-    $this->user->givePermissionTo('customer_orders.assign_salespeople');
-    $other = User::factory()->withRole('visiteur')->create();
-
-    Livewire::test(Index::class)
-        ->call('openSalespeopleModal')
-        ->call('addSalesperson')
-        ->set('salespeopleDraft.1.user_id', $other->id)
-        ->assertSeeHtmlInOrder(['value="'.$other->id.'"', 'disabled']);
-});
-
-it('crée une commande client nouvelle avec ses vendeurs et leur part', function () {
-    $other = User::factory()->withRole('visiteur')->create();
-    $order = CustomerOrder::factory()->create();
-
-    $order->salespeople()->attach([
-        $this->user->id => ['percent' => 67],
-        $other->id => ['percent' => 33],
-    ]);
-
-    $order = $order->fresh();
-
-    expect($order->status)->toBe(CustomerOrderStatus::New)
-        ->and($order->balance_due)->toBe(0.0)
-        ->and($order->salespeople->pluck('pivot.percent', 'id')->all())->toBe([$this->user->id => 67, $other->id => 33]);
 });
 
 it('rattache des lignes à une commande client', function () {

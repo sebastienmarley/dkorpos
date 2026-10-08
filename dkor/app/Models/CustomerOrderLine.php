@@ -15,6 +15,8 @@ use Illuminate\Support\Carbon;
  * @property int $customer_order_id
  * @property int $product_id
  * @property int $quantity
+ * @property int $quantity_reserved
+ * @property int $quantity_on_order
  * @property float $unit_price
  * @property string|null $note
  * @property CustomerOrderLineStatus $status
@@ -26,14 +28,21 @@ use Illuminate\Support\Carbon;
  * @property-read Product $product
  * @property-read float $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'quantity', 'unit_price', 'note', 'status', 'delivered_at', 'returned_at'])]
+#[Fillable(['customer_order_id', 'product_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'note', 'status', 'delivered_at', 'returned_at'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
     use HasFactory;
 
+    protected $attributes = [
+        'quantity_reserved' => 0,
+        'quantity_on_order' => 0,
+    ];
+
     protected $casts = [
         'quantity' => 'integer',
+        'quantity_reserved' => 'integer',
+        'quantity_on_order' => 'integer',
         'unit_price' => 'float',
         'status' => CustomerOrderLineStatus::class,
         'delivered_at' => 'datetime',

@@ -7,11 +7,13 @@ use App\Concerns\SearchesCustomers;
 use App\Enums\SupplierType;
 use App\Models\customer;
 use App\Models\CustomerOrder;
+use App\Models\CustomerOrderLine;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductUpc;
 use App\Models\Supplier;
 use App\Models\User;
+use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -47,9 +49,13 @@ class Show extends Component
 
     public string $priceListSearch = '';
 
+    /** @var array<int, array{reserved: int|string, on_order: int|string}> */
+    public array $lineQuantities = [];
+
     public function mount(CustomerOrder $order): void
     {
         $this->order = $order;
+        $this->refreshLineQuantities();
     }
 
     public function openSalespeopleModal(): void
@@ -173,9 +179,10 @@ class Show extends Component
     {
         $this->authorize('customer_orders.edit');
 
-        $this->order->addProduct(Product::with('supplier', 'inventoryStock')->findOrFail($id));
+        $this->order->addProduct(Product::findOrFail($id));
 
         $this->showProductModal = false;
+        $this->refreshLineQuantities();
     }
 
     public function scanUpc(): void
@@ -206,16 +213,54 @@ class Show extends Component
     {
         $this->authorize('customer_orders.edit');
 
-        $line = $this->order->lines()->findOrFail($lineId);
-
-        if (! $line->status->isEditable()) {
-            Flux::toast(text: __('Cette ligne ne peut plus être retirée.'), variant: 'warning');
-
-            return;
+        try {
+            $this->order->removeLine($this->order->lines()->findOrFail($lineId));
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'warning');
         }
 
-        $line->delete();
-        $this->order->recalculateBalance();
+        $this->refreshLineQuantities();
+    }
+
+    /**
+     * Applique la répartition stock réservé / en commande saisie pour une ligne (clé « {ligne}.reserved »
+     * ou « {ligne}.on_order »). En cas de refus (stock plus disponible), les quantités réelles sont réaffichées.
+     */
+    public function updatedLineQuantities(mixed $value, string $key): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $lineId = (int) explode('.', $key)[0];
+        $line = $this->order->lines()->findOrFail($lineId);
+
+        $this->resetErrorBag('lineQuantities.'.$lineId);
+
+        $this->validate([
+            'lineQuantities.'.$lineId.'.reserved' => ['required', 'integer', 'min:0'],
+            'lineQuantities.'.$lineId.'.on_order' => ['required', 'integer', 'min:0'],
+        ]);
+
+        try {
+            $this->order->adjustLine(
+                $line,
+                (int) $this->lineQuantities[$lineId]['reserved'],
+                (int) $this->lineQuantities[$lineId]['on_order'],
+            );
+        } catch (DomainException $exception) {
+            $this->addError('lineQuantities.'.$lineId, $exception->getMessage());
+        }
+
+        $this->refreshLineQuantities();
+    }
+
+    private function refreshLineQuantities(): void
+    {
+        $this->lineQuantities = $this->order->lines()->get()
+            ->mapWithKeys(fn (CustomerOrderLine $line): array => [$line->id => [
+                'reserved' => $line->quantity_reserved,
+                'on_order' => $line->quantity_on_order,
+            ]])
+            ->all();
     }
 
     public function addFromPriceList(int $itemId, CreateProductFromPriceListItem $createProduct): void
@@ -294,7 +339,7 @@ class Show extends Component
 
     public function render(): View
     {
-        $this->order->load(['customer', 'creator', 'salespeople', 'lines.product.supplier']);
+        $this->order->load(['customer', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),

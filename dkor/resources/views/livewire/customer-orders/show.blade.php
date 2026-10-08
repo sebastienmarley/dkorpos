@@ -66,6 +66,8 @@
                     <flux:table.column>{{ __('Produit') }}</flux:table.column>
                     <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
                     <flux:table.column>{{ __('Statut') }}</flux:table.column>
+                    <flux:table.column align="end">{{ __('En stock') }}</flux:table.column>
+                    <flux:table.column align="end">{{ __('En commande') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Qté') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Prix') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Total') }}</flux:table.column>
@@ -83,6 +85,27 @@
                             <flux:table.cell>
                                 <flux:badge :color="$line->status->color()" size="sm">{{ $line->status->label() }}</flux:badge>
                             </flux:table.cell>
+                            @if ($line->status->isEditable() && auth()->user()->can('customer_orders.edit'))
+                                <flux:table.cell align="end">
+                                    <div class="ms-auto w-20">
+                                        <flux:input wire:model.blur="lineQuantities.{{ $line->id }}.reserved" type="number" min="0" size="sm" class="text-end" />
+                                    </div>
+                                    <div class="mt-1 text-xs text-zinc-400">
+                                        {{ __('Disponible : :count', ['count' => $line->product->inventoryStock?->quantityAvailable() ?? 0]) }}
+                                    </div>
+                                    <flux:error name="lineQuantities.{{ $line->id }}" />
+                                    <flux:error name="lineQuantities.{{ $line->id }}.reserved" />
+                                </flux:table.cell>
+                                <flux:table.cell align="end">
+                                    <div class="ms-auto w-20">
+                                        <flux:input wire:model.blur="lineQuantities.{{ $line->id }}.on_order" type="number" min="0" size="sm" class="text-end" />
+                                    </div>
+                                    <flux:error name="lineQuantities.{{ $line->id }}.on_order" />
+                                </flux:table.cell>
+                            @else
+                                <flux:table.cell align="end">{{ $line->quantity_reserved }}</flux:table.cell>
+                                <flux:table.cell align="end">{{ $line->quantity_on_order }}</flux:table.cell>
+                            @endif
                             <flux:table.cell align="end">{{ $line->quantity }}</flux:table.cell>
                             <flux:table.cell align="end">{{ number_format($line->unit_price, 2) }} $</flux:table.cell>
                             <flux:table.cell align="end">{{ number_format($line->total, 2) }} $</flux:table.cell>
@@ -96,7 +119,7 @@
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="7" class="py-8 text-center">
+                            <flux:table.cell colspan="9" class="py-8 text-center">
                                 <flux:text class="text-zinc-400">{{ __('Aucun produit dans cette commande.') }}</flux:text>
                             </flux:table.cell>
                         </flux:table.row>
