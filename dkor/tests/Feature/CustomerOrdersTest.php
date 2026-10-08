@@ -171,8 +171,7 @@ describe('show', function () {
 
         Livewire::test(Show::class, ['order' => $this->order])
             ->call('addProduct', $product->id)
-            ->call('addProduct', $product->id)
-            ->assertSet('lineQuantities', [$this->order->lines()->sole()->id => ['reserved' => 1, 'on_order' => 1]]);
+            ->call('addProduct', $product->id);
 
         $line = $this->order->lines()->sole();
 
@@ -194,13 +193,52 @@ describe('show', function () {
             ->status->toBe(CustomerOrderLineStatus::OnOrder);
     });
 
+    it('affiche les quantités sans permettre de les modifier dans le tableau', function () {
+        $line = $this->order->addProduct(Product::factory()->create());
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->assertSee('Qté totale')
+            ->assertDontSeeHtml('wire:model.blur')
+            ->assertSeeHtml('$wire.openLineModal('.$line->id.')');
+    });
+
+    it('ouvre le modal d\'édition avec les valeurs de la ligne', function () {
+        $line = $this->order->addProduct(Product::factory()->create());
+        $line->update(['note' => 'Livrer au sous-sol']);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openLineModal', $line->id)
+            ->assertSet('showLineModal', true)
+            ->assertSet('editReserved', '0')
+            ->assertSet('editOnOrder', '1')
+            ->assertSet('editUnitPrice', number_format($line->unit_price, 2, '.', ''))
+            ->assertSet('editNote', 'Livrer au sous-sol');
+    });
+
+    it('modifie le prix vendant et la note et recalcule le solde', function () {
+        $line = $this->order->addProduct(Product::factory()->create());
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openLineModal', $line->id)
+            ->set('editUnitPrice', '199,95')
+            ->set('editNote', 'Couleur à confirmer')
+            ->call('saveLine')
+            ->assertHasNoErrors()
+            ->assertSet('showLineModal', false);
+
+        expect($line->fresh())->unit_price->toBe(199.95)->note->toBe('Couleur à confirmer')
+            ->and($this->order->fresh()->balance_due)->toBe(199.95);
+    });
+
     it('libère le stock quand on réduit la réservation', function () {
         $product = Product::factory()->create();
         InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 3, 'quantity_reserved' => 0]);
         $line = $this->order->addProduct($product, 3);
 
         Livewire::test(Show::class, ['order' => $this->order])
-            ->set("lineQuantities.{$line->id}.reserved", 1)
+            ->call('openLineModal', $line->id)
+            ->set('editReserved', '1')
+            ->call('saveLine')
             ->assertHasNoErrors();
 
         expect($line->fresh())
@@ -218,14 +256,19 @@ describe('show', function () {
         $line = $this->order->addProduct($product, 2);
 
         $component = Livewire::test(Show::class, ['order' => $this->order])
-            ->set("lineQuantities.{$line->id}.on_order", 1)
-            ->set("lineQuantities.{$line->id}.reserved", 1);
+            ->call('openLineModal', $line->id)
+            ->set('editReserved', '1')
+            ->set('editOnOrder', '1')
+            ->call('saveLine')
+            ->assertHasNoErrors();
 
         expect($line->fresh())->quantity_reserved->toBe(1)->quantity_on_order->toBe(1)
             ->and($product->inventoryStock()->sole()->quantity_in_stock)->toBe(1);
 
-        $component->set("lineQuantities.{$line->id}.reserved", 2)
-            ->set("lineQuantities.{$line->id}.on_order", 0)
+        $component->call('openLineModal', $line->id)
+            ->set('editReserved', '2')
+            ->set('editOnOrder', '0')
+            ->call('saveLine')
             ->assertHasNoErrors();
 
         expect($line->fresh())->quantity_reserved->toBe(2)->quantity_on_order->toBe(0)
@@ -239,17 +282,23 @@ describe('show', function () {
         $line = $this->order->addProduct($product);
 
         $component = Livewire::test(Show::class, ['order' => $this->order])
-            ->set("lineQuantities.{$line->id}.on_order", 1)
-            ->set("lineQuantities.{$line->id}.reserved", 0)
+            ->call('openLineModal', $line->id)
+            ->set('editReserved', '0')
+            ->set('editOnOrder', '1')
+            ->call('saveLine')
             ->assertHasNoErrors();
 
         CustomerOrder::factory()->create()->addProduct($product);
 
-        $component->set("lineQuantities.{$line->id}.reserved", 1)
-            ->assertHasErrors("lineQuantities.{$line->id}")
-            ->assertSet("lineQuantities.{$line->id}.reserved", 0);
+        $component->call('openLineModal', $line->id)
+            ->set('editReserved', '1')
+            ->set('editOnOrder', '0')
+            ->set('editNote', 'Ne doit pas être gardée')
+            ->call('saveLine')
+            ->assertHasErrors('editReserved')
+            ->assertSet('showLineModal', true);
 
-        expect($line->fresh()->quantity_reserved)->toBe(0)
+        expect($line->fresh())->quantity_reserved->toBe(0)->note->toBeNull()
             ->and($product->inventoryStock()->sole()->quantity_reserved)->toBe(1);
     });
 
@@ -257,10 +306,29 @@ describe('show', function () {
         $line = $this->order->addProduct(Product::factory()->create());
 
         Livewire::test(Show::class, ['order' => $this->order])
-            ->set("lineQuantities.{$line->id}.on_order", 0)
-            ->assertHasErrors("lineQuantities.{$line->id}");
+            ->call('openLineModal', $line->id)
+            ->set('editOnOrder', '0')
+            ->call('saveLine')
+            ->assertHasErrors('editReserved');
 
         expect($line->fresh()->quantity)->toBe(1);
+    });
+
+    it('permet seulement la note sur une ligne livrée', function () {
+        $line = CustomerOrderLine::factory()->for($this->order, 'order')->status(CustomerOrderLineStatus::Delivered)
+            ->create(['quantity' => 1, 'quantity_reserved' => 1, 'unit_price' => 100]);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openLineModal', $line->id)
+            ->set('editNote', 'Client satisfait')
+            ->call('saveLine')
+            ->assertHasNoErrors()
+            ->call('openLineModal', $line->id)
+            ->set('editUnitPrice', '50')
+            ->call('saveLine')
+            ->assertHasErrors('editReserved');
+
+        expect($line->fresh())->note->toBe('Client satisfait')->unit_price->toBe(100.0);
     });
 
     it('retire une ligne, libère son stock et recalcule le solde', function () {
