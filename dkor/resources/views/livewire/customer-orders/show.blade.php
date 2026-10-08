@@ -262,11 +262,11 @@
 
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>
-                            <flux:label>{{ __('En stock (réservé)') }}</flux:label>
+                            <flux:label>
+                                {{ __('En stock (réservé)') }}
+                                <span class="ms-1 font-normal text-zinc-400">{{ __('max. :count', ['count' => $editingLine->quantity_reserved + ($editingLine->product->inventoryStock?->quantityAvailable() ?? 0)]) }}</span>
+                            </flux:label>
                             <flux:input wire:model="editReserved" type="number" min="0" :disabled="! $editable" />
-                            <flux:description>
-                                {{ __('Maximum : :count', ['count' => $editingLine->quantity_reserved + ($editingLine->product->inventoryStock?->quantityAvailable() ?? 0)]) }}
-                            </flux:description>
                             <flux:error name="editReserved" />
                         </flux:field>
 
