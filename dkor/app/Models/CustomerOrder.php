@@ -154,6 +154,28 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Répercute sur une ligne la quantité modifiée de sa ligne de commande fournisseur : la quantité « en commande »
+     * (et donc la quantité totale vendue) suit; le statut et le stock réservé ne changent pas.
+     */
+    public function applySupplierQuantity(CustomerOrderLine $line, int $onOrder): void
+    {
+        DB::transaction(function () use ($line, $onOrder): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if ($line->quantity_on_order === $onOrder) {
+                return;
+            }
+
+            $line->update([
+                'quantity_on_order' => $onOrder,
+                'quantity' => $line->quantity_reserved + $onOrder,
+            ]);
+
+            $this->recalculateBalance();
+        });
+    }
+
+    /**
      * Met à jour une ligne depuis le modal d'édition : répartition stock réservé / en commande et prix vendant
      * tant que la ligne est modifiable, note en tout temps.
      *

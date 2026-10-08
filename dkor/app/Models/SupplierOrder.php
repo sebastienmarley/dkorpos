@@ -505,7 +505,8 @@ class SupplierOrder extends Model
 
     /**
      * Modifie la quantité et le coût d'une ligne, en brouillon ou après l'envoi. Après l'envoi, la quantité ne peut
-     * pas descendre sous ce qui est déjà reçu et l'inventaire « en commande » suit la différence.
+     * pas descendre sous ce qui est déjà reçu et l'inventaire « en commande » suit la différence. La quantité « en
+     * commande » de la ligne de commande client liée suit la nouvelle quantité.
      */
     public function updateLine(SupplierOrderLine $line, int $quantity, float $unitCost): void
     {
@@ -533,6 +534,9 @@ class SupplierOrder extends Model
             }
 
             $line->update(['quantity' => $quantity, 'unit_cost' => round($unitCost, 2)]);
+
+            $customerLine = $line->customerOrderLine()->with('order')->first();
+            $customerLine?->order->applySupplierQuantity($customerLine, $quantity);
 
             if ($this->status->isOpen()) {
                 $this->refreshStatusFromLines();

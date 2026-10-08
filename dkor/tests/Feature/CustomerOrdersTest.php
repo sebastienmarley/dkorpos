@@ -621,4 +621,37 @@ describe('lien avec les commandes fournisseurs', function () {
 
         expect($supplierLine->fresh())->not->toBeNull();
     });
+
+    it('répercute sur la ligne client la quantité modifiée dans la commande fournisseur', function () {
+        $this->user->givePermissionTo(['supplier_orders.view', 'supplier_orders.edit']);
+        $product = Product::factory()->create();
+        InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 1, 'quantity_reserved' => 0]);
+        $line = $this->order->addProduct($product, 2);
+        $supplierLine = SupplierOrderLine::sole();
+
+        Livewire::test(SupplierOrderShow::class, ['order' => $supplierLine->order])
+            ->call('startEditLine', $supplierLine->id)
+            ->set('editQuantity', '3')
+            ->call('saveLine');
+
+        expect($line->fresh())
+            ->quantity_reserved->toBe(1)
+            ->quantity_on_order->toBe(3)
+            ->quantity->toBe(4)
+            ->status->toBe(CustomerOrderLineStatus::OnOrder)
+            ->and($this->order->fresh()->balance_due)->toBe(round(4 * $line->unit_price, 2));
+    });
+
+    it('répercute aussi la quantité modifiée après l\'envoi sans changer le statut « Commandé »', function () {
+        $line = $this->order->addProduct(Product::factory()->create(), 3);
+        $supplierOrder = SupplierOrder::sole();
+        $supplierOrder->send();
+
+        $supplierOrder->updateLine(SupplierOrderLine::sole(), 2, SupplierOrderLine::sole()->unit_cost);
+
+        expect($line->fresh())
+            ->quantity_on_order->toBe(2)
+            ->quantity->toBe(2)
+            ->status->toBe(CustomerOrderLineStatus::Ordered);
+    });
 });
