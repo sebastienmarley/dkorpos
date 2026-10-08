@@ -176,6 +176,86 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Répercute l'annulation par le fournisseur de la quantité commandée d'une ligne : seule la quantité déjà reçue
+     * reste « en commande ». Le stock réservé est conservé; une ligne sans réservation ni réception est annulée.
+     */
+    public function applySupplierCancellation(CustomerOrderLine $line, int $quantityReceived): void
+    {
+        DB::transaction(function () use ($line, $quantityReceived): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if ($quantityReceived > 0) {
+                $line->update([
+                    'quantity_on_order' => $quantityReceived,
+                    'quantity' => $line->quantity_reserved + $quantityReceived,
+                ]);
+            } elseif ($line->quantity_reserved > 0) {
+                $line->update([
+                    'quantity_on_order' => 0,
+                    'quantity' => $line->quantity_reserved,
+                    'status' => CustomerOrderLineStatus::InStock,
+                    'supplier_order_line_id' => null,
+                ]);
+            } else {
+                $line->update(['status' => CustomerOrderLineStatus::Cancelled]);
+            }
+
+            $this->recalculateBalance();
+        });
+    }
+
+    /**
+     * Répercute une substitution fournisseur : la quantité qui reste à recevoir passe sur le produit de
+     * remplacement, au même prix vendant. Sans stock réservé ni réception, la ligne change simplement de produit;
+     * sinon elle garde sa partie réservée ou reçue et une nouvelle ligne « Commandé » est créée pour le substitut.
+     */
+    public function applySupplierSubstitution(CustomerOrderLine $line, int $quantityReceived, SupplierOrderLine $replacement): CustomerOrderLine
+    {
+        return DB::transaction(function () use ($line, $quantityReceived, $replacement): CustomerOrderLine {
+            $line = $this->lines()->with('product')->lockForUpdate()->findOrFail($line->id);
+            $replacement->loadMissing('product');
+
+            $note = __('Substitut fournisseur de :model.', ['model' => $line->product->model]);
+
+            if ($quantityReceived === 0 && $line->quantity_reserved === 0) {
+                $line->update([
+                    'product_id' => $replacement->product_id,
+                    'supplier_order_line_id' => $replacement->id,
+                    'quantity_on_order' => $replacement->quantity,
+                    'quantity' => $replacement->quantity,
+                    'note' => trim($line->note."\n".$note),
+                ]);
+
+                $this->recalculateBalance();
+
+                return $line;
+            }
+
+            $line->update([
+                'quantity_on_order' => $quantityReceived,
+                'quantity' => $line->quantity_reserved + $quantityReceived,
+                'status' => $quantityReceived > 0 ? $line->status : CustomerOrderLineStatus::InStock,
+                'supplier_order_line_id' => $quantityReceived > 0 ? $line->supplier_order_line_id : null,
+            ]);
+
+            $substitute = $this->lines()->create([
+                'product_id' => $replacement->product_id,
+                'supplier_order_line_id' => $replacement->id,
+                'quantity_reserved' => 0,
+                'quantity_on_order' => $replacement->quantity,
+                'quantity' => $replacement->quantity,
+                'unit_price' => $line->unit_price,
+                'status' => CustomerOrderLineStatus::Ordered,
+                'note' => $note,
+            ]);
+
+            $this->recalculateBalance();
+
+            return $substitute;
+        });
+    }
+
+    /**
      * Met à jour une ligne depuis le modal d'édition : répartition stock réservé / en commande et prix vendant
      * tant que la ligne est modifiable, note en tout temps.
      *

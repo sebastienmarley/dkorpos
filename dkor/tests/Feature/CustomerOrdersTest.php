@@ -654,4 +654,119 @@ describe('lien avec les commandes fournisseurs', function () {
             ->quantity->toBe(2)
             ->status->toBe(CustomerOrderLineStatus::Ordered);
     });
+
+    describe('substitution fournisseur', function () {
+        beforeEach(function () {
+            $this->product = Product::factory()->create(['model' => 'SOFA-A']);
+            $this->substitute = Product::factory()->create(['model' => 'SOFA-B', 'supplier_id' => $this->product->supplier_id]);
+        });
+
+        it('change le produit de la ligne client quand rien n\'est réservé ni reçu, au même prix', function () {
+            $line = $this->order->addProduct($this->product, 2);
+            $price = $line->unit_price;
+            $supplierOrder = SupplierOrder::sole();
+            $supplierOrder->send();
+
+            $replacement = $supplierOrder->substituteLine(SupplierOrderLine::sole(), $this->substitute);
+
+            expect($line->fresh())
+                ->product_id->toBe($this->substitute->id)
+                ->supplier_order_line_id->toBe($replacement->id)
+                ->quantity_on_order->toBe(2)
+                ->unit_price->toBe($price)
+                ->status->toBe(CustomerOrderLineStatus::Ordered)
+                ->note->toContain('SOFA-A')
+                ->and($this->order->lines()->count())->toBe(1);
+        });
+
+        it('garde la partie réservée et crée une ligne pour le substitut', function () {
+            InventoryStock::factory()->create(['product_id' => $this->product->id, 'quantity_in_stock' => 1, 'quantity_reserved' => 0]);
+            $line = $this->order->addProduct($this->product, 3);
+            $supplierOrder = SupplierOrder::sole();
+            $supplierOrder->send();
+
+            $replacement = $supplierOrder->substituteLine(SupplierOrderLine::sole(), $this->substitute);
+
+            expect($line->fresh())
+                ->product_id->toBe($this->product->id)
+                ->quantity_reserved->toBe(1)
+                ->quantity_on_order->toBe(0)
+                ->status->toBe(CustomerOrderLineStatus::InStock)
+                ->supplier_order_line_id->toBeNull();
+
+            expect($this->order->lines()->where('product_id', $this->substitute->id)->sole())
+                ->supplier_order_line_id->toBe($replacement->id)
+                ->quantity_on_order->toBe(2)
+                ->unit_price->toBe($line->unit_price)
+                ->status->toBe(CustomerOrderLineStatus::Ordered)
+                ->and($this->order->fresh()->balance_due)->toBe(round(3 * $line->unit_price, 2));
+        });
+
+        it('garde la partie déjà reçue sur la ligne d\'origine', function () {
+            $line = $this->order->addProduct($this->product, 3);
+            $supplierOrder = SupplierOrder::sole();
+            $supplierOrder->send();
+            SupplierOrderLine::sole()->update(['quantity_received' => 1]);
+
+            $supplierOrder->substituteLine(SupplierOrderLine::sole(), $this->substitute);
+
+            expect($line->fresh())->quantity_on_order->toBe(1)->status->toBe(CustomerOrderLineStatus::Ordered)
+                ->and($this->order->lines()->where('product_id', $this->substitute->id)->sole()->quantity_on_order)->toBe(2);
+        });
+    });
+
+    describe('annulation fournisseur', function () {
+        it('annule la ligne client sans stock réservé quand la commande fournisseur est annulée', function () {
+            $line = $this->order->addProduct(Product::factory()->create());
+            $supplierOrder = SupplierOrder::sole();
+            $supplierOrder->send();
+
+            $supplierOrder->cancel();
+
+            expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::Cancelled)
+                ->and($this->order->fresh()->balance_due)->toBe(0.0);
+        });
+
+        it('annule aussi pour le client un brouillon fournisseur annulé', function () {
+            $line = $this->order->addProduct(Product::factory()->create());
+
+            SupplierOrder::sole()->cancel();
+
+            expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::Cancelled);
+        });
+
+        it('garde le stock réservé et retire seulement la partie commandée', function () {
+            $product = Product::factory()->create();
+            InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 1, 'quantity_reserved' => 0]);
+            $line = $this->order->addProduct($product, 3);
+            $supplierOrder = SupplierOrder::sole();
+            $supplierOrder->send();
+
+            $supplierOrder->cancel();
+
+            expect($line->fresh())
+                ->quantity_reserved->toBe(1)
+                ->quantity_on_order->toBe(0)
+                ->quantity->toBe(1)
+                ->status->toBe(CustomerOrderLineStatus::InStock)
+                ->supplier_order_line_id->toBeNull()
+                ->and($this->order->fresh()->balance_due)->toBe($line->unit_price);
+        });
+
+        it('répercute l\'annulation confirmée d\'une ligne en gardant ce qui est reçu', function () {
+            $line = $this->order->addProduct(Product::factory()->create(), 3);
+            $supplierOrder = SupplierOrder::sole();
+            $supplierOrder->send();
+            $supplierLine = SupplierOrderLine::sole();
+            $supplierLine->update(['quantity_received' => 1]);
+
+            $supplierOrder->requestLineCancellation($supplierLine->fresh());
+            $supplierOrder->confirmLineCancellation($supplierLine->fresh());
+
+            expect($line->fresh())
+                ->quantity_on_order->toBe(1)
+                ->quantity->toBe(1)
+                ->status->toBe(CustomerOrderLineStatus::Ordered);
+        });
+    });
 });
