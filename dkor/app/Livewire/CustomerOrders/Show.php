@@ -7,7 +7,6 @@ use App\Concerns\SearchesCustomers;
 use App\Enums\SupplierType;
 use App\Models\customer;
 use App\Models\CustomerOrder;
-use App\Models\CustomerOrderLine;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductUpc;
@@ -49,13 +48,21 @@ class Show extends Component
 
     public string $priceListSearch = '';
 
-    /** @var array<int, array{reserved: int|string, on_order: int|string}> */
-    public array $lineQuantities = [];
+    public bool $showLineModal = false;
+
+    public ?int $editingLineId = null;
+
+    public string $editReserved = '';
+
+    public string $editOnOrder = '';
+
+    public string $editUnitPrice = '';
+
+    public string $editNote = '';
 
     public function mount(CustomerOrder $order): void
     {
         $this->order = $order;
-        $this->refreshLineQuantities();
     }
 
     public function openSalespeopleModal(): void
@@ -182,7 +189,6 @@ class Show extends Component
         $this->order->addProduct(Product::findOrFail($id));
 
         $this->showProductModal = false;
-        $this->refreshLineQuantities();
     }
 
     public function scanUpc(): void
@@ -218,49 +224,48 @@ class Show extends Component
         } catch (DomainException $exception) {
             Flux::toast(text: $exception->getMessage(), variant: 'warning');
         }
-
-        $this->refreshLineQuantities();
     }
 
-    /**
-     * Applique la répartition stock réservé / en commande saisie pour une ligne (clé « {ligne}.reserved »
-     * ou « {ligne}.on_order »). En cas de refus (stock plus disponible), les quantités réelles sont réaffichées.
-     */
-    public function updatedLineQuantities(mixed $value, string $key): void
+    public function openLineModal(int $lineId): void
     {
         $this->authorize('customer_orders.edit');
 
-        $lineId = (int) explode('.', $key)[0];
         $line = $this->order->lines()->findOrFail($lineId);
 
-        $this->resetErrorBag('lineQuantities.'.$lineId);
+        $this->editingLineId = $line->id;
+        $this->editReserved = (string) $line->quantity_reserved;
+        $this->editOnOrder = (string) $line->quantity_on_order;
+        $this->editUnitPrice = number_format($line->unit_price, 2, '.', '');
+        $this->editNote = $line->note ?? '';
+        $this->resetErrorBag();
+        $this->showLineModal = true;
+    }
+
+    public function saveLine(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $line = $this->order->lines()->findOrFail($this->editingLineId);
+
+        $this->editUnitPrice = str_replace(',', '.', $this->editUnitPrice);
 
         $this->validate([
-            'lineQuantities.'.$lineId.'.reserved' => ['required', 'integer', 'min:0'],
-            'lineQuantities.'.$lineId.'.on_order' => ['required', 'integer', 'min:0'],
+            'editReserved' => ['required', 'integer', 'min:0'],
+            'editOnOrder' => ['required', 'integer', 'min:0'],
+            'editUnitPrice' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'editNote' => ['nullable', 'string', 'max:5000'],
         ]);
 
         try {
-            $this->order->adjustLine(
-                $line,
-                (int) $this->lineQuantities[$lineId]['reserved'],
-                (int) $this->lineQuantities[$lineId]['on_order'],
-            );
+            $this->order->updateLine($line, (int) $this->editReserved, (int) $this->editOnOrder, (float) $this->editUnitPrice, $this->editNote);
         } catch (DomainException $exception) {
-            $this->addError('lineQuantities.'.$lineId, $exception->getMessage());
+            $this->addError('editReserved', $exception->getMessage());
+
+            return;
         }
 
-        $this->refreshLineQuantities();
-    }
-
-    private function refreshLineQuantities(): void
-    {
-        $this->lineQuantities = $this->order->lines()->get()
-            ->mapWithKeys(fn (CustomerOrderLine $line): array => [$line->id => [
-                'reserved' => $line->quantity_reserved,
-                'on_order' => $line->quantity_on_order,
-            ]])
-            ->all();
+        $this->showLineModal = false;
+        $this->reset(['editingLineId', 'editReserved', 'editOnOrder', 'editUnitPrice', 'editNote']);
     }
 
     public function addFromPriceList(int $itemId, CreateProductFromPriceListItem $createProduct): void
@@ -339,10 +344,13 @@ class Show extends Component
 
     public function render(): View
     {
+        $editingLine = $this->editingLineId ? $this->order->lines()->with('product.inventoryStock')->find($this->editingLineId) : null;
+
         $this->order->load(['customer', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),
+            'editingLine' => $editingLine,
         ])->layout('layouts.app', ['title' => __('Commande client #:id', ['id' => $this->order->id])]);
     }
 }

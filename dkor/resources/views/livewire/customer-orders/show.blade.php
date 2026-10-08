@@ -68,51 +68,40 @@
                     <flux:table.column>{{ __('Statut') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('En stock') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('En commande') }}</flux:table.column>
-                    <flux:table.column align="end">{{ __('Qté') }}</flux:table.column>
+                    <flux:table.column align="end">{{ __('Qté totale') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Prix') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Total') }}</flux:table.column>
                     <flux:table.column></flux:table.column>
                 </flux:table.columns>
 
                 <flux:table.rows>
+                    @php($canEditLines = auth()->user()->can('customer_orders.edit'))
                     @forelse ($order->lines as $line)
-                        <flux:table.row :key="$line->id">
+                        <flux:table.row
+                            :key="$line->id"
+                            x-on:click="{{ $canEditLines ? '$wire.openLineModal('.$line->id.')' : '' }}"
+                            :class="$canEditLines ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800' : ''"
+                        >
                             <flux:table.cell variant="strong">
                                 {{ $line->product->model }}
                                 <span class="font-normal text-zinc-500">#{{ $line->product_id }}</span>
+                                @if ($line->note)
+                                    <div class="max-w-xs truncate text-xs font-normal text-zinc-400">{{ $line->note }}</div>
+                                @endif
                             </flux:table.cell>
                             <flux:table.cell>{{ $line->product->supplier->name }}</flux:table.cell>
                             <flux:table.cell>
                                 <flux:badge :color="$line->status->color()" size="sm">{{ $line->status->label() }}</flux:badge>
                             </flux:table.cell>
-                            @if ($line->status->isEditable() && auth()->user()->can('customer_orders.edit'))
-                                <flux:table.cell align="end">
-                                    <div class="ms-auto w-20">
-                                        <flux:input wire:model.blur="lineQuantities.{{ $line->id }}.reserved" type="number" min="0" size="sm" class="text-end" />
-                                    </div>
-                                    <div class="mt-1 text-xs text-zinc-400">
-                                        {{ __('Disponible : :count', ['count' => $line->product->inventoryStock?->quantityAvailable() ?? 0]) }}
-                                    </div>
-                                    <flux:error name="lineQuantities.{{ $line->id }}" />
-                                    <flux:error name="lineQuantities.{{ $line->id }}.reserved" />
-                                </flux:table.cell>
-                                <flux:table.cell align="end">
-                                    <div class="ms-auto w-20">
-                                        <flux:input wire:model.blur="lineQuantities.{{ $line->id }}.on_order" type="number" min="0" size="sm" class="text-end" />
-                                    </div>
-                                    <flux:error name="lineQuantities.{{ $line->id }}.on_order" />
-                                </flux:table.cell>
-                            @else
-                                <flux:table.cell align="end">{{ $line->quantity_reserved }}</flux:table.cell>
-                                <flux:table.cell align="end">{{ $line->quantity_on_order }}</flux:table.cell>
-                            @endif
+                            <flux:table.cell align="end">{{ $line->quantity_reserved }}</flux:table.cell>
+                            <flux:table.cell align="end">{{ $line->quantity_on_order }}</flux:table.cell>
                             <flux:table.cell align="end">{{ $line->quantity }}</flux:table.cell>
                             <flux:table.cell align="end">{{ number_format($line->unit_price, 2) }} $</flux:table.cell>
                             <flux:table.cell align="end">{{ number_format($line->total, 2) }} $</flux:table.cell>
                             <flux:table.cell align="end">
                                 @can('customer_orders.edit')
                                     @if ($line->status->isEditable())
-                                        <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="removeLine({{ $line->id }})" :label="__('Retirer')" />
+                                        <flux:button size="sm" variant="ghost" icon="x-mark" wire:click.stop="removeLine({{ $line->id }})" :label="__('Retirer')" />
                                     @endif
                                 @endcan
                             </flux:table.cell>
@@ -258,6 +247,55 @@
                     </flux:field>
                 @endif
             </div>
+        </flux:modal>
+    @endcan
+
+    {{-- Édition d'une ligne --}}
+    @can('customer_orders.edit')
+        <flux:modal wire:model="showLineModal" class="w-full max-w-lg">
+            @if ($editingLine)
+                <flux:heading class="mb-1">{{ $editingLine->product->model }} <span class="font-normal text-zinc-500">#{{ $editingLine->product_id }}</span></flux:heading>
+                <flux:badge :color="$editingLine->status->color()" size="sm">{{ $editingLine->status->label() }}</flux:badge>
+
+                <form wire:submit="saveLine" class="mt-6 space-y-4">
+                    @php($editable = $editingLine->status->isEditable())
+
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <flux:field>
+                            <flux:label>{{ __('En stock (réservé)') }}</flux:label>
+                            <flux:input wire:model="editReserved" type="number" min="0" :disabled="! $editable" />
+                            <flux:description>
+                                {{ __('Maximum : :count', ['count' => $editingLine->quantity_reserved + ($editingLine->product->inventoryStock?->quantityAvailable() ?? 0)]) }}
+                            </flux:description>
+                            <flux:error name="editReserved" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('En commande') }}</flux:label>
+                            <flux:input wire:model="editOnOrder" type="number" min="0" :disabled="! $editable" />
+                            <flux:error name="editOnOrder" />
+                        </flux:field>
+                    </div>
+
+                    <flux:field>
+                        <flux:label>{{ __('Prix vendant') }}</flux:label>
+                        <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $editable" />
+                        <flux:description>{{ __('Prix suggéré : :price $', ['price' => number_format($editingLine->product->selling_price, 2)]) }}</flux:description>
+                        <flux:error name="editUnitPrice" />
+                    </flux:field>
+
+                    <flux:field>
+                        <flux:label>{{ __('Note') }}</flux:label>
+                        <flux:textarea wire:model="editNote" rows="3" />
+                        <flux:error name="editNote" />
+                    </flux:field>
+
+                    <div class="flex justify-end gap-3 pt-2">
+                        <flux:button type="button" variant="ghost" wire:click="$set('showLineModal', false)">{{ __('Annuler') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
+                    </div>
+                </form>
+            @endif
         </flux:modal>
     @endcan
 

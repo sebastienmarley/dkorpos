@@ -148,6 +148,39 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Met à jour une ligne depuis le modal d'édition : répartition stock réservé / en commande et prix vendant
+     * tant que la ligne est modifiable, note en tout temps.
+     *
+     * @throws DomainException si la ligne n'est plus modifiable (quantités ou prix changés) ou si le stock est insuffisant.
+     */
+    public function updateLine(CustomerOrderLine $line, int $reserved, int $onOrder, float $unitPrice, ?string $note): void
+    {
+        DB::transaction(function () use ($line, $reserved, $onOrder, $unitPrice, $note): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            $changesSale = $reserved !== $line->quantity_reserved
+                || $onOrder !== $line->quantity_on_order
+                || round($unitPrice, 2) !== round($line->unit_price, 2);
+
+            if ($changesSale) {
+                if (! $line->status->isEditable()) {
+                    throw new DomainException(__('Les quantités et le prix de cette ligne ne peuvent plus être modifiés.'));
+                }
+
+                $this->adjustLine($line, $reserved, $onOrder);
+                $line->refresh();
+            }
+
+            $line->update([
+                'unit_price' => round($unitPrice, 2),
+                'note' => filled($note) ? $note : null,
+            ]);
+
+            $this->recalculateBalance();
+        });
+    }
+
+    /**
      * Retire une ligne modifiable et remet son stock réservé en disponibilité.
      *
      * @throws DomainException si la ligne n'est plus modifiable.
