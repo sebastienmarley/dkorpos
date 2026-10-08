@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property int $customer_order_id
  * @property int $product_id
  * @property int|null $supplier_order_line_id
+ * @property int|null $customer_order_pickup_id
  * @property int $quantity
  * @property int $quantity_reserved
  * @property int $quantity_on_order
@@ -28,9 +29,10 @@ use Illuminate\Support\Carbon;
  * @property-read CustomerOrder $order
  * @property-read Product $product
  * @property-read SupplierOrderLine|null $supplierOrderLine
+ * @property-read CustomerOrderPickup|null $pickup
  * @property-read float $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'supplier_order_line_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'note', 'status', 'delivered_at', 'returned_at'])]
+#[Fillable(['customer_order_id', 'product_id', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'note', 'status', 'delivered_at', 'returned_at'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
@@ -67,6 +69,12 @@ class CustomerOrderLine extends Model
     public function supplierOrderLine(): BelongsTo
     {
         return $this->belongsTo(SupplierOrderLine::class);
+    }
+
+    /** @return BelongsTo<CustomerOrderPickup, $this> */
+    public function pickup(): BelongsTo
+    {
+        return $this->belongsTo(CustomerOrderPickup::class, 'customer_order_pickup_id');
     }
 
     public function getTotalAttribute(): float

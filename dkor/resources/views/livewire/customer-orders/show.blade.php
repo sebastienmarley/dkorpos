@@ -57,6 +57,10 @@
                         <flux:error name="upcScan" />
                     </flux:field>
                 </form>
+
+                @if ($order->balance_due > 0 || $order->lines->contains(fn ($line) => $line->status->isPickable() && $line->quantity_reserved > 0))
+                    <flux:button variant="primary" icon="hand-raised" wire:click="openPickupModal" class="ms-auto">{{ __('Ramasser') }}</flux:button>
+                @endif
             </div>
         @endcan
 
@@ -117,10 +121,34 @@
             </flux:table>
         </div>
 
-        <div class="mt-3 flex justify-end">
-            <flux:text class="text-sm">
-                <span class="font-medium">{{ __('Solde à payer') }} :</span> {{ number_format($order->balance_due, 2) }} $
-            </flux:text>
+        <div class="mt-4 grid gap-6 md:grid-cols-[1fr_18rem]">
+            {{-- Paiements --}}
+            <div>
+                <flux:heading size="sm" class="mb-2">{{ __('Paiements') }}</flux:heading>
+                @forelse ($order->payments as $payment)
+                    <div wire:key="payment-{{ $payment->id }}" class="flex justify-between border-b border-zinc-100 py-1 text-sm dark:border-zinc-800">
+                        <span class="text-zinc-600 dark:text-zinc-300">
+                            {{ $payment->created_at->format('Y-m-d H:i') }} · {{ $payment->paymentMethod->name }}
+                            @if ($payment->receiver)
+                                <span class="text-zinc-400">· {{ $payment->receiver->fullName() }}</span>
+                            @endif
+                        </span>
+                        <span>{{ number_format($payment->amount, 2) }} $</span>
+                    </div>
+                @empty
+                    <flux:text class="text-sm text-zinc-400">{{ __('Aucun paiement.') }}</flux:text>
+                @endforelse
+            </div>
+
+            {{-- Totaux --}}
+            <dl class="space-y-1 text-sm">
+                <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Sous-total') }}</dt><dd>{{ number_format($order->subtotal, 2) }} $</dd></div>
+                <div class="flex justify-between"><dt class="text-zinc-500">{{ __('TPS') }}</dt><dd>{{ number_format($order->gst, 2) }} $</dd></div>
+                <div class="flex justify-between"><dt class="text-zinc-500">{{ __('TVQ') }}</dt><dd>{{ number_format($order->qst, 2) }} $</dd></div>
+                <div class="flex justify-between font-medium"><dt>{{ __('Total') }}</dt><dd>{{ number_format($order->total, 2) }} $</dd></div>
+                <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Payé') }}</dt><dd>{{ number_format($order->amount_paid, 2) }} $</dd></div>
+                <div class="flex justify-between border-t border-zinc-200 pt-1 font-semibold dark:border-zinc-700"><dt>{{ __('Solde à payer') }}</dt><dd>{{ number_format($order->balance_due, 2) }} $</dd></div>
+            </dl>
         </div>
     </div>
 
@@ -293,6 +321,92 @@
                     <div class="flex justify-end gap-3 pt-2">
                         <flux:button type="button" variant="ghost" wire:click="$set('showLineModal', false)">{{ __('Annuler') }}</flux:button>
                         <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
+                    </div>
+                </form>
+            @endif
+        </flux:modal>
+    @endcan
+
+    {{-- Ramassage --}}
+    @can('customer_orders.edit')
+        <flux:modal wire:model="showPickupModal" class="w-full max-w-2xl">
+            <flux:heading class="mb-1">{{ __('Ramassage') }}</flux:heading>
+
+            @if ($pickupStep === 'items')
+                <flux:text class="text-zinc-500">{{ __('Quantités remises au client (stock réservé seulement). Laissez à 0 pour encaisser un paiement sans ramassage.') }}</flux:text>
+
+                @if ($pickupQuantities === [])
+                    <flux:text class="mt-4 text-sm text-zinc-400">{{ __('Aucun article disponible à ramasser : vous pouvez encaisser un paiement.') }}</flux:text>
+                @endif
+
+                <form wire:submit="continueToPayment" class="mt-6 space-y-3">
+                    @foreach ($order->lines->filter(fn ($line) => isset($pickupQuantities[$line->id])) as $line)
+                        <div wire:key="pickup-{{ $line->id }}" class="flex items-start justify-between gap-3">
+                            <div class="min-w-0 text-sm">
+                                <div class="font-medium text-zinc-900 dark:text-white">{{ $line->product->model }} <span class="font-normal text-zinc-500">#{{ $line->product_id }}</span></div>
+                                <div class="text-xs text-zinc-400">
+                                    {{ __('Disponible : :count', ['count' => $line->quantity_reserved]) }} · {{ number_format($line->unit_price, 2) }} $
+                                    @if ($line->quantity_on_order > 0)
+                                        · {{ __(':count encore en commande', ['count' => $line->quantity_on_order]) }}
+                                    @endif
+                                </div>
+                            </div>
+                            <div class="w-24">
+                                <flux:input wire:model="pickupQuantities.{{ $line->id }}" type="number" min="0" :max="$line->quantity_reserved" size="sm" />
+                                <flux:error name="pickupQuantities.{{ $line->id }}" />
+                            </div>
+                        </div>
+                    @endforeach
+
+                    <flux:error name="pickupQuantities" />
+
+                    <div class="flex justify-end gap-3 pt-2">
+                        <flux:button type="button" variant="ghost" wire:click="$set('showPickupModal', false)">{{ __('Annuler') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Continuer vers le paiement') }}</flux:button>
+                    </div>
+                </form>
+            @else
+                <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
+                    <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Total de la commande') }}</dt><dd>{{ number_format($order->total, 2) }} $</dd></div>
+                    <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Déjà payé') }}</dt><dd>{{ number_format($order->amount_paid, 2) }} $</dd></div>
+                    <div class="flex justify-between font-semibold"><dt>{{ __('À encaisser maintenant') }}</dt><dd>{{ number_format($pickupRequired, 2) }} $</dd></div>
+                </dl>
+                <flux:text class="mt-1 text-xs text-zinc-400">
+                    {{ __('Articles remis payés à 100 %, dépôt de :percent % sur le reste, taxes incluses.', ['percent' => rtrim(rtrim(number_format(config('sales.deposit_percent'), 2), '0'), '.')]) }}
+                </flux:text>
+
+                <form wire:submit="confirmPickup" class="mt-6 space-y-3">
+                    @foreach ($pickupPayments as $index => $payment)
+                        <div wire:key="pickup-payment-{{ $index }}" class="flex items-start gap-2">
+                            <div class="flex-1">
+                                <flux:select wire:model="pickupPayments.{{ $index }}.method_id">
+                                    <flux:select.option value="">{{ __('Mode de paiement…') }}</flux:select.option>
+                                    @foreach ($this->getPaymentMethods() as $method)
+                                        <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
+                                    @endforeach
+                                </flux:select>
+                                <flux:error name="pickupPayments.{{ $index }}.method_id" />
+                            </div>
+                            <div class="w-32">
+                                <flux:input wire:model.blur="pickupPayments.{{ $index }}.amount" inputmode="decimal" />
+                                <flux:error name="pickupPayments.{{ $index }}.amount" />
+                            </div>
+                            @if (count($pickupPayments) > 1)
+                                <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removePickupPayment({{ $index }})" :label="__('Retirer')" />
+                            @endif
+                        </div>
+                    @endforeach
+
+                    <div class="flex items-center justify-between">
+                        <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addPickupPayment">{{ __('Ajouter un mode de paiement') }}</flux:button>
+                        <flux:text class="text-sm">{{ __('Total reçu : :amount $', ['amount' => number_format($this->pickupPaymentsTotal(), 2)]) }}</flux:text>
+                    </div>
+
+                    <flux:error name="pickupPayments" />
+
+                    <div class="flex justify-between gap-3 pt-2">
+                        <flux:button type="button" variant="ghost" icon="arrow-left" wire:click="backToPickupItems">{{ __('Retour') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Confirmer le ramassage') }}</flux:button>
                     </div>
                 </form>
             @endif

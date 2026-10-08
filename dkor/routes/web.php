@@ -5,6 +5,7 @@ use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
 use App\Livewire\Accounting\Invoices\Index as InvoicesIndex;
 use App\Livewire\Accounting\Invoices\Show as InvoiceShow;
+use App\Livewire\Accounting\PaymentMethods;
 use App\Livewire\Accounting\Payroll;
 use App\Livewire\Admin\Permissions;
 use App\Livewire\Admin\Positions;
@@ -84,6 +85,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('accounting/invoices/{invoice}', InvoiceShow::class)->whereNumber('invoice')->middleware('can:invoices.view')->name('accounting.invoices.show');
     Route::get('accounting/invoices/orders/{order}', InvoiceForm::class)->middleware('can:invoices.view')->name('accounting.invoices.order');
     Route::get('accounting/payroll', Payroll::class)->middleware('can:payroll.view')->name('accounting.payroll');
+    Route::get('accounting/payment-methods', PaymentMethods::class)->middleware('can:payment_methods.view')->name('accounting.payment-methods');
     Route::get('accounting/currencies', Currencies::class)->middleware('can:currencies.view')->name('accounting.currencies');
 
     Route::get('stores', StoresIndex::class)->middleware('can:stores.view')->name('stores.index');

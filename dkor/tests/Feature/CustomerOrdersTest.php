@@ -160,7 +160,7 @@ describe('show', function () {
             ->and($line->unit_price)->toBe($product->selling_price)
             ->and($stock->quantity_in_stock)->toBe(4)
             ->and($stock->quantity_reserved)->toBe(1)
-            ->and($this->order->fresh()->balance_due)->toBe($product->selling_price);
+            ->and($this->order->fresh()->subtotal)->toBe($product->selling_price);
 
         expect(InventoryMovement::sole())
             ->type->toBe(InventoryMovementType::CustomerReservation)
@@ -231,7 +231,7 @@ describe('show', function () {
             ->assertSet('showLineModal', false);
 
         expect($line->fresh())->unit_price->toBe(199.95)->note->toBe('Couleur à confirmer')
-            ->and($this->order->fresh()->balance_due)->toBe(199.95);
+            ->and($this->order->fresh()->subtotal)->toBe(199.95);
     });
 
     it('libère le stock quand on réduit la réservation', function () {
@@ -639,7 +639,7 @@ describe('lien avec les commandes fournisseurs', function () {
             ->quantity_on_order->toBe(3)
             ->quantity->toBe(4)
             ->status->toBe(CustomerOrderLineStatus::OnOrder)
-            ->and($this->order->fresh()->balance_due)->toBe(round(4 * $line->unit_price, 2));
+            ->and($this->order->fresh()->subtotal)->toBe(round(4 * $line->unit_price, 2));
     });
 
     it('répercute aussi la quantité modifiée après l\'envoi sans changer le statut « Commandé »', function () {
@@ -699,7 +699,7 @@ describe('lien avec les commandes fournisseurs', function () {
                 ->quantity_on_order->toBe(2)
                 ->unit_price->toBe($line->unit_price)
                 ->status->toBe(CustomerOrderLineStatus::Ordered)
-                ->and($this->order->fresh()->balance_due)->toBe(round(3 * $line->unit_price, 2));
+                ->and($this->order->fresh()->subtotal)->toBe(round(3 * $line->unit_price, 2));
         });
 
         it('garde la partie déjà reçue sur la ligne d\'origine', function () {
@@ -754,7 +754,7 @@ describe('lien avec les commandes fournisseurs', function () {
                 ->quantity->toBe(1)
                 ->status->toBe(CustomerOrderLineStatus::InStock)
                 ->supplier_order_line_id->toBeNull()
-                ->and($this->order->fresh()->balance_due)->toBe($line->unit_price);
+                ->and($this->order->fresh()->subtotal)->toBe($line->unit_price);
         });
 
         it('répercute l\'annulation confirmée d\'une ligne en gardant ce qui est reçu', function () {

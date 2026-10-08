@@ -7,6 +7,7 @@ use App\Concerns\SearchesCustomers;
 use App\Enums\SupplierType;
 use App\Models\customer;
 use App\Models\CustomerOrder;
+use App\Models\CustomerPaymentMethod;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductUpc;
@@ -59,6 +60,18 @@ class Show extends Component
     public string $editUnitPrice = '';
 
     public string $editNote = '';
+
+    public bool $showPickupModal = false;
+
+    public string $pickupStep = 'items';
+
+    /** @var array<int, int|string> quantité à ramasser par ligne */
+    public array $pickupQuantities = [];
+
+    public float $pickupRequired = 0;
+
+    /** @var array<int, array{method_id: int|string, amount: string}> */
+    public array $pickupPayments = [];
 
     public function mount(CustomerOrder $order): void
     {
@@ -348,11 +361,128 @@ class Show extends Component
             ->get();
     }
 
+    public function openPickupModal(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $this->pickupQuantities = $this->order->lines()->get()
+            ->filter(fn ($line): bool => $line->status->isPickable() && $line->quantity_reserved > 0)
+            ->mapWithKeys(fn ($line): array => [$line->id => $line->quantity_reserved])
+            ->all();
+        $this->pickupStep = 'items';
+        $this->pickupPayments = [];
+        $this->resetErrorBag();
+        $this->showPickupModal = true;
+    }
+
+    /**
+     * Valide les quantités choisies et calcule le montant à encaisser : 100 % des articles remis, dépôt sur le reste.
+     */
+    public function continueToPayment(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $this->validate([
+            'pickupQuantities' => ['present', 'array'],
+            'pickupQuantities.*' => ['required', 'integer', 'min:0'],
+        ]);
+
+        $quantities = $this->pickupQuantitiesAsIntegers();
+
+        $available = $this->order->lines()->whereKey(array_keys($quantities))->pluck('quantity_reserved', 'id');
+
+        foreach ($quantities as $lineId => $quantity) {
+            if ($quantity > (int) ($available[$lineId] ?? 0)) {
+                $this->addError('pickupQuantities.'.$lineId, __('Maximum : :count', ['count' => (int) ($available[$lineId] ?? 0)]));
+
+                return;
+            }
+        }
+
+        $this->pickupRequired = $this->order->amountRequiredFor($quantities);
+
+        if (array_sum($quantities) === 0 && $this->order->balance_due <= 0) {
+            $this->addError('pickupQuantities', __('Aucun article choisi et rien à payer.'));
+
+            return;
+        }
+
+        $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
+        $this->pickupPayments = [['method_id' => $firstMethod ?? '', 'amount' => number_format($this->pickupRequired, 2, '.', '')]];
+        $this->pickupStep = 'payment';
+    }
+
+    public function backToPickupItems(): void
+    {
+        $this->pickupStep = 'items';
+        $this->resetErrorBag();
+    }
+
+    public function addPickupPayment(): void
+    {
+        $remaining = max(0, round($this->pickupRequired - $this->pickupPaymentsTotal(), 2));
+
+        $this->pickupPayments[] = ['method_id' => '', 'amount' => number_format($remaining, 2, '.', '')];
+    }
+
+    public function removePickupPayment(int $index): void
+    {
+        unset($this->pickupPayments[$index]);
+        $this->pickupPayments = array_values($this->pickupPayments);
+    }
+
+    public function confirmPickup(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $this->pickupPayments = array_map(
+            fn (array $payment): array => ['method_id' => $payment['method_id'], 'amount' => str_replace(',', '.', (string) $payment['amount'])],
+            $this->pickupPayments,
+        );
+
+        $this->validate([
+            'pickupPayments.*.method_id' => ['required', 'integer', Rule::exists('customer_payment_methods', 'id')->where('is_active', true)],
+            'pickupPayments.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+        ]);
+
+        try {
+            $pickup = $this->order->pickUp(
+                $this->pickupQuantitiesAsIntegers(),
+                array_map(fn (array $payment): array => ['method_id' => (int) $payment['method_id'], 'amount' => (float) $payment['amount']], $this->pickupPayments),
+            );
+        } catch (DomainException $exception) {
+            $this->addError('pickupPayments', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showPickupModal = false;
+        $this->reset(['pickupQuantities', 'pickupPayments', 'pickupRequired']);
+        Flux::toast(text: $pickup === null ? __('Paiement enregistré.') : __('Ramassage enregistré.'), variant: 'success');
+    }
+
+    public function pickupPaymentsTotal(): float
+    {
+        return round(array_sum(array_map(fn (array $payment): float => (float) str_replace(',', '.', (string) $payment['amount']), $this->pickupPayments)), 2);
+    }
+
+    /** @return Collection<int, CustomerPaymentMethod> */
+    public function getPaymentMethods(): Collection
+    {
+        return CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->get();
+    }
+
+    /** @return array<int, int> */
+    private function pickupQuantitiesAsIntegers(): array
+    {
+        return array_map(fn (int|string $quantity): int => (int) $quantity, $this->pickupQuantities);
+    }
+
     public function render(): View
     {
         $editingLine = $this->editingLineId ? $this->order->lines()->with('product.inventoryStock')->find($this->editingLineId) : null;
 
-        $this->order->load(['customer', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock']);
+        $this->order->load(['customer', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'payments.paymentMethod', 'payments.receiver']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),

@@ -62,4 +62,16 @@ enum CustomerOrderLineStatus: string
     {
         return ! in_array($this, [self::Cancelled, self::Returned, self::Refunded], true);
     }
+
+    /** Lignes dont la partie réservée au client (en stock ou reçue) peut lui être remise. */
+    public function isPickable(): bool
+    {
+        return in_array($this, [self::InStock, self::OnOrder, self::Ordered, self::Received], true);
+    }
+
+    /** Lignes remises au client (ramassées, livrées ou expédiées) : elles doivent être payées à 100 %. */
+    public function isHandedOver(): bool
+    {
+        return in_array($this, [self::PickedUp, self::Delivered, self::Shipped], true);
+    }
 }

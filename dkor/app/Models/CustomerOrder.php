@@ -24,6 +24,11 @@ use Illuminate\Support\Facades\DB;
  * @property int $id
  * @property int $customer_id
  * @property CustomerOrderStatus $status
+ * @property float $subtotal
+ * @property float $gst
+ * @property float $qst
+ * @property float $total
+ * @property float $amount_paid
  * @property float $balance_due
  * @property int|null $created_by
  * @property Carbon|null $created_at
@@ -32,8 +37,10 @@ use Illuminate\Support\Facades\DB;
  * @property-read User|null $creator
  * @property-read Collection<int, User> $salespeople
  * @property-read Collection<int, CustomerOrderLine> $lines
+ * @property-read Collection<int, CustomerOrderPickup> $pickups
+ * @property-read Collection<int, CustomerOrderPayment> $payments
  */
-#[Fillable(['customer_id', 'status', 'balance_due', 'created_by'])]
+#[Fillable(['customer_id', 'status', 'subtotal', 'gst', 'qst', 'total', 'amount_paid', 'balance_due', 'created_by'])]
 class CustomerOrder extends Model
 {
     /** @use HasFactory<CustomerOrderFactory> */
@@ -47,6 +54,11 @@ class CustomerOrder extends Model
     protected $casts = [
         'status' => CustomerOrderStatus::class,
         'balance_due' => 'float',
+        'subtotal' => 'float',
+        'gst' => 'float',
+        'qst' => 'float',
+        'total' => 'float',
+        'amount_paid' => 'float',
     ];
 
     /** @return BelongsTo<customer, $this> */
@@ -71,6 +83,18 @@ class CustomerOrder extends Model
         return $this->belongsToMany(User::class, 'customer_order_salesperson')
             ->withPivot('percent')
             ->withTimestamps();
+    }
+
+    /** @return HasMany<CustomerOrderPickup, $this> */
+    public function pickups(): HasMany
+    {
+        return $this->hasMany(CustomerOrderPickup::class);
+    }
+
+    /** @return HasMany<CustomerOrderPayment, $this> */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(CustomerOrderPayment::class);
     }
 
     /** @return HasMany<CustomerOrderLine, $this> */
@@ -462,12 +486,200 @@ class CustomerOrder extends Model
         );
     }
 
+    /**
+     * Recalcule les totaux : sous-total des lignes facturables, TPS, TVQ, total, montant payé et solde à payer.
+     */
     public function recalculateBalance(): void
     {
+        $subtotal = round($this->lines()->get()
+            ->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable())
+            ->sum(fn (CustomerOrderLine $line): float => $line->total), 2);
+        $taxes = self::taxesFor($subtotal);
+        $amountPaid = round((float) $this->payments()->sum('amount'), 2);
+
         $this->update([
-            'balance_due' => round($this->lines()->get()
-                ->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable())
-                ->sum(fn (CustomerOrderLine $line): float => $line->total), 2),
+            'subtotal' => $subtotal,
+            'gst' => $taxes['gst'],
+            'qst' => $taxes['qst'],
+            'total' => $taxes['total'],
+            'amount_paid' => $amountPaid,
+            'balance_due' => round($taxes['total'] - $amountPaid, 2),
+        ]);
+    }
+
+    /**
+     * TPS et TVQ calculées chacune sur le montant avant taxes, arrondies au cent.
+     *
+     * @return array{gst: float, qst: float, total: float}
+     */
+    public static function taxesFor(float $subtotal): array
+    {
+        $gst = round($subtotal * config('sales.taxes.gst') / 100, 2);
+        $qst = round($subtotal * config('sales.taxes.qst') / 100, 2);
+
+        return ['gst' => $gst, 'qst' => $qst, 'total' => round($subtotal + $gst + $qst, 2)];
+    }
+
+    /**
+     * Montant à encaisser pour remettre ces quantités au client : les articles remis (déjà ou maintenant) doivent
+     * être payés à 100 % et le reste de la commande couvert par le dépôt minimum, taxes incluses, moins ce qui est
+     * déjà payé.
+     *
+     * @param  array<int, int>  $quantities  quantité à remettre par ligne
+     */
+    public function amountRequiredFor(array $quantities): float
+    {
+        $lines = $this->lines()->get()->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable());
+
+        $handedOver = $lines->filter(fn (CustomerOrderLine $line): bool => $line->status->isHandedOver())
+            ->sum(fn (CustomerOrderLine $line): float => $line->total)
+            + $lines->sum(fn (CustomerOrderLine $line): float => ($quantities[$line->id] ?? 0) * $line->unit_price);
+        $handedOver = round($handedOver, 2);
+        $remaining = round($lines->sum(fn (CustomerOrderLine $line): float => $line->total) - $handedOver, 2);
+
+        $required = self::taxesFor($handedOver)['total']
+            + self::taxesFor($remaining)['total'] * config('sales.deposit_percent') / 100;
+
+        $this->refresh();
+
+        return max(0.0, min(round($required - $this->amount_paid, 2), $this->balance_due));
+    }
+
+    /**
+     * Remet au client les quantités choisies (prises dans le stock réservé) et encaisse le paiement exigé.
+     * Une ligne remise en partie est séparée : la partie ramassée devient une ligne « Ramassé ». Les unités
+     * sortent de l'inventaire (premier entré, premier sorti). Sans article, seul le paiement est encaissé
+     * (aucun ramassage n'est créé).
+     *
+     * @param  array<int, int>  $quantities  quantité à remettre par ligne
+     * @param  array<int, array{method_id: int, amount: float}>  $payments
+     *
+     * @throws DomainException si une quantité n'est pas disponible ou si le paiement ne couvre pas le montant exigé.
+     */
+    public function pickUp(array $quantities, array $payments): ?CustomerOrderPickup
+    {
+        $quantities = array_filter($quantities, fn (int $quantity): bool => $quantity > 0);
+
+        if ($quantities === [] && round(array_sum(array_column($payments, 'amount')), 2) <= 0) {
+            throw new DomainException(__('Choisissez au moins un article à ramasser ou entrez un paiement.'));
+        }
+
+        return DB::transaction(function () use ($quantities, $payments): ?CustomerOrderPickup {
+            $lines = $this->lines()->lockForUpdate()->whereKey(array_keys($quantities))->get()->keyBy('id');
+
+            foreach ($quantities as $lineId => $quantity) {
+                $line = $lines->get($lineId);
+
+                if ($line === null || ! $line->status->isPickable() || $quantity > $line->quantity_reserved) {
+                    throw new DomainException(__('La quantité à ramasser dépasse ce qui est disponible pour le client.'));
+                }
+            }
+
+            $required = $this->amountRequiredFor($quantities);
+            $paid = round(array_sum(array_column($payments, 'amount')), 2);
+
+            if ($paid < $required) {
+                throw new DomainException(__('Le paiement (:paid $) ne couvre pas le montant exigé (:required $).', [
+                    'paid' => number_format($paid, 2),
+                    'required' => number_format($required, 2),
+                ]));
+            }
+
+            if ($paid > $this->balance_due) {
+                throw new DomainException(__('Le paiement dépasse le solde de la commande (:balance $).', ['balance' => number_format($this->balance_due, 2)]));
+            }
+
+            $pickup = null;
+
+            if ($quantities !== []) {
+                $pickup = $this->pickups()->create(['handled_by' => auth()->id()]);
+
+                foreach ($quantities as $lineId => $quantity) {
+                    $this->handOver($lines->get($lineId), $quantity, $pickup);
+                }
+            }
+
+            foreach ($payments as $payment) {
+                if ($payment['amount'] <= 0) {
+                    continue;
+                }
+
+                if (! CustomerPaymentMethod::query()->whereKey($payment['method_id'])->where('is_active', true)->exists()) {
+                    throw new DomainException(__('Mode de paiement invalide.'));
+                }
+
+                $this->payments()->create([
+                    'customer_order_pickup_id' => $pickup?->id,
+                    'customer_payment_method_id' => $payment['method_id'],
+                    'amount' => round($payment['amount'], 2),
+                    'received_by' => auth()->id(),
+                ]);
+            }
+
+            $this->recalculateBalance();
+            $this->refreshStatusFromLines();
+
+            return $pickup;
+        });
+    }
+
+    /**
+     * Passe la commande à « Ramassée » ou « Livrée » une fois toutes ses lignes facturables remises au client.
+     */
+    private function refreshStatusFromLines(): void
+    {
+        $statuses = $this->lines()->get()
+            ->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable())
+            ->map(fn (CustomerOrderLine $line): CustomerOrderLineStatus => $line->status);
+
+        if ($statuses->isEmpty()) {
+            return;
+        }
+
+        if ($statuses->every(fn (CustomerOrderLineStatus $status): bool => $status === CustomerOrderLineStatus::PickedUp)) {
+            $this->update(['status' => CustomerOrderStatus::PickedUp]);
+        } elseif ($statuses->every(fn (CustomerOrderLineStatus $status): bool => $status === CustomerOrderLineStatus::Delivered)) {
+            $this->update(['status' => CustomerOrderStatus::Delivered]);
+        }
+    }
+
+    private function handOver(CustomerOrderLine $line, int $quantity, CustomerOrderPickup $pickup): void
+    {
+        InventoryMovement::record($line->product_id, InventoryStatus::ReservedCustomer, null, $quantity, InventoryMovementType::CustomerPickup, $this);
+
+        InventoryUnit::query()
+            ->where('product_id', $line->product_id)
+            ->whereNull('delivered_at')
+            ->fifo()
+            ->limit($quantity)
+            ->get()
+            ->each(fn (InventoryUnit $unit) => $unit->update(['delivered_at' => today()]));
+
+        $pickedUp = [
+            'quantity_reserved' => 0,
+            'quantity_on_order' => 0,
+            'quantity' => $quantity,
+            'status' => CustomerOrderLineStatus::PickedUp,
+            'customer_order_pickup_id' => $pickup->id,
+            'delivered_at' => now(),
+        ];
+
+        if ($quantity === $line->quantity_reserved && $line->quantity_on_order === 0) {
+            $line->update($pickedUp);
+
+            return;
+        }
+
+        $line->update([
+            'quantity_reserved' => $line->quantity_reserved - $quantity,
+            'quantity' => $line->quantity - $quantity,
+        ]);
+
+        $this->lines()->create([
+            ...$pickedUp,
+            'product_id' => $line->product_id,
+            'unit_price' => $line->unit_price,
+            'note' => $line->note,
         ]);
     }
 

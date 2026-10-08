@@ -18,7 +18,8 @@ class CustomerPaymentMethodFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'name' => fake()->unique()->randomElement(['Comptant', 'Débit', 'Visa', 'Mastercard', 'American Express', 'Chèque', 'Financement']),
+            'is_active' => true,
         ];
     }
 }

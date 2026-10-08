@@ -43,6 +43,9 @@ $warehouseAccess = [
 ];
 
 $accountingAccess = [
+    'payment_methods.view',
+    'payment_methods.create',
+    'payment_methods.edit',
     'price_lists.view',
     'price_lists.create',
     'price_lists.edit',
@@ -115,6 +118,9 @@ return [
         'colors.view' => ['Voir — couleurs', 'Accéder à la page : couleurs.'],
         'colors.create' => ['Créer — couleurs', 'Créer dans : couleurs.'],
         'colors.edit' => ['Modifier — couleurs', 'Modifier dans : couleurs.'],
+        'payment_methods.view' => ['Voir — modes de paiement', 'Accéder à la page : modes de paiement.'],
+        'payment_methods.create' => ['Créer — modes de paiement', 'Créer dans : modes de paiement.'],
+        'payment_methods.edit' => ['Modifier — modes de paiement', 'Modifier et désactiver dans : modes de paiement.'],
         'currencies.view' => ['Voir — devises', 'Accéder à la page : devises.'],
         'currencies.create' => ['Créer — devises', 'Créer dans : devises.'],
         'currencies.edit' => ['Modifier — devises', 'Modifier dans : devises.'],
