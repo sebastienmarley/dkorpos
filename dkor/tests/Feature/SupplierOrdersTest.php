@@ -6,6 +6,7 @@ use App\Enums\SupplierType;
 use App\Events\SupplierOrderLineSubstituted;
 use App\Livewire\Orders\Index;
 use App\Livewire\Orders\Show;
+use App\Livewire\SupplierLineCancellationRequest;
 use App\Mail\SupplierOrderLineCancellationRequested;
 use App\Mail\SupplierOrderPlaced;
 use App\Models\InventoryStock;
@@ -463,9 +464,18 @@ it('gère la demande d\'annulation d\'une ligne de service', function () {
     sendOrder($order);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
-        ->call('openCancelRequest', $line->id)
-        ->set('cancelReason', 'Plus nécessaire')
-        ->call('requestLineCancellation')
+        ->assertSeeHtml("\$dispatch('open-supplier-line-cancellation', { lineId: {$line->id} })");
+
+    Livewire::test(SupplierLineCancellationRequest::class)
+        ->call('open', $line->id)
+        ->set('reason', 'Plus nécessaire')
+        ->call('submit')
+        ->assertDispatched('supplier-line-cancellation-requested', lineId: $line->id);
+
+    expect($line->fresh())->status->toBe(SupplierOrderLineStatus::CancellationRequested)
+        ->cancellation_reason->toBe('Plus nécessaire');
+
+    Livewire::test(Show::class, ['order' => $order->fresh()])
         ->call('confirmLineCancellation', $line->id);
 
     expect($line->fresh()->status)->toBe(SupplierOrderLineStatus::Cancelled)

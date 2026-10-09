@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Orders;
 
-use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierType;
 use App\Models\Product;
 use App\Models\Supplier;
@@ -14,6 +13,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class Show extends Component
@@ -57,13 +57,6 @@ class Show extends Component
     public string $editQuantity = '';
 
     public string $editUnitCost = '';
-
-    // Demande d'annulation d'une ligne
-    public bool $showCancelRequest = false;
-
-    public ?int $cancelLineId = null;
-
-    public string $cancelReason = '';
 
     // Substitution d'un produit
     public bool $showSubstitute = false;
@@ -354,36 +347,10 @@ class Show extends Component
             ->where('id', '!=', $line->product_id);
     }
 
-    public function openCancelRequest(int $lineId): void
+    #[On('supplier-line-cancellation-requested')]
+    public function onLineCancellationRequested(): void
     {
-        $this->authorize('supplier_orders.edit');
-
-        $this->cancelLineId = $this->order->lines()->findOrFail($lineId)->id;
-        $this->cancelReason = '';
-        $this->resetValidation();
-        $this->showCancelRequest = true;
-    }
-
-    public function requestLineCancellation(): void
-    {
-        $this->authorize('supplier_orders.edit');
-
-        $this->validate(['cancelReason' => ['nullable', 'string', 'max:255']]);
-
-        $line = $this->order->lines()->findOrFail($this->cancelLineId);
-        $notified = false;
-
-        $this->runTransition(function () use ($line, &$notified): void {
-            $notified = $line->setRelation('order', $this->order)->requestCancellation($this->cancelReason);
-        }, __('Demande d\'annulation enregistrée.'));
-
-        if (! $notified && $line->fresh()->status === SupplierOrderLineStatus::CancellationRequested) {
-            Flux::toast(text: SupplierOrder::emailEnabled()
-                ? __('Aucun courriel de commande pour ce fournisseur : avisez-le manuellement.')
-                : __('Les courriels sont désactivés : avisez le fournisseur manuellement.'), variant: 'warning');
-        }
-
-        $this->showCancelRequest = false;
+        $this->order->refresh()->unsetRelation('lines');
     }
 
     public function confirmLineCancellation(int $lineId): void

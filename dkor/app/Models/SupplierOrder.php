@@ -603,8 +603,8 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Demande au fournisseur d'annuler ce qui reste à recevoir d'une ligne; la ligne passe « en demande d'annulation »
-     * jusqu'à la réponse du fournisseur.
+     * Demande au fournisseur d'annuler ce qui reste à recevoir d'une ligne; la ligne (et la ligne de commande client
+     * liée) passe « en demande d'annulation » jusqu'à la réponse du fournisseur.
      *
      * @return bool Vrai si le courriel a été envoyé (faux s'il est désactivé ou si le fournisseur n'a aucun courriel).
      */
@@ -620,11 +620,16 @@ class SupplierOrder extends Model
             throw new DomainException(__('Cette ligne ne peut pas faire l\'objet d\'une demande d\'annulation.'));
         }
 
-        $line->update([
-            'status' => SupplierOrderLineStatus::CancellationRequested,
-            'cancellation_reason' => filled($reason) ? $reason : null,
-            'cancellation_requested_at' => now(),
-        ]);
+        DB::transaction(function () use ($line, $reason): void {
+            $line->update([
+                'status' => SupplierOrderLineStatus::CancellationRequested,
+                'cancellation_reason' => filled($reason) ? $reason : null,
+                'cancellation_requested_at' => now(),
+            ]);
+
+            $customerLine = $line->customerOrderLine()->with('order')->first();
+            $customerLine?->order->applySupplierCancellationRequest($customerLine);
+        });
 
         $recipient = $this->supplier->order_email ?: $this->supplier->email;
 
@@ -668,18 +673,23 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Le fournisseur refuse l'annulation: la ligne redevient active.
+     * Le fournisseur refuse l'annulation: la ligne redevient active et la ligne de commande client liée « Commandé ».
      */
     public function rejectLineCancellation(SupplierOrderLine $line): void
     {
         $this->guardLineBelongs($line);
         $this->guardCancellationRequested($line);
 
-        $line->update([
-            'status' => SupplierOrderLineStatus::Active,
-            'cancellation_reason' => null,
-            'cancellation_requested_at' => null,
-        ]);
+        DB::transaction(function () use ($line): void {
+            $line->update([
+                'status' => SupplierOrderLineStatus::Active,
+                'cancellation_reason' => null,
+                'cancellation_requested_at' => null,
+            ]);
+
+            $customerLine = $line->customerOrderLine()->with('order')->first();
+            $customerLine?->order->applySupplierCancellationRejected($customerLine);
+        });
     }
 
     /**

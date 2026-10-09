@@ -574,6 +574,12 @@ class Show extends Component
         Flux::toast(text: __(':amount $ portés au compte du client.', ['amount' => number_format($credit, 2)]), variant: 'success');
     }
 
+    #[On('supplier-line-cancellation-requested')]
+    public function onSupplierLineCancellationRequested(): void
+    {
+        $this->order->refresh();
+    }
+
     public function openPickupModal(): void
     {
         $this->authorize('customer_orders.edit');
@@ -741,7 +747,7 @@ class Show extends Component
 
     public function render(): View
     {
-        $editingLine = $this->editingLineId ? $this->order->lines()->with('product.inventoryStock')->find($this->editingLineId) : null;
+        $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStock', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
         $returnLine = $this->returnLineId ? $this->order->lines()->with('product')->find($this->returnLineId) : null;
 
         $this->order->load(['customer', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'payments.paymentMethod', 'payments.receiver']);
