@@ -17,6 +17,7 @@ use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -48,6 +49,11 @@ class Show extends Component
     public string $productSearch = '';
 
     public string $priceListSearch = '';
+
+    /** UPC balayé mais introuvable : le produit choisi dans le modal peut lui être associé. */
+    public string $pendingUpc = '';
+
+    public bool $linkPendingUpc = true;
 
     public bool $showLineModal = false;
 
@@ -209,8 +215,23 @@ class Show extends Component
     {
         $this->authorize('customer_orders.edit');
 
-        $this->reset(['productSupplierId', 'productSearch', 'priceListSearch']);
+        $this->reset(['productSupplierId', 'productSearch', 'priceListSearch', 'pendingUpc', 'linkPendingUpc']);
         $this->showProductModal = true;
+    }
+
+    public function updatedShowProductModal(bool $isOpen): void
+    {
+        if (! $isOpen) {
+            $this->reset(['pendingUpc', 'linkPendingUpc']);
+        }
+    }
+
+    /**
+     * L'UPC introuvable peut être associé au produit choisi (UPC numérique et droit de modifier les produits).
+     */
+    public function canLinkPendingUpc(): bool
+    {
+        return preg_match('/^\d+$/', $this->pendingUpc) === 1 && Gate::allows('products.edit');
     }
 
     public function updatedProductSupplierId(): void
@@ -222,15 +243,23 @@ class Show extends Component
     {
         $this->authorize('customer_orders.edit');
 
+        $product = Product::findOrFail($id);
+
         try {
-            $this->order->addProduct(Product::findOrFail($id));
+            $this->order->addProduct($product);
         } catch (DomainException $exception) {
             Flux::toast(text: $exception->getMessage(), variant: 'danger');
 
             return;
         }
 
+        if ($this->linkPendingUpc && $this->canLinkPendingUpc()) {
+            $product->upcs()->firstOrCreate(['upc' => $this->pendingUpc]);
+            Flux::toast(text: __('UPC :upc associé à :model.', ['upc' => $this->pendingUpc, 'model' => $product->model]), variant: 'success');
+        }
+
         $this->showProductModal = false;
+        $this->reset(['pendingUpc', 'linkPendingUpc']);
     }
 
     public function scanUpc(): void
@@ -245,15 +274,17 @@ class Show extends Component
 
         $productUpc = ProductUpc::query()->where('upc', $upc)->first();
 
+        $this->resetErrorBag('upcScan');
+        $this->upcScan = '';
+
         if ($productUpc === null) {
-            $this->addError('upcScan', __('Aucun produit trouvé pour cet UPC.'));
+            $this->openProductModal();
+            $this->pendingUpc = $upc;
 
             return;
         }
 
-        $this->resetErrorBag('upcScan');
-        $this->upcScan = '';
-
+        $this->reset(['pendingUpc', 'linkPendingUpc']);
         $this->addProduct($productUpc->product_id);
     }
 

@@ -386,13 +386,115 @@ describe('show', function () {
         expect($this->order->lines()->sole()->product_id)->toBe($product->id);
     });
 
-    it('signale un UPC inconnu', function () {
-        Livewire::test(Show::class, ['order' => $this->order])
-            ->set('upcScan', '999')
-            ->call('scanUpc')
-            ->assertHasErrors('upcScan');
+    describe('UPC inconnu', function () {
+        it('ouvre la recherche de produit avec l\'UPC introuvable', function () {
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->set('upcScan', '999')
+                ->call('scanUpc')
+                ->assertHasNoErrors()
+                ->assertSet('upcScan', '')
+                ->assertSet('showProductModal', true)
+                ->assertSet('pendingUpc', '999')
+                ->assertSee('UPC 999 introuvable');
 
-        expect($this->order->lines()->count())->toBe(0);
+            expect($this->order->lines()->count())->toBe(0);
+        });
+
+        it('ajoute le produit choisi et lui associe l\'UPC', function () {
+            $this->user->givePermissionTo('products.edit');
+            $product = Product::factory()->create();
+
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->set('upcScan', '012345678905')
+                ->call('scanUpc')
+                ->assertSee('Associer cet UPC au produit choisi')
+                ->call('addProduct', $product->id)
+                ->assertSet('showProductModal', false)
+                ->assertSet('pendingUpc', '');
+
+            expect($this->order->lines()->sole()->product_id)->toBe($product->id)
+                ->and($product->upcs()->pluck('upc')->all())->toBe(['012345678905']);
+
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->set('upcScan', '012345678905')
+                ->call('scanUpc');
+
+            expect($this->order->lines()->sole()->quantity)->toBe(2);
+        });
+
+        it('n\'associe pas l\'UPC quand la case est décochée', function () {
+            $this->user->givePermissionTo('products.edit');
+            $product = Product::factory()->create();
+
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->set('upcScan', '012345678905')
+                ->call('scanUpc')
+                ->set('linkPendingUpc', false)
+                ->call('addProduct', $product->id);
+
+            expect($this->order->lines()->count())->toBe(1)
+                ->and($product->upcs()->count())->toBe(0);
+        });
+
+        it('n\'associe pas l\'UPC sans le droit de modifier les produits', function () {
+            $product = Product::factory()->create();
+
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->set('upcScan', '012345678905')
+                ->call('scanUpc')
+                ->assertDontSee('Associer cet UPC au produit choisi')
+                ->call('addProduct', $product->id);
+
+            expect($this->order->lines()->count())->toBe(1)
+                ->and($product->upcs()->count())->toBe(0);
+        });
+
+        it('n\'associe pas un code non numérique', function () {
+            $this->user->givePermissionTo('products.edit');
+            $product = Product::factory()->create();
+
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->set('upcScan', 'ABC-123')
+                ->call('scanUpc')
+                ->assertSet('pendingUpc', 'ABC-123')
+                ->call('addProduct', $product->id);
+
+            expect($product->upcs()->count())->toBe(0);
+        });
+
+        it('oublie l\'UPC introuvable quand on ferme la recherche', function () {
+            $this->user->givePermissionTo('products.edit');
+            $known = Product::factory()->create();
+            $known->upcs()->create(['upc' => '111']);
+
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->set('upcScan', '999')
+                ->call('scanUpc')
+                ->set('showProductModal', false)
+                ->assertSet('pendingUpc', '')
+                ->set('upcScan', '111')
+                ->call('scanUpc');
+
+            expect($known->upcs()->pluck('upc')->all())->toBe(['111']);
+        });
+
+        it('associe l\'UPC au produit créé depuis la liste de prix', function () {
+            $this->user->givePermissionTo(['products.create', 'products.edit']);
+            $priceList = PriceList::factory()->create(['starts_on' => today()->subDay(), 'ends_on' => today()->addMonth()]);
+            $list = PriceListList::factory()->create(['price_list_id' => $priceList->id]);
+            $item = PriceListItem::factory()->create(['price_list_list_id' => $list->id, 'model' => 'LAMPE-7', 'clean_model' => 'LAMPE7', 'upc' => null]);
+
+            Livewire::test(Show::class, ['order' => $this->order])
+                ->set('upcScan', '777000')
+                ->call('scanUpc')
+                ->set('productSupplierId', (string) $priceList->supplier_id)
+                ->call('addFromPriceList', $item->id);
+
+            $product = Product::where('model', 'LAMPE-7')->sole();
+
+            expect($product->upcs()->pluck('upc')->all())->toBe(['777000'])
+                ->and($this->order->lines()->sole()->product_id)->toBe($product->id);
+        });
     });
 
     it('crée le produit depuis la liste de prix du fournisseur et l\'ajoute', function () {
