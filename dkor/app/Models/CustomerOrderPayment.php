@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CustomerPaymentType;
 use Database\Factories\CustomerOrderPaymentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,17 +14,18 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $customer_order_id
  * @property int|null $customer_order_pickup_id
- * @property int $customer_payment_method_id
+ * @property int|null $customer_payment_method_id
+ * @property CustomerPaymentType $type
  * @property float $amount
  * @property int|null $received_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read CustomerOrder $order
  * @property-read CustomerOrderPickup|null $pickup
- * @property-read CustomerPaymentMethod $paymentMethod
+ * @property-read CustomerPaymentMethod|null $paymentMethod
  * @property-read User|null $receiver
  */
-#[Fillable(['customer_order_id', 'customer_order_pickup_id', 'customer_payment_method_id', 'amount', 'received_by'])]
+#[Fillable(['customer_order_id', 'customer_order_pickup_id', 'customer_payment_method_id', 'type', 'amount', 'received_by'])]
 class CustomerOrderPayment extends Model
 {
     /** @use HasFactory<CustomerOrderPaymentFactory> */
@@ -31,6 +33,7 @@ class CustomerOrderPayment extends Model
 
     protected $casts = [
         'amount' => 'float',
+        'type' => CustomerPaymentType::class,
     ];
 
     /** @return BelongsTo<CustomerOrder, $this> */

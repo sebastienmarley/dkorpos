@@ -231,14 +231,14 @@ describe('crédit de la commande', function () {
 
     it('propose les deux options et rembourse depuis la commande', function () {
         Livewire::test(Show::class, ['order' => $this->order])
-            ->assertSee('Rembourser le crédit')
-            ->assertSee('Porter au compte du client')
+            ->assertSeeHtml('wire:click="openCreditRefundModal"')
+            ->assertSeeHtml('wire:click="transferCreditToCustomer"')
             ->call('openCreditRefundModal')
             ->assertSet('creditRefunds.0.amount', '114.98')
             ->call('refundCredit')
             ->assertHasNoErrors()
             ->assertSet('showCreditRefundModal', false)
-            ->assertDontSee('Rembourser le crédit');
+            ->assertDontSeeHtml('wire:click="openCreditRefundModal"');
 
         expect($this->order->fresh()->balance_due)->toBe(0.0);
     });

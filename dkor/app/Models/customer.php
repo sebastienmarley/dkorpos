@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $phone
  * @property string|null $cellphone
  * @property string|null $email
+ * @property float $credit_balance
  * @property string|null $address_civic
  * @property string|null $address_apartment
  * @property string|null $address_street
@@ -39,6 +40,10 @@ class customer extends Model
     use HasFactory;
 
     use HasSearchName;
+
+    protected $casts = [
+        'credit_balance' => 'float',
+    ];
 
     /**
      * Clients dont le nom contient chacun des mots cherchés (peu importe l'ordre, la casse et les accents), ou dont
