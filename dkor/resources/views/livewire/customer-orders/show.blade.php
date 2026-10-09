@@ -524,6 +524,23 @@
                 </flux:text>
 
                 <form wire:submit="confirmPickup" class="mt-6 space-y-3">
+                    @if ($order->customer->credit_balance > 0)
+                        <div class="flex items-start gap-2">
+                            <div class="flex flex-1 items-center gap-2 text-sm">
+                                <flux:icon.wallet class="h-4 w-4 text-green-600" />
+                                <span>{{ __('Crédit client') }}</span>
+                                <span class="text-zinc-400">{{ __('(disponible : :amount $)', ['amount' => number_format($order->customer->credit_balance, 2)]) }}</span>
+                            </div>
+                            <div class="w-32">
+                                <flux:input wire:model.blur="pickupCredit" inputmode="decimal" />
+                                <flux:error name="pickupCredit" />
+                            </div>
+                            @if (count($pickupPayments) > 1)
+                                <div class="w-10"></div>
+                            @endif
+                        </div>
+                    @endif
+
                     @foreach ($pickupPayments as $index => $payment)
                         <div wire:key="pickup-payment-{{ $index }}" class="flex items-start gap-2">
                             <div class="flex-1">

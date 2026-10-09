@@ -2,6 +2,7 @@
 
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
+use App\Enums\CustomerPaymentType;
 use App\Enums\InventoryMovementType;
 use App\Livewire\CustomerOrders\Show;
 use App\Models\CustomerOrder;
@@ -249,4 +250,75 @@ describe('modal de ramassage', function () {
     it('n\'affiche pas le bouton sans article à ramasser ni solde', function () {
         Livewire::test(Show::class, ['order' => $this->order])->assertDontSeeHtml('wire:click="openPickupModal"');
     });
+});
+
+describe('crédit client comme mode de paiement', function () {
+    beforeEach(function () {
+        $this->order->customer->forceFill(['credit_balance' => 50])->save();
+    });
+
+    it('paie en partie avec le crédit au compte et le déduit du client', function () {
+        $line = stockedLine($this->order, 1, 1, 100);
+
+        $this->order->pickUp([$line->id => 1], [['method_id' => $this->cash->id, 'amount' => 64.98]], creditUsed: 50);
+
+        $order = $this->order->fresh();
+
+        expect($order->balance_due)->toBe(0.0)
+            ->and($order->customer->credit_balance)->toBe(0.0)
+            ->and($order->payments()->where('type', CustomerPaymentType::CreditUse)->sole())
+            ->amount->toBe(50.0)
+            ->customer_payment_method_id->toBeNull()
+            ->customer_order_pickup_id->toBe($order->pickups()->sole()->id);
+    });
+
+    it('refuse d\'utiliser plus que le crédit au compte', function () {
+        $line = stockedLine($this->order, 1, 1, 100);
+
+        expect(fn () => $this->order->pickUp([$line->id => 1], [['method_id' => $this->cash->id, 'amount' => 44.98]], creditUsed: 70))
+            ->toThrow(DomainException::class);
+
+        expect($this->order->customer->fresh()->credit_balance)->toBe(50.0)
+            ->and($this->order->payments()->count())->toBe(0);
+    });
+
+    it('propose le crédit dans le modal et l\'applique en premier', function () {
+        $line = stockedLine($this->order, 1, 1, 100);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openPickupModal')
+            ->call('continueToPayment')
+            ->assertSee('Crédit client')
+            ->assertSet('pickupCredit', '50.00')
+            ->assertSet('pickupPayments.0.amount', '64.98')
+            ->call('confirmPickup')
+            ->assertHasNoErrors();
+
+        expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::PickedUp)
+            ->and($this->order->customer->fresh()->credit_balance)->toBe(0.0);
+    });
+
+    it('accepte un paiement entièrement couvert par le crédit, sans mode de paiement', function () {
+        $line = stockedLine($this->order, 1, 1, 20);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openPickupModal')
+            ->call('continueToPayment')
+            ->assertSet('pickupCredit', '23.00')
+            ->set('pickupPayments.0.method_id', '')
+            ->call('confirmPickup')
+            ->assertHasNoErrors();
+
+        expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::PickedUp)
+            ->and($this->order->customer->fresh()->credit_balance)->toBe(27.0);
+    });
+});
+
+it('n\'affiche pas le crédit client quand le client n\'en a pas', function () {
+    stockedLine($this->order, 1, 1, 100);
+
+    Livewire::test(Show::class, ['order' => $this->order])
+        ->call('openPickupModal')
+        ->call('continueToPayment')
+        ->assertDontSeeHtml('wire:model.blur="pickupCredit"');
 });

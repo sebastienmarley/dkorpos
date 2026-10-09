@@ -90,6 +90,9 @@ class Show extends Component
 
     public float $pickupRequired = 0;
 
+    /** Montant payé avec le crédit au compte du client (champ affiché seulement si le client a un crédit). */
+    public string $pickupCredit = '0.00';
+
     /** @var array<int, array{method_id: int|string, amount: string}> */
     public array $pickupPayments = [];
 
@@ -610,6 +613,8 @@ class Show extends Component
         }
 
         $this->pickupRequired = $this->order->amountRequiredFor($quantities);
+        $credit = min($this->order->customer()->value('credit_balance') ?? 0, $this->pickupRequired);
+        $this->pickupCredit = number_format((float) $credit, 2, '.', '');
 
         if (array_sum($quantities) === 0 && $this->order->balance_due <= 0) {
             $this->addError('pickupQuantities', __('Aucun article choisi et rien à payer.'));
@@ -618,7 +623,7 @@ class Show extends Component
         }
 
         $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
-        $this->pickupPayments = [['method_id' => $firstMethod ?? '', 'amount' => number_format($this->pickupRequired, 2, '.', '')]];
+        $this->pickupPayments = [['method_id' => $firstMethod ?? '', 'amount' => number_format(max(0, $this->pickupRequired - (float) $credit), 2, '.', '')]];
         $this->pickupStep = 'payment';
     }
 
@@ -650,7 +655,14 @@ class Show extends Component
             $this->pickupPayments,
         );
 
+        $this->pickupCredit = str_replace(',', '.', $this->pickupCredit);
+        $this->pickupPayments = array_values(array_filter(
+            $this->pickupPayments,
+            fn (array $payment): bool => (float) $payment['amount'] > 0 || filled($payment['method_id']),
+        ));
+
         $this->validate([
+            'pickupCredit' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
             'pickupPayments.*.method_id' => ['required', 'integer', Rule::exists('customer_payment_methods', 'id')->where('is_active', true)],
             'pickupPayments.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
         ]);
@@ -659,6 +671,7 @@ class Show extends Component
             $pickup = $this->order->pickUp(
                 $this->pickupQuantitiesAsIntegers(),
                 array_map(fn (array $payment): array => ['method_id' => (int) $payment['method_id'], 'amount' => (float) $payment['amount']], $this->pickupPayments),
+                (float) $this->pickupCredit,
             );
         } catch (DomainException $exception) {
             $this->addError('pickupPayments', $exception->getMessage());
@@ -667,13 +680,15 @@ class Show extends Component
         }
 
         $this->showPickupModal = false;
-        $this->reset(['pickupQuantities', 'pickupPayments', 'pickupRequired']);
+        $this->reset(['pickupQuantities', 'pickupPayments', 'pickupRequired', 'pickupCredit']);
         Flux::toast(text: $pickup === null ? __('Paiement enregistré.') : __('Ramassage enregistré.'), variant: 'success');
     }
 
+    /** Total reçu : modes de paiement et crédit client utilisé. */
     public function pickupPaymentsTotal(): float
     {
-        return round(array_sum(array_map(fn (array $payment): float => (float) str_replace(',', '.', (string) $payment['amount']), $this->pickupPayments)), 2);
+        return round(array_sum(array_map(fn (array $payment): float => (float) str_replace(',', '.', (string) $payment['amount']), $this->pickupPayments))
+            + (float) str_replace(',', '.', $this->pickupCredit), 2);
     }
 
     /** @return Collection<int, CustomerPaymentMethod> */

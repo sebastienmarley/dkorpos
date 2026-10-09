@@ -588,18 +588,25 @@ class CustomerOrder extends Model
      *
      * @param  array<int, int>  $quantities  quantité à remettre par ligne
      * @param  array<int, array{method_id: int, amount: float}>  $payments
+     * @param  float  $creditUsed  montant payé avec le crédit au compte du client (déduit de ce crédit)
      *
-     * @throws DomainException si une quantité n'est pas disponible ou si le paiement ne couvre pas le montant exigé.
+     * @throws DomainException si une quantité n'est pas disponible, si le crédit utilisé dépasse celui du client ou
+     *                         si le paiement ne couvre pas le montant exigé.
      */
-    public function pickUp(array $quantities, array $payments): ?CustomerOrderPickup
+    public function pickUp(array $quantities, array $payments, float $creditUsed = 0): ?CustomerOrderPickup
     {
         $quantities = array_filter($quantities, fn (int $quantity): bool => $quantity > 0);
+        $creditUsed = round($creditUsed, 2);
 
-        if ($quantities === [] && round(array_sum(array_column($payments, 'amount')), 2) <= 0) {
+        if ($creditUsed < 0) {
+            throw new DomainException(__('Le crédit utilisé ne peut pas être négatif.'));
+        }
+
+        if ($quantities === [] && round(array_sum(array_column($payments, 'amount')) + $creditUsed, 2) <= 0) {
             throw new DomainException(__('Choisissez au moins un article à ramasser ou entrez un paiement.'));
         }
 
-        return DB::transaction(function () use ($quantities, $payments): ?CustomerOrderPickup {
+        return DB::transaction(function () use ($quantities, $payments, $creditUsed): ?CustomerOrderPickup {
             $lines = $this->lines()->lockForUpdate()->whereKey(array_keys($quantities))->get()->keyBy('id');
 
             foreach ($quantities as $lineId => $quantity) {
@@ -610,8 +617,14 @@ class CustomerOrder extends Model
                 }
             }
 
+            $customer = customer::query()->whereKey($this->customer_id)->lockForUpdate()->firstOrFail();
+
+            if ($creditUsed > $customer->credit_balance) {
+                throw new DomainException(__('Le crédit utilisé dépasse le crédit au compte du client (:credit $).', ['credit' => number_format($customer->credit_balance, 2)]));
+            }
+
             $required = $this->amountRequiredFor($quantities);
-            $paid = round(array_sum(array_column($payments, 'amount')), 2);
+            $paid = round(array_sum(array_column($payments, 'amount')) + $creditUsed, 2);
 
             if ($paid < $required) {
                 throw new DomainException(__('Le paiement (:paid $) ne couvre pas le montant exigé (:required $).', [
@@ -635,6 +648,17 @@ class CustomerOrder extends Model
             }
 
             $this->recordPayments($payments, CustomerPaymentType::Payment, $pickup);
+
+            if ($creditUsed > 0) {
+                $this->payments()->create([
+                    'customer_order_pickup_id' => $pickup?->id,
+                    'type' => CustomerPaymentType::CreditUse,
+                    'amount' => $creditUsed,
+                    'received_by' => auth()->id(),
+                ]);
+
+                $customer->decrement('credit_balance', $creditUsed);
+            }
 
             $this->recalculateBalance();
             $this->refreshStatusFromLines();
