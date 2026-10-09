@@ -238,8 +238,18 @@
 
     {{-- Recherche de produit --}}
     @can('customer_orders.edit')
-        <flux:modal wire:model="showProductModal" class="w-full max-w-lg">
+        <flux:modal wire:model.live="showProductModal" class="w-full max-w-lg">
             <flux:heading class="mb-1">{{ __('Ajouter un produit') }}</flux:heading>
+
+            @if (filled($pendingUpc))
+                <flux:callout icon="qr-code" color="amber" class="mt-4">
+                    <flux:callout.heading>{{ __('UPC :upc introuvable', ['upc' => $pendingUpc]) }}</flux:callout.heading>
+                    <flux:callout.text>{{ __('Cherchez le produit pour l\'ajouter à la commande.') }}</flux:callout.text>
+                    @if ($this->canLinkPendingUpc())
+                        <flux:checkbox wire:model="linkPendingUpc" :label="__('Associer cet UPC au produit choisi')" class="mt-2" />
+                    @endif
+                </flux:callout>
+            @endif
 
             <div class="mt-6 space-y-4">
                 <flux:field>
