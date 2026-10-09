@@ -197,6 +197,28 @@ it('recherche un employé par nom', function () {
         ->assertDontSee($bob->fullName());
 });
 
+it('recherche un employé sans égard à la casse ni aux accents', function (string $term) {
+    $helene = User::factory()->create(['firstname' => 'Hélène', 'lastname' => 'Bérubé', 'is_active' => true]);
+    $bob = User::factory()->create(['firstname' => 'Bob', 'lastname' => 'Gagnon', 'is_active' => true]);
+
+    $this->actingAs(User::factory()->withRole('admin')->create());
+
+    Livewire::test(Index::class)
+        ->set('search', $term)
+        ->assertSee($helene->fullName())
+        ->assertDontSee($bob->fullName());
+})->with(['helene', 'HÉLÈNE', 'Hélène', 'berube', 'BERUBE', 'berube helene', '  HeLeNe   bÉrUbÉ ']);
+
+it('normalise le nom de recherche d\'un employé à l\'enregistrement', function () {
+    $user = User::factory()->create(['firstname' => 'Zoé', 'lastname' => 'Côté']);
+
+    expect($user->search_name)->toBe('zoe cote');
+
+    $user->update(['lastname' => 'Lefèbvre']);
+
+    expect($user->fresh()->search_name)->toBe('zoe lefebvre');
+});
+
 it('affiche les employés inactifs avec le filtre de statut', function () {
     $actif = User::factory()->create(['firstname' => 'Alice', 'lastname' => 'Tremblay', 'is_active' => true]);
     $inactif = User::factory()->create(['firstname' => 'Bob', 'lastname' => 'Gagnon', 'is_active' => false]);

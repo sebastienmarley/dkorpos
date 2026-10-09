@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
+use App\Concerns\HasSearchName;
 use Database\Factories\customerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 
 /**
  * @property int $id
@@ -38,20 +38,7 @@ class customer extends Model
     /** @use HasFactory<customerFactory> */
     use HasFactory;
 
-    protected static function booted(): void
-    {
-        static::saving(function (customer $customer): void {
-            $customer->search_name = self::normalizeForSearch($customer->firstname.' '.$customer->lastname);
-        });
-    }
-
-    /**
-     * Texte en minuscules, sans accents et sans espaces superflus (é → e, À → a, ç → c).
-     */
-    public static function normalizeForSearch(string $value): string
-    {
-        return Str::squish(Str::lower(Str::ascii($value)));
-    }
+    use HasSearchName;
 
     /**
      * Clients dont le nom contient chacun des mots cherchés (peu importe l'ordre, la casse et les accents), ou dont
@@ -62,14 +49,9 @@ class customer extends Model
     public function scopeMatching(Builder $query, string $term): void
     {
         $term = trim($term);
-        $words = array_filter(explode(' ', self::normalizeForSearch($term)), fn (string $word): bool => $word !== '');
 
-        $query->where(function (Builder $query) use ($term, $words): void {
-            $query->where(function (Builder $query) use ($words): void {
-                foreach ($words as $word) {
-                    $query->where('search_name', 'like', '%'.$word.'%');
-                }
-            })
+        $query->where(function (Builder $query) use ($term): void {
+            $query->where(fn (Builder $query) => $query->matchingName($term))
                 ->orWhere('email', 'like', '%'.$term.'%')
                 ->orWhere('phone', 'like', '%'.$term.'%')
                 ->orWhere('cellphone', 'like', '%'.$term.'%');

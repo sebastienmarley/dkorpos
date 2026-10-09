@@ -258,14 +258,7 @@ class Index extends Component
         };
 
         if (filled($this->search)) {
-            foreach (explode(' ', (string) preg_replace('/\s+/', ' ', trim($this->search))) as $word) {
-                $term = '%'.addcslashes($word, '%_\\').'%';
-
-                $query->where(function ($q) use ($term): void {
-                    $q->where('firstname', 'like', $term)
-                        ->orWhere('lastname', 'like', $term);
-                });
-            }
+            $query->matchingName($this->search);
         }
 
         if (filled($this->sortRole)) {

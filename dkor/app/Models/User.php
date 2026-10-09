@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\HasSearchName;
 use App\Enums\InsurancePlan;
 use BackedEnum;
 use Database\Factories\UserFactory;
@@ -26,6 +27,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property int $id
  * @property string $firstname
  * @property string $lastname
+ * @property string|null $search_name
  * @property string $username
  * @property-read Role|null $role
  * @property int|null $position_id
@@ -76,7 +78,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, HasSearchName, Notifiable;
 
     use HasRoles {
         HasRoles::hasPermissionTo as traitHasPermissionTo;
