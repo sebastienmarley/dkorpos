@@ -50,6 +50,8 @@ class Show extends Component
 
     public string $sickDaysPartTime = '';
 
+    public string $cancellationFeePercent = '0';
+
     // Heures d'ouverture
 
     /** @var array<string, array{open: bool, from: string, to: string}> */
@@ -122,6 +124,7 @@ class Show extends Component
             'sickAccrualDay' => ['nullable', 'integer', 'between:1,31', 'required_with:sickAccrualMonth', $this->validDay($this->sickAccrualMonth)],
             'sickDaysFullTime' => ['nullable', 'integer', 'min:0', 'max:365'],
             'sickDaysPartTime' => ['nullable', 'integer', 'min:0', 'max:365'],
+            'cancellationFeePercent' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
         $this->store->fill([
@@ -132,6 +135,7 @@ class Show extends Component
             'sick_accrual_start' => $this->monthDay($this->sickAccrualMonth, $this->sickAccrualDay),
             'sick_days_full_time' => filled($this->sickDaysFullTime) ? $this->sickDaysFullTime : null,
             'sick_days_part_time' => filled($this->sickDaysPartTime) ? $this->sickDaysPartTime : null,
+            'cancellation_fee_percent' => round((float) $this->cancellationFeePercent, 2),
         ])->save();
 
         Flux::toast(text: __('Comptabilité sauvegardée.'), variant: 'success');
@@ -229,6 +233,7 @@ class Show extends Component
         [$this->sickAccrualMonth, $this->sickAccrualDay] = $this->splitMonthDay($this->store->sick_accrual_start);
         $this->sickDaysFullTime = (string) ($this->store->sick_days_full_time ?? '');
         $this->sickDaysPartTime = (string) ($this->store->sick_days_part_time ?? '');
+        $this->cancellationFeePercent = rtrim(rtrim(number_format($this->store->cancellation_fee_percent, 2, '.', ''), '0'), '.');
         $this->openingHours = array_replace_recursive(Store::defaultOpeningHours(), $this->store->opening_hours ?? []);
         $this->warehouseStoreId = (string) ($this->store->warehouse_store_id ?? '');
         $this->shippingWarehouseId = (string) ($this->store->shipping_warehouse_id ?? '');

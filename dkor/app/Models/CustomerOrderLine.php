@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property int $quantity_reserved
  * @property int $quantity_on_order
  * @property float $unit_price
+ * @property float|null $cancellation_fee
  * @property string|null $note
  * @property CustomerOrderLineStatus $status
  * @property Carbon|null $delivered_at
@@ -32,7 +33,7 @@ use Illuminate\Support\Carbon;
  * @property-read CustomerOrderPickup|null $pickup
  * @property-read float $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'note', 'status', 'delivered_at', 'returned_at'])]
+#[Fillable(['customer_order_id', 'product_id', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
@@ -48,6 +49,7 @@ class CustomerOrderLine extends Model
         'quantity_reserved' => 'integer',
         'quantity_on_order' => 'integer',
         'unit_price' => 'float',
+        'cancellation_fee' => 'float',
         'status' => CustomerOrderLineStatus::class,
         'delivered_at' => 'datetime',
         'returned_at' => 'datetime',

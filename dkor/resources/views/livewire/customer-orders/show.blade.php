@@ -96,6 +96,9 @@
                                 @if ($line->note)
                                     <div class="max-w-xs truncate text-xs font-normal text-zinc-400">{{ $line->note }}</div>
                                 @endif
+                                @if ($line->cancellation_fee)
+                                    <div class="text-xs font-normal text-red-600 dark:text-red-400">{{ __('Frais d\'annulation : :fee $', ['fee' => number_format($line->cancellation_fee, 2)]) }}</div>
+                                @endif
                             </flux:table.cell>
                             <flux:table.cell>{{ $line->product->supplier->name }}</flux:table.cell>
                             <flux:table.cell>
@@ -356,7 +359,29 @@
                             </flux:button>
                         </div>
                     @elseif ($editingLine->status === \App\Enums\CustomerOrderLineStatus::CancellationRequested)
-                        <flux:callout icon="clock" color="amber" :text="__('Demande d\'annulation envoyée au fournisseur : en attente de sa réponse (confirmée ou refusée dans la commande fournisseur).')" />
+                        <flux:callout icon="clock" color="amber" :text="__('Demande d\'annulation envoyée au fournisseur : en attente de sa réponse. Confirmée, la ligne est annulée sans frais.')" />
+                    @endif
+
+                    @if (in_array($editingLine->status, [\App\Enums\CustomerOrderLineStatus::Ordered, \App\Enums\CustomerOrderLineStatus::CancellationRequested], true) && $editingLine->quantity_on_order > 0)
+                        @php($cancellationFee = $order->cancellationFeeFor($editingLine, $editingLine->quantity_on_order))
+                        <div class="rounded-lg border border-red-200 p-3 dark:border-red-900">
+                            <flux:text class="mb-2 text-sm">
+                                {{ __('Le client ne veut pas attendre la réponse du fournisseur : annuler maintenant avec :percent % de frais (:fee $ avant taxes).', [
+                                    'percent' => rtrim(rtrim(number_format($order->store->cancellation_fee_percent ?? 0, 2), '0'), '.'),
+                                    'fee' => number_format($cancellationFee, 2),
+                                ]) }}
+                            </flux:text>
+                            <flux:button
+                                type="button"
+                                size="sm"
+                                variant="danger"
+                                icon="x-circle"
+                                wire:click="cancelLineWithFee({{ $editingLine->id }})"
+                                wire:confirm="{{ __('Annuler :count article(s) avec :fee $ de frais ? La marchandise qui arrivera du fournisseur entrera en stock.', ['count' => $editingLine->quantity_on_order, 'fee' => number_format($cancellationFee, 2)]) }}"
+                            >
+                                {{ __('Annuler avec frais') }}
+                            </flux:button>
+                        </div>
                     @endif
 
                     @if ($editingLine->status->isHandedOver())

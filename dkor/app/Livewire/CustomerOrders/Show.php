@@ -574,6 +574,26 @@ class Show extends Component
         Flux::toast(text: __(':amount $ portés au compte du client.', ['amount' => number_format($credit, 2)]), variant: 'success');
     }
 
+    /**
+     * Le client annule une ligne commandée sans attendre la réponse du fournisseur : frais d'annulation du magasin.
+     */
+    public function cancelLineWithFee(int $lineId): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        try {
+            $fee = $this->order->cancelLineWithFee($this->order->lines()->findOrFail($lineId));
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->showLineModal = false;
+        $this->order->refresh();
+        Flux::toast(text: __('Ligne annulée avec :fee $ de frais. Le crédit éventuel peut être remboursé ou porté au compte du client.', ['fee' => number_format($fee, 2)]), variant: 'success');
+    }
+
     #[On('supplier-line-cancellation-requested')]
     public function onSupplierLineCancellationRequested(): void
     {
@@ -750,7 +770,7 @@ class Show extends Component
         $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStock', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
         $returnLine = $this->returnLineId ? $this->order->lines()->with('product')->find($this->returnLineId) : null;
 
-        $this->order->load(['customer', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'payments.paymentMethod', 'payments.receiver']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'payments.paymentMethod', 'payments.receiver']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),
