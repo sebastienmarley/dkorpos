@@ -657,13 +657,12 @@ describe('lien avec les commandes fournisseurs', function () {
 
     describe('substitution fournisseur', function () {
         beforeEach(function () {
-            $this->product = Product::factory()->create(['model' => 'SOFA-A']);
-            $this->substitute = Product::factory()->create(['model' => 'SOFA-B', 'supplier_id' => $this->product->supplier_id]);
+            $this->product = Product::factory()->create(['model' => 'SOFA-A', 'cost' => 100]);
+            $this->substitute = Product::factory()->create(['model' => 'SOFA-B', 'cost' => 150, 'supplier_id' => $this->product->supplier_id]);
         });
 
-        it('change le produit de la ligne client quand rien n\'est réservé ni reçu, au même prix', function () {
+        it('change le produit de la ligne client quand rien n\'est réservé ni reçu, au prix vendant du substitut', function () {
             $line = $this->order->addProduct($this->product, 2);
-            $price = $line->unit_price;
             $supplierOrder = SupplierOrder::sole();
             $supplierOrder->send();
 
@@ -673,10 +672,11 @@ describe('lien avec les commandes fournisseurs', function () {
                 ->product_id->toBe($this->substitute->id)
                 ->supplier_order_line_id->toBe($replacement->id)
                 ->quantity_on_order->toBe(2)
-                ->unit_price->toBe($price)
+                ->unit_price->toBe($this->substitute->selling_price)
                 ->status->toBe(CustomerOrderLineStatus::Ordered)
                 ->note->toContain('SOFA-A')
-                ->and($this->order->lines()->count())->toBe(1);
+                ->and($this->order->lines()->count())->toBe(1)
+                ->and($this->order->fresh()->subtotal)->toBe(round(2 * $this->substitute->selling_price, 2));
         });
 
         it('garde la partie réservée et crée une ligne pour le substitut', function () {
@@ -697,9 +697,9 @@ describe('lien avec les commandes fournisseurs', function () {
             expect($this->order->lines()->where('product_id', $this->substitute->id)->sole())
                 ->supplier_order_line_id->toBe($replacement->id)
                 ->quantity_on_order->toBe(2)
-                ->unit_price->toBe($line->unit_price)
+                ->unit_price->toBe($this->substitute->selling_price)
                 ->status->toBe(CustomerOrderLineStatus::Ordered)
-                ->and($this->order->fresh()->subtotal)->toBe(round(3 * $line->unit_price, 2));
+                ->and($this->order->fresh()->subtotal)->toBe(round($line->unit_price + 2 * $this->substitute->selling_price, 2));
         });
 
         it('garde la partie déjà reçue sur la ligne d\'origine', function () {

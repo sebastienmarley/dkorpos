@@ -276,14 +276,15 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Répercute une substitution fournisseur : ce qui reste à recevoir passe sur le produit de remplacement, au même
-     * prix vendant. Sans stock réservé ni réception, la ligne change simplement de produit; sinon elle garde sa
-     * partie réservée ou reçue et une nouvelle ligne « Commandé » est créée pour le substitut.
+     * Répercute une substitution fournisseur : ce qui reste à recevoir passe sur le produit de remplacement, au prix
+     * vendant de ce produit. Sans stock réservé ni réception, la ligne change simplement de produit; sinon elle garde
+     * sa partie réservée ou reçue et une nouvelle ligne « Commandé » est créée pour le substitut.
      */
     public function applySupplierSubstitution(CustomerOrderLine $line, int $quantityReceived, SupplierOrderLine $replacement): CustomerOrderLine
     {
         return DB::transaction(function () use ($line, $quantityReceived, $replacement): CustomerOrderLine {
             $line = $this->lines()->with('product')->lockForUpdate()->findOrFail($line->id);
+            $sellingPrice = Product::query()->with('supplier')->findOrFail($replacement->product_id)->selling_price;
 
             $note = __('Substitut fournisseur de :model.', ['model' => $line->product->model]);
 
@@ -293,6 +294,7 @@ class CustomerOrder extends Model
                     'supplier_order_line_id' => $replacement->id,
                     'quantity_on_order' => $replacement->quantity,
                     'quantity' => $replacement->quantity,
+                    'unit_price' => $sellingPrice,
                     'note' => trim($line->note."\n".$note),
                 ]);
 
@@ -314,7 +316,7 @@ class CustomerOrder extends Model
                 'quantity_reserved' => 0,
                 'quantity_on_order' => $replacement->quantity,
                 'quantity' => $replacement->quantity,
-                'unit_price' => $line->unit_price,
+                'unit_price' => $sellingPrice,
                 'status' => CustomerOrderLineStatus::Ordered,
                 'note' => $note,
             ]);
