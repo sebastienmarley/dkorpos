@@ -341,6 +341,24 @@
                         <flux:error name="editNote" />
                     </flux:field>
 
+                    @if ($editingLine->status === \App\Enums\CustomerOrderLineStatus::Ordered && $editingLine->supplierOrderLine && $editingLine->quantity_on_order > 0)
+                        <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                            <flux:text class="mb-2 text-sm">
+                                {{ __(':count commandé(s) sur :number, déjà envoyée au fournisseur.', ['count' => $editingLine->quantity_on_order, 'number' => $editingLine->supplierOrderLine->order->number]) }}
+                            </flux:text>
+                            <flux:button
+                                type="button"
+                                size="sm"
+                                icon="no-symbol"
+                                x-on:click="$wire.set('showLineModal', false); $dispatch('open-supplier-line-cancellation', { lineId: {{ $editingLine->supplier_order_line_id }} })"
+                            >
+                                {{ __('Demander l\'annulation au fournisseur') }}
+                            </flux:button>
+                        </div>
+                    @elseif ($editingLine->status === \App\Enums\CustomerOrderLineStatus::CancellationRequested)
+                        <flux:callout icon="clock" color="amber" :text="__('Demande d\'annulation envoyée au fournisseur : en attente de sa réponse (confirmée ou refusée dans la commande fournisseur).')" />
+                    @endif
+
                     @if ($editingLine->status->isHandedOver())
                         <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                             <flux:text class="mb-2 text-sm font-medium">{{ __('Le client rapporte cet article ?') }}</flux:text>
@@ -597,6 +615,8 @@
             @endif
         </flux:modal>
     @endcan
+
+    <livewire:supplier-line-cancellation-request />
 
     <livewire:customer-form />
 </div>

@@ -175,7 +175,7 @@
                                         @else
                                         <flux:button size="xs" variant="ghost" icon="pencil-square" wire:click="startEditLine({{ $line->id }})" />
                                         @if ($status->isOpen() && $line->quantity_outstanding > 0)
-                                            <flux:button size="xs" variant="ghost" icon="no-symbol" wire:click="openCancelRequest({{ $line->id }})" />
+                                            <flux:button size="xs" variant="ghost" icon="no-symbol" x-on:click="$dispatch('open-supplier-line-cancellation', { lineId: {{ $line->id }} })" :title="__('Demander l\'annulation')" />
                                             @if ($isProduct)
                                                 <flux:button size="xs" variant="ghost" icon="arrows-right-left" wire:click="openSubstitute({{ $line->id }})" />
                                             @endif
@@ -508,23 +508,7 @@
     </flux:modal>
 
     {{-- Demande d'annulation d'une ligne --}}
-    <flux:modal wire:model="showCancelRequest" class="w-full max-w-md">
-        <flux:heading class="mb-1">{{ __('Demander l\'annulation de la ligne') }}</flux:heading>
-        <flux:text class="text-zinc-500">{{ (\App\Models\SupplierOrder::emailEnabled() ? __('Un courriel est envoyé au fournisseur; ') : __('Aucun courriel n\'est envoyé (courriels désactivés) : avisez le fournisseur; ')).__('la ligne reste « en demande d\'annulation » jusqu\'à sa réponse.') }}</flux:text>
-
-        <form wire:submit="requestLineCancellation" class="mt-6 space-y-4">
-            <flux:field>
-                <flux:label>{{ __('Raison (optionnel)') }}</flux:label>
-                <flux:input wire:model="cancelReason" type="text" />
-                <flux:error name="cancelReason" />
-            </flux:field>
-
-            <div class="flex justify-end gap-3 pt-2">
-                <flux:button type="button" variant="ghost" wire:click="$set('showCancelRequest', false)">{{ __('Retour') }}</flux:button>
-                <flux:button type="submit" variant="primary">{{ __('Envoyer la demande') }}</flux:button>
-            </div>
-        </form>
-    </flux:modal>
+    <livewire:supplier-line-cancellation-request />
 
     {{-- Réception --}}
     <flux:modal wire:model="showReceive" class="w-full max-w-2xl">

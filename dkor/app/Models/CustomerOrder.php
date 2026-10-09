@@ -223,7 +223,11 @@ class CustomerOrder extends Model
             $line->update([
                 'quantity_reserved' => $line->quantity_reserved + $quantity,
                 'quantity_on_order' => $onOrder,
-                'status' => $onOrder === 0 ? CustomerOrderLineStatus::Received : CustomerOrderLineStatus::Ordered,
+                'status' => match (true) {
+                    $onOrder === 0 => CustomerOrderLineStatus::Received,
+                    $line->status === CustomerOrderLineStatus::CancellationRequested => CustomerOrderLineStatus::CancellationRequested,
+                    default => CustomerOrderLineStatus::Ordered,
+                },
             ]);
         });
     }
@@ -251,6 +255,27 @@ class CustomerOrder extends Model
                 'status' => CustomerOrderLineStatus::Ordered,
             ]);
         });
+    }
+
+    /**
+     * Répercute une demande d'annulation faite au fournisseur : la ligne passe « Demande d'annulation » jusqu'à sa
+     * réponse (confirmée : voir applySupplierCancellation; refusée : applySupplierCancellationRejected).
+     */
+    public function applySupplierCancellationRequest(CustomerOrderLine $line): void
+    {
+        $this->lines()->whereKey($line->id)
+            ->where('status', CustomerOrderLineStatus::Ordered)
+            ->update(['status' => CustomerOrderLineStatus::CancellationRequested]);
+    }
+
+    /**
+     * Le fournisseur refuse l'annulation : la ligne redevient « Commandé ».
+     */
+    public function applySupplierCancellationRejected(CustomerOrderLine $line): void
+    {
+        $this->lines()->whereKey($line->id)
+            ->where('status', CustomerOrderLineStatus::CancellationRequested)
+            ->update(['status' => CustomerOrderLineStatus::Ordered]);
     }
 
     /**
