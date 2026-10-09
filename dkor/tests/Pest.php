@@ -1,5 +1,10 @@
 <?php
 
+use App\Models\CustomerOrder;
+use App\Models\CustomerOrderLine;
+use App\Models\InventoryStock;
+use App\Models\InventoryUnit;
+use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -44,7 +49,17 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Produit en stock (avec ses unités d'inventaire) ajouté à la commande, au prix vendant donné.
+ */
+function stockedLine(CustomerOrder $order, int $inStock, int $quantity, float $price): CustomerOrderLine
 {
-    // ..
+    $product = Product::factory()->create();
+    InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => $inStock, 'quantity_reserved' => 0]);
+    InventoryUnit::factory()->count($inStock)->create(['product_id' => $product->id, 'delivered_at' => null]);
+
+    $line = $order->addProduct($product, $quantity);
+    $order->updateLine($line, $line->quantity_reserved, $line->quantity_on_order, $price, null);
+
+    return $line->fresh();
 }

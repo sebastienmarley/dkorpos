@@ -19,13 +19,7 @@ class Index extends Component
         $customers = blank($this->search)
             ? collect()
             : customer::query()
-                ->where(function ($q) {
-                    $q->where('firstname', 'like', '%'.$this->search.'%')
-                        ->orWhere('lastname', 'like', '%'.$this->search.'%')
-                        ->orWhere('email', 'like', '%'.$this->search.'%')
-                        ->orWhere('phone', 'like', '%'.$this->search.'%')
-                        ->orWhere('cellphone', 'like', '%'.$this->search.'%');
-                })
+                ->matching($this->search)
                 ->orderBy('lastname')
                 ->orderBy('firstname')
                 ->get();

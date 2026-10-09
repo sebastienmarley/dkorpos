@@ -340,10 +340,9 @@
             </div>
 
             {{-- Recherche client --}}
-            <flux:field>
-                <flux:label>{{ __('Client') }}</flux:label>
-
-                @if ($selectedCustomerId)
+            @if ($selectedCustomerId)
+                <flux:field>
+                    <flux:label>{{ __('Client') }}</flux:label>
                     <div class="flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                         <div class="flex items-center gap-2">
                             <flux:icon.user class="h-4 w-4 text-zinc-400" />
@@ -351,43 +350,10 @@
                         </div>
                         <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="clearCustomer" :label="__('Retirer')" />
                     </div>
-                @else
-                    <flux:input
-                        wire:model.live.debounce.300ms="customerSearch"
-                        placeholder="{{ __('Rechercher un client…') }}"
-                        icon="magnifying-glass"
-                    />
-
-                    @if ($customerResults->isNotEmpty())
-                        <div class="mt-1 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-md dark:border-zinc-700 dark:bg-zinc-900">
-                            @foreach ($customerResults as $c)
-                                <button
-                                    type="button"
-                                    wire:click="selectCustomer({{ $c->id }})"
-                                    class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                >
-                                    <flux:avatar :name="$c->firstname.' '.$c->lastname" size="sm" />
-                                    <div>
-                                        <div class="font-medium text-zinc-800 dark:text-zinc-100">{{ $c->firstname }} {{ $c->lastname }}</div>
-                                        @if ($c->phone || $c->cellphone)
-                                            <div class="text-xs text-zinc-400">{{ $c->phone ?: $c->cellphone }}</div>
-                                        @endif
-                                    </div>
-                                </button>
-                            @endforeach
-                        </div>
-                    @elseif (strlen($customerSearch) >= 4)
-                        <div class="mt-1 flex items-center justify-between rounded-lg border border-dashed border-zinc-200 px-3 py-2 dark:border-zinc-700">
-                            <flux:text class="text-sm text-zinc-400">{{ __('Aucun client trouvé.') }}</flux:text>
-                            @can('customers.create')
-                                <flux:button size="sm" variant="ghost" icon="user-plus" x-on:click="$dispatch('open-customer-create')">
-                                    {{ __('Créer') }}
-                                </flux:button>
-                            @endcan
-                        </div>
-                    @endif
-                @endif
-            </flux:field>
+                </flux:field>
+            @else
+                <x-customer-search :results="$customerResults" :search="$customerSearch" select="selectCustomer" :autofocus="false" />
+            @endif
 
             <flux:field>
                 <flux:label>{{ __('Notes') }}</flux:label>

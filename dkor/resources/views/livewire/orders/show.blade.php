@@ -122,6 +122,14 @@
                             @if ($line->status !== LineStatus::Active)
                                 <flux:badge :color="$line->status->color()" size="sm" class="ms-2">{{ $line->status->label() }}</flux:badge>
                             @endif
+                            @if ($line->customerOrderLine)
+                                <flux:text class="text-xs text-zinc-400">
+                                    {{ __('Client :') }}
+                                    <flux:link :href="route('customer-orders.show', $line->customerOrderLine->order)" wire:navigate class="text-xs">
+                                        {{ $line->customerOrderLine->order->customer->firstname }} {{ $line->customerOrderLine->order->customer->lastname }} — {{ __('commande #:id', ['id' => $line->customerOrderLine->customer_order_id]) }}
+                                    </flux:link>
+                                </flux:text>
+                            @endif
                             @if ($line->substitutedFrom)
                                 <flux:text class="text-xs text-zinc-400">{{ __('Substitut de :product', ['product' => $line->substitutedFrom->label]) }}</flux:text>
                             @endif

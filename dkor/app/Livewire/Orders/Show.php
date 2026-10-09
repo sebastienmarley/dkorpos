@@ -409,7 +409,15 @@ class Show extends Component
         $this->authorize('supplier_orders.edit');
         abort_unless($this->order->status->isEditable(), 403);
 
-        $this->order->lines()->whereKey($lineId)->delete();
+        $line = $this->order->lines()->with('customerOrderLine')->findOrFail($lineId);
+
+        if ($line->customerOrderLine !== null) {
+            Flux::toast(text: __('Cette ligne est liée à la commande client #:id : retirez-la ou réduisez sa quantité en commande dans la commande client.', ['id' => $line->customerOrderLine->customer_order_id]), variant: 'danger');
+
+            return;
+        }
+
+        $line->delete();
         $this->order->unsetRelation('lines');
     }
 
@@ -567,7 +575,7 @@ class Show extends Component
 
     public function render(): View
     {
-        $this->order->load(['supplier', 'creator', 'lines.product']);
+        $this->order->load(['supplier', 'creator', 'lines.product', 'lines.customerOrderLine.order.customer']);
 
         $substituting = $this->showSubstitute && $this->substituteLineId !== null;
 

@@ -82,6 +82,8 @@
                                 <flux:link :href="route('supplier-orders.show', $movement->reference->order)" wire:navigate>{{ $movement->reference->order->number }}</flux:link>
                             @elseif ($movement->reference instanceof \App\Models\ReceptionLine)
                                 <flux:link :href="route('receptions.show', $movement->reference->reception)" wire:navigate>{{ $movement->reference->reception->number }}</flux:link>
+                            @elseif ($movement->reference instanceof \App\Models\CustomerOrder)
+                                <flux:link :href="route('customer-orders.show', $movement->reference)" wire:navigate>{{ __('Commande client #:id', ['id' => $movement->reference->id]) }}</flux:link>
                             @else
                                 —
                             @endif

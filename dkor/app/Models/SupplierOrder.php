@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CustomerOrderLineStatus;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
 use App\Enums\ReceptionStatus;
@@ -297,8 +298,8 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Envoie la commande (en brouillon ou en attente); les quantités des produits passent « en commande » dans l'inventaire et la
-     * commande est transmise par courriel au fournisseur.
+     * Envoie la commande (en brouillon ou en attente); les quantités des produits passent « en commande » dans l'inventaire, les
+     * lignes de commandes clients liées passent à « Commandé » et la commande est transmise par courriel au fournisseur.
      *
      * @return bool Faux seulement si le courriel est activé mais n'a pas pu être envoyé (pas de courriel ou erreur d'envoi).
      */
@@ -322,6 +323,11 @@ class SupplierOrder extends Model
                     $this->moveStock($line, null, InventoryStatus::OnOrder, $line->quantity, InventoryMovementType::OrderPlaced);
                 }
             }
+
+            CustomerOrderLine::query()
+                ->whereIn('supplier_order_line_id', $lines->pluck('id'))
+                ->where('status', CustomerOrderLineStatus::OnOrder)
+                ->update(['status' => CustomerOrderLineStatus::Ordered]);
 
             $this->update(['status' => SupplierOrderStatus::Sent, 'sent_at' => now()]);
         });
@@ -410,6 +416,9 @@ class SupplierOrder extends Model
             $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $quantity, InventoryMovementType::Receipt, $receptionLine);
 
             $line->update(['quantity_received' => $line->quantity_received + $quantity]);
+
+            $customerLine = $line->customerOrderLine()->with('order')->first();
+            $customerLine?->order->applySupplierReceipt($customerLine, $quantity);
         }
 
         $this->refreshStatusFromLines();
@@ -459,6 +468,9 @@ class SupplierOrder extends Model
 
             InventoryUnit::whereKey($units->modelKeys())->delete();
 
+            $customerLine = $line->customerOrderLine()->with('order')->first();
+            $customerLine?->order->applySupplierReceiptReversal($customerLine, $quantity);
+
             $this->moveStock($line, InventoryStatus::InStock, InventoryStatus::OnOrder, $quantity, InventoryMovementType::ReceiptReversal, $receptionLine, $reason);
 
             $line->update(['quantity_received' => $line->quantity_received - $quantity]);
@@ -499,7 +511,8 @@ class SupplierOrder extends Model
 
     /**
      * Modifie la quantité et le coût d'une ligne, en brouillon ou après l'envoi. Après l'envoi, la quantité ne peut
-     * pas descendre sous ce qui est déjà reçu et l'inventaire « en commande » suit la différence.
+     * pas descendre sous ce qui est déjà reçu et l'inventaire « en commande » suit la différence. La quantité « en
+     * commande » de la ligne de commande client liée suit la nouvelle quantité.
      */
     public function updateLine(SupplierOrderLine $line, int $quantity, float $unitCost): void
     {
@@ -527,6 +540,9 @@ class SupplierOrder extends Model
             }
 
             $line->update(['quantity' => $quantity, 'unit_cost' => round($unitCost, 2)]);
+
+            $customerLine = $line->customerOrderLine()->with('order')->first();
+            $customerLine?->order->applySupplierQuantity($customerLine, $quantity - $line->quantity_received);
 
             if ($this->status->isOpen()) {
                 $this->refreshStatusFromLines();
@@ -572,6 +588,9 @@ class SupplierOrder extends Model
             $line->update($line->quantity_received > 0
                 ? ['quantity' => $line->quantity_received]
                 : ['quantity' => 0, 'status' => SupplierOrderLineStatus::Substituted]);
+
+            $customerLine = $line->customerOrderLine()->with('order')->first();
+            $customerLine?->order->applySupplierSubstitution($customerLine, $line->quantity_received, $replacement);
 
             $this->refreshStatusFromLines();
 
@@ -620,7 +639,7 @@ class SupplierOrder extends Model
 
     /**
      * Le fournisseur confirme l'annulation. Ce qui est déjà reçu est conservé (la quantité de la ligne est réduite à
-     * la quantité reçue); sans réception, la ligne est annulée.
+     * la quantité reçue); sans réception, la ligne est annulée. La ligne de commande client liée suit.
      */
     public function confirmLineCancellation(SupplierOrderLine $line): void
     {
@@ -641,6 +660,8 @@ class SupplierOrder extends Model
             } else {
                 $line->update(['status' => SupplierOrderLineStatus::Cancelled, 'cancelled_at' => now()]);
             }
+
+            $this->cancelCustomerQuantity($line);
 
             $this->refreshStatusFromLines();
         });
@@ -693,7 +714,8 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Annule la commande; les quantités encore en attente sont retirées de l'inventaire « en commande ».
+     * Annule la commande; les quantités encore en attente sont retirées de l'inventaire « en commande » et des lignes
+     * de commandes clients liées.
      */
     public function cancel(): void
     {
@@ -706,6 +728,10 @@ class SupplierOrder extends Model
                 foreach ($this->lines()->get() as $line) {
                     $this->moveStock($line, InventoryStatus::OnOrder, null, $line->quantity_outstanding, InventoryMovementType::OrderCancelled);
                 }
+            }
+
+            foreach ($this->lines()->get()->reject(fn (SupplierOrderLine $line) => $line->status->isClosed()) as $line) {
+                $this->cancelCustomerQuantity($line);
             }
 
             $this->update(['status' => SupplierOrderStatus::Cancelled]);
@@ -756,6 +782,15 @@ class SupplierOrder extends Model
                 'missing' => number_format($this->missingForPrepaid(), 2),
             ]));
         }
+    }
+
+    /**
+     * Retire de la ligne de commande client liée ce qui ne sera plus reçu (le déjà reçu reste réservé au client).
+     */
+    private function cancelCustomerQuantity(SupplierOrderLine $line): void
+    {
+        $customerLine = $line->customerOrderLine()->with('order')->first();
+        $customerLine?->order->applySupplierCancellation($customerLine, $line->quantity_received);
     }
 
     private function guardLineBelongs(SupplierOrderLine $line): void

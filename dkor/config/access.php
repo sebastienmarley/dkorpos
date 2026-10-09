@@ -16,6 +16,8 @@ $pageAccess = [
     'customers.create',
     'customers.edit',
     'customer_orders.view',
+    'customer_orders.create',
+    'customer_orders.edit',
     'products.view',
     'products.create',
     'inventory.view',
@@ -41,6 +43,9 @@ $warehouseAccess = [
 ];
 
 $accountingAccess = [
+    'payment_methods.view',
+    'payment_methods.create',
+    'payment_methods.edit',
     'price_lists.view',
     'price_lists.create',
     'price_lists.edit',
@@ -86,6 +91,8 @@ return [
         'customers.create' => ['Créer — clients', 'Créer dans : clients.'],
         'customers.edit' => ['Modifier — clients', 'Modifier dans : clients.'],
         'customer_orders.view' => ['Voir — commandes clients', 'Accéder à la page : commandes clients.'],
+        'customer_orders.create' => ['Créer — commandes clients', 'Créer dans : commandes clients.'],
+        'customer_orders.edit' => ['Modifier — commandes clients', 'Modifier dans : commandes clients (client, produits).'],
         'customer_orders.assign_salespeople' => ['Gérer les vendeurs — commandes clients', 'Modifier les vendeurs et la répartition de la vente dans : commandes clients.'],
         'suppliers.view' => ['Voir — fournisseurs', 'Accéder à la page : fournisseurs.'],
         'suppliers.create' => ['Créer — fournisseurs', 'Créer dans : fournisseurs.'],
@@ -111,6 +118,9 @@ return [
         'colors.view' => ['Voir — couleurs', 'Accéder à la page : couleurs.'],
         'colors.create' => ['Créer — couleurs', 'Créer dans : couleurs.'],
         'colors.edit' => ['Modifier — couleurs', 'Modifier dans : couleurs.'],
+        'payment_methods.view' => ['Voir — modes de paiement', 'Accéder à la page : modes de paiement.'],
+        'payment_methods.create' => ['Créer — modes de paiement', 'Créer dans : modes de paiement.'],
+        'payment_methods.edit' => ['Modifier — modes de paiement', 'Modifier et désactiver dans : modes de paiement.'],
         'currencies.view' => ['Voir — devises', 'Accéder à la page : devises.'],
         'currencies.create' => ['Créer — devises', 'Créer dans : devises.'],
         'currencies.edit' => ['Modifier — devises', 'Modifier dans : devises.'],

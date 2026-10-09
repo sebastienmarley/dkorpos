@@ -5,6 +5,7 @@ use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
 use App\Livewire\Accounting\Invoices\Index as InvoicesIndex;
 use App\Livewire\Accounting\Invoices\Show as InvoiceShow;
+use App\Livewire\Accounting\PaymentMethods;
 use App\Livewire\Accounting\Payroll;
 use App\Livewire\Admin\Permissions;
 use App\Livewire\Admin\Positions;
@@ -15,6 +16,7 @@ use App\Livewire\Catalog\Departments;
 use App\Livewire\Catalog\PriceLists;
 use App\Livewire\Catalog\PriceListShow;
 use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
+use App\Livewire\CustomerOrders\Show as CustomerOrderShow;
 use App\Livewire\Customers\Index as CustomersIndex;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
@@ -54,6 +56,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('customers', CustomersIndex::class)->middleware('can:customers.view')->name('customers.index');
 
     Route::get('customer-orders', CustomerOrdersIndex::class)->middleware('can:customer_orders.view')->name('customer-orders.index');
+    Route::get('customer-orders/{order}', CustomerOrderShow::class)->middleware('can:customer_orders.view')->name('customer-orders.show');
 
     Route::get('suppliers', SuppliersIndex::class)->middleware('can:suppliers.view')->name('suppliers.index');
     Route::get('suppliers/{supplier}', SupplierShow::class)->middleware('can:suppliers.view')->name('suppliers.show');
@@ -82,6 +85,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('accounting/invoices/{invoice}', InvoiceShow::class)->whereNumber('invoice')->middleware('can:invoices.view')->name('accounting.invoices.show');
     Route::get('accounting/invoices/orders/{order}', InvoiceForm::class)->middleware('can:invoices.view')->name('accounting.invoices.order');
     Route::get('accounting/payroll', Payroll::class)->middleware('can:payroll.view')->name('accounting.payroll');
+    Route::get('accounting/payment-methods', PaymentMethods::class)->middleware('can:payment_methods.view')->name('accounting.payment-methods');
     Route::get('accounting/currencies', Currencies::class)->middleware('can:currencies.view')->name('accounting.currencies');
 
     Route::get('stores', StoresIndex::class)->middleware('can:stores.view')->name('stores.index');

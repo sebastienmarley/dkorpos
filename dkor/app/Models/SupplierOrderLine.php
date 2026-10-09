@@ -28,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read SupplierOrder $order
  * @property-read Product|null $product
+ * @property-read CustomerOrderLine|null $customerOrderLine
  * @property-read float $total
  * @property-read int $quantity_outstanding
  * @property-read int $billable_quantity
@@ -74,6 +75,16 @@ class SupplierOrderLine extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Ligne de commande client dont cette ligne couvre la quantité « en commande ».
+     *
+     * @return HasOne<CustomerOrderLine, $this>
+     */
+    public function customerOrderLine(): HasOne
+    {
+        return $this->hasOne(CustomerOrderLine::class);
     }
 
     public function getTotalAttribute(): float
