@@ -7,6 +7,7 @@ use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
+use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
 use Database\Factories\CustomerOrderFactory;
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * @property int $id
  * @property int $customer_id
+ * @property int|null $store_id
  * @property CustomerOrderStatus $status
  * @property float $subtotal
  * @property float $gst
@@ -35,13 +37,14 @@ use Illuminate\Support\Facades\DB;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read customer $customer
+ * @property-read Store|null $store
  * @property-read User|null $creator
  * @property-read Collection<int, User> $salespeople
  * @property-read Collection<int, CustomerOrderLine> $lines
  * @property-read Collection<int, CustomerOrderPickup> $pickups
  * @property-read Collection<int, CustomerOrderPayment> $payments
  */
-#[Fillable(['customer_id', 'status', 'subtotal', 'gst', 'qst', 'total', 'amount_paid', 'balance_due', 'created_by'])]
+#[Fillable(['customer_id', 'store_id', 'status', 'subtotal', 'gst', 'qst', 'total', 'amount_paid', 'balance_due', 'created_by'])]
 class CustomerOrder extends Model
 {
     /** @use HasFactory<CustomerOrderFactory> */
@@ -66,6 +69,12 @@ class CustomerOrder extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(customer::class);
+    }
+
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     /** @return BelongsTo<User, $this> */
@@ -276,6 +285,78 @@ class CustomerOrder extends Model
         $this->lines()->whereKey($line->id)
             ->where('status', CustomerOrderLineStatus::CancellationRequested)
             ->update(['status' => CustomerOrderLineStatus::Ordered]);
+    }
+
+    /**
+     * Frais d'annulation de cette quantité d'une ligne, selon le taux du magasin de la commande.
+     */
+    public function cancellationFeeFor(CustomerOrderLine $line, int $quantity): float
+    {
+        return round($quantity * $line->unit_price * ($this->store->cancellation_fee_percent ?? 0) / 100, 2);
+    }
+
+    /**
+     * Le client annule, sans attendre la réponse du fournisseur, ce qui reste à recevoir d'une ligne commandée : la
+     * partie en commande devient une ligne « Annulé » qui porte les frais d'annulation du magasin, et elle n'est
+     * plus liée à la commande fournisseur (ce qui arrivera entre en stock disponible). Une demande d'annulation est
+     * envoyée au fournisseur si elle ne l'a pas déjà été. La partie déjà en stock ou reçue reste au client.
+     *
+     * @return float Frais d'annulation facturés.
+     *
+     * @throws DomainException si la ligne n'est pas commandée ou en demande d'annulation.
+     */
+    public function cancelLineWithFee(CustomerOrderLine $line): float
+    {
+        $supplierLine = null;
+
+        $fee = DB::transaction(function () use ($line, &$supplierLine): float {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if (! in_array($line->status, [CustomerOrderLineStatus::Ordered, CustomerOrderLineStatus::CancellationRequested], true) || $line->quantity_on_order < 1) {
+                throw new DomainException(__('Seule une ligne commandée ou en demande d\'annulation peut être annulée avec frais.'));
+            }
+
+            $supplierLine = $line->supplierOrderLine()->with('order')->first();
+            $fee = $this->cancellationFeeFor($line, $line->quantity_on_order);
+
+            $cancelled = [
+                'status' => CustomerOrderLineStatus::Cancelled,
+                'supplier_order_line_id' => null,
+                'cancellation_fee' => $fee,
+            ];
+
+            if ($line->quantity_reserved === 0) {
+                $line->update($cancelled);
+            } else {
+                $this->lines()->create([
+                    ...$cancelled,
+                    'product_id' => $line->product_id,
+                    'quantity' => $line->quantity_on_order,
+                    'quantity_reserved' => 0,
+                    'quantity_on_order' => $line->quantity_on_order,
+                    'unit_price' => $line->unit_price,
+                    'note' => $line->note,
+                ]);
+
+                $line->update([
+                    'quantity_on_order' => 0,
+                    'quantity' => $line->quantity_reserved,
+                    'status' => $supplierLine !== null && $supplierLine->quantity_received > 0
+                        ? CustomerOrderLineStatus::Received
+                        : CustomerOrderLineStatus::InStock,
+                ]);
+            }
+
+            $this->recalculateBalance();
+
+            return $fee;
+        });
+
+        if ($supplierLine !== null && $supplierLine->status === SupplierOrderLineStatus::Active && $supplierLine->quantity_outstanding > 0 && $supplierLine->order->status->isOpen()) {
+            $supplierLine->requestCancellation(__('Annulation demandée par le client (commande client #:id).', ['id' => $this->id]));
+        }
+
+        return $fee;
     }
 
     /**
@@ -516,13 +597,16 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Recalcule les totaux : sous-total des lignes facturables, TPS, TVQ, total, montant payé et solde à payer.
+     * Recalcule les totaux : sous-total des lignes facturables et des frais d'annulation, TPS, TVQ, total, montant
+     * payé et solde à payer.
      */
     public function recalculateBalance(): void
     {
-        $subtotal = round($this->lines()->get()
+        $lines = $this->lines()->get();
+        $subtotal = round($lines
             ->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable())
-            ->sum(fn (CustomerOrderLine $line): float => $line->total), 2);
+            ->sum(fn (CustomerOrderLine $line): float => $line->total)
+            + $lines->sum(fn (CustomerOrderLine $line): float => (float) $line->cancellation_fee), 2);
         $taxes = self::taxesFor($subtotal);
         $amountPaid = round((float) $this->payments()->sum('amount'), 2);
 

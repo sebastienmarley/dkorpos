@@ -53,6 +53,7 @@ class Index extends Component
         $order = DB::transaction(function () use ($customer): CustomerOrder {
             $order = CustomerOrder::create([
                 'customer_id' => $customer->id,
+                'store_id' => auth()->user()?->store_id,
                 'created_by' => auth()->id(),
             ]);
 

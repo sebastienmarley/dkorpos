@@ -84,7 +84,7 @@ it('affiche un message quand la recherche ne retourne aucun résultat', function
 
 it('trouve un client sans égard à la casse ni aux accents', function (string $term) {
     customer::factory()->create(['firstname' => 'Élise', 'lastname' => 'Bérubé-Côté']);
-    customer::factory()->create(['firstname' => 'Paul', 'lastname' => 'Gagnon']);
+    customer::factory()->create(['firstname' => 'Paul', 'lastname' => 'Gagnon', 'email' => 'paul@example.test', 'phone' => null, 'cellphone' => null]);
 
     expect(customer::query()->matching($term)->pluck('firstname')->all())->toBe(['Élise']);
 })->with(['elise', 'ELISE', 'élise', 'EliSe', 'berube', 'BÉRUBÉ', 'cote', 'Côté', 'elise berube', 'berube elise', '  ÉLISE   cÔtÉ ']);

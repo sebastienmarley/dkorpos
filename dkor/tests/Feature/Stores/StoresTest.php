@@ -179,3 +179,22 @@ it('refuse un jour inexistant ou une date incomplète pour l\'accumulation', fun
         ->call('saveAccounting')
         ->assertHasErrors(['vacationAccrualDay', 'sickAccrualDay', 'sickDaysFullTime']);
 });
+
+it('sauvegarde les frais d\'annulation du magasin', function () {
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    $store = Store::factory()->create();
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->assertSet('cancellationFeePercent', '0')
+        ->set('cancellationFeePercent', '15.5')
+        ->call('saveAccounting')
+        ->assertHasNoErrors();
+
+    expect($store->fresh()->cancellation_fee_percent)->toBe(15.5);
+
+    Livewire::test(Show::class, ['store' => $store->fresh()])
+        ->assertSet('cancellationFeePercent', '15.5')
+        ->set('cancellationFeePercent', '120')
+        ->call('saveAccounting')
+        ->assertHasErrors('cancellationFeePercent');
+});

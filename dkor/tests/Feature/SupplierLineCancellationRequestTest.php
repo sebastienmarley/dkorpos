@@ -2,12 +2,16 @@
 
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\SupplierOrderLineStatus;
+use App\Livewire\CustomerOrders\Index as CustomerOrderIndex;
 use App\Livewire\CustomerOrders\Show as CustomerOrderShow;
 use App\Livewire\SupplierLineCancellationRequest;
 use App\Mail\SupplierOrderLineCancellationRequested;
+use App\Models\customer;
 use App\Models\CustomerOrder;
+use App\Models\CustomerPaymentMethod;
 use App\Models\Product;
 use App\Models\Role;
+use App\Models\Store;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
@@ -140,4 +144,130 @@ describe('depuis la commande fournisseur', function () {
             ->assertHasErrors('reason')
             ->assertSet('showModal', true);
     });
+});
+
+describe('annulation avec frais', function () {
+    beforeEach(function () {
+        $this->user->givePermissionTo(['customer_orders.view', 'customer_orders.edit']);
+        $this->order->update(['store_id' => Store::factory()->create(['cancellation_fee_percent' => 15])->id]);
+        $this->order->refresh();
+    });
+
+    it('annule une ligne commandée avec les frais du magasin et demande l\'annulation au fournisseur', function () {
+        config(['supplier_orders.email_enabled' => true]);
+        Mail::fake();
+        [$line, $supplierLine, $supplierOrder] = orderedCustomerLine($this->order, 2);
+        $supplierOrder->supplier->update(['order_email' => 'commandes@fournisseur.test']);
+        $line->update(['unit_price' => 100]);
+
+        $fee = $this->order->cancelLineWithFee($line);
+
+        expect($fee)->toBe(30.0)
+            ->and($line->fresh())
+            ->status->toBe(CustomerOrderLineStatus::Cancelled)
+            ->cancellation_fee->toBe(30.0)
+            ->supplier_order_line_id->toBeNull()
+            ->and($supplierLine->fresh()->status)->toBe(SupplierOrderLineStatus::CancellationRequested)
+            ->and($this->order->fresh())
+            ->subtotal->toBe(30.0)
+            ->total->toBe(34.49);
+
+        Mail::assertSent(SupplierOrderLineCancellationRequested::class);
+    });
+
+    it('ne renvoie pas de demande quand elle est déjà en cours', function () {
+        [$line, $supplierLine] = orderedCustomerLine($this->order, 1);
+        $supplierLine->requestCancellation('Demande du vendeur');
+
+        $this->order->cancelLineWithFee($line->fresh());
+
+        expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::Cancelled)
+            ->and($supplierLine->fresh())
+            ->status->toBe(SupplierOrderLineStatus::CancellationRequested)
+            ->cancellation_reason->toBe('Demande du vendeur')
+            ->customerOrderLine->toBeNull();
+    });
+
+    it('fait entrer en stock la marchandise reçue malgré un refus du fournisseur', function () {
+        [$line, $supplierLine, $supplierOrder] = orderedCustomerLine($this->order, 2);
+        $this->order->cancelLineWithFee($line);
+
+        $supplierOrder->fresh()->rejectLineCancellation($supplierLine->fresh());
+        $supplierOrder->fresh()->receive([$supplierLine->id => ['quantity' => 2, 'unit_cost' => 5]]);
+
+        expect($line->product->inventoryStock()->sole())
+            ->quantity_in_stock->toBe(2)
+            ->quantity_reserved->toBe(0)
+            ->and($line->fresh()->status)->toBe(CustomerOrderLineStatus::Cancelled);
+    });
+
+    it('garde au client la partie déjà reçue et annule le reste avec frais', function () {
+        [$line, $supplierLine, $supplierOrder] = orderedCustomerLine($this->order, 3);
+        $line->update(['unit_price' => 100]);
+        $supplierOrder->receive([$supplierLine->id => ['quantity' => 1, 'unit_cost' => 5]]);
+
+        expect($this->order->cancelLineWithFee($line->fresh()))->toBe(30.0);
+
+        expect($line->fresh())
+            ->quantity_reserved->toBe(1)
+            ->quantity_on_order->toBe(0)
+            ->quantity->toBe(1)
+            ->status->toBe(CustomerOrderLineStatus::Received)
+            ->and($this->order->lines()->where('status', CustomerOrderLineStatus::Cancelled)->sole())
+            ->quantity->toBe(2)
+            ->cancellation_fee->toBe(30.0)
+            ->supplier_order_line_id->toBeNull()
+            ->and($this->order->fresh()->subtotal)->toBe(130.0);
+    });
+
+    it('n\'applique aucuns frais quand le fournisseur confirme l\'annulation', function () {
+        [$line, $supplierLine, $supplierOrder] = orderedCustomerLine($this->order, 1);
+        $supplierLine->requestCancellation();
+
+        $supplierOrder->fresh()->confirmLineCancellation($supplierLine->fresh());
+
+        expect($line->fresh())->status->toBe(CustomerOrderLineStatus::Cancelled)->cancellation_fee->toBeNull()
+            ->and($this->order->fresh()->subtotal)->toBe(0.0);
+    });
+
+    it('laisse en crédit le payé moins les frais', function () {
+        [$line] = orderedCustomerLine($this->order, 1);
+        $line->update(['unit_price' => 100]);
+        $this->order->recalculateBalance();
+        $this->order->pickUp([], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => 34.49]]);
+
+        $this->order->cancelLineWithFee($line->fresh());
+
+        expect($this->order->fresh()->credit())->toBe(17.24);
+    });
+
+    it('refuse l\'annulation avec frais d\'une ligne qui n\'est pas commandée', function () {
+        $line = $this->order->addProduct(Product::factory()->create());
+
+        expect(fn () => $this->order->cancelLineWithFee($line))->toThrow(DomainException::class);
+    });
+
+    it('propose l\'annulation avec frais dans le modal de la ligne', function () {
+        [$line] = orderedCustomerLine($this->order, 2);
+        $line->update(['unit_price' => 100]);
+
+        Livewire::test(CustomerOrderShow::class, ['order' => $this->order])
+            ->call('openLineModal', $line->id)
+            ->assertSee('15 % de frais (30.00 $ avant taxes)', false)
+            ->call('cancelLineWithFee', $line->id)
+            ->assertSet('showLineModal', false)
+            ->assertSee('Frais d\'annulation : 30.00 $');
+
+        expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::Cancelled);
+    });
+});
+
+it('rattache une nouvelle commande au magasin de l\'employé', function () {
+    $store = Store::factory()->create();
+    $this->user->update(['store_id' => $store->id]);
+    $this->user->givePermissionTo(['customer_orders.view', 'customer_orders.create']);
+
+    Livewire::test(CustomerOrderIndex::class)->call('create', customer::factory()->create()->id);
+
+    expect(CustomerOrder::latest('id')->first()->store_id)->toBe($store->id);
 });

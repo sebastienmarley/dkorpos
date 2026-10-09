@@ -147,6 +147,17 @@
 
                 </div>
 
+                <div>
+                    <flux:heading size="sm" class="mb-1">{{ __('Ventes') }}</flux:heading>
+                    <flux:text class="mb-4 text-sm text-zinc-500">{{ __('Frais facturés au client qui annule un article déjà commandé au fournisseur sans attendre sa confirmation (en % du prix vendant).') }}</flux:text>
+
+                    <flux:field class="max-w-xs">
+                        <flux:label>{{ __('Frais d\'annulation (%)') }}</flux:label>
+                        <flux:input wire:model="cancellationFeePercent" type="number" step="0.01" min="0" max="100" />
+                        <flux:error name="cancellationFeePercent" />
+                    </flux:field>
+                </div>
+
                 <div class="flex justify-end pt-2">
                     @can('stores.edit')
                         <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
