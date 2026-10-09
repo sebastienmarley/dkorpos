@@ -1,4 +1,4 @@
-@props(['results', 'search', 'select'])
+@props(['results', 'search', 'select', 'autofocus' => true])
 
 {{-- Recherche d'un client avec création via le formulaire client si aucun résultat. --}}
 <flux:field>
@@ -8,7 +8,7 @@
         wire:model.live.debounce.300ms="customerSearch"
         placeholder="{{ __('Rechercher un client…') }}"
         icon="magnifying-glass"
-        autofocus
+        :autofocus="$autofocus"
     />
 
     @if ($results->isNotEmpty())

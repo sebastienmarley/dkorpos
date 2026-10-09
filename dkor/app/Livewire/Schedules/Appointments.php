@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Schedules;
 
+use App\Concerns\SearchesCustomers;
 use App\Enums\ScheduleType;
 use App\Models\Appointment;
 use App\Models\customer;
@@ -20,6 +21,8 @@ use Livewire\Component;
 
 class Appointments extends Component
 {
+    use SearchesCustomers;
+
     /** Taille d'une case de la grille, en minutes (15 ou 30). */
     public const SLOT_MINUTES = 30;
 
@@ -49,8 +52,6 @@ class Appointments extends Component
     public int $durationMinutes = self::SLOT_MINUTES;
 
     public ?int $selectedCustomerId = null;
-
-    public string $customerSearch = '';
 
     public function mount(): void
     {
@@ -484,19 +485,7 @@ class Appointments extends Component
                 ->keyBy(fn ($s) => Carbon::parse($s->date)->toDateString())
             : collect();
 
-        $customerResults = strlen($this->customerSearch) >= 4 && ! $this->selectedCustomerId
-            ? customer::query()
-                ->where(function ($q) {
-                    $q->where('firstname', 'like', '%'.$this->customerSearch.'%')
-                        ->orWhere('lastname', 'like', '%'.$this->customerSearch.'%')
-                        ->orWhere('phone', 'like', '%'.$this->customerSearch.'%')
-                        ->orWhere('cellphone', 'like', '%'.$this->customerSearch.'%');
-                })
-                ->orderBy('lastname')
-                ->orderBy('firstname')
-                ->limit(8)
-                ->get()
-            : collect();
+        $customerResults = $this->selectedCustomerId ? collect() : $this->getCustomerResults();
 
         $isCurrentWeek = $start->isSameDay(Carbon::now()->startOfWeek(Carbon::SUNDAY));
         $isPastWeek = $start->lt(Carbon::now()->startOfWeek(Carbon::SUNDAY));

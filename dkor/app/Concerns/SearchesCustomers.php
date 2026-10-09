@@ -6,7 +6,8 @@ use App\Models\customer;
 use Illuminate\Database\Eloquent\Collection;
 
 /**
- * Recherche de clients par nom ou téléphone (4 caractères minimum), pour les modals de sélection d'un client.
+ * Recherche de clients par nom (sans égard à la casse ni aux accents), courriel ou téléphone (4 caractères minimum),
+ * pour les modals de sélection d'un client.
  */
 trait SearchesCustomers
 {
@@ -22,11 +23,7 @@ trait SearchesCustomers
         }
 
         return customer::query()
-            ->where(fn ($query) => $query
-                ->where('firstname', 'like', '%'.$term.'%')
-                ->orWhere('lastname', 'like', '%'.$term.'%')
-                ->orWhere('phone', 'like', '%'.$term.'%')
-                ->orWhere('cellphone', 'like', '%'.$term.'%'))
+            ->matching($term)
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->limit(8)

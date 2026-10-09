@@ -81,11 +81,7 @@ class Index extends Component
             ->when(filled($this->statusFilter), fn ($query) => $query->where('status', $this->statusFilter))
             ->when($term !== '', function ($query) use ($term) {
                 $query->where(function ($q) use ($term) {
-                    $q->whereHas('customer', fn ($c) => $c
-                        ->where('firstname', 'like', '%'.$term.'%')
-                        ->orWhere('lastname', 'like', '%'.$term.'%')
-                        ->orWhere('phone', 'like', '%'.$term.'%')
-                        ->orWhere('cellphone', 'like', '%'.$term.'%'))
+                    $q->whereHas('customer', fn ($c) => $c->matching($term))
                         ->when(ctype_digit($term), fn ($q) => $q->orWhere('id', (int) $term));
                 });
             })

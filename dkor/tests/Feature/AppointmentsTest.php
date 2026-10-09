@@ -2,6 +2,7 @@
 
 use App\Livewire\Schedules\Appointments;
 use App\Models\Appointment;
+use App\Models\customer;
 use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -402,4 +403,18 @@ it('ne permet pas de réserver dans un quart non publié', function () {
     ]);
 
     bookingComponent($this->employee, '2026-09-29', 10 * 60)->assertSet('showModal', false);
+});
+
+it('cherche, sélectionne et retire le client d\'un rendez-vous', function () {
+    $customer = customer::factory()->create(['firstname' => 'Marguerite', 'lastname' => 'Tremblay']);
+
+    bookingComponent($this->employee, $this->futureDate, 9 * 60)
+        ->set('customerSearch', 'Tremb')
+        ->assertSee('Marguerite Tremblay')
+        ->call('selectCustomer', $customer->id)
+        ->assertSet('selectedCustomerId', $customer->id)
+        ->assertSet('customerSearch', 'Marguerite Tremblay')
+        ->call('clearCustomer')
+        ->assertSet('selectedCustomerId', null)
+        ->assertSet('customerSearch', '');
 });

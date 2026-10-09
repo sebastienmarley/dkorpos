@@ -79,3 +79,32 @@ it('affiche un message quand la recherche ne retourne aucun résultat', function
         ->set('search', 'introuvable')
         ->assertSee('Aucun client trouvé');
 });
+
+// ── Recherche sans égard à la casse ni aux accents ────────────────────────
+
+it('trouve un client sans égard à la casse ni aux accents', function (string $term) {
+    customer::factory()->create(['firstname' => 'Élise', 'lastname' => 'Bérubé-Côté']);
+    customer::factory()->create(['firstname' => 'Paul', 'lastname' => 'Gagnon']);
+
+    expect(customer::query()->matching($term)->pluck('firstname')->all())->toBe(['Élise']);
+})->with(['elise', 'ELISE', 'élise', 'EliSe', 'berube', 'BÉRUBÉ', 'cote', 'Côté', 'elise berube', 'berube elise', '  ÉLISE   cÔtÉ ']);
+
+it('normalise le nom de recherche à l\'enregistrement', function () {
+    $customer = customer::factory()->create(['firstname' => 'François', 'lastname' => 'Lefèbvre']);
+
+    expect($customer->search_name)->toBe('francois lefebvre');
+
+    $customer->update(['lastname' => 'À Côté']);
+
+    expect($customer->fresh()->search_name)->toBe('francois a cote');
+});
+
+it('cherche dans la page clients sans égard aux accents', function () {
+    customer::factory()->create(['firstname' => 'André', 'lastname' => 'Pâquet']);
+
+    $this->actingAs(User::factory()->create());
+
+    Livewire::test(Index::class)
+        ->set('search', 'andre paquet')
+        ->assertSee('André');
+});

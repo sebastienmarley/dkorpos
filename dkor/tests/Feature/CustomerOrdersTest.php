@@ -47,6 +47,23 @@ describe('index', function () {
         expect($tremblay->id)->not->toBe($gagnon->id);
     });
 
+    it('trouve une commande par client sans égard à la casse ni aux accents', function () {
+        CustomerOrder::factory()->for(customer::factory()->state(['firstname' => 'Hélène', 'lastname' => 'Côté']))->create();
+
+        Livewire::test(Index::class)
+            ->set('search', 'helene cote')
+            ->assertSee('Hélène');
+    });
+
+    it('trouve un client à la création d\'une commande sans égard aux accents', function () {
+        customer::factory()->create(['firstname' => 'Gérard', 'lastname' => 'Bélanger']);
+
+        Livewire::test(Index::class)
+            ->call('openCreate')
+            ->set('customerSearch', 'GERARD')
+            ->assertSee('Bélanger');
+    });
+
     it('filtre les commandes par statut', function () {
         CustomerOrder::factory()->for(customer::factory()->state(['lastname' => 'Bouchard']))->create();
         CustomerOrder::factory()->status(CustomerOrderStatus::Delivered)->for(customer::factory()->state(['lastname' => 'Pelletier']))->create();
