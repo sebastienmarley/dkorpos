@@ -24,6 +24,10 @@
                 <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $order->customer->firstname }} {{ $order->customer->lastname }}</span>
             </div>
 
+            @if ($order->customer->credit_balance > 0)
+                <flux:badge color="green" size="sm" icon="wallet">{{ __('Crédit au compte : :amount $', ['amount' => number_format($order->customer->credit_balance, 2)]) }}</flux:badge>
+            @endif
+
             <div class="text-center text-sm text-zinc-600 dark:text-zinc-300">
                 <span class="font-medium">{{ __('Vendeur(s)') }} :</span>
                 {{ $order->salespeople->map(fn ($salesperson) => $salesperson->fullName())->join(', ') ?: '—' }}
@@ -128,12 +132,12 @@
                 @forelse ($order->payments as $payment)
                     <div wire:key="payment-{{ $payment->id }}" class="flex justify-between border-b border-zinc-100 py-1 text-sm dark:border-zinc-800">
                         <span class="text-zinc-600 dark:text-zinc-300">
-                            {{ $payment->created_at->format('Y-m-d H:i') }} · {{ $payment->paymentMethod->name }}
+                            {{ $payment->created_at->format('Y-m-d H:i') }} · {{ $payment->type === \App\Enums\CustomerPaymentType::Payment ? $payment->paymentMethod?->name : $payment->type->label().($payment->paymentMethod ? ' — '.$payment->paymentMethod->name : '') }}
                             @if ($payment->receiver)
                                 <span class="text-zinc-400">· {{ $payment->receiver->fullName() }}</span>
                             @endif
                         </span>
-                        <span>{{ number_format($payment->amount, 2) }} $</span>
+                        <span @class(['text-red-600 dark:text-red-400' => $payment->amount < 0])>{{ number_format($payment->amount, 2) }} $</span>
                     </div>
                 @empty
                     <flux:text class="text-sm text-zinc-400">{{ __('Aucun paiement.') }}</flux:text>
@@ -147,7 +151,26 @@
                 <div class="flex justify-between"><dt class="text-zinc-500">{{ __('TVQ') }}</dt><dd>{{ number_format($order->qst, 2) }} $</dd></div>
                 <div class="flex justify-between font-medium"><dt>{{ __('Total') }}</dt><dd>{{ number_format($order->total, 2) }} $</dd></div>
                 <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Payé') }}</dt><dd>{{ number_format($order->amount_paid, 2) }} $</dd></div>
-                <div class="flex justify-between border-t border-zinc-200 pt-1 font-semibold dark:border-zinc-700"><dt>{{ __('Solde à payer') }}</dt><dd>{{ number_format($order->balance_due, 2) }} $</dd></div>
+                <div class="flex justify-between border-t border-zinc-200 pt-1 font-semibold dark:border-zinc-700">
+                    <dt>{{ $order->balance_due < 0 ? __('Crédit du client') : __('Solde à payer') }}</dt>
+                    <dd>{{ number_format(abs($order->balance_due), 2) }} $</dd>
+                </div>
+
+                @if ($order->credit() > 0)
+                    @can('customer_orders.edit')
+                        <div class="flex flex-col gap-2 pt-2">
+                            <flux:button size="sm" icon="banknotes" wire:click="openCreditRefundModal">{{ __('Rembourser le crédit') }}</flux:button>
+                            <flux:button
+                                size="sm"
+                                icon="wallet"
+                                wire:click="transferCreditToCustomer"
+                                wire:confirm="{{ __('Porter :amount $ au compte du client ? La commande sera soldée.', ['amount' => number_format($order->credit(), 2)]) }}"
+                            >
+                                {{ __('Porter au compte du client') }}
+                            </flux:button>
+                        </div>
+                    @endcan
+                @endif
             </dl>
         </div>
     </div>
@@ -318,12 +341,137 @@
                         <flux:error name="editNote" />
                     </flux:field>
 
+                    @if ($editingLine->status->isHandedOver())
+                        <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                            <flux:text class="mb-2 text-sm font-medium">{{ __('Le client rapporte cet article ?') }}</flux:text>
+                            <div class="flex gap-2">
+                                <flux:button type="button" size="sm" icon="arrow-uturn-left" wire:click="openReturnModal({{ $editingLine->id }})">{{ __('Retour') }}</flux:button>
+                                <flux:button type="button" size="sm" icon="wrench-screwdriver" disabled title="{{ __('Bientôt disponible') }}">{{ __('Défectueux') }}</flux:button>
+                            </div>
+                        </div>
+                    @endif
+
                     <div class="flex justify-end gap-3 pt-2">
                         <flux:button type="button" variant="ghost" wire:click="$set('showLineModal', false)">{{ __('Annuler') }}</flux:button>
                         <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
                     </div>
                 </form>
             @endif
+        </flux:modal>
+    @endcan
+
+    {{-- Retour d'un article remis au client --}}
+    @can('customer_orders.edit')
+        <flux:modal wire:model="showReturnModal" class="w-full max-w-lg">
+            @if ($returnLine)
+                <flux:heading class="mb-1">{{ __('Retour') }} — {{ $returnLine->product->model }} <span class="font-normal text-zinc-500">#{{ $returnLine->product_id }}</span></flux:heading>
+                <flux:text class="text-zinc-500">{{ __(':count remis au client à :price $', ['count' => $returnLine->quantity, 'price' => number_format($returnLine->unit_price, 2)]) }}</flux:text>
+
+                @if ($returnStep === 'choice')
+                    <form wire:submit="continueReturn" class="mt-6 space-y-4">
+                        <flux:field>
+                            <flux:label>{{ __('Quantité retournée') }}</flux:label>
+                            <flux:input wire:model="returnQuantity" type="number" min="1" :max="$returnLine->quantity" />
+                            <flux:error name="returnQuantity" />
+                        </flux:field>
+
+                        <flux:radio.group wire:model="returnType" :label="__('Le client veut')">
+                            <flux:radio value="exchange" :label="__('Un échange')" :description="__('L\'article revient en stock; le montant payé reste au crédit de la commande pour le produit d\'échange.')" />
+                            <flux:radio value="refund" :label="__('Un remboursement')" :description="__('L\'article revient en stock, puis le client est remboursé.')" />
+                        </flux:radio.group>
+                        <flux:error name="returnType" />
+
+                        <div class="flex justify-end gap-3 pt-2">
+                            <flux:button type="button" variant="ghost" wire:click="$set('showReturnModal', false)">{{ __('Annuler') }}</flux:button>
+                            <flux:button type="submit" variant="primary">{{ $returnType === 'refund' ? __('Continuer vers le remboursement') : __('Reprendre l\'article') }}</flux:button>
+                        </div>
+                    </form>
+                @else
+                    <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
+                        <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Quantité reprise') }}</dt><dd>{{ $returnQuantity }}</dd></div>
+                        <div class="flex justify-between font-semibold"><dt>{{ __('Remboursable') }}</dt><dd>{{ number_format($returnRefundable, 2) }} $</dd></div>
+                    </dl>
+                    <flux:text class="mt-1 text-xs text-zinc-400">{{ __('Valeur retournée taxes incluses, sans descendre sous ce qu\'exige le reste de la commande.') }}</flux:text>
+
+                    <form wire:submit="confirmReturnRefund" class="mt-6 space-y-3">
+                        @foreach ($returnRefunds as $index => $refund)
+                            <div wire:key="return-refund-{{ $index }}" class="flex items-start gap-2">
+                                <div class="flex-1">
+                                    <flux:select wire:model="returnRefunds.{{ $index }}.method_id">
+                                        <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
+                                        @foreach ($this->getPaymentMethods() as $method)
+                                            <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+                                    <flux:error name="returnRefunds.{{ $index }}.method_id" />
+                                </div>
+                                <div class="w-32">
+                                    <flux:input wire:model.blur="returnRefunds.{{ $index }}.amount" inputmode="decimal" />
+                                    <flux:error name="returnRefunds.{{ $index }}.amount" />
+                                </div>
+                                @if (count($returnRefunds) > 1)
+                                    <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removeReturnRefund({{ $index }})" :label="__('Retirer')" />
+                                @endif
+                            </div>
+                        @endforeach
+
+                        <div class="flex items-center justify-between">
+                            <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addReturnRefund">{{ __('Ajouter un mode') }}</flux:button>
+                            <flux:text class="text-sm">{{ __('Total remboursé : :amount $', ['amount' => number_format($this->returnRefundsTotal(), 2)]) }}</flux:text>
+                        </div>
+
+                        <flux:error name="returnRefunds" />
+
+                        <div class="flex justify-between gap-3 pt-2">
+                            <flux:button type="button" variant="ghost" icon="arrow-left" wire:click="backToReturnChoice">{{ __('Retour') }}</flux:button>
+                            <flux:button type="submit" variant="primary">{{ __('Reprendre et rembourser') }}</flux:button>
+                        </div>
+                    </form>
+                @endif
+            @endif
+        </flux:modal>
+    @endcan
+
+    {{-- Remboursement du crédit de la commande --}}
+    @can('customer_orders.edit')
+        <flux:modal wire:model="showCreditRefundModal" class="w-full max-w-lg">
+            <flux:heading class="mb-1">{{ __('Rembourser le crédit') }}</flux:heading>
+            <flux:text class="text-zinc-500">{{ __('Crédit de la commande : :amount $', ['amount' => number_format($order->credit(), 2)]) }}</flux:text>
+
+            <form wire:submit="refundCredit" class="mt-6 space-y-3">
+                @foreach ($creditRefunds as $index => $refund)
+                    <div wire:key="credit-refund-{{ $index }}" class="flex items-start gap-2">
+                        <div class="flex-1">
+                            <flux:select wire:model="creditRefunds.{{ $index }}.method_id">
+                                <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
+                                @foreach ($this->getPaymentMethods() as $method)
+                                    <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                            <flux:error name="creditRefunds.{{ $index }}.method_id" />
+                        </div>
+                        <div class="w-32">
+                            <flux:input wire:model.blur="creditRefunds.{{ $index }}.amount" inputmode="decimal" />
+                            <flux:error name="creditRefunds.{{ $index }}.amount" />
+                        </div>
+                        @if (count($creditRefunds) > 1)
+                            <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removeCreditRefund({{ $index }})" :label="__('Retirer')" />
+                        @endif
+                    </div>
+                @endforeach
+
+                <div class="flex items-center justify-between">
+                    <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addCreditRefund">{{ __('Ajouter un mode') }}</flux:button>
+                    <flux:text class="text-sm">{{ __('Total remboursé : :amount $', ['amount' => number_format($this->creditRefundsTotal(), 2)]) }}</flux:text>
+                </div>
+
+                <flux:error name="creditRefunds" />
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <flux:button type="button" variant="ghost" wire:click="$set('showCreditRefundModal', false)">{{ __('Annuler') }}</flux:button>
+                    <flux:button type="submit" variant="primary">{{ __('Rembourser') }}</flux:button>
+                </div>
+            </form>
         </flux:modal>
     @endcan
 

@@ -61,6 +61,26 @@ class Show extends Component
 
     public string $editNote = '';
 
+    public bool $showReturnModal = false;
+
+    public ?int $returnLineId = null;
+
+    public string $returnStep = 'choice';
+
+    public string $returnQuantity = '1';
+
+    public string $returnType = 'exchange';
+
+    public float $returnRefundable = 0;
+
+    /** @var array<int, array{method_id: int|string, amount: string}> */
+    public array $returnRefunds = [];
+
+    public bool $showCreditRefundModal = false;
+
+    /** @var array<int, array{method_id: int|string, amount: string}> */
+    public array $creditRefunds = [];
+
     public bool $showPickupModal = false;
 
     public string $pickupStep = 'items';
@@ -361,6 +381,196 @@ class Show extends Component
             ->get();
     }
 
+    /**
+     * Ouvre le retour d'une ligne remise au client (depuis le modal d'édition de la ligne).
+     */
+    public function openReturnModal(int $lineId): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $line = $this->order->lines()->findOrFail($lineId);
+
+        if (! $line->status->isHandedOver()) {
+            Flux::toast(text: __('Seul un article livré, ramassé ou expédié peut être retourné.'), variant: 'warning');
+
+            return;
+        }
+
+        $this->returnLineId = $line->id;
+        $this->returnQuantity = (string) $line->quantity;
+        $this->returnType = 'exchange';
+        $this->returnStep = 'choice';
+        $this->returnRefunds = [];
+        $this->resetErrorBag();
+        $this->showLineModal = false;
+        $this->showReturnModal = true;
+    }
+
+    /**
+     * Échange : reprend l'article et revient à la commande pour ajouter le produit d'échange. Remboursement : passe
+     * à l'étape du remboursement.
+     */
+    public function continueReturn(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $line = $this->order->lines()->findOrFail($this->returnLineId);
+
+        $this->validate([
+            'returnQuantity' => ['required', 'integer', 'min:1', 'max:'.$line->quantity],
+            'returnType' => ['required', Rule::in(['exchange', 'refund'])],
+        ]);
+
+        if ($this->returnType === 'refund') {
+            $this->returnRefundable = $this->order->refundableFor($line, (int) $this->returnQuantity);
+            $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
+            $this->returnRefunds = [['method_id' => $firstMethod ?? '', 'amount' => number_format($this->returnRefundable, 2, '.', '')]];
+            $this->returnStep = 'refund';
+
+            return;
+        }
+
+        try {
+            $this->order->returnLine($line, (int) $this->returnQuantity, refund: false);
+        } catch (DomainException $exception) {
+            $this->addError('returnQuantity', $exception->getMessage());
+
+            return;
+        }
+
+        $this->closeReturnModal();
+        Flux::toast(text: __('Article repris. Ajoutez le produit d\'échange : le montant payé reste au crédit de la commande.'), variant: 'success');
+    }
+
+    public function backToReturnChoice(): void
+    {
+        $this->returnStep = 'choice';
+        $this->resetErrorBag();
+    }
+
+    public function addReturnRefund(): void
+    {
+        $this->returnRefunds[] = ['method_id' => '', 'amount' => '0.00'];
+    }
+
+    public function removeReturnRefund(int $index): void
+    {
+        unset($this->returnRefunds[$index]);
+        $this->returnRefunds = array_values($this->returnRefunds);
+    }
+
+    public function confirmReturnRefund(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $line = $this->order->lines()->findOrFail($this->returnLineId);
+
+        $this->returnRefunds = array_map(
+            fn (array $refund): array => ['method_id' => $refund['method_id'], 'amount' => str_replace(',', '.', (string) $refund['amount'])],
+            $this->returnRefunds,
+        );
+
+        $this->validate([
+            'returnRefunds.*.method_id' => ['required', 'integer', Rule::exists('customer_payment_methods', 'id')->where('is_active', true)],
+            'returnRefunds.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+        ]);
+
+        try {
+            $this->order->returnLine(
+                $line,
+                (int) $this->returnQuantity,
+                refund: true,
+                refunds: array_map(fn (array $refund): array => ['method_id' => (int) $refund['method_id'], 'amount' => (float) $refund['amount']], $this->returnRefunds),
+            );
+        } catch (DomainException $exception) {
+            $this->addError('returnRefunds', $exception->getMessage());
+
+            return;
+        }
+
+        $this->closeReturnModal();
+        Flux::toast(text: __('Retour remboursé.'), variant: 'success');
+    }
+
+    public function returnRefundsTotal(): float
+    {
+        return round(array_sum(array_map(fn (array $refund): float => (float) str_replace(',', '.', (string) $refund['amount']), $this->returnRefunds)), 2);
+    }
+
+    private function closeReturnModal(): void
+    {
+        $this->showReturnModal = false;
+        $this->reset(['returnLineId', 'returnQuantity', 'returnType', 'returnStep', 'returnRefundable', 'returnRefunds']);
+    }
+
+    public function openCreditRefundModal(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
+        $this->creditRefunds = [['method_id' => $firstMethod ?? '', 'amount' => number_format($this->order->credit(), 2, '.', '')]];
+        $this->resetErrorBag();
+        $this->showCreditRefundModal = true;
+    }
+
+    public function addCreditRefund(): void
+    {
+        $this->creditRefunds[] = ['method_id' => '', 'amount' => '0.00'];
+    }
+
+    public function removeCreditRefund(int $index): void
+    {
+        unset($this->creditRefunds[$index]);
+        $this->creditRefunds = array_values($this->creditRefunds);
+    }
+
+    public function refundCredit(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $this->creditRefunds = array_map(
+            fn (array $refund): array => ['method_id' => $refund['method_id'], 'amount' => str_replace(',', '.', (string) $refund['amount'])],
+            $this->creditRefunds,
+        );
+
+        $this->validate([
+            'creditRefunds.*.method_id' => ['required', 'integer', Rule::exists('customer_payment_methods', 'id')->where('is_active', true)],
+            'creditRefunds.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+        ]);
+
+        try {
+            $this->order->refundCredit(array_map(fn (array $refund): array => ['method_id' => (int) $refund['method_id'], 'amount' => (float) $refund['amount']], $this->creditRefunds));
+        } catch (DomainException $exception) {
+            $this->addError('creditRefunds', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showCreditRefundModal = false;
+        $this->reset('creditRefunds');
+        Flux::toast(text: __('Crédit remboursé.'), variant: 'success');
+    }
+
+    public function creditRefundsTotal(): float
+    {
+        return round(array_sum(array_map(fn (array $refund): float => (float) str_replace(',', '.', (string) $refund['amount']), $this->creditRefunds)), 2);
+    }
+
+    public function transferCreditToCustomer(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        try {
+            $credit = $this->order->transferCreditToCustomer();
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        Flux::toast(text: __(':amount $ portés au compte du client.', ['amount' => number_format($credit, 2)]), variant: 'success');
+    }
+
     public function openPickupModal(): void
     {
         $this->authorize('customer_orders.edit');
@@ -481,12 +691,14 @@ class Show extends Component
     public function render(): View
     {
         $editingLine = $this->editingLineId ? $this->order->lines()->with('product.inventoryStock')->find($this->editingLineId) : null;
+        $returnLine = $this->returnLineId ? $this->order->lines()->with('product')->find($this->returnLineId) : null;
 
         $this->order->load(['customer', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'payments.paymentMethod', 'payments.receiver']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),
             'editingLine' => $editingLine,
+            'returnLine' => $returnLine,
         ])->layout('layouts.app', ['title' => __('Commande client #:id', ['id' => $this->order->id])]);
     }
 }

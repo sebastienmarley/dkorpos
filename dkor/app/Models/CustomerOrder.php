@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
+use App\Enums\CustomerPaymentType;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
 use App\Enums\SupplierOrderStatus;
@@ -136,6 +137,7 @@ class CustomerOrder extends Model
 
             $this->syncSupplierLine($line);
             $this->recalculateBalance();
+            $this->refreshStatusFromLines();
 
             return $line;
         });
@@ -531,20 +533,51 @@ class CustomerOrder extends Model
      */
     public function amountRequiredFor(array $quantities): float
     {
-        $lines = $this->lines()->get()->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable());
-
-        $handedOver = $lines->filter(fn (CustomerOrderLine $line): bool => $line->status->isHandedOver())
-            ->sum(fn (CustomerOrderLine $line): float => $line->total)
-            + $lines->sum(fn (CustomerOrderLine $line): float => ($quantities[$line->id] ?? 0) * $line->unit_price);
-        $handedOver = round($handedOver, 2);
-        $remaining = round($lines->sum(fn (CustomerOrderLine $line): float => $line->total) - $handedOver, 2);
-
-        $required = self::taxesFor($handedOver)['total']
-            + self::taxesFor($remaining)['total'] * config('sales.deposit_percent') / 100;
+        $required = $this->requiredPaidTotal(
+            fn (CustomerOrderLine $line): float => $line->status->isHandedOver() ? $line->total : ($quantities[$line->id] ?? 0) * $line->unit_price,
+        );
 
         $this->refresh();
 
         return max(0.0, min(round($required - $this->amount_paid, 2), $this->balance_due));
+    }
+
+    /**
+     * Montant remboursable pour le retour de cette quantité : la valeur retournée (taxes incluses), sans que le payé
+     * restant passe sous ce qu'exige le reste de la commande (100 % des articles remis, dépôt sur les autres).
+     */
+    public function refundableFor(CustomerOrderLine $line, int $quantity): float
+    {
+        $returned = round($quantity * $line->unit_price, 2);
+
+        $required = $this->requiredPaidTotal(
+            fn (CustomerOrderLine $other): float => $other->status->isHandedOver()
+                ? $other->total - ($other->id === $line->id ? $returned : 0)
+                : 0,
+            excludedValue: $returned,
+        );
+
+        $this->refresh();
+
+        return max(0.0, min(self::taxesFor($returned)['total'], round($this->amount_paid - $required, 2)));
+    }
+
+    /**
+     * Total que le client doit avoir payé : 100 % de la valeur remise (selon $handedOverValue par ligne) et le dépôt
+     * minimum sur le reste des lignes facturables, taxes incluses. $excludedValue est retiré du total facturable
+     * (articles en cours de retour).
+     *
+     * @param  callable(CustomerOrderLine): float  $handedOverValue
+     */
+    private function requiredPaidTotal(callable $handedOverValue, float $excludedValue = 0): float
+    {
+        $lines = $this->lines()->get()->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable());
+
+        $handedOver = round($lines->sum($handedOverValue), 2);
+        $remaining = round($lines->sum(fn (CustomerOrderLine $line): float => $line->total) - $excludedValue - $handedOver, 2);
+
+        return self::taxesFor($handedOver)['total']
+            + self::taxesFor($remaining)['total'] * config('sales.deposit_percent') / 100;
     }
 
     /**
@@ -601,22 +634,7 @@ class CustomerOrder extends Model
                 }
             }
 
-            foreach ($payments as $payment) {
-                if ($payment['amount'] <= 0) {
-                    continue;
-                }
-
-                if (! CustomerPaymentMethod::query()->whereKey($payment['method_id'])->where('is_active', true)->exists()) {
-                    throw new DomainException(__('Mode de paiement invalide.'));
-                }
-
-                $this->payments()->create([
-                    'customer_order_pickup_id' => $pickup?->id,
-                    'customer_payment_method_id' => $payment['method_id'],
-                    'amount' => round($payment['amount'], 2),
-                    'received_by' => auth()->id(),
-                ]);
-            }
+            $this->recordPayments($payments, CustomerPaymentType::Payment, $pickup);
 
             $this->recalculateBalance();
             $this->refreshStatusFromLines();
@@ -626,7 +644,169 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Passe la commande à « Ramassée » ou « Livrée » une fois toutes ses lignes facturables remises au client.
+     * Reprend des articles remis au client (livrés, ramassés ou expédiés) : le magasin reprend possession de la
+     * quantité retournée (elle revient en stock). Pour un échange, la ligne passe à « Retourné » et le montant payé
+     * reste sur la commande (crédit pour le produit d'échange). Pour un remboursement, elle passe à « Remboursé » et
+     * les montants remboursés sont enregistrés en paiements négatifs. Une ligne retournée en partie est séparée.
+     *
+     * @param  array<int, array{method_id: int, amount: float}>  $refunds
+     *
+     * @throws DomainException si la ligne n'a pas été remise au client, si la quantité est invalide ou si le
+     *                         remboursement dépasse le montant remboursable.
+     */
+    public function returnLine(CustomerOrderLine $line, int $quantity, bool $refund, array $refunds = []): void
+    {
+        DB::transaction(function () use ($line, $quantity, $refund, $refunds): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if (! $line->status->isHandedOver()) {
+                throw new DomainException(__('Seul un article livré, ramassé ou expédié peut être retourné.'));
+            }
+
+            if ($quantity < 1 || $quantity > $line->quantity) {
+                throw new DomainException(__('La quantité retournée doit être entre 1 et :max.', ['max' => $line->quantity]));
+            }
+
+            $refundable = $refund ? $this->refundableFor($line, $quantity) : 0.0;
+            $refunded = round(array_sum(array_column($refunds, 'amount')), 2);
+
+            if ($refunded > $refundable) {
+                throw new DomainException(__('Le remboursement (:refunded $) dépasse le montant remboursable (:refundable $).', [
+                    'refunded' => number_format($refunded, 2),
+                    'refundable' => number_format($refundable, 2),
+                ]));
+            }
+
+            InventoryMovement::record($line->product_id, null, InventoryStatus::InStock, $quantity, InventoryMovementType::CustomerReturn, $this);
+
+            InventoryUnit::query()
+                ->where('product_id', $line->product_id)
+                ->whereNotNull('delivered_at')
+                ->orderByDesc('delivered_at')
+                ->orderByDesc('id')
+                ->limit($quantity)
+                ->get()
+                ->each(fn (InventoryUnit $unit) => $unit->update(['delivered_at' => null]));
+
+            $returned = [
+                'status' => $refund ? CustomerOrderLineStatus::Refunded : CustomerOrderLineStatus::Returned,
+                'returned_at' => now(),
+            ];
+
+            if ($quantity === $line->quantity) {
+                $line->update($returned);
+            } else {
+                $line->update(['quantity' => $line->quantity - $quantity]);
+
+                $this->lines()->create([
+                    ...$returned,
+                    'product_id' => $line->product_id,
+                    'customer_order_pickup_id' => $line->customer_order_pickup_id,
+                    'quantity' => $quantity,
+                    'quantity_reserved' => 0,
+                    'quantity_on_order' => 0,
+                    'unit_price' => $line->unit_price,
+                    'note' => $line->note,
+                    'delivered_at' => $line->delivered_at,
+                ]);
+            }
+
+            $this->recordPayments($refunds, CustomerPaymentType::Refund);
+
+            $this->recalculateBalance();
+            $this->refreshStatusFromLines();
+        });
+    }
+
+    /**
+     * Crédit de la commande : ce que le client a payé en trop (après un échange, par exemple).
+     */
+    public function credit(): float
+    {
+        return max(0.0, round(-$this->balance_due, 2));
+    }
+
+    /**
+     * Rembourse tout ou partie du crédit de la commande, sur un ou plusieurs modes de paiement.
+     *
+     * @param  array<int, array{method_id: int, amount: float}>  $refunds
+     *
+     * @throws DomainException si le remboursement est nul ou dépasse le crédit.
+     */
+    public function refundCredit(array $refunds): void
+    {
+        DB::transaction(function () use ($refunds): void {
+            $this->recalculateBalance();
+            $refunded = round(array_sum(array_column($refunds, 'amount')), 2);
+
+            if ($refunded <= 0 || $refunded > $this->credit()) {
+                throw new DomainException(__('Le remboursement doit être entre 0,01 $ et le crédit de la commande (:credit $).', ['credit' => number_format($this->credit(), 2)]));
+            }
+
+            $this->recordPayments($refunds, CustomerPaymentType::Refund);
+            $this->recalculateBalance();
+        });
+    }
+
+    /**
+     * Porte le crédit de la commande au compte du client (champ `credit_balance`) pour une utilisation future; la
+     * commande est soldée.
+     *
+     * @throws DomainException si la commande n'a pas de crédit.
+     */
+    public function transferCreditToCustomer(): float
+    {
+        return DB::transaction(function (): float {
+            $this->recalculateBalance();
+            $credit = $this->credit();
+
+            if ($credit <= 0) {
+                throw new DomainException(__('Cette commande n\'a pas de crédit à porter au compte du client.'));
+            }
+
+            $this->payments()->create([
+                'type' => CustomerPaymentType::CreditTransfer,
+                'amount' => -$credit,
+                'received_by' => auth()->id(),
+            ]);
+
+            customer::query()->whereKey($this->customer_id)->lockForUpdate()->firstOrFail()->increment('credit_balance', $credit);
+
+            $this->recalculateBalance();
+
+            return $credit;
+        });
+    }
+
+    /**
+     * Enregistre des montants reçus (paiement) ou rendus (remboursement, en négatif), un par mode de paiement.
+     *
+     * @param  array<int, array{method_id: int, amount: float}>  $payments
+     */
+    private function recordPayments(array $payments, CustomerPaymentType $type, ?CustomerOrderPickup $pickup = null): void
+    {
+        foreach ($payments as $payment) {
+            if ($payment['amount'] <= 0) {
+                continue;
+            }
+
+            if (! CustomerPaymentMethod::query()->whereKey($payment['method_id'])->where('is_active', true)->exists()) {
+                throw new DomainException(__('Mode de paiement invalide.'));
+            }
+
+            $this->payments()->create([
+                'customer_order_pickup_id' => $pickup?->id,
+                'customer_payment_method_id' => $payment['method_id'],
+                'type' => $type,
+                'amount' => $type === CustomerPaymentType::Payment ? round($payment['amount'], 2) : -round($payment['amount'], 2),
+                'received_by' => auth()->id(),
+            ]);
+        }
+    }
+
+    /**
+     * Passe la commande à « Ramassée » ou « Livrée » une fois toutes ses lignes facturables remises au client; une
+     * commande qui l'était et qui reçoit un nouvel article (ex. un échange) revient « En attente ».
      */
     private function refreshStatusFromLines(): void
     {
@@ -642,6 +822,8 @@ class CustomerOrder extends Model
             $this->update(['status' => CustomerOrderStatus::PickedUp]);
         } elseif ($statuses->every(fn (CustomerOrderLineStatus $status): bool => $status === CustomerOrderLineStatus::Delivered)) {
             $this->update(['status' => CustomerOrderStatus::Delivered]);
+        } elseif (in_array($this->status, [CustomerOrderStatus::PickedUp, CustomerOrderStatus::Delivered], true)) {
+            $this->update(['status' => CustomerOrderStatus::Pending]);
         }
     }
 

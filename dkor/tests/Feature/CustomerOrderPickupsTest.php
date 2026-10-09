@@ -5,10 +5,8 @@ use App\Enums\CustomerOrderStatus;
 use App\Enums\InventoryMovementType;
 use App\Livewire\CustomerOrders\Show;
 use App\Models\CustomerOrder;
-use App\Models\CustomerOrderLine;
 use App\Models\CustomerPaymentMethod;
 use App\Models\InventoryMovement;
-use App\Models\InventoryStock;
 use App\Models\InventoryUnit;
 use App\Models\Product;
 use App\Models\Role;
@@ -27,21 +25,6 @@ beforeEach(function () {
     $this->cash = CustomerPaymentMethod::factory()->create(['name' => 'Comptant']);
     $this->visa = CustomerPaymentMethod::factory()->create(['name' => 'Visa']);
 });
-
-/**
- * Produit en stock (avec ses unités d'inventaire) ajouté à la commande, au prix vendant donné.
- */
-function stockedLine(CustomerOrder $order, int $inStock, int $quantity, float $price): CustomerOrderLine
-{
-    $product = Product::factory()->create();
-    InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => $inStock, 'quantity_reserved' => 0]);
-    InventoryUnit::factory()->count($inStock)->create(['product_id' => $product->id, 'delivered_at' => null]);
-
-    $line = $order->addProduct($product, $quantity);
-    $order->updateLine($line, $line->quantity_reserved, $line->quantity_on_order, $price, null);
-
-    return $line->fresh();
-}
 
 it('calcule la TPS et la TVQ sur les lignes facturables', function () {
     stockedLine($this->order, 1, 1, 100);
