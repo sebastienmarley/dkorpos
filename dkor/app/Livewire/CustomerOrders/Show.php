@@ -93,7 +93,7 @@ class Show extends Component
     /** Montant payé avec le crédit au compte du client (champ affiché seulement si le client a un crédit). */
     public string $pickupCredit = '0.00';
 
-    /** @var array<int, array{method_id: int|string, amount: string}> */
+    /** @var array<int, array{method_id: int|string, amount: string, tendered?: string}> */
     public array $pickupPayments = [];
 
     public function mount(CustomerOrder $order): void
@@ -651,7 +651,11 @@ class Show extends Component
         $this->authorize('customer_orders.edit');
 
         $this->pickupPayments = array_map(
-            fn (array $payment): array => ['method_id' => $payment['method_id'], 'amount' => str_replace(',', '.', (string) $payment['amount'])],
+            fn (array $payment): array => [
+                'method_id' => $payment['method_id'],
+                'amount' => str_replace(',', '.', (string) $payment['amount']),
+                'tendered' => str_replace(',', '.', (string) ($payment['tendered'] ?? '')),
+            ],
             $this->pickupPayments,
         );
 
@@ -665,12 +669,17 @@ class Show extends Component
             'pickupCredit' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
             'pickupPayments.*.method_id' => ['required', 'integer', Rule::exists('customer_payment_methods', 'id')->where('is_active', true)],
             'pickupPayments.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'pickupPayments.*.tendered' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
         ]);
 
         try {
             $pickup = $this->order->pickUp(
                 $this->pickupQuantitiesAsIntegers(),
-                array_map(fn (array $payment): array => ['method_id' => (int) $payment['method_id'], 'amount' => (float) $payment['amount']], $this->pickupPayments),
+                array_map(fn (array $payment): array => [
+                    'method_id' => (int) $payment['method_id'],
+                    'amount' => (float) $payment['amount'],
+                    'tendered' => filled($payment['tendered']) ? (float) $payment['tendered'] : null,
+                ], $this->pickupPayments),
                 (float) $this->pickupCredit,
             );
         } catch (DomainException $exception) {
@@ -695,6 +704,33 @@ class Show extends Component
     public function getPaymentMethods(): Collection
     {
         return CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->get();
+    }
+
+    public function cashMethodId(): int
+    {
+        return CustomerPaymentMethod::cash()->id;
+    }
+
+    /**
+     * Montant à percevoir ou à remettre en comptant (arrondi au 5 ¢ près).
+     */
+    public function roundedCash(int|string $amount): float
+    {
+        return CustomerPaymentMethod::roundCash((float) str_replace(',', '.', (string) $amount));
+    }
+
+    /**
+     * Monnaie à rendre pour une ligne de paiement comptant du ramassage.
+     */
+    public function changeDue(int $index): float
+    {
+        $payment = $this->pickupPayments[$index] ?? null;
+
+        if ($payment === null || blank($payment['tendered'] ?? null)) {
+            return 0.0;
+        }
+
+        return max(0.0, round((float) str_replace(',', '.', (string) $payment['tendered']) - $this->roundedCash($payment['amount']), 2));
     }
 
     /** @return array<int, int> */

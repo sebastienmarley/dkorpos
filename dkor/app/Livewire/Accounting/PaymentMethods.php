@@ -28,6 +28,7 @@ class PaymentMethods extends Component
     public function openEdit(CustomerPaymentMethod $paymentMethod): void
     {
         $this->authorize('payment_methods.edit');
+        abort_if($paymentMethod->isSystem(), 403);
 
         $this->editingId = $paymentMethod->id;
         $this->name = $paymentMethod->name;
@@ -38,6 +39,7 @@ class PaymentMethods extends Component
     public function toggleActive(CustomerPaymentMethod $paymentMethod): void
     {
         $this->authorize('payment_methods.edit');
+        abort_if($paymentMethod->isSystem(), 403);
 
         $paymentMethod->update(['is_active' => ! $paymentMethod->is_active]);
 
@@ -54,11 +56,23 @@ class PaymentMethods extends Component
         $this->name = trim($this->name);
 
         $this->validate([
-            'name' => ['required', 'string', 'max:255', Rule::unique('customer_payment_methods', 'name')->ignore($this->editingId)],
+            'name' => [
+                'required', 'string', 'max:255',
+                Rule::unique('customer_payment_methods', 'name')->ignore($this->editingId),
+                function (string $attribute, string $value, \Closure $fail): void {
+                    $reserved = CustomerPaymentMethod::query()->whereNotNull('code')->whereKeyNot($this->editingId ?? 0)->pluck('name');
+
+                    if ($reserved->contains(fn (string $name): bool => mb_strtolower($name) === mb_strtolower($value))) {
+                        $fail(__('Ce nom est réservé à un mode de paiement géré par le système.'));
+                    }
+                },
+            ],
         ]);
 
         if ($this->editingId) {
-            CustomerPaymentMethod::findOrFail($this->editingId)->update(['name' => $this->name]);
+            $paymentMethod = CustomerPaymentMethod::findOrFail($this->editingId);
+            abort_if($paymentMethod->isSystem(), 403);
+            $paymentMethod->update(['name' => $this->name]);
             Flux::toast(text: __('Mode de paiement mis à jour.'), variant: 'success');
         } else {
             CustomerPaymentMethod::create(['name' => $this->name, 'is_active' => true]);

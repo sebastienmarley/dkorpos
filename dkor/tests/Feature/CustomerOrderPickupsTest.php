@@ -23,7 +23,7 @@ beforeEach(function () {
     $this->actingAs($this->user);
 
     $this->order = CustomerOrder::factory()->create();
-    $this->cash = CustomerPaymentMethod::factory()->create(['name' => 'Comptant']);
+    $this->cash = CustomerPaymentMethod::cash();
     $this->visa = CustomerPaymentMethod::factory()->create(['name' => 'Visa']);
 });
 
@@ -321,4 +321,70 @@ it('n\'affiche pas le crédit client quand le client n\'en a pas', function () {
         ->call('openPickupModal')
         ->call('continueToPayment')
         ->assertDontSeeHtml('wire:model.blur="pickupCredit"');
+});
+
+describe('paiement comptant', function () {
+    it('arrondit le comptant au 5 ¢, calcule la monnaie et applique le montant exact à la commande', function () {
+        $line = stockedLine($this->order, 1, 1, 100);
+
+        $this->order->pickUp([$line->id => 1], [['method_id' => $this->cash->id, 'amount' => 114.98, 'tendered' => 120]]);
+
+        $order = $this->order->fresh();
+
+        expect($order->balance_due)->toBe(0.0)
+            ->and($order->payments()->sole())
+            ->amount->toBe(114.98)
+            ->rounding_adjustment->toBe(0.02)
+            ->cash_tendered->toBe(120.0)
+            ->change_given->toBe(5.0);
+    });
+
+    it('refuse un comptant reçu inférieur au montant arrondi', function () {
+        $line = stockedLine($this->order, 1, 1, 100);
+
+        expect(fn () => $this->order->pickUp([$line->id => 1], [['method_id' => $this->cash->id, 'amount' => 114.98, 'tendered' => 114.98]]))
+            ->toThrow(DomainException::class);
+
+        expect($this->order->payments()->count())->toBe(0);
+    });
+
+    it('ne fait ni arrondi ni monnaie pour une carte', function () {
+        $visa = CustomerPaymentMethod::factory()->create(['name' => 'Visa']);
+        $line = stockedLine($this->order, 1, 1, 100);
+
+        $this->order->pickUp([$line->id => 1], [['method_id' => $visa->id, 'amount' => 114.98]]);
+
+        expect($this->order->payments()->sole())
+            ->rounding_adjustment->toBeNull()
+            ->cash_tendered->toBeNull()
+            ->change_given->toBeNull();
+    });
+
+    it('affiche le montant à percevoir et la monnaie à rendre dans le modal', function () {
+        stockedLine($this->order, 1, 1, 100);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openPickupModal')
+            ->call('continueToPayment')
+            ->set('pickupPayments.0.method_id', $this->cash->id)
+            ->assertSee('À percevoir (arrondi au 5 ¢) : 115.00 $')
+            ->set('pickupPayments.0.tendered', '200')
+            ->assertSee('Monnaie à rendre : 85.00 $')
+            ->call('confirmPickup')
+            ->assertHasNoErrors();
+
+        expect($this->order->payments()->sole())->cash_tendered->toBe(200.0)->change_given->toBe(85.0);
+    });
+});
+
+it('arrondit au 5 ¢ un remboursement comptant', function () {
+    $line = stockedLine($this->order, 1, 1, 100);
+    $this->order->pickUp([$line->id => 1], [['method_id' => $this->cash->id, 'amount' => 114.98]]);
+
+    $this->order->returnLine($line->fresh(), 1, refund: true, refunds: [['method_id' => $this->cash->id, 'amount' => 114.98]]);
+
+    expect($this->order->payments()->where('type', CustomerPaymentType::Refund)->sole())
+        ->amount->toBe(-114.98)
+        ->rounding_adjustment->toBe(0.02)
+        ->cash_tendered->toBeNull();
 });

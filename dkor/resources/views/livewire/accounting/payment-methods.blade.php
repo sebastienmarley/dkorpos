@@ -26,9 +26,12 @@
                             @unless ($paymentMethod->is_active)
                                 <flux:badge size="sm" class="ms-2">{{ __('Inactif') }}</flux:badge>
                             @endunless
+                            @if ($paymentMethod->isSystem())
+                                <flux:badge size="sm" color="zinc" icon="lock-closed" class="ms-2">{{ __('Géré par le système') }}</flux:badge>
+                            @endif
                         </flux:table.cell>
                         <flux:table.cell class="text-right">
-                            @can('payment_methods.edit')
+                            @if (! $paymentMethod->isSystem() && auth()->user()->can('payment_methods.edit'))
                                 <flux:button variant="ghost" size="sm" icon="pencil" wire:click="openEdit({{ $paymentMethod->id }})" />
                                 <flux:button
                                     variant="ghost"
@@ -37,7 +40,7 @@
                                     :title="$paymentMethod->is_active ? __('Désactiver') : __('Réactiver')"
                                     wire:click="toggleActive({{ $paymentMethod->id }})"
                                 />
-                            @endcan
+                            @endif
                         </flux:table.cell>
                     </flux:table.row>
                 @empty

@@ -395,9 +395,9 @@
 
                     <form wire:submit="confirmReturnRefund" class="mt-6 space-y-3">
                         @foreach ($returnRefunds as $index => $refund)
-                            <div wire:key="return-refund-{{ $index }}" class="flex items-start gap-2">
+                            <div wire:key="return-refund-{{ $index }}" class="flex flex-wrap items-start gap-2">
                                 <div class="flex-1">
-                                    <flux:select wire:model="returnRefunds.{{ $index }}.method_id">
+                                    <flux:select wire:model.live="returnRefunds.{{ $index }}.method_id">
                                         <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
                                         @foreach ($this->getPaymentMethods() as $method)
                                             <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
@@ -409,6 +409,9 @@
                                     <flux:input wire:model.blur="returnRefunds.{{ $index }}.amount" inputmode="decimal" />
                                     <flux:error name="returnRefunds.{{ $index }}.amount" />
                                 </div>
+                                @if ((int) $refund['method_id'] === $this->cashMethodId())
+                                    <flux:text class="w-full text-xs text-zinc-500">{{ __('À remettre en comptant (arrondi au 5 ¢) : :amount $', ['amount' => number_format($this->roundedCash($refund['amount']), 2)]) }}</flux:text>
+                                @endif
                                 @if (count($returnRefunds) > 1)
                                     <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removeReturnRefund({{ $index }})" :label="__('Retirer')" />
                                 @endif
@@ -440,9 +443,9 @@
 
             <form wire:submit="refundCredit" class="mt-6 space-y-3">
                 @foreach ($creditRefunds as $index => $refund)
-                    <div wire:key="credit-refund-{{ $index }}" class="flex items-start gap-2">
+                    <div wire:key="credit-refund-{{ $index }}" class="flex flex-wrap items-start gap-2">
                         <div class="flex-1">
-                            <flux:select wire:model="creditRefunds.{{ $index }}.method_id">
+                            <flux:select wire:model.live="creditRefunds.{{ $index }}.method_id">
                                 <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
                                 @foreach ($this->getPaymentMethods() as $method)
                                     <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
@@ -454,6 +457,9 @@
                             <flux:input wire:model.blur="creditRefunds.{{ $index }}.amount" inputmode="decimal" />
                             <flux:error name="creditRefunds.{{ $index }}.amount" />
                         </div>
+                                @if ((int) $refund['method_id'] === $this->cashMethodId())
+                                    <flux:text class="w-full text-xs text-zinc-500">{{ __('À remettre en comptant (arrondi au 5 ¢) : :amount $', ['amount' => number_format($this->roundedCash($refund['amount']), 2)]) }}</flux:text>
+                                @endif
                         @if (count($creditRefunds) > 1)
                             <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removeCreditRefund({{ $index }})" :label="__('Retirer')" />
                         @endif
@@ -542,9 +548,9 @@
                     @endif
 
                     @foreach ($pickupPayments as $index => $payment)
-                        <div wire:key="pickup-payment-{{ $index }}" class="flex items-start gap-2">
+                        <div wire:key="pickup-payment-{{ $index }}" class="flex flex-wrap items-start gap-2">
                             <div class="flex-1">
-                                <flux:select wire:model="pickupPayments.{{ $index }}.method_id">
+                                <flux:select wire:model.live="pickupPayments.{{ $index }}.method_id">
                                     <flux:select.option value="">{{ __('Mode de paiement…') }}</flux:select.option>
                                     @foreach ($this->getPaymentMethods() as $method)
                                         <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
@@ -558,6 +564,20 @@
                             </div>
                             @if (count($pickupPayments) > 1)
                                 <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removePickupPayment({{ $index }})" :label="__('Retirer')" />
+                            @endif
+
+                            @if ((int) $payment['method_id'] === $this->cashMethodId())
+                                <div class="flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-800">
+                                    <span>{{ __('À percevoir (arrondi au 5 ¢) : :amount $', ['amount' => number_format($this->roundedCash($payment['amount']), 2)]) }}</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-zinc-500">{{ __('Reçu') }}</span>
+                                        <div class="w-28">
+                                            <flux:input wire:model.live.debounce.400ms="pickupPayments.{{ $index }}.tendered" inputmode="decimal" size="sm" />
+                                        </div>
+                                    </div>
+                                    <span class="font-semibold">{{ __('Monnaie à rendre : :amount $', ['amount' => number_format($this->changeDue($index), 2)]) }}</span>
+                                    <flux:error name="pickupPayments.{{ $index }}.tendered" />
+                                </div>
                             @endif
                         </div>
                     @endforeach

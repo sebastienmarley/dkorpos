@@ -17,6 +17,9 @@ use Illuminate\Support\Carbon;
  * @property int|null $customer_payment_method_id
  * @property CustomerPaymentType $type
  * @property float $amount
+ * @property float|null $rounding_adjustment
+ * @property float|null $cash_tendered
+ * @property float|null $change_given
  * @property int|null $received_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -25,7 +28,7 @@ use Illuminate\Support\Carbon;
  * @property-read CustomerPaymentMethod|null $paymentMethod
  * @property-read User|null $receiver
  */
-#[Fillable(['customer_order_id', 'customer_order_pickup_id', 'customer_payment_method_id', 'type', 'amount', 'received_by'])]
+#[Fillable(['customer_order_id', 'customer_order_pickup_id', 'customer_payment_method_id', 'type', 'amount', 'rounding_adjustment', 'cash_tendered', 'change_given', 'received_by'])]
 class CustomerOrderPayment extends Model
 {
     /** @use HasFactory<CustomerOrderPaymentFactory> */
@@ -33,6 +36,9 @@ class CustomerOrderPayment extends Model
 
     protected $casts = [
         'amount' => 'float',
+        'rounding_adjustment' => 'float',
+        'cash_tendered' => 'float',
+        'change_given' => 'float',
         'type' => CustomerPaymentType::class,
     ];
 

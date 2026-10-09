@@ -587,7 +587,7 @@ class CustomerOrder extends Model
      * (aucun ramassage n'est créé).
      *
      * @param  array<int, int>  $quantities  quantité à remettre par ligne
-     * @param  array<int, array{method_id: int, amount: float}>  $payments
+     * @param  array<int, array{method_id: int, amount: float, tendered?: float|null}>  $payments  (tendered : comptant reçu)
      * @param  float  $creditUsed  montant payé avec le crédit au compte du client (déduit de ce crédit)
      *
      * @throws DomainException si une quantité n'est pas disponible, si le crédit utilisé dépasse celui du client ou
@@ -803,9 +803,13 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Enregistre des montants reçus (paiement) ou rendus (remboursement, en négatif), un par mode de paiement.
+     * Enregistre des montants reçus (paiement) ou rendus (remboursement, en négatif), un par mode de paiement. En
+     * comptant, le montant perçu ou remis est arrondi au 5 ¢ près (l'écart est conservé) et, pour un paiement, le
+     * montant reçu du client (au moins le montant arrondi) et la monnaie rendue sont enregistrés.
      *
-     * @param  array<int, array{method_id: int, amount: float}>  $payments
+     * @param  array<int, array{method_id: int, amount: float, tendered?: float|null}>  $payments
+     *
+     * @throws DomainException si un mode est invalide ou si le comptant reçu ne couvre pas le montant arrondi.
      */
     private function recordPayments(array $payments, CustomerPaymentType $type, ?CustomerOrderPickup $pickup = null): void
     {
@@ -814,16 +818,40 @@ class CustomerOrder extends Model
                 continue;
             }
 
-            if (! CustomerPaymentMethod::query()->whereKey($payment['method_id'])->where('is_active', true)->exists()) {
+            $method = CustomerPaymentMethod::query()->whereKey($payment['method_id'])->where('is_active', true)->first();
+
+            if ($method === null) {
                 throw new DomainException(__('Mode de paiement invalide.'));
+            }
+
+            $amount = round($payment['amount'], 2);
+            $cash = [];
+
+            if ($method->isCash()) {
+                $rounded = CustomerPaymentMethod::roundCash($amount);
+                $cash = ['rounding_adjustment' => round($rounded - $amount, 2)];
+
+                if ($type === CustomerPaymentType::Payment) {
+                    $tendered = round($payment['tendered'] ?? $rounded, 2);
+
+                    if ($tendered < $rounded) {
+                        throw new DomainException(__('Le comptant reçu (:tendered $) ne couvre pas le montant à percevoir (:rounded $).', [
+                            'tendered' => number_format($tendered, 2),
+                            'rounded' => number_format($rounded, 2),
+                        ]));
+                    }
+
+                    $cash += ['cash_tendered' => $tendered, 'change_given' => round($tendered - $rounded, 2)];
+                }
             }
 
             $this->payments()->create([
                 'customer_order_pickup_id' => $pickup?->id,
-                'customer_payment_method_id' => $payment['method_id'],
+                'customer_payment_method_id' => $method->id,
                 'type' => $type,
-                'amount' => $type === CustomerPaymentType::Payment ? round($payment['amount'], 2) : -round($payment['amount'], 2),
+                'amount' => $type === CustomerPaymentType::Payment ? $amount : -$amount,
                 'received_by' => auth()->id(),
+                ...$cash,
             ]);
         }
     }

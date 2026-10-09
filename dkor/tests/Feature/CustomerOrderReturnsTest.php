@@ -21,7 +21,7 @@ beforeEach(function () {
     $this->actingAs($this->user);
 
     $this->order = CustomerOrder::factory()->create();
-    $this->cash = CustomerPaymentMethod::factory()->create(['name' => 'Comptant']);
+    $this->cash = CustomerPaymentMethod::cash();
 });
 
 /**
