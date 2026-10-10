@@ -18,7 +18,8 @@ class MerchantPaymentMethodFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'name' => fake()->unique()->randomElement(['Chèque', 'TEF', 'Carte de crédit', 'Virement bancaire', 'Comptant']),
+            'is_active' => true,
         ];
     }
 }

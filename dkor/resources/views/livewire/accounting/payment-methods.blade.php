@@ -57,6 +57,76 @@
         </flux:table>
     </div>
 
+    {{-- Méthodes marchandes --}}
+    <div class="mb-6 mt-10 flex items-center justify-between">
+        <div>
+            <flux:heading level="2" size="lg">{{ __('Paiements aux fournisseurs') }}</flux:heading>
+            <flux:text class="mt-1 text-zinc-500">{{ __('Méthodes de paiement du marchand, utilisées pour payer les factures des fournisseurs (chèque, TEF, carte de crédit…)') }}</flux:text>
+        </div>
+        @can('payment_methods.create')
+            <flux:button variant="primary" icon="plus" wire:click="openCreateMerchant">
+                {{ __('Ajouter') }}
+            </flux:button>
+        @endcan
+    </div>
+
+    <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <flux:table>
+            <flux:table.columns>
+                <flux:table.column>{{ __('Nom') }}</flux:table.column>
+                <flux:table.column />
+            </flux:table.columns>
+
+            <flux:table.rows>
+                @forelse ($merchantMethods as $merchant)
+                    <flux:table.row :key="'merchant-'.$merchant->id" @class(['opacity-50' => ! $merchant->is_active])>
+                        <flux:table.cell variant="strong">
+                            {{ $merchant->name }}
+                            @unless ($merchant->is_active)
+                                <flux:badge size="sm" class="ms-2">{{ __('Inactif') }}</flux:badge>
+                            @endunless
+                        </flux:table.cell>
+                        <flux:table.cell class="text-right">
+                            @can('payment_methods.edit')
+                                <flux:button variant="ghost" size="sm" icon="pencil" wire:click="openEditMerchant({{ $merchant->id }})" />
+                                <flux:button
+                                    variant="ghost"
+                                    size="sm"
+                                    :icon="$merchant->is_active ? 'archive-box' : 'arrow-uturn-left'"
+                                    :title="$merchant->is_active ? __('Désactiver') : __('Réactiver')"
+                                    wire:click="toggleMerchantActive({{ $merchant->id }})"
+                                />
+                            @endcan
+                        </flux:table.cell>
+                    </flux:table.row>
+                @empty
+                    <flux:table.row>
+                        <flux:table.cell colspan="2" class="py-8 text-center">
+                            <flux:text class="text-zinc-400">{{ __('Aucune méthode de paiement du marchand.') }}</flux:text>
+                        </flux:table.cell>
+                    </flux:table.row>
+                @endforelse
+            </flux:table.rows>
+        </flux:table>
+    </div>
+
+    <flux:modal wire:model="showMerchantModal" class="w-full max-w-sm">
+        <flux:heading class="mb-1">{{ $editingMerchantId ? __('Modifier la méthode marchande') : __('Nouvelle méthode marchande') }}</flux:heading>
+
+        <form wire:submit="saveMerchant" class="mt-6 space-y-4">
+            <flux:field>
+                <flux:label>{{ __('Nom') }}</flux:label>
+                <flux:input wire:model="merchantName" type="text" placeholder="Chèque" required autofocus />
+                <flux:error name="merchantName" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <flux:button type="button" variant="ghost" wire:click="$set('showMerchantModal', false)">{{ __('Annuler') }}</flux:button>
+                <flux:button type="submit" variant="primary">{{ $editingMerchantId ? __('Mettre à jour') : __('Créer') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
     <flux:modal wire:model="showModal" class="w-full max-w-sm">
         <flux:heading class="mb-1">{{ $editingId ? __('Modifier le mode de paiement') : __('Nouveau mode de paiement') }}</flux:heading>
 

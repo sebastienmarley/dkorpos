@@ -2,6 +2,7 @@
 
 use App\Livewire\Accounting\PaymentMethods;
 use App\Models\CustomerPaymentMethod;
+use App\Models\MerchantPaymentMethod;
 use App\Models\Role;
 use App\Models\User;
 use Livewire\Livewire;
@@ -95,3 +96,32 @@ it('arrondit le comptant au 5 sous près', function (float $amount, float $round
     [0.02, 0.00],
     [0.03, 0.05],
 ]);
+
+it('gère les méthodes marchandes', function () {
+    Livewire::test(PaymentMethods::class)
+        ->call('openCreateMerchant')
+        ->set('merchantName', ' Chèque ')
+        ->call('saveMerchant')
+        ->assertHasNoErrors();
+
+    $merchant = MerchantPaymentMethod::where('name', 'Chèque')->sole();
+    expect($merchant->is_active)->toBeTrue();
+
+    Livewire::test(PaymentMethods::class)
+        ->call('openEditMerchant', $merchant->id)
+        ->set('merchantName', 'TEF')
+        ->call('saveMerchant')
+        ->call('toggleMerchantActive', $merchant->id);
+
+    expect($merchant->fresh())->name->toBe('TEF')->is_active->toBeFalse();
+});
+
+it('refuse un nom de méthode marchande en double', function () {
+    MerchantPaymentMethod::factory()->create(['name' => 'Chèque']);
+
+    Livewire::test(PaymentMethods::class)
+        ->call('openCreateMerchant')
+        ->set('merchantName', 'Chèque')
+        ->call('saveMerchant')
+        ->assertHasErrors('merchantName');
+});

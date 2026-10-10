@@ -3,6 +3,7 @@
 namespace App\Livewire\Accounting;
 
 use App\Models\CustomerPaymentMethod;
+use App\Models\MerchantPaymentMethod;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
@@ -15,6 +16,12 @@ class PaymentMethods extends Component
     public ?int $editingId = null;
 
     public string $name = '';
+
+    public bool $showMerchantModal = false;
+
+    public ?int $editingMerchantId = null;
+
+    public string $merchantName = '';
 
     public function openCreate(): void
     {
@@ -83,10 +90,64 @@ class PaymentMethods extends Component
         $this->reset(['editingId', 'name']);
     }
 
+    public function openCreateMerchant(): void
+    {
+        $this->authorize('payment_methods.create');
+
+        $this->reset(['editingMerchantId', 'merchantName']);
+        $this->resetValidation();
+        $this->showMerchantModal = true;
+    }
+
+    public function openEditMerchant(MerchantPaymentMethod $merchant): void
+    {
+        $this->authorize('payment_methods.edit');
+
+        $this->editingMerchantId = $merchant->id;
+        $this->merchantName = $merchant->name;
+        $this->resetValidation();
+        $this->showMerchantModal = true;
+    }
+
+    public function toggleMerchantActive(MerchantPaymentMethod $merchant): void
+    {
+        $this->authorize('payment_methods.edit');
+
+        $merchant->update(['is_active' => ! $merchant->is_active]);
+
+        Flux::toast(
+            text: $merchant->is_active ? __('Méthode marchande réactivée.') : __('Méthode marchande désactivée.'),
+            variant: 'success',
+        );
+    }
+
+    public function saveMerchant(): void
+    {
+        $this->authorize($this->editingMerchantId ? 'payment_methods.edit' : 'payment_methods.create');
+
+        $this->merchantName = trim($this->merchantName);
+
+        $this->validate([
+            'merchantName' => ['required', 'string', 'max:255', Rule::unique('merchant_payment_methods', 'name')->ignore($this->editingMerchantId)],
+        ]);
+
+        if ($this->editingMerchantId) {
+            MerchantPaymentMethod::findOrFail($this->editingMerchantId)->update(['name' => $this->merchantName]);
+            Flux::toast(text: __('Méthode marchande mise à jour.'), variant: 'success');
+        } else {
+            MerchantPaymentMethod::create(['name' => $this->merchantName, 'is_active' => true]);
+            Flux::toast(text: __('Méthode marchande créée.'), variant: 'success');
+        }
+
+        $this->showMerchantModal = false;
+        $this->reset(['editingMerchantId', 'merchantName']);
+    }
+
     public function render(): View
     {
         return view('livewire.accounting.payment-methods', [
             'paymentMethods' => CustomerPaymentMethod::query()->orderByDesc('is_active')->orderBy('name')->get(),
+            'merchantMethods' => MerchantPaymentMethod::query()->orderByDesc('is_active')->orderBy('name')->get(),
         ])->layout('layouts.app', ['title' => __('Modes de paiement')]);
     }
 }
