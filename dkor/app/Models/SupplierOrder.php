@@ -404,7 +404,7 @@ class SupplierOrder extends Model
 
             $receptionLine->update(['quantity' => $quantity, 'unit_cost' => $cost]);
 
-            for ($i = 0; $i < $quantity; $i++) {
+            for ($i = 0; $line->product_id !== null && $i < $quantity; $i++) {
                 InventoryUnit::create([
                     'product_id' => $line->product_id,
                     'reception_line_id' => $receptionLine->id,

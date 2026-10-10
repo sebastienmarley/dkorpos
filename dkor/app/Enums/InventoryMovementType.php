@@ -17,6 +17,7 @@ enum InventoryMovementType: string
     case CustomerReservationReleased = 'customer_reservation_released';
     case CustomerPickup = 'customer_pickup';
     case CustomerReturn = 'customer_return';
+    case CustomerDefectiveReturn = 'customer_defective_return';
 
     public function label(): string
     {
@@ -34,6 +35,7 @@ enum InventoryMovementType: string
             self::CustomerReservationReleased => __('Réservation client libérée'),
             self::CustomerPickup => __('Ramassage client'),
             self::CustomerReturn => __('Retour client'),
+            self::CustomerDefectiveReturn => __('Retour client défectueux'),
         };
     }
 }

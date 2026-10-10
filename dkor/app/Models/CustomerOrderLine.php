@@ -5,9 +5,11 @@ namespace App\Models;
 use App\Enums\CustomerOrderLineStatus;
 use Database\Factories\CustomerOrderLineFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -31,6 +33,7 @@ use Illuminate\Support\Carbon;
  * @property-read Product $product
  * @property-read SupplierOrderLine|null $supplierOrderLine
  * @property-read CustomerOrderPickup|null $pickup
+ * @property-read Collection<int, DefectiveProduct> $defectiveProducts
  * @property-read float $total
  */
 #[Fillable(['customer_order_id', 'product_id', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
@@ -77,6 +80,12 @@ class CustomerOrderLine extends Model
     public function pickup(): BelongsTo
     {
         return $this->belongsTo(CustomerOrderPickup::class, 'customer_order_pickup_id');
+    }
+
+    /** @return HasMany<DefectiveProduct, $this> */
+    public function defectiveProducts(): HasMany
+    {
+        return $this->hasMany(DefectiveProduct::class);
     }
 
     public function getTotalAttribute(): float
