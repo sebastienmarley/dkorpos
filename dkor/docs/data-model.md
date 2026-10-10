@@ -1,10 +1,9 @@
 # Modèle de données
 
-Schéma de la base, généré le 2026-10-10 à partir d'une base migrée de zéro (129 migrations, 44 tables
-métier). La source exacte du schéma est le dump SQL
-[`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec les
-129 migrations. Les conventions (montants, statuts, règles de suppression, données de référence) sont
-expliquées dans l'[ADR 0006](adr/0006-database.md).
+Schéma de la base au 2026-10-10 (139 migrations, 49 tables métier). La source exacte du schéma est
+le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
+les 139 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
+sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
 
@@ -30,10 +29,10 @@ expliquées dans l'[ADR 0006](adr/0006-database.md).
 - [Clients et ventes](#clients-et-ventes)
 - [Fournisseurs, réceptions et factures](#fournisseurs-réceptions-et-factures)
 - [Inventaire](#inventaire)
-- [Catalogue et listes de prix](#catalogue-et-listes-de-prix)
+- [Catalogue, services et listes de prix](#catalogue-services-et-listes-de-prix)
 - [Horaires, rendez-vous et paie](#horaires-rendez-vous-et-paie)
 - [Usagers et accès](#usagers-et-accès)
-- [Magasins et paramètres](#magasins-et-paramètres)
+- [Magasins, taxes et paramètres](#magasins-taxes-et-paramètres)
 - [Tables techniques de Laravel](#tables-techniques-de-laravel)
 
 ## Vue d'ensemble
@@ -46,7 +45,9 @@ erDiagram
     stores |o--o{ customer_orders : ""
     customers ||--o{ customer_orders : ""
     customer_order_pickups |o--o{ customer_order_lines : ""
-    products ||--o{ customer_order_lines : ""
+    products |o--o{ customer_order_lines : ""
+    services |o--o{ customer_order_lines : ""
+    suppliers |o--o{ customer_order_lines : ""
     customer_orders ||--o{ customer_order_lines : ""
     supplier_order_lines |o--o{ customer_order_lines : ""
     customer_orders ||--o{ customer_order_payments : ""
@@ -54,6 +55,9 @@ erDiagram
     customer_payment_methods |o--o{ customer_order_payments : ""
     customer_orders ||--o{ customer_order_pickups : ""
     customer_orders ||--o{ customer_order_salesperson : ""
+    customer_orders ||--o{ customer_order_taxes : ""
+    taxes |o--o{ customer_order_taxes : ""
+    stores ||--o{ store_tax_registrations : ""
     currencies |o--o{ suppliers : ""
     suppliers |o--o{ supplier_orders : ""
     suppliers ||--o{ supplier_orders : ""
@@ -82,6 +86,8 @@ erDiagram
     categories |o--o{ products : ""
     departments |o--o{ products : ""
     suppliers ||--o{ products : ""
+    services ||--o{ service_supplier : ""
+    suppliers ||--o{ service_supplier : ""
     products ||--o{ product_upcs : ""
     departments |o--o{ categories : ""
     suppliers ||--o{ price_lists : ""
@@ -101,7 +107,14 @@ erDiagram
   empêchent sa suppression (`restrict`).
 - Une ligne client est liée à la ligne fournisseur qui la comble (`supplier_order_line_id`) et au
   ramassage qui l'a remise au client (`customer_order_pickup_id`).
-- `unit_price` et `cancellation_fee` sont figés sur la ligne ([ADR 0004](adr/0004-cancellation-fee.md)).
+- Une ligne vend **soit** un produit (`product_id`), **soit** un service (`service_id`, avec le
+  fournisseur qui le rend dans `supplier_id`, vide pour un service interne, et la `description` précise
+  de la vente). Les deux clés sont `nullable`.
+- `unit_price`, `cancellation_fee` et `is_taxable` sont figés sur la ligne au moment de la vente
+  ([ADR 0004](adr/0004-cancellation-fee.md)).
+- `customer_order_taxes` : taxes copiées sur la commande à sa création (nom, taux, cascade, numéro
+  d'inscription du magasin) avec leur montant courant, calculé sur les lignes taxables et les frais
+  d'annulation seulement.
 
 ```mermaid
 erDiagram
@@ -109,7 +122,9 @@ erDiagram
     customers ||--o{ customer_orders : "customer_id · restrict"
     users |o--o{ customer_orders : "created_by · null"
     customer_order_pickups |o--o{ customer_order_lines : "customer_order_pickup_id · null"
-    products ||--o{ customer_order_lines : "product_id · restrict"
+    products |o--o{ customer_order_lines : "product_id · restrict"
+    services |o--o{ customer_order_lines : "service_id · restrict"
+    suppliers |o--o{ customer_order_lines : "supplier_id · restrict"
     customer_orders ||--o{ customer_order_lines : "customer_order_id · cascade"
     supplier_order_lines |o--o{ customer_order_lines : "supplier_order_line_id · null"
     customer_orders ||--o{ customer_order_payments : "customer_order_id · restrict"
@@ -120,6 +135,8 @@ erDiagram
     customer_orders ||--o{ customer_order_pickups : "customer_order_id · cascade"
     users ||--o{ customer_order_salesperson : "user_id · restrict"
     customer_orders ||--o{ customer_order_salesperson : "customer_order_id · cascade"
+    customer_orders ||--o{ customer_order_taxes : "customer_order_id · cascade"
+    taxes |o--o{ customer_order_taxes : "tax_id · null"
     customers {
         int id PK
         string firstname
@@ -147,8 +164,6 @@ erDiagram
         string status "CustomerOrderStatus"
         decimal balance_due "12,2"
         decimal subtotal "12,2"
-        decimal gst "12,2"
-        decimal qst "12,2"
         decimal total "12,2"
         decimal amount_paid "12,2"
         datetime created_at
@@ -157,11 +172,15 @@ erDiagram
     customer_order_lines {
         int id PK
         int customer_order_pickup_id FK "nullable"
-        int product_id FK
+        int product_id FK "nullable"
+        int service_id FK "nullable"
+        int supplier_id FK "nullable"
         int customer_order_id FK
         int supplier_order_line_id FK "nullable"
+        string description "nullable"
         int quantity
         decimal unit_price "10,2"
+        bool is_taxable
         text note "nullable"
         string status "CustomerOrderLineStatus"
         datetime delivered_at "nullable"
@@ -198,6 +217,18 @@ erDiagram
         int user_id FK
         int customer_order_id FK
         int percent
+        datetime created_at
+        datetime updated_at
+    }
+    customer_order_taxes {
+        int id PK
+        int customer_order_id FK
+        int tax_id FK "nullable"
+        string name
+        decimal rate "6,3"
+        bool is_compound
+        string registration_number "nullable"
+        decimal amount "12,2"
         datetime created_at
         datetime updated_at
     }
@@ -460,10 +491,14 @@ erDiagram
     }
 ```
 
-## Catalogue et listes de prix
+## Catalogue, services et listes de prix
 
 - Un produit appartient à un fournisseur (`cascade`) et se classe par département, catégorie et
-  couleur.
+  couleur. `is_taxable` indique s'il est assujetti aux taxes de vente.
+- Un service (`services`) est **interne** (`is_internal`, rendu par le magasin au `selling_price` du
+  service) ou **externe** : offert par un ou plusieurs fournisseurs de service ou d'expédition, chacun
+  avec son coût et son prix vendant (`service_supplier`, une offre par paire). `description_template`
+  propose la description de la vente; `{produit}` y est remplacé par le produit visé.
 - Hiérarchie des listes de prix : `price_lists` (par fournisseur) → `price_list_lists` (une liste
   nommée avec son escompte, remplie par import CSV) → `price_list_items` (une ligne importée, liée au
   produit une fois trouvé).
@@ -474,6 +509,8 @@ erDiagram
     categories |o--o{ products : "category_id · null"
     departments |o--o{ products : "department_id · null"
     suppliers ||--o{ products : "supplier_id · cascade"
+    services ||--o{ service_supplier : "service_id · cascade"
+    suppliers ||--o{ service_supplier : "supplier_id · cascade"
     products ||--o{ product_upcs : "product_id · cascade"
     departments |o--o{ categories : "department_id · null"
     suppliers ||--o{ price_lists : "supplier_id · cascade"
@@ -500,6 +537,27 @@ erDiagram
         decimal weight "8,2 · nullable"
         decimal imap "10,2 · nullable"
         string supplier_clean_model "nullable"
+        bool is_taxable
+        datetime created_at
+        datetime updated_at
+    }
+    services {
+        int id PK
+        string name UK
+        text description_template "nullable"
+        bool is_internal
+        decimal selling_price "10,2 · nullable"
+        bool is_taxable
+        bool is_active
+        datetime created_at
+        datetime updated_at
+    }
+    service_supplier {
+        int id PK
+        int service_id FK
+        int supplier_id FK
+        decimal cost "10,2"
+        decimal selling_price "10,2"
         datetime created_at
         datetime updated_at
     }
@@ -771,22 +829,29 @@ erDiagram
     }
 ```
 
-## Magasins et paramètres
+## Magasins, taxes et paramètres
 
 - Un magasin peut renvoyer à un entrepôt (`warehouse_store_id`) et à un entrepôt d'expédition
   (`shipping_warehouse_id`), qui sont eux-mêmes des magasins.
-- `merchant_payment_methods` n'est encore utilisée nulle part dans l'application.
+- `taxes` : taux en vigueur par province et par période (`start_date`, `end_date`); une taxe en
+  cascade (`is_compound`) se calcule sur le montant plus les taxes individuelles. La province du
+  magasin (`province`) détermine les taxes copiées sur ses commandes (`customer_order_taxes`).
+- `store_tax_registrations` : numéro d'inscription du magasin pour chaque taxe (un par nom de taxe).
+- `customer_payment_methods` : modes de paiement des clients; `code` identifie ceux gérés par le
+  code (`cash` pour « Comptant »). `merchant_payment_methods` : modes de paiement du marchand.
 
 ```mermaid
 erDiagram
     stores |o--o{ stores : "shipping_warehouse_id · null"
     stores |o--o{ stores : "warehouse_store_id · null"
+    stores ||--o{ store_tax_registrations : "store_id · cascade"
     stores {
         int id PK
         int shipping_warehouse_id FK "nullable"
         int warehouse_store_id FK "nullable"
         string name
         string type "StoreType"
+        string province "Province"
         string phone "nullable"
         string email "nullable"
         string address_civic "nullable"
@@ -796,8 +861,6 @@ erDiagram
         string address_province "nullable"
         string address_country "nullable"
         string address_postal_code "nullable"
-        string gst_number "nullable"
-        string qst_number "nullable"
         string bank_account "nullable"
         text opening_hours "nullable"
         bool is_active
@@ -806,6 +869,25 @@ erDiagram
         int sick_days_full_time "nullable"
         int sick_days_part_time "nullable"
         decimal cancellation_fee_percent "5,2"
+        datetime created_at
+        datetime updated_at
+    }
+    store_tax_registrations {
+        int id PK
+        int store_id FK
+        string tax_name
+        string number
+        datetime created_at
+        datetime updated_at
+    }
+    taxes {
+        int id PK
+        string province "Province"
+        string name
+        decimal rate "6,3"
+        bool is_compound
+        date start_date
+        date end_date
         datetime created_at
         datetime updated_at
     }

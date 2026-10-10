@@ -21,6 +21,7 @@ $pageAccess = [
     'customer_orders.view',
     'customer_orders.create',
     'customer_orders.edit',
+    'services.view',
     'products.view',
     'products.create',
     'inventory.view',
@@ -33,6 +34,9 @@ $pageAccess = [
 
 $managementAccess = [
     'customer_orders.assign_salespeople',
+    'services.view',
+    'services.create',
+    'services.edit',
 ];
 
 $warehouseAccess = [
@@ -46,6 +50,9 @@ $warehouseAccess = [
 ];
 
 $accountingAccess = [
+    'services.view',
+    'services.create',
+    'services.edit',
     'payment_methods.view',
     'payment_methods.create',
     'payment_methods.edit',
@@ -115,6 +122,9 @@ return [
         'receptions.reverse' => ['Renverser — réceptions', 'Renverser une réception de produits non encore facturée (erreur de réception).'],
         'inventory.view' => ['Voir — journal d\'inventaire', 'Accéder à la page : journal d\'inventaire.'],
         'inventory.move' => ['Déplacer — inventaire', 'Déplacer des quantités entre états d\'inventaire (démo, défectueux, perdu…).'],
+        'services.view' => ['Voir — services', 'Accéder à la page : services.'],
+        'services.create' => ['Créer — services', 'Créer dans : services.'],
+        'services.edit' => ['Modifier — services', 'Modifier dans : services (fournisseurs et prix).'],
         'departments.view' => ['Voir — départements', 'Accéder à la page : départements.'],
         'departments.create' => ['Créer — départements', 'Créer dans : départements.'],
         'departments.edit' => ['Modifier — départements', 'Modifier dans : départements.'],

@@ -54,6 +54,7 @@
         @can('customer_orders.edit')
             <div class="mb-3 flex items-start gap-3">
                 <flux:button icon="plus" wire:click="openProductModal">{{ __('Ajouter un produit') }}</flux:button>
+                <flux:button icon="wrench" wire:click="openServiceModal">{{ __('Ajouter un service') }}</flux:button>
 
                 <form wire:submit="scanUpc" class="w-64">
                     <flux:field>
@@ -91,8 +92,17 @@
                             :class="$canEditLines ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800' : ''"
                         >
                             <flux:table.cell variant="strong">
-                                {{ $line->product->model }}
-                                <span class="font-normal text-zinc-500">#{{ $line->product_id }}</span>
+                                @if ($line->isService())
+                                    {{ $line->service->name }}
+                                    <flux:badge size="sm" color="blue" class="ms-1">{{ __('Service') }}</flux:badge>
+                                    <div class="max-w-xs truncate text-xs font-normal text-zinc-500">{{ $line->description }}</div>
+                                @else
+                                    {{ $line->product->model }}
+                                    <span class="font-normal text-zinc-500">#{{ $line->product_id }}</span>
+                                @endif
+                                @unless ($line->is_taxable)
+                                    <div class="text-xs font-normal text-zinc-400">{{ __('Non taxable') }}</div>
+                                @endunless
                                 @if ($line->note)
                                     <div class="max-w-xs truncate text-xs font-normal text-zinc-400">{{ $line->note }}</div>
                                 @endif
@@ -103,12 +113,12 @@
                                     <div class="text-xs font-normal text-red-600 dark:text-red-400">{{ __('Frais d\'annulation : :fee $', ['fee' => number_format($line->cancellation_fee, 2)]) }}</div>
                                 @endif
                             </flux:table.cell>
-                            <flux:table.cell>{{ $line->product->supplier->name }}</flux:table.cell>
+                            <flux:table.cell>{{ $line->isService() ? ($line->supplier?->name ?? __('Interne')) : $line->product->supplier->name }}</flux:table.cell>
                             <flux:table.cell>
                                 <flux:badge :color="$line->status->color()" size="sm">{{ $line->status->label() }}</flux:badge>
                             </flux:table.cell>
-                            <flux:table.cell align="end">{{ $line->quantity_reserved }}</flux:table.cell>
-                            <flux:table.cell align="end">{{ $line->quantity_on_order }}</flux:table.cell>
+                            <flux:table.cell align="end">{{ $line->isService() ? '—' : $line->quantity_reserved }}</flux:table.cell>
+                            <flux:table.cell align="end">{{ $line->isService() ? '—' : $line->quantity_on_order }}</flux:table.cell>
                             <flux:table.cell align="end">{{ $line->quantity }}</flux:table.cell>
                             <flux:table.cell align="end">{{ number_format($line->unit_price, 2) }} $</flux:table.cell>
                             <flux:table.cell align="end">{{ number_format($line->total, 2) }} $</flux:table.cell>
@@ -328,12 +338,44 @@
     @can('customer_orders.edit')
         <flux:modal wire:model="showLineModal" class="w-full max-w-lg">
             @if ($editingLine)
-                <flux:heading class="mb-1">{{ $editingLine->product->model }} <span class="font-normal text-zinc-500">#{{ $editingLine->product_id }}</span></flux:heading>
+                @if ($editingLine->isService())
+                    <flux:heading class="mb-1">{{ $editingLine->service->name }} <span class="font-normal text-zinc-500">· {{ $editingLine->supplier?->name ?? __('Interne') }}</span></flux:heading>
+                @else
+                    <flux:heading class="mb-1">{{ $editingLine->product->model }} <span class="font-normal text-zinc-500">#{{ $editingLine->product_id }}</span></flux:heading>
+                @endif
                 <flux:badge :color="$editingLine->status->color()" size="sm">{{ $editingLine->status->label() }}</flux:badge>
 
                 <form wire:submit="saveLine" class="mt-6 space-y-4">
                     @php($editable = $editingLine->status->isEditable())
 
+                    @if ($editingLine->isService())
+                    <flux:field>
+                        <flux:label>{{ __('Description') }}</flux:label>
+                        <flux:input wire:model="editDescription" :disabled="! $editable" />
+                        <flux:error name="editDescription" />
+                    </flux:field>
+
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <flux:field>
+                            <flux:label>{{ __('Quantité') }}</flux:label>
+                            <flux:input wire:model="editQuantity" type="number" min="1" :disabled="! $editable" />
+                            <flux:error name="editQuantity" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Prix vendant') }}</flux:label>
+                            <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $editable" />
+                            <flux:error name="editUnitPrice" />
+                        </flux:field>
+                    </div>
+
+                    @if (in_array($editingLine->status, [\App\Enums\CustomerOrderLineStatus::ToDo, \App\Enums\CustomerOrderLineStatus::Ordered], true))
+                        <div class="rounded-lg border border-emerald-200 p-3 dark:border-emerald-900">
+                            <flux:text class="mb-2 text-sm">{{ __('Le service a été rendu au client ?') }}</flux:text>
+                            <flux:button type="button" size="sm" icon="check-circle" wire:click="completeService({{ $editingLine->id }})">{{ __('Marquer complété') }}</flux:button>
+                        </div>
+                    @endif
+                    @else
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>
                             <flux:label>
@@ -357,6 +399,7 @@
                         <flux:description>{{ __('Prix suggéré : :price $', ['price' => number_format($editingLine->product->selling_price, 2)]) }}</flux:description>
                         <flux:error name="editUnitPrice" />
                     </flux:field>
+                    @endif
 
                     <flux:field>
                         <flux:label>{{ __('Note') }}</flux:label>
@@ -404,7 +447,7 @@
                         </div>
                     @endif
 
-                    @if ($editingLine->status->isHandedOver())
+                    @if (! $editingLine->isService() && $editingLine->status->isHandedOver())
                         <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                             <flux:text class="mb-2 text-sm font-medium">{{ __('Le client rapporte cet article ?') }}</flux:text>
                             <div class="flex gap-2">
@@ -495,6 +538,84 @@
                     </form>
                 @endif
             @endif
+        </flux:modal>
+    @endcan
+
+    {{-- Ajout d'un service --}}
+    @can('customer_orders.edit')
+        <flux:modal wire:model="showServiceModal" class="w-full max-w-lg">
+            <flux:heading class="mb-1">{{ __('Ajouter un service') }}</flux:heading>
+
+            <form wire:submit="addService" class="mt-6 space-y-4">
+                <flux:field>
+                    <flux:label>{{ __('Service') }}</flux:label>
+                    <flux:select wire:model.live="serviceId">
+                        <flux:select.option value="">{{ __('Choisir un service…') }}</flux:select.option>
+                        @foreach ($this->getServices() as $service)
+                            <flux:select.option :value="$service->id">{{ $service->name }}{{ $service->is_internal ? ' — '.__('interne') : '' }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="serviceId" />
+                </flux:field>
+
+                @if (filled($serviceId))
+                    @php($offers = $this->getServiceOffers())
+                    @if ($offers->isNotEmpty())
+                        <flux:field>
+                            <flux:label>{{ __('Fournisseur') }}</flux:label>
+                            <flux:select wire:model.live="serviceSupplierId">
+                                <flux:select.option value="">{{ __('Choisir un fournisseur…') }}</flux:select.option>
+                                @foreach ($offers as $supplier)
+                                    <flux:select.option :value="$supplier->id">{{ $supplier->name }} — {{ number_format((float) $supplier->pivot->selling_price, 2) }} $</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                            <flux:error name="serviceSupplierId" />
+                        </flux:field>
+                    @else
+                        <flux:text class="text-sm text-zinc-500">{{ __('Service rendu par le magasin.') }}</flux:text>
+                        <flux:error name="serviceSupplierId" />
+                    @endif
+
+                    @php($productLines = $order->lines->reject(fn ($line) => $line->isService()))
+                    @if ($productLines->isNotEmpty())
+                        <flux:field>
+                            <flux:label>{{ __('Pour le produit (optionnel)') }}</flux:label>
+                            <flux:select wire:model.live="serviceProductLineId">
+                                <flux:select.option value="">{{ __('Aucun') }}</flux:select.option>
+                                @foreach ($productLines as $productLine)
+                                    <flux:select.option :value="$productLine->id">{{ $productLine->product->model }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                        </flux:field>
+                    @endif
+
+                    <flux:field>
+                        <flux:label>{{ __('Description') }}</flux:label>
+                        <flux:input wire:model="serviceDescription" />
+                        <flux:description>{{ __('Proposée par le service : précisez-la au besoin (étage, accès, particularités…).') }}</flux:description>
+                        <flux:error name="serviceDescription" />
+                    </flux:field>
+
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <flux:field>
+                            <flux:label>{{ __('Quantité') }}</flux:label>
+                            <flux:input wire:model="serviceQuantity" type="number" min="1" />
+                            <flux:error name="serviceQuantity" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Prix vendant') }}</flux:label>
+                            <flux:input wire:model="servicePrice" inputmode="decimal" />
+                            <flux:error name="servicePrice" />
+                        </flux:field>
+                    </div>
+                @endif
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <flux:button type="button" variant="ghost" wire:click="$set('showServiceModal', false)">{{ __('Annuler') }}</flux:button>
+                    <flux:button type="submit" variant="primary">{{ __('Ajouter') }}</flux:button>
+                </div>
+            </form>
         </flux:modal>
     @endcan
 

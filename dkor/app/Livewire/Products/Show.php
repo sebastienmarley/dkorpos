@@ -38,6 +38,8 @@ class Show extends Component
 
     public bool $isNonOrderable = false;
 
+    public bool $isTaxable = true;
+
     public string $cost = '';
 
     // Description
@@ -97,6 +99,7 @@ class Show extends Component
             'categoryId' => ['nullable', 'exists:categories,id'],
             'isDiscontinued' => ['boolean'],
             'isNonOrderable' => ['boolean'],
+            'isTaxable' => ['boolean'],
             'cost' => ['required', 'numeric', 'min:0.01'],
         ]);
 
@@ -109,6 +112,7 @@ class Show extends Component
             'category_id' => filled($this->categoryId) ? $this->categoryId : null,
             'is_discontinued' => $this->isDiscontinued,
             'is_non_orderable' => $this->isNonOrderable,
+            'is_taxable' => $this->isTaxable,
             'cost' => $this->cost,
         ])->save();
 
@@ -212,6 +216,7 @@ class Show extends Component
         $this->categoryId = (string) ($this->product->category_id ?? '');
         $this->isDiscontinued = $this->product->is_discontinued;
         $this->isNonOrderable = $this->product->is_non_orderable;
+        $this->isTaxable = $this->product->is_taxable;
         $this->cost = (string) $this->product->cost;
         $this->colorId = (string) ($this->product->color_id ?? '');
         $this->imap = $this->product->imap !== null ? (string) $this->product->imap : '';

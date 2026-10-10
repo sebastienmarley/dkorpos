@@ -7,10 +7,12 @@ use App\Concerns\SearchesCustomers;
 use App\Enums\SupplierType;
 use App\Models\customer;
 use App\Models\CustomerOrder;
+use App\Models\CustomerOrderLine;
 use App\Models\CustomerPaymentMethod;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductUpc;
+use App\Models\Service;
 use App\Models\Supplier;
 use App\Models\User;
 use DomainException;
@@ -66,6 +68,25 @@ class Show extends Component
     public string $editUnitPrice = '';
 
     public string $editNote = '';
+
+    public string $editQuantity = '1';
+
+    public string $editDescription = '';
+
+    public bool $showServiceModal = false;
+
+    public string $serviceId = '';
+
+    public string $serviceSupplierId = '';
+
+    /** Ligne de produit visée par le service ({produit} de la description modèle). */
+    public string $serviceProductLineId = '';
+
+    public string $serviceQuantity = '1';
+
+    public string $servicePrice = '';
+
+    public string $serviceDescription = '';
 
     public bool $showReturnModal = false;
 
@@ -329,6 +350,8 @@ class Show extends Component
         $line = $this->order->lines()->findOrFail($lineId);
 
         $this->editingLineId = $line->id;
+        $this->editQuantity = (string) $line->quantity;
+        $this->editDescription = $line->description ?? '';
         $this->editReserved = (string) $line->quantity_reserved;
         $this->editOnOrder = (string) $line->quantity_on_order;
         $this->editUnitPrice = number_format($line->unit_price, 2, '.', '');
@@ -344,6 +367,12 @@ class Show extends Component
         $line = $this->order->lines()->findOrFail($this->editingLineId);
 
         $this->editUnitPrice = str_replace(',', '.', $this->editUnitPrice);
+
+        if ($line->isService()) {
+            $this->saveServiceLine($line);
+
+            return;
+        }
 
         $this->validate([
             'editReserved' => ['required', 'integer', 'min:0'],
@@ -362,6 +391,153 @@ class Show extends Component
 
         $this->showLineModal = false;
         $this->reset(['editingLineId', 'editReserved', 'editOnOrder', 'editUnitPrice', 'editNote']);
+    }
+
+    private function saveServiceLine(CustomerOrderLine $line): void
+    {
+        $this->validate([
+            'editQuantity' => ['required', 'integer', 'min:1', 'max:99999'],
+            'editUnitPrice' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'editDescription' => ['required', 'string', 'max:255'],
+            'editNote' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        try {
+            $this->order->updateServiceLine($line, (int) $this->editQuantity, (float) $this->editUnitPrice, $this->editDescription, $this->editNote);
+        } catch (DomainException $exception) {
+            $this->addError('editQuantity', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showLineModal = false;
+        $this->reset(['editingLineId', 'editQuantity', 'editDescription', 'editUnitPrice', 'editNote']);
+    }
+
+    public function completeService(int $lineId): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        try {
+            $this->order->completeServiceLine($this->order->lines()->findOrFail($lineId));
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->showLineModal = false;
+        Flux::toast(text: __('Service complété.'), variant: 'success');
+    }
+
+    public function openServiceModal(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $this->reset(['serviceId', 'serviceSupplierId', 'serviceProductLineId', 'serviceQuantity', 'servicePrice', 'serviceDescription']);
+        $this->resetErrorBag();
+        $this->showServiceModal = true;
+    }
+
+    /**
+     * Choix du service : fournisseur présélectionné s'il n'y en a qu'un, prix et description modèle proposés.
+     */
+    public function updatedServiceId(): void
+    {
+        $service = $this->selectedService();
+        $offers = $service?->is_internal ? collect() : ($service?->suppliers()->pluck('suppliers.id') ?? collect());
+
+        $this->serviceSupplierId = $offers->count() === 1 ? (string) $offers->first() : '';
+        $this->refreshServiceProposal();
+    }
+
+    public function updatedServiceSupplierId(): void
+    {
+        $this->refreshServiceProposal();
+    }
+
+    public function updatedServiceProductLineId(): void
+    {
+        $service = $this->selectedService();
+
+        if ($service !== null) {
+            $this->serviceDescription = $service->describe($this->serviceProductName());
+        }
+    }
+
+    public function addService(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $this->servicePrice = str_replace(',', '.', $this->servicePrice);
+
+        $this->validate([
+            'serviceId' => ['required', 'integer', Rule::exists('services', 'id')->where('is_active', true)],
+            'serviceSupplierId' => ['nullable', 'integer'],
+            'serviceQuantity' => ['required', 'integer', 'min:1', 'max:99999'],
+            'servicePrice' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'serviceDescription' => ['required', 'string', 'max:255'],
+        ]);
+
+        try {
+            $this->order->addService(
+                Service::findOrFail((int) $this->serviceId),
+                filled($this->serviceSupplierId) ? (int) $this->serviceSupplierId : null,
+                (int) $this->serviceQuantity,
+                $this->serviceDescription,
+                (float) $this->servicePrice,
+            );
+        } catch (DomainException $exception) {
+            $this->addError('serviceSupplierId', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showServiceModal = false;
+        Flux::toast(text: __('Service ajouté à la commande.'), variant: 'success');
+    }
+
+    /** @return Collection<int, Service> */
+    public function getServices(): Collection
+    {
+        return Service::query()->where('is_active', true)->orderBy('name')->get();
+    }
+
+    /** @return Collection<int, Supplier> */
+    public function getServiceOffers(): Collection
+    {
+        $service = $this->selectedService();
+
+        return $service === null || $service->is_internal ? new Collection : $service->suppliers()->orderBy('name')->get();
+    }
+
+    private function selectedService(): ?Service
+    {
+        return filled($this->serviceId) ? Service::find((int) $this->serviceId) : null;
+    }
+
+    private function serviceProductName(): ?string
+    {
+        if (blank($this->serviceProductLineId)) {
+            return null;
+        }
+
+        return $this->order->lines()->with('product')->find((int) $this->serviceProductLineId)?->product?->model;
+    }
+
+    private function refreshServiceProposal(): void
+    {
+        $service = $this->selectedService();
+
+        if ($service === null) {
+            $this->servicePrice = '';
+            $this->serviceDescription = '';
+
+            return;
+        }
+
+        $this->servicePrice = number_format($service->pricingFor(filled($this->serviceSupplierId) ? (int) $this->serviceSupplierId : null)['selling_price'], 2, '.', '');
+        $this->serviceDescription = $service->describe($this->serviceProductName());
     }
 
     public function addFromPriceList(int $itemId, CreateProductFromPriceListItem $createProduct): void
@@ -940,11 +1116,11 @@ class Show extends Component
 
     public function render(): View
     {
-        $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStock', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
+        $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStock', 'service', 'supplier', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
         $returnLine = $this->returnLineId ? $this->order->lines()->with('product')->find($this->returnLineId) : null;
         $defectiveLine = $this->defectiveLineId ? $this->order->lines()->with('product.supplier')->find($this->defectiveLineId) : null;
 
-        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'lines.defectiveProducts', 'payments.paymentMethod', 'payments.receiver']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'lines.defectiveProducts', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),

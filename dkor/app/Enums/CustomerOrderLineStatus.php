@@ -5,6 +5,7 @@ namespace App\Enums;
 enum CustomerOrderLineStatus: string
 {
     case InStock = 'in_stock';
+    case ToDo = 'to_do';
     case OnOrder = 'on_order';
     case Ordered = 'ordered';
     case Received = 'received';
@@ -16,11 +17,13 @@ enum CustomerOrderLineStatus: string
     case Shipped = 'shipped';
     case CancellationRequested = 'cancellation_requested';
     case Cancelled = 'cancelled';
+    case Completed = 'completed';
 
     public function label(): string
     {
         return match ($this) {
             self::InStock => __('En inventaire'),
+            self::ToDo => __('À faire'),
             self::OnOrder => __('En commande'),
             self::Ordered => __('Commandé'),
             self::Received => __('Reçu'),
@@ -32,6 +35,7 @@ enum CustomerOrderLineStatus: string
             self::Shipped => __('Expédié'),
             self::CancellationRequested => __('Demande d\'annulation'),
             self::Cancelled => __('Annulé'),
+            self::Completed => __('Complété'),
         };
     }
 
@@ -39,6 +43,7 @@ enum CustomerOrderLineStatus: string
     {
         return match ($this) {
             self::InStock => 'zinc',
+            self::ToDo => 'zinc',
             self::OnOrder => 'yellow',
             self::Ordered => 'sky',
             self::Received => 'lime',
@@ -48,13 +53,14 @@ enum CustomerOrderLineStatus: string
             self::Refunded => 'purple',
             self::CancellationRequested => 'amber',
             self::Cancelled => 'red',
+            self::Completed => 'emerald',
         };
     }
 
-    /** Une ligne peut être modifiée ou retirée tant que la marchandise n'est pas reçue ni sortie. */
+    /** Une ligne peut être modifiée ou retirée tant que la marchandise n'est pas reçue ni sortie (ou le service pas commandé). */
     public function isEditable(): bool
     {
-        return in_array($this, [self::InStock, self::OnOrder], true);
+        return in_array($this, [self::InStock, self::OnOrder, self::ToDo], true);
     }
 
     /** Les lignes annulées, retournées ou remboursées ne comptent plus dans le solde de la commande. */
@@ -69,9 +75,9 @@ enum CustomerOrderLineStatus: string
         return in_array($this, [self::InStock, self::OnOrder, self::Ordered, self::Received], true);
     }
 
-    /** Lignes remises au client (ramassées, livrées ou expédiées) : elles doivent être payées à 100 %. */
+    /** Lignes remises au client (ramassées, livrées, expédiées ou service complété) : elles doivent être payées à 100 %. */
     public function isHandedOver(): bool
     {
-        return in_array($this, [self::PickedUp, self::Delivered, self::Shipped], true);
+        return in_array($this, [self::PickedUp, self::Delivered, self::Shipped, self::Completed], true);
     }
 }

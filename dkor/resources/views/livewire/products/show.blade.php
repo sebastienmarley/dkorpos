@@ -124,6 +124,8 @@
                     <flux:field>
                         <flux:checkbox wire:model="isNonOrderable" :label="__('Non commandable')" />
                         <flux:error name="isNonOrderable" />
+                        <flux:checkbox wire:model="isTaxable" :label="__('Taxable (TPS/TVQ)')" class="mt-2" />
+                        <flux:error name="isTaxable" />
                     </flux:field>
                 </div>
 
