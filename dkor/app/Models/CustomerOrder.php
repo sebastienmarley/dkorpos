@@ -180,6 +180,10 @@ class CustomerOrder extends Model
      */
     public function addProduct(Product $product, int $quantity = 1, ?float $unitPrice = null, ?string $note = null): CustomerOrderLine
     {
+        if ($product->is_custom) {
+            throw new DomainException(__('Produit sur mesure : saisissez ses spécifications, son coût soumis et son prix.'));
+        }
+
         if ($quantity < 1) {
             throw new DomainException(__('La quantité doit être d\'au moins 1.'));
         }
@@ -230,6 +234,10 @@ class CustomerOrder extends Model
 
             if (! $line->status->isEditable()) {
                 throw new DomainException(__('Cette ligne ne peut plus être modifiée.'));
+            }
+
+            if ($line->is_custom && $reserved > $line->quantity_reserved) {
+                throw new DomainException(__('Un article sur mesure se commande toujours : il ne se prend pas en stock.'));
             }
 
             $difference = $reserved - $line->quantity_reserved;
@@ -331,12 +339,10 @@ class CustomerOrder extends Model
             ]);
 
             $reorder = $this->lines()->create([
-                'product_id' => $line->product_id,
+                ...$line->saleAttributes(),
                 'quantity' => $quantity,
                 'quantity_reserved' => 0,
                 'quantity_on_order' => $quantity,
-                'unit_price' => $line->unit_price,
-                'note' => $line->note,
                 'status' => CustomerOrderLineStatus::OnOrder,
             ]);
 
@@ -432,13 +438,11 @@ class CustomerOrder extends Model
                 $line->update($cancelled);
             } else {
                 $this->lines()->create([
+                    ...$line->saleAttributes(),
                     ...$cancelled,
-                    'product_id' => $line->product_id,
                     'quantity' => $line->quantity_on_order,
                     'quantity_reserved' => 0,
                     'quantity_on_order' => $line->quantity_on_order,
-                    'unit_price' => $line->unit_price,
-                    'note' => $line->note,
                 ]);
 
                 $line->update([
@@ -523,6 +527,7 @@ class CustomerOrder extends Model
 
             $substitute = $this->lines()->create([
                 'product_id' => $replacement->product_id,
+                'is_taxable' => Product::query()->whereKey($replacement->product_id)->value('is_taxable') ?? true,
                 'supplier_order_line_id' => $replacement->id,
                 'quantity_reserved' => 0,
                 'quantity_on_order' => $replacement->quantity,
@@ -614,9 +619,16 @@ class CustomerOrder extends Model
         $supplierLine = $line->supplierOrderLine()->with('order')->first();
 
         if ($supplierLine !== null) {
-            if ($supplierLine->quantity !== $line->quantity_on_order) {
+            $unitCost = $line->is_custom ? (float) $line->unit_cost : $supplierLine->unit_cost;
+
+            if ($supplierLine->quantity !== $line->quantity_on_order || round($unitCost, 2) !== round($supplierLine->unit_cost, 2)) {
                 $this->guardSupplierLineEditable($supplierLine);
-                $supplierLine->order->updateLine($supplierLine, $line->quantity_on_order, $supplierLine->unit_cost);
+                $supplierLine->order->updateLine($supplierLine, $line->quantity_on_order, $unitCost);
+            }
+
+            if ($line->is_custom && $supplierLine->description !== $this->customSpecifications($line)) {
+                $this->guardSupplierLineEditable($supplierLine);
+                $supplierLine->update(['description' => $this->customSpecifications($line)]);
             }
 
             return;
@@ -639,8 +651,9 @@ class CustomerOrder extends Model
 
         $supplierLine = $this->supplierDraftFor($product->supplier_id, SupplierType::Product)->addLine([
             'product_id' => $product->id,
+            'description' => $line->is_custom ? $this->customSpecifications($line) : null,
             'quantity' => $line->quantity_on_order,
-            'unit_cost' => $product->cost,
+            'unit_cost' => $line->is_custom ? (float) $line->unit_cost : $product->cost,
         ]);
 
         $line->update(['supplier_order_line_id' => $supplierLine->id]);
@@ -830,8 +843,8 @@ class CustomerOrder extends Model
 
     /**
      * Total que le client doit avoir payé : 100 % de la valeur remise (selon $handedOverValue par ligne) et le dépôt
-     * minimum sur le reste des lignes facturables, taxes incluses sur les lignes taxables. $excludedValue (de la
-     * ligne $excludedLine) est retiré du total facturable (articles en cours de retour).
+     * minimum sur le reste des lignes facturables (celui du magasin pour le sur-mesure), taxes incluses sur les lignes
+     * taxables. $excludedValue (de la ligne $excludedLine) est retiré du total facturable (articles en cours de retour).
      *
      * @param  callable(CustomerOrderLine): float  $handedOverValue
      */
@@ -840,25 +853,30 @@ class CustomerOrder extends Model
         $lines = $this->lines()->get()->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable());
 
         $handedOver = ['taxable' => 0.0, 'exempt' => 0.0];
-        $all = ['taxable' => 0.0, 'exempt' => 0.0];
+        $remaining = [];
 
         foreach ($lines as $line) {
-            $bucket = $line->is_taxable ? 'taxable' : 'exempt';
-            $handedOver[$bucket] += $handedOverValue($line);
-            $all[$bucket] += $line->total;
+            $tax = $line->is_taxable ? 'taxable' : 'exempt';
+            $handed = $handedOverValue($line);
+            $excluded = $excludedLine !== null && $line->id === $excludedLine->id ? $excludedValue : 0.0;
+
+            $handedOver[$tax] += $handed;
+            $remaining[$line->is_custom ? 'custom' : 'regular'][$tax] = ($remaining[$line->is_custom ? 'custom' : 'regular'][$tax] ?? 0.0)
+                + $line->total - $excluded - $handed;
         }
 
-        if ($excludedLine !== null) {
-            $all[$excludedLine->is_taxable ? 'taxable' : 'exempt'] -= $excludedValue;
-        }
-
-        $remaining = [
-            'taxable' => round($all['taxable'] - $handedOver['taxable'], 2),
-            'exempt' => round($all['exempt'] - $handedOver['exempt'], 2),
+        $deposits = [
+            'regular' => config('sales.deposit_percent'),
+            'custom' => $this->store->custom_deposit_percent ?? config('sales.deposit_percent'),
         ];
 
-        return $this->taxedTotal(round($handedOver['taxable'], 2), round($handedOver['exempt'], 2))
-            + $this->taxedTotal($remaining['taxable'], $remaining['exempt']) * config('sales.deposit_percent') / 100;
+        $required = $this->taxedTotal(round($handedOver['taxable'], 2), round($handedOver['exempt'], 2));
+
+        foreach ($remaining as $kind => $amounts) {
+            $required += $this->taxedTotal(round($amounts['taxable'] ?? 0.0, 2), round($amounts['exempt'] ?? 0.0, 2)) * $deposits[$kind] / 100;
+        }
+
+        return $required;
     }
 
     /**
@@ -1012,14 +1030,12 @@ class CustomerOrder extends Model
                 $line->update(['quantity' => $line->quantity - $quantity]);
 
                 $this->lines()->create([
+                    ...$line->saleAttributes(),
                     ...$returned,
-                    'product_id' => $line->product_id,
                     'customer_order_pickup_id' => $line->customer_order_pickup_id,
                     'quantity' => $quantity,
                     'quantity_reserved' => 0,
                     'quantity_on_order' => 0,
-                    'unit_price' => $line->unit_price,
-                    'note' => $line->note,
                     'delivered_at' => $line->delivered_at,
                 ]);
             }
@@ -1029,6 +1045,114 @@ class CustomerOrder extends Model
             $this->recalculateBalance();
             $this->refreshStatusFromLines();
         });
+    }
+
+    /**
+     * Vend un article sur mesure à partir d'un produit gabarit : une ligne distincte, toujours commandée (jamais prise
+     * en stock), avec ses spécifications, le coût soumis par le fournisseur et le prix saisi. La ligne de commande
+     * fournisseur reçoit les spécifications et le coût soumis.
+     *
+     * @throws DomainException si le produit n'est pas un gabarit sur mesure ou si une information manque.
+     */
+    public function addCustomProduct(Product $product, int $quantity, string $specifications, float $unitCost, float $unitPrice, ?string $quoteNumber = null): CustomerOrderLine
+    {
+        if (! $product->is_custom) {
+            throw new DomainException(__('Ce produit n\'est pas un produit sur mesure.'));
+        }
+
+        $this->guardCustomSale($quantity, $specifications, $unitCost, $unitPrice);
+
+        return DB::transaction(function () use ($product, $quantity, $specifications, $unitCost, $unitPrice, $quoteNumber): CustomerOrderLine {
+            $line = $this->lines()->create([
+                'product_id' => $product->id,
+                'description' => Str::limit(trim($specifications), 255, ''),
+                'quantity' => $quantity,
+                'quantity_reserved' => 0,
+                'quantity_on_order' => $quantity,
+                'unit_price' => round($unitPrice, 2),
+                'unit_cost' => round($unitCost, 2),
+                'quote_number' => filled($quoteNumber) ? trim($quoteNumber) : null,
+                'is_taxable' => $product->is_taxable,
+                'is_custom' => true,
+                'status' => CustomerOrderLineStatus::OnOrder,
+            ]);
+
+            $this->syncSupplierLine($line);
+            $this->recalculateBalance();
+            $this->refreshStatusFromLines();
+
+            return $line;
+        });
+    }
+
+    /**
+     * Modifie un article sur mesure tant qu'il n'est pas commandé au fournisseur (la ligne fournisseur suit :
+     * quantité, coût soumis, spécifications); la note se modifie en tout temps.
+     *
+     * @throws DomainException si l'article est déjà commandé ou si une information manque.
+     */
+    public function updateCustomLine(CustomerOrderLine $line, int $quantity, string $specifications, float $unitCost, float $unitPrice, ?string $quoteNumber, ?string $note): void
+    {
+        DB::transaction(function () use ($line, $quantity, $specifications, $unitCost, $unitPrice, $quoteNumber, $note): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if (! $line->is_custom) {
+                throw new DomainException(__('Cette ligne n\'est pas un article sur mesure.'));
+            }
+
+            $quoteNumber = filled($quoteNumber) ? trim($quoteNumber) : null;
+            $changesSale = $quantity !== $line->quantity
+                || trim($specifications) !== (string) $line->description
+                || round($unitCost, 2) !== round((float) $line->unit_cost, 2)
+                || round($unitPrice, 2) !== round($line->unit_price, 2)
+                || $quoteNumber !== $line->quote_number;
+
+            if ($changesSale) {
+                if ($line->status !== CustomerOrderLineStatus::OnOrder || $line->quantity_reserved > 0) {
+                    throw new DomainException(__('Cet article sur mesure est déjà commandé : seule la note peut changer.'));
+                }
+
+                $this->guardCustomSale($quantity, $specifications, $unitCost, $unitPrice);
+
+                $line->update([
+                    'quantity' => $quantity,
+                    'quantity_on_order' => $quantity,
+                    'description' => Str::limit(trim($specifications), 255, ''),
+                    'unit_cost' => round($unitCost, 2),
+                    'unit_price' => round($unitPrice, 2),
+                    'quote_number' => $quoteNumber,
+                ]);
+
+                $this->syncSupplierLine($line);
+            }
+
+            $line->update(['note' => filled($note) ? $note : null]);
+
+            $this->recalculateBalance();
+        });
+    }
+
+    private function guardCustomSale(int $quantity, string $specifications, float $unitCost, float $unitPrice): void
+    {
+        if ($quantity < 1) {
+            throw new DomainException(__('La quantité doit être d\'au moins 1.'));
+        }
+
+        if (blank($specifications)) {
+            throw new DomainException(__('Indiquez les spécifications de l\'article sur mesure.'));
+        }
+
+        if ($unitCost < 0 || $unitPrice < 0) {
+            throw new DomainException(__('Le coût soumis et le prix vendant ne peuvent pas être négatifs.'));
+        }
+    }
+
+    /**
+     * Description transmise au fournisseur pour un article sur mesure : spécifications et numéro de soumission.
+     */
+    private function customSpecifications(CustomerOrderLine $line): string
+    {
+        return Str::limit(trim((string) $line->description).(filled($line->quote_number) ? ' (soumission '.$line->quote_number.')' : ''), 255, '');
     }
 
     /**
@@ -1240,14 +1364,12 @@ class CustomerOrder extends Model
                 $line->update(['quantity' => $line->quantity - $quantity]);
 
                 $returnedLine = $this->lines()->create([
+                    ...$line->saleAttributes(),
                     ...$returned,
-                    'product_id' => $line->product_id,
                     'customer_order_pickup_id' => $line->customer_order_pickup_id,
                     'quantity' => $quantity,
                     'quantity_reserved' => 0,
                     'quantity_on_order' => 0,
-                    'unit_price' => $line->unit_price,
-                    'note' => $line->note,
                     'delivered_at' => $line->delivered_at,
                 ]);
             }
@@ -1263,7 +1385,14 @@ class CustomerOrder extends Model
             ]);
 
             if ($replace) {
-                $this->addProduct($line->product, $quantity, $line->unit_price, __('Remplacement du produit défectueux (dossier #:id).', ['id' => $defective->id]));
+                $note = __('Remplacement du produit défectueux (dossier #:id).', ['id' => $defective->id]);
+
+                if ($line->is_custom) {
+                    $replacement = $this->addCustomProduct($line->product, $quantity, (string) $line->description, (float) $line->unit_cost, $line->unit_price, $line->quote_number);
+                    $replacement->update(['note' => $note]);
+                } else {
+                    $this->addProduct($line->product, $quantity, $line->unit_price, $note);
+                }
             } else {
                 $this->recordPayments($refunds, CustomerPaymentType::Refund);
             }
@@ -1460,10 +1589,8 @@ class CustomerOrder extends Model
         ]);
 
         $this->lines()->create([
+            ...$line->saleAttributes(),
             ...$pickedUp,
-            'product_id' => $line->product_id,
-            'unit_price' => $line->unit_price,
-            'note' => $line->note,
         ]);
     }
 

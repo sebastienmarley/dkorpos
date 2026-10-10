@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-10 (139 migrations, 49 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-10 (141 migrations, 49 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 139 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
+les 141 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -110,6 +110,9 @@ erDiagram
 - Une ligne vend **soit** un produit (`product_id`), **soit** un service (`service_id`, avec le
   fournisseur qui le rend dans `supplier_id`, vide pour un service interne, et la `description` précise
   de la vente). Les deux clés sont `nullable`.
+- Un article **sur mesure** (`is_custom`) vend un produit gabarit avec ses spécifications
+  (`description`), le coût soumis par le fournisseur (`unit_cost`) et son numéro de soumission
+  (`quote_number`); il est toujours commandé, jamais pris en stock.
 - `unit_price`, `cancellation_fee` et `is_taxable` sont figés sur la ligne au moment de la vente
   ([ADR 0004](adr/0004-cancellation-fee.md)).
 - `customer_order_taxes` : taxes copiées sur la commande à sa création (nom, taux, cascade, numéro
@@ -180,7 +183,10 @@ erDiagram
         string description "nullable"
         int quantity
         decimal unit_price "10,2"
+        decimal unit_cost "10,2 · nullable"
+        string quote_number "nullable"
         bool is_taxable
+        bool is_custom
         text note "nullable"
         string status "CustomerOrderLineStatus"
         datetime delivered_at "nullable"
@@ -494,7 +500,8 @@ erDiagram
 ## Catalogue, services et listes de prix
 
 - Un produit appartient à un fournisseur (`cascade`) et se classe par département, catégorie et
-  couleur. `is_taxable` indique s'il est assujetti aux taxes de vente.
+  couleur. `is_taxable` indique s'il est assujetti aux taxes de vente; `is_custom` en fait un gabarit
+  de produit sur mesure.
 - Un service (`services`) est **interne** (`is_internal`, rendu par le magasin au `selling_price` du
   service) ou **externe** : offert par un ou plusieurs fournisseurs de service ou d'expédition, chacun
   avec son coût et son prix vendant (`service_supplier`, une offre par paire). `description_template`
@@ -538,6 +545,7 @@ erDiagram
         decimal imap "10,2 · nullable"
         string supplier_clean_model "nullable"
         bool is_taxable
+        bool is_custom
         datetime created_at
         datetime updated_at
     }
@@ -869,6 +877,7 @@ erDiagram
         int sick_days_full_time "nullable"
         int sick_days_part_time "nullable"
         decimal cancellation_fee_percent "5,2"
+        decimal custom_deposit_percent "5,2"
         datetime created_at
         datetime updated_at
     }

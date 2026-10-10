@@ -34,6 +34,7 @@ $pageAccess = [
 
 $managementAccess = [
     'customer_orders.assign_salespeople',
+    'customer_orders.return_custom',
     'services.view',
     'services.create',
     'services.edit',
@@ -106,6 +107,7 @@ return [
         'customer_orders.view' => ['Voir — commandes clients', 'Accéder à la page : commandes clients.'],
         'customer_orders.create' => ['Créer — commandes clients', 'Créer dans : commandes clients.'],
         'customer_orders.edit' => ['Modifier — commandes clients', 'Modifier dans : commandes clients (client, produits).'],
+        'customer_orders.return_custom' => ['Autoriser un retour sur mesure — commandes clients', 'Reprendre en retour (échange ou remboursement) un article fabriqué sur mesure.'],
         'customer_orders.assign_salespeople' => ['Gérer les vendeurs — commandes clients', 'Modifier les vendeurs et la répartition de la vente dans : commandes clients.'],
         'suppliers.view' => ['Voir — fournisseurs', 'Accéder à la page : fournisseurs.'],
         'suppliers.create' => ['Créer — fournisseurs', 'Créer dans : fournisseurs.'],

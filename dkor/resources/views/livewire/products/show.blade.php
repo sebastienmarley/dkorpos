@@ -126,6 +126,8 @@
                         <flux:error name="isNonOrderable" />
                         <flux:checkbox wire:model="isTaxable" :label="__('Taxable (TPS/TVQ)')" class="mt-2" />
                         <flux:error name="isTaxable" />
+                        <flux:checkbox wire:model="isCustom" :label="__('Sur mesure')" :description="__('Gabarit : chaque vente saisit ses spécifications, le coût soumis et le prix.')" class="mt-2" />
+                        <flux:error name="isCustom" />
                     </flux:field>
                 </div>
 

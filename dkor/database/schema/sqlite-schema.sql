@@ -172,6 +172,7 @@ CREATE TABLE "products"(
   "imap" numeric,
   "supplier_clean_model" varchar,
   "is_taxable" tinyint(1) not null default '1',
+  "is_custom" tinyint(1) not null default '0',
   foreign key("supplier_id") references suppliers("id") on delete cascade on update no action,
   foreign key("department_id") references "departments"("id") on delete set null,
   foreign key("category_id") references "categories"("id") on delete set null,
@@ -564,6 +565,7 @@ CREATE TABLE "stores"(
   "sick_days_part_time" integer,
   "cancellation_fee_percent" numeric not null default '0',
   "province" varchar not null default 'QC',
+  "custom_deposit_percent" numeric not null default '50',
   foreign key("warehouse_store_id") references stores("id") on delete set null on update no action,
   foreign key("shipping_warehouse_id") references "stores"("id") on delete set null
 );
@@ -905,6 +907,9 @@ CREATE TABLE "customer_order_lines"(
   "supplier_id" integer,
   "description" varchar,
   "is_taxable" tinyint(1) not null default '1',
+  "is_custom" tinyint(1) not null default '0',
+  "unit_cost" numeric,
+  "quote_number" varchar,
   foreign key("customer_order_pickup_id") references customer_order_pickups("id") on delete set null on update no action,
   foreign key("product_id") references products("id") on delete restrict on update no action,
   foreign key("customer_order_id") references customer_orders("id") on delete cascade on update no action,
@@ -1055,3 +1060,5 @@ INSERT INTO migrations VALUES(136,'2026_10_10_202304_create_service_supplier_tab
 INSERT INTO migrations VALUES(137,'2026_10_10_202305_add_is_taxable_to_products_table',4);
 INSERT INTO migrations VALUES(138,'2026_10_10_202306_add_service_columns_to_customer_order_lines_table',4);
 INSERT INTO migrations VALUES(139,'2026_10_10_202307_add_service_permissions',4);
+INSERT INTO migrations VALUES(140,'2026_10_10_210942_add_custom_products',5);
+INSERT INTO migrations VALUES(141,'2026_10_10_210943_add_customer_order_return_custom_permission',5);

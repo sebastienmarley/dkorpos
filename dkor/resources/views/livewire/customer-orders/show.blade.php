@@ -99,6 +99,10 @@
                                 @else
                                     {{ $line->product->model }}
                                     <span class="font-normal text-zinc-500">#{{ $line->product_id }}</span>
+                                    @if ($line->is_custom)
+                                        <flux:badge size="sm" color="purple" class="ms-1">{{ __('Sur mesure') }}</flux:badge>
+                                        <div class="max-w-xs truncate text-xs font-normal text-zinc-500">{{ $line->description }}</div>
+                                    @endif
                                 @endif
                                 @unless ($line->is_taxable)
                                     <div class="text-xs font-normal text-zinc-400">{{ __('Non taxable') }}</div>
@@ -298,6 +302,9 @@
                                         <span class="font-medium text-zinc-900 dark:text-white">{{ $result->model }}</span>
                                         <span class="text-zinc-500"> · {{ $result->supplier->name }} · #{{ $result->id }}</span>
                                     </span>
+                                    @if ($result->is_custom)
+                                        <flux:badge size="sm" color="purple">{{ __('Sur mesure') }}</flux:badge>
+                                    @endif
                                 </button>
                             @empty
                                 <div class="px-3 py-2 text-sm text-zinc-400">{{ __('Aucun produit trouvé.') }}</div>
@@ -375,6 +382,39 @@
                             <flux:button type="button" size="sm" icon="check-circle" wire:click="completeService({{ $editingLine->id }})">{{ __('Marquer complété') }}</flux:button>
                         </div>
                     @endif
+                    @elseif ($editingLine->is_custom)
+                    @php($customEditable = $editingLine->status === \App\Enums\CustomerOrderLineStatus::OnOrder && $editingLine->quantity_reserved === 0)
+                    <flux:field>
+                        <flux:label>{{ __('Spécifications') }}</flux:label>
+                        <flux:textarea wire:model="editDescription" rows="2" :disabled="! $customEditable" />
+                        <flux:error name="editDescription" />
+                    </flux:field>
+
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <flux:field>
+                            <flux:label>{{ __('Quantité') }}</flux:label>
+                            <flux:input wire:model="editQuantity" type="number" min="1" :disabled="! $customEditable" />
+                            <flux:error name="editQuantity" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('No de soumission') }}</flux:label>
+                            <flux:input wire:model="editQuoteNumber" :disabled="! $customEditable" />
+                            <flux:error name="editQuoteNumber" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Coût soumis') }}</flux:label>
+                            <flux:input wire:model="editUnitCost" inputmode="decimal" :disabled="! $customEditable" />
+                            <flux:error name="editUnitCost" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Prix vendant') }}</flux:label>
+                            <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $customEditable" />
+                            <flux:error name="editUnitPrice" />
+                        </flux:field>
+                    </div>
                     @else
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>
@@ -451,7 +491,11 @@
                         <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                             <flux:text class="mb-2 text-sm font-medium">{{ __('Le client rapporte cet article ?') }}</flux:text>
                             <div class="flex gap-2">
-                                <flux:button type="button" size="sm" icon="arrow-uturn-left" wire:click="openReturnModal({{ $editingLine->id }})">{{ __('Retour') }}</flux:button>
+                                @if (! $editingLine->is_custom || auth()->user()->can('customer_orders.return_custom'))
+                                    <flux:button type="button" size="sm" icon="arrow-uturn-left" wire:click="openReturnModal({{ $editingLine->id }})">{{ __('Retour') }}</flux:button>
+                                @else
+                                    <flux:button type="button" size="sm" icon="lock-closed" disabled :title="__('Article sur mesure : retour sur autorisation d\'un gestionnaire')">{{ __('Retour (autorisation requise)') }}</flux:button>
+                                @endif
                                 <flux:button type="button" size="sm" icon="wrench-screwdriver" wire:click="openDefectiveModal({{ $editingLine->id }})">{{ __('Défectueux') }}</flux:button>
                             </div>
                         </div>
@@ -537,6 +581,55 @@
                         </div>
                     </form>
                 @endif
+            @endif
+        </flux:modal>
+    @endcan
+
+    {{-- Article sur mesure --}}
+    @can('customer_orders.edit')
+        <flux:modal wire:model="showCustomModal" class="w-full max-w-lg">
+            @if ($customProduct)
+                <flux:heading class="mb-1">{{ __('Article sur mesure') }} — {{ $customProduct->model }}</flux:heading>
+                <flux:text class="text-zinc-500">{{ __('Commandé chez :supplier selon sa soumission; jamais pris en stock.', ['supplier' => $customProduct->supplier->name]) }}</flux:text>
+
+                <form wire:submit="addCustom" class="mt-6 space-y-4">
+                    <flux:field>
+                        <flux:label>{{ __('Spécifications') }}</flux:label>
+                        <flux:textarea wire:model="customSpecifications" rows="3" :placeholder="__('Dimensions, tissu, couleur, options…')" />
+                        <flux:error name="customSpecifications" />
+                    </flux:field>
+
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <flux:field>
+                            <flux:label>{{ __('Quantité') }}</flux:label>
+                            <flux:input wire:model="customQuantity" type="number" min="1" />
+                            <flux:error name="customQuantity" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('No de soumission (optionnel)') }}</flux:label>
+                            <flux:input wire:model="customQuoteNumber" />
+                            <flux:error name="customQuoteNumber" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Coût soumis') }}</flux:label>
+                            <flux:input wire:model="customCost" inputmode="decimal" />
+                            <flux:error name="customCost" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Prix vendant') }}</flux:label>
+                            <flux:input wire:model="customPrice" inputmode="decimal" />
+                            <flux:error name="customPrice" />
+                        </flux:field>
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-2">
+                        <flux:button type="button" variant="ghost" wire:click="$set('showCustomModal', false)">{{ __('Annuler') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Ajouter et commander') }}</flux:button>
+                    </div>
+                </form>
             @endif
         </flux:modal>
     @endcan

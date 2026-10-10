@@ -20,6 +20,9 @@ use Illuminate\Support\Carbon;
  * @property int|null $supplier_id
  * @property string|null $description
  * @property bool $is_taxable
+ * @property bool $is_custom
+ * @property float|null $unit_cost Coût soumis par le fournisseur (article sur mesure).
+ * @property string|null $quote_number Numéro de soumission du fournisseur (article sur mesure).
  * @property int|null $supplier_order_line_id
  * @property int|null $customer_order_pickup_id
  * @property int $quantity
@@ -43,7 +46,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, DefectiveProduct> $defectiveProducts
  * @property-read float $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'is_taxable', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
+#[Fillable(['customer_order_id', 'product_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
@@ -53,6 +56,7 @@ class CustomerOrderLine extends Model
         'quantity_reserved' => 0,
         'quantity_on_order' => 0,
         'is_taxable' => true,
+        'is_custom' => false,
     ];
 
     protected $casts = [
@@ -61,6 +65,8 @@ class CustomerOrderLine extends Model
         'quantity_on_order' => 'integer',
         'unit_price' => 'float',
         'is_taxable' => 'boolean',
+        'is_custom' => 'boolean',
+        'unit_cost' => 'float',
         'cancellation_fee' => 'float',
         'status' => CustomerOrderLineStatus::class,
         'delivered_at' => 'datetime',
@@ -93,6 +99,28 @@ class CustomerOrderLine extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * Caractéristiques de la vente à recopier sur une ligne séparée de celle-ci (ramassage, retour, annulation,
+     * recommande…) : ce qui est vendu, sa description, son prix, son coût soumis et sa taxabilité.
+     *
+     * @return array<string, mixed>
+     */
+    public function saleAttributes(): array
+    {
+        return [
+            'product_id' => $this->product_id,
+            'service_id' => $this->service_id,
+            'supplier_id' => $this->supplier_id,
+            'description' => $this->description,
+            'unit_price' => $this->unit_price,
+            'unit_cost' => $this->unit_cost,
+            'quote_number' => $this->quote_number,
+            'is_taxable' => $this->is_taxable,
+            'is_custom' => $this->is_custom,
+            'note' => $this->note,
+        ];
     }
 
     public function isService(): bool
