@@ -11,6 +11,7 @@ use App\Models\ReceptionLine;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 
@@ -162,6 +163,15 @@ it('ne laisse ni modifier ni supprimer le journal', function () {
 
     expect(fn () => $movement->update(['quantity' => 99]))->toThrow(LogicException::class)
         ->and(fn () => $movement->delete())->toThrow(LogicException::class);
+});
+
+it('refuse de supprimer un produit qui a un journal, sans effacer ses mouvements', function () {
+    $movement = InventoryMovement::factory()->create();
+
+    expect(fn () => $movement->product->delete())->toThrow(QueryException::class);
+
+    $this->assertModelExists($movement->product);
+    $this->assertModelExists($movement);
 });
 
 it('refuse un renversement de réception si le stock n\'est plus « en stock »', function () {

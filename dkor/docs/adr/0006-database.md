@@ -80,7 +80,7 @@ Toujours `foreignId()->constrained()`. La règle de suppression dépend du sens 
 
 | Règle | Quand | Exemples |
 |---|---|---|
-| `restrictOnDelete()` | L'enfant est un document de valeur : on ne supprime pas le parent tant qu'il existe | commandes client ← client, paiements ← commande, lignes de facture ← ligne de réception |
+| `restrictOnDelete()` | L'enfant est un document de valeur : on ne supprime pas le parent tant qu'il existe | commandes client ← client, paiements ← commande, lignes de facture ← ligne de réception, mouvements d'inventaire ← produit |
 | `nullOnDelete()` | Simple référence optionnelle : l'historique survit au parent | `customer_orders.store_id`, auteur d'un mouvement (`user_id`) |
 | `cascadeOnDelete()` | L'enfant n'a aucun sens sans son parent | lignes d'une semaine type, UPC d'un produit, horaires d'un employé |
 
@@ -103,6 +103,8 @@ ligne au moment de la transaction (`unit_price`, `cancellation_fee`). Voir
 - `inventory_movements` : chaque passage d'un état à un autre, avec sa source (`reference`
   polymorphe) et son auteur. Pas de colonne `updated_at` ; le modèle lance une `LogicException` à
   toute tentative de modification ou de suppression.
+- `inventory_movements.product_id` est en `restrictOnDelete()`. Une cascade faite par la base
+  contournerait la protection du modèle : un produit qui a un journal ne peut donc pas être supprimé.
 
 **Recherche**
 
@@ -137,16 +139,14 @@ que de dépendre d'une collation propre à un moteur.
 - **Concurrence :** en SQLite, `lockForUpdate()` n'a aucun effet. Les transactions restent sûres
   parce que la base n'accepte qu'un écrivain à la fois, mais les verrous par ligne ne serviront qu'en
   passant à MySQL ou PostgreSQL.
-- **Cascade et journal :** `inventory_movements.product_id` est en `cascadeOnDelete()`. Une
-  suppression faite par la base ne déclenche pas les événements Eloquent : supprimer un produit
-  effacerait donc son journal, malgré la protection du modèle.
 - **Références polymorphes :** sans `morphMap`, `reference_type` stocke le nom complet de la classe
   (`App\Models\Reception`). Renommer un modèle briserait les mouvements existants.
 
 **Protections mises en place**
 
 - Contraintes de clés étrangères actives, avec des règles de suppression choisies une par une.
-- Journal d'inventaire non modifiable au niveau du modèle.
+- Journal d'inventaire non modifiable : au niveau du modèle (`LogicException`) et au niveau de la
+  base (`restrictOnDelete()` sur le produit).
 - Désactivation plutôt que suppression pour les entités référencées par l'historique.
 
 ## Questions ouvertes
@@ -154,8 +154,6 @@ que de dépendre d'une collation propre à un moteur.
 - **Moteur de production :** SQLite (fichier unique, sauvegarde simple) ou MySQL / PostgreSQL
   (plusieurs postes de caisse qui écrivent en même temps) ? À décider avant le déploiement, dans un
   ADR distinct.
-- **`inventory_movements.product_id`** : passer à `restrictOnDelete()` pour que le journal soit
-  vraiment intouchable ?
 - **`Relation::enforceMorphMap()`** pour découpler le journal des noms de classes.
 - **Montants en cents (`integer`)** plutôt qu'en décimal, pour une précision exacte quel que soit
   le moteur ?
