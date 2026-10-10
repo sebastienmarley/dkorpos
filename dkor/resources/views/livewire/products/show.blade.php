@@ -53,6 +53,15 @@
                 :class="tab === 'photos' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                 class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
             >{{ __('Photos') }}</button>
+
+            @can('parts.view')
+                <button
+                    type="button"
+                    @click="tab = 'parts'"
+                    :class="tab === 'parts' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
+                    class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                >{{ __('Pièces') }} ({{ $parts->count() }})</button>
+            @endcan
         </div>
 
         {{-- Général --}}
@@ -237,6 +246,26 @@
                 </form>
             @endcan
         </div>
+
+        {{-- Pièces --}}
+        @can('parts.view')
+            <div x-show="tab === 'parts'" x-cloak class="mt-6 max-w-2xl">
+                <div class="divide-y divide-zinc-200 overflow-hidden rounded-lg border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
+                    @forelse ($parts as $part)
+                        <div wire:key="part-{{ $part->id }}" class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                            <span class="min-w-0">
+                                <flux:link :href="route('parts.show', $part)" wire:navigate class="font-medium">{{ $part->model }}</flux:link>
+                                <span class="text-zinc-500"> · {{ $part->description }}</span>
+                                <span class="block text-xs text-zinc-400">{{ $part->supplier->name }}</span>
+                            </span>
+                            <span class="flex-shrink-0 text-zinc-500">{{ number_format($part->last_cost, 2) }} $</span>
+                        </div>
+                    @empty
+                        <div class="px-3 py-2 text-sm text-zinc-400">{{ __('Aucune pièce liée à ce produit.') }}</div>
+                    @endforelse
+                </div>
+            </div>
+        @endcan
 
         {{-- Photos --}}
         <div x-show="tab === 'photos'" x-cloak>

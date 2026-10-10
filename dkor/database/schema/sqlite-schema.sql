@@ -920,6 +920,30 @@ CREATE TABLE "customer_order_lines"(
 CREATE INDEX "customer_order_lines_status_index" on "customer_order_lines"(
   "status"
 );
+CREATE TABLE "parts"(
+  "id" integer primary key autoincrement not null,
+  "supplier_id" integer not null,
+  "model" varchar not null,
+  "clean_model" varchar not null,
+  "description" varchar not null,
+  "last_cost" numeric not null default '0',
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("supplier_id") references "suppliers"("id") on delete cascade
+);
+CREATE UNIQUE INDEX "parts_supplier_id_clean_model_unique" on "parts"(
+  "supplier_id",
+  "clean_model"
+);
+CREATE TABLE "part_product"(
+  "part_id" integer not null,
+  "product_id" integer not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("part_id") references "parts"("id") on delete cascade,
+  foreign key("product_id") references "products"("id") on delete cascade,
+  primary key("part_id", "product_id")
+);
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1062,3 +1086,5 @@ INSERT INTO migrations VALUES(138,'2026_10_10_202306_add_service_columns_to_cust
 INSERT INTO migrations VALUES(139,'2026_10_10_202307_add_service_permissions',4);
 INSERT INTO migrations VALUES(140,'2026_10_10_210942_add_custom_products',5);
 INSERT INTO migrations VALUES(141,'2026_10_10_210943_add_customer_order_return_custom_permission',5);
+INSERT INTO migrations VALUES(142,'2026_10_10_223128_create_parts_table',6);
+INSERT INTO migrations VALUES(143,'2026_10_10_223129_create_part_product_table',6);

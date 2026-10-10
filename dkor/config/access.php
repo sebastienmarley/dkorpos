@@ -24,6 +24,8 @@ $pageAccess = [
     'services.view',
     'products.view',
     'products.create',
+    'parts.view',
+    'parts.create',
     'inventory.view',
     'schedules.view',
     'appointments.view',
@@ -38,6 +40,7 @@ $managementAccess = [
     'services.view',
     'services.create',
     'services.edit',
+    'parts.edit',
 ];
 
 $warehouseAccess = [
@@ -115,6 +118,9 @@ return [
         'products.view' => ['Voir — produits', 'Accéder à la page : produits.'],
         'products.create' => ['Créer — produits', 'Créer dans : produits.'],
         'products.edit' => ['Modifier — produits', 'Modifier dans : produits.'],
+        'parts.view' => ['Voir — pièces', 'Accéder à la page : pièces de remplacement.'],
+        'parts.create' => ['Créer — pièces', 'Créer dans : pièces de remplacement.'],
+        'parts.edit' => ['Modifier — pièces', 'Modifier dans : pièces de remplacement (fiche, produits liés).'],
         'supplier_orders.view' => ['Voir — commandes fournisseurs', 'Accéder à la page : commandes fournisseurs.'],
         'supplier_orders.create' => ['Créer — commandes fournisseurs', 'Créer dans : commandes fournisseurs.'],
         'supplier_orders.edit' => ['Modifier — commandes fournisseurs', 'Modifier dans : commandes fournisseurs (lignes, envoi, réception, facture, annulation).'],

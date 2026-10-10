@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
@@ -124,6 +125,12 @@ class Product extends Model
     public function upcs(): HasMany
     {
         return $this->hasMany(ProductUpc::class);
+    }
+
+    /** @return BelongsToMany<Part, $this> */
+    public function parts(): BelongsToMany
+    {
+        return $this->belongsToMany(Part::class)->withTimestamps();
     }
 
     /** @return HasOne<InventoryStock, $this> */

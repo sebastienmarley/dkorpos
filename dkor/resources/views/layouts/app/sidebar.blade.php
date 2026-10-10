@@ -108,11 +108,16 @@
                     </flux:sidebar.item>
                 @endcan
 
-                @canany(['products.view', 'services.view', 'departments.view', 'categories.view', 'colors.view', 'price_lists.view'])
-                <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('catalog.*')">
+                @canany(['products.view', 'parts.view', 'services.view', 'departments.view', 'categories.view', 'colors.view', 'price_lists.view'])
+                <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('parts.*') || request()->routeIs('catalog.*')">
                     @can('products.view')
                         <flux:sidebar.item icon="cube" :href="route('products.index')" :current="request()->routeIs('products.*')" wire:navigate>
                             {{ __('Produits') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('parts.view')
+                        <flux:sidebar.item icon="puzzle-piece" :href="route('parts.index')" :current="request()->routeIs('parts.*')" wire:navigate>
+                            {{ __('Pièces') }}
                         </flux:sidebar.item>
                     @endcan
                     @can('services.view')

@@ -236,7 +236,10 @@ class Show extends Component
     public function render(): View
     {
         return view('livewire.products.show', [
-            'supplierModelLocked' => $this->product->isInPriceList(), 'upcs' => $this->product->upcs()->orderBy('id')->get()])
+            'supplierModelLocked' => $this->product->isInPriceList(),
+            'upcs' => $this->product->upcs()->orderBy('id')->get(),
+            'parts' => $this->product->parts()->with('supplier')->orderBy('model')->get(),
+        ])
             ->layout('layouts.app', ['title' => $this->product->model]);
     }
 }

@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-10 (141 migrations, 49 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-10 (143 migrations, 51 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 141 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
+les 143 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -97,6 +97,9 @@ erDiagram
     shift_templates ||--o{ week_template_entries : ""
     week_templates ||--o{ week_template_entries : ""
     customers |o--o{ appointments : ""
+    suppliers ||--o{ parts : ""
+    products ||--o{ part_product : ""
+    parts ||--o{ part_product : ""
 ```
 
 ## Clients et ventes
@@ -502,6 +505,10 @@ erDiagram
 - Un produit appartient à un fournisseur (`cascade`) et se classe par département, catégorie et
   couleur. `is_taxable` indique s'il est assujetti aux taxes de vente; `is_custom` en fait un gabarit
   de produit sur mesure.
+- Une pièce de remplacement (`parts`) est commandée pour un client et n'est pas inventoriée. Elle est
+  unique chez son fournisseur par son modèle nettoyé (`supplier_id`, `clean_model`), la même
+  normalisation que les produits. `part_product` la relie aux produits qu'elle répare (ex. : les verres
+  d'une même famille de lampes).
 - Un service (`services`) est **interne** (`is_internal`, rendu par le magasin au `selling_price` du
   service) ou **externe** : offert par un ou plusieurs fournisseurs de service ou d'expédition, chacun
   avec son coût et son prix vendant (`service_supplier`, une offre par paire). `description_template`
@@ -524,6 +531,9 @@ erDiagram
     price_lists ||--o{ price_list_lists : "price_list_id · cascade"
     products |o--o{ price_list_items : "product_id · null"
     price_list_lists ||--o{ price_list_items : "price_list_list_id · cascade"
+    suppliers ||--o{ parts : "supplier_id · cascade"
+    products ||--o{ part_product : "product_id · cascade"
+    parts ||--o{ part_product : "part_id · cascade"
     products {
         int id PK
         int color_id FK "nullable"
@@ -546,6 +556,22 @@ erDiagram
         string supplier_clean_model "nullable"
         bool is_taxable
         bool is_custom
+        datetime created_at
+        datetime updated_at
+    }
+    parts {
+        int id PK
+        int supplier_id FK
+        string model
+        string clean_model
+        string description
+        decimal last_cost "10,2"
+        datetime created_at
+        datetime updated_at
+    }
+    part_product {
+        int part_id PK, FK
+        int product_id PK, FK
         datetime created_at
         datetime updated_at
     }

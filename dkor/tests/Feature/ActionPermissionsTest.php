@@ -10,6 +10,8 @@ use App\Livewire\CustomerForm;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
 use App\Livewire\Orders\Show as SupplierOrderShow;
+use App\Livewire\PartPicker;
+use App\Livewire\Parts\Show as PartShow;
 use App\Livewire\ProductForm;
 use App\Livewire\Products\Show as ProductShow;
 use App\Livewire\Receptions\Create as ReceptionCreate;
@@ -20,6 +22,7 @@ use App\Livewire\Schedules\Templates;
 use App\Livewire\SupplierForm;
 use App\Livewire\Suppliers\Show as SupplierShow;
 use App\Models\Currency;
+use App\Models\Part;
 use App\Models\Product;
 use App\Models\Reception;
 use App\Models\Role;
@@ -57,6 +60,10 @@ dataset('actions interdites', [
     'invoices.create (facture libre)' => [fn () => Livewire::test(InvoiceCreate::class)->call('save')],
     'products.create' => [fn () => Livewire::test(ProductForm::class)->call('openCreate')],
     'products.create (liste de prix)' => [fn () => Livewire::test(ProductForm::class)->call('selectFromPriceList', 1)],
+    'parts.create' => [fn () => Livewire::test(PartPicker::class)->call('startCreating')],
+    'parts.create (création)' => [fn () => Livewire::test(PartPicker::class)->call('create')],
+    'parts.edit' => [fn () => Livewire::test(PartShow::class, ['part' => Part::factory()->create()])->call('save')],
+    'parts.edit (lier un produit)' => [fn () => Livewire::test(PartShow::class, ['part' => Part::factory()->create()])->call('attachProduct', 1)],
     'departments.create' => [fn () => Livewire::test(Departments::class)->call('openCreate')],
     'categories.create' => [fn () => Livewire::test(Categories::class)->call('openCreate')],
     'colors.create' => [fn () => Livewire::test(Colors::class)->call('openCreate')],
@@ -98,7 +105,7 @@ it('autorise l\'action avec la permission directe', function () {
 
 it('accorde les permissions d\'actions aux rôles par défaut', function (string $permission) {
     expect(User::factory()->create()->can($permission))->toBeTrue();
-})->with(['customers.create', 'products.create', 'appointments.create']);
+})->with(['customers.create', 'products.create', 'parts.create', 'appointments.create']);
 
 it('accorde les permissions d\'actions au rôle comptabilité', function (string $permission) {
     expect(User::factory()->withRole('accounting')->create()->can($permission))->toBeTrue();
