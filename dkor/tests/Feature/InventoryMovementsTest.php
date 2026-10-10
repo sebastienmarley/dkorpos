@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 
 beforeEach(function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 });
 
 /** @return array<int, array{0: ?string, 1: ?string, 2: int, 3: string}> */

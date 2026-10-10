@@ -19,7 +19,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([PermissionSeeder::class, RoleSeeder::class, CurrencySeeder::class]);
+        $this->call([ReferenceDataSeeder::class, CurrencySeeder::class]);
 
         $store = Store::firstOrCreate(
             ['name' => 'Magasin principal'],

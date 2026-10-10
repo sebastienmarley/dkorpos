@@ -119,8 +119,21 @@ que de dépendre d'une collation propre à un moteur.
 
 **Données de départ**
 
-- Les seeders ne créent que les données de référence : permissions, rôles, devises.
+- **Les migrations ne contiennent que la structure.** Les données dont l'application a besoin
+  viennent de `ReferenceDataSeeder` : permissions et rôles par défaut (`config/access.php`, via
+  `PermissionSeeder` et `RoleSeeder`) et le mode de paiement « Comptant ». Ce seeder ne modifie rien
+  de ce qui existe déjà : il peut être relancé sans risque.
+- `DatabaseSeeder` ajoute les données de démo (magasin, usagers de test, fournisseurs, devises).
+- Les tests exécutent `ReferenceDataSeeder` après les migrations (`$seed` dans `tests/TestCase.php`).
 - Chaque modèle a une factory, utilisée par les tests.
+- Le dump `database/schema/sqlite-schema.sql` est tenu à jour avec `php artisan schema:dump`
+  (sans `--prune`). Laravel le charge avant les migrations.
+- **Installation neuve :** `php artisan migrate --seed` (ou
+  `php artisan db:seed --class=ReferenceDataSeeder` sans les données de démo).
+- **Nouvelle permission :** l'ajouter dans `config/access.php`, aux rôles qui y ont droit. Sur une base
+  existante, `RoleSeeder` n'accorde les permissions qu'à la création d'un rôle, et aucun `Gate::before`
+  ne donne tout aux administrateurs. Il faut donc accorder la permission dans l'interface, ou par une
+  migration qui l'accorde **seulement** aux rôles prévus dans `config/access.php`.
 
 ## Conséquences
 
@@ -157,17 +170,21 @@ que de dépendre d'une collation propre à un moteur.
 - **`Relation::enforceMorphMap()`** pour découpler le journal des noms de classes.
 - **Montants en cents (`integer`)** plutôt qu'en décimal, pour une précision exacte quel que soit
   le moteur ?
-- **Regrouper les migrations** (`php artisan schema:dump --prune`) avant la mise en production.
-  Obstacle actuel : plusieurs migrations insèrent des données (rôles et permissions, comme
-  `add_customer_order_permissions`). Un dump ne contient que la structure. Avec un dump à jour, ces
-  migrations sont considérées comme déjà exécutées et leurs données n'existent plus : tous les tests
-  échouent (`There is no role named salesman`). Il faudrait d'abord déplacer ces données dans les
-  seeders (`PermissionSeeder`, `RoleSeeder`). C'est pourquoi le dump `database/schema/sqlite-schema.sql`
-  est resté à la version du 26 septembre (7 migrations).
+- **Regrouper les migrations** (`php artisan schema:dump --prune`) avant la mise en production ?
+  C'est maintenant possible : les données de référence ne dépendent plus des migrations. Les
+  anciennes migrations de données (`add_*_permissions`…) sont restées en place, puisqu'une
+  migration partagée ne se modifie pas. Elles ne s'exécutent plus sur une installation neuve, car
+  le dump les marque comme déjà passées.
+- **Écart de permissions sur les bases existantes :** ces anciennes migrations accordaient chaque
+  nouvelle permission à **tous** les rôles. Une base migrée avant le 2026-10-10 donne donc plus
+  d'accès que `config/access.php` (ex. : un vendeur peut supprimer des factures et des commandes
+  fournisseurs). Faut-il réaligner les rôles existants sur la configuration ?
 
 ## Références
 
 - `.env` / `.env.example` (`DB_CONNECTION=sqlite`), `phpunit.xml` (`DB_DATABASE=:memory:`)
 - [Modèle de données](../data-model.md) : diagrammes entité-relation par domaine
+- `database/schema/sqlite-schema.sql` : dump SQL du schéma (`php artisan schema:dump`)
+- `database/seeders/ReferenceDataSeeder.php`, `config/access.php`
 - `database/migrations/`, `database/seeders/`, `database/factories/`
 - `app/Models/InventoryMovement.php`

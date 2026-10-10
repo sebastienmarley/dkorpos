@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 
 beforeEach(function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->withRole('admin')->create());
 });
 
 /**

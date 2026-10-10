@@ -1,10 +1,10 @@
 # Modèle de données
 
 Schéma de la base, généré le 2026-10-10 à partir d'une base migrée de zéro (129 migrations, 44 tables
-métier). La source exacte du schéma reste `database/migrations/`. Le dump
-`database/schema/sqlite-schema.sql` est périmé : il ne couvre que les 7 premières migrations (voir
-l'[ADR 0006](adr/0006-database.md)). Les conventions (montants, statuts, règles de suppression) sont
-expliquées dans ce même ADR.
+métier). La source exacte du schéma est le dump SQL
+[`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec les
+129 migrations. Les conventions (montants, statuts, règles de suppression, données de référence) sont
+expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
 
