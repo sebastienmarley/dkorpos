@@ -1,10 +1,14 @@
 <?php
 
+use App\Enums\CustomerOrderLineStatus;
 use App\Enums\SupplierType;
 use App\Livewire\PartPicker;
 use App\Livewire\Parts\Index;
 use App\Livewire\Parts\Show;
 use App\Livewire\Products\Show as ProductShow;
+use App\Models\customer;
+use App\Models\CustomerOrder;
+use App\Models\CustomerOrderLine;
 use App\Models\Part;
 use App\Models\Product;
 use App\Models\Supplier;
@@ -168,4 +172,89 @@ it('modifie la fiche d\'une pièce', function () {
         ->clean_model->toBe('pc12b')
         ->description->toBe('Verre givré')
         ->last_cost->toBe(7.25);
+});
+
+/**
+ * Pièce ajoutée à une nouvelle commande client (commandée sur le brouillon de son fournisseur).
+ *
+ * @param  array<string, mixed>  $part
+ * @param  array<string, mixed>  $customer
+ * @param  array<string, mixed>  $order
+ */
+function orderedPartLine(array $part = [], array $customer = [], array $order = []): CustomerOrderLine
+{
+    $customerOrder = CustomerOrder::factory()->create(['customer_id' => customer::factory()->create($customer)->id, ...$order]);
+
+    return $customerOrder->addPart(Part::factory()->create($part))->fresh();
+}
+
+describe('onglet Commandes fournisseur', function () {
+    it('affiche chaque pièce commandée avec son fournisseur, sa commande fournisseur, son client et son statut', function () {
+        $line = orderedPartLine(['model' => 'PC-12'], ['firstname' => 'Julie', 'lastname' => 'Tremblay']);
+
+        Livewire::test(Index::class)
+            ->set('tab', 'orders')
+            ->assertSee('PC-12')
+            ->assertSee($line->part->supplier->name)
+            ->assertSee($line->supplierOrderLine->order->number)
+            ->assertSee('Julie Tremblay')
+            ->assertSee(__('Commande client #:id', ['id' => $line->customer_order_id]))
+            ->assertSee(CustomerOrderLineStatus::OnOrder->label());
+    });
+
+    it('filtre par étape du suivi', function (string $stage, string $expected) {
+        orderedPartLine(['model' => 'PC-COMMANDEE'])->update(['status' => CustomerOrderLineStatus::Ordered]);
+        orderedPartLine(['model' => 'PC-RECUE'])->update(['status' => CustomerOrderLineStatus::Received]);
+        orderedPartLine(['model' => 'PC-REMISE'])->update(['status' => CustomerOrderLineStatus::PickedUp]);
+
+        $component = Livewire::test(Index::class)
+            ->set('tab', 'orders')
+            ->set('orderStage', $stage)
+            ->assertSee($expected);
+
+        foreach (array_diff(['PC-COMMANDEE', 'PC-RECUE', 'PC-REMISE'], [$expected]) as $other) {
+            $component->assertDontSee($other);
+        }
+    })->with([
+        'commandée' => ['ordered', 'PC-COMMANDEE'],
+        'reçue — à remettre' => ['received', 'PC-RECUE'],
+        'remise' => ['handed_over', 'PC-REMISE'],
+    ]);
+
+    it('cherche par modèle, description, client ou numéro de commande', function (string $term) {
+        $line = orderedPartLine(['model' => 'PC-12', 'description' => 'Verre de lampe'], ['firstname' => 'Julie', 'lastname' => 'Tremblay'], ['id' => 4242]);
+        $line->supplierOrderLine->order->update(['number' => 'CF-777777']);
+        orderedPartLine(['model' => 'ZX-99', 'description' => 'Pied de chaise'], ['firstname' => 'Marc', 'lastname' => 'Gagnon'], ['id' => 5151]);
+
+        Livewire::test(Index::class)
+            ->set('tab', 'orders')
+            ->set('orderSearch', $term)
+            ->assertSee('PC-12')
+            ->assertDontSee('ZX-99');
+    })->with([
+        'modèle' => 'pc 12',
+        'description' => 'verre',
+        'client' => 'tremblay',
+        'numéro de commande client' => '4242',
+        'numéro de commande fournisseur' => '777777',
+    ]);
+
+    it('mène aux pages de la commande fournisseur et de la commande client', function () {
+        $line = orderedPartLine();
+
+        Livewire::test(Index::class)
+            ->set('tab', 'orders')
+            ->assertSee(route('supplier-orders.show', $line->supplierOrderLine->order))
+            ->assertSee(route('customer-orders.show', $line->order));
+    });
+
+    it('affiche la commande fournisseur sans lien quand l\'usager ne peut pas la consulter', function () {
+        $line = orderedPartLine();
+        $this->actingAs(User::factory()->withRole('salesman')->create());
+
+        Livewire::test(Index::class)
+            ->set('tab', 'orders')
+            ->assertSee($line->supplierOrderLine->order->number)
+            ->assertDontSee(route('supplier-orders.show', $line->supplierOrderLine->order));
+    });
 });
