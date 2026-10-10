@@ -21,9 +21,11 @@ use App\Models\Role;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use Database\Seeders\TaxSeeder;
 use Livewire\Livewire;
 
 beforeEach(function () {
+    $this->seed(TaxSeeder::class);
     Role::create(['name' => 'visiteur', 'label' => 'Visiteur', 'level' => 0, 'guard_name' => 'web']);
     $this->user = User::factory()->withRole('visiteur')->create();
     $this->user->givePermissionTo(['customer_orders.view', 'customer_orders.create', 'customer_orders.edit', 'customers.view', 'customers.create']);

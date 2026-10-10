@@ -52,6 +52,17 @@
                     </flux:field>
                 </div>
 
+                <flux:field>
+                    <flux:label>{{ __('Province (taxes)') }}</flux:label>
+                    <flux:select wire:model="province">
+                        @foreach ($provinces as $provinceOption)
+                            <flux:select.option :value="$provinceOption->value">{{ $provinceOption->label() }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:description>{{ __('Les taxes de la province s\'appliquent aux ventes du magasin.') }}</flux:description>
+                    <flux:error name="province" />
+                </flux:field>
+
                 <div>
                     <flux:heading size="sm" class="mb-4">{{ __('Adresse') }}</flux:heading>
                     <x-address-input prefix="address" :current-country="$address['country'] ?? 'CA'" />
@@ -79,17 +90,17 @@
         <div x-show="tab === 'accounting'" x-cloak>
             <form wire:submit="saveAccounting" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
-                    <flux:field>
-                        <flux:label>{{ __('Numéro de TPS') }}</flux:label>
-                        <flux:input wire:model="gstNumber" type="text" />
-                        <flux:error name="gstNumber" />
-                    </flux:field>
-
-                    <flux:field>
-                        <flux:label>{{ __('Numéro de TVQ') }}</flux:label>
-                        <flux:input wire:model="qstNumber" type="text" />
-                        <flux:error name="qstNumber" />
-                    </flux:field>
+                    @forelse ($taxNumbers as $index => $taxNumber)
+                        <flux:field wire:key="tax-number-{{ $taxNumber['name'] }}">
+                            <flux:label>{{ __('Numéro de :tax', ['tax' => $taxNumber['name']]) }}</flux:label>
+                            <flux:input wire:model="taxNumbers.{{ $index }}.number" type="text" />
+                            <flux:error name="taxNumbers.{{ $index }}.number" />
+                        </flux:field>
+                    @empty
+                        <flux:text class="text-sm text-zinc-500 sm:col-span-2">
+                            {{ __('Aucune taxe en vigueur pour cette province. Ajoutez-les dans Comptabilité > Taxes.') }}
+                        </flux:text>
+                    @endforelse
 
                     <flux:field>
                         <flux:label>{{ __('Compte bancaire') }}</flux:label>

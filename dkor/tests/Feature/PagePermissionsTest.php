@@ -17,6 +17,7 @@ dataset('pages', [
     'catalog.categories' => ['catalog.categories', 'categories.view'],
     'catalog.colors' => ['catalog.colors', 'colors.view'],
     'catalog.price-lists' => ['catalog.price-lists', 'price_lists.view'],
+    'accounting.taxes' => ['accounting.taxes', 'taxes.view'],
     'accounting.currencies' => ['accounting.currencies', 'currencies.view'],
     'schedules.index' => ['schedules.index', 'schedules.view'],
     'schedules.schedule-edit' => ['schedules.schedule-edit', 'schedule_management.view'],

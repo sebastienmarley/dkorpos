@@ -6,6 +6,8 @@ use App\Concerns\SearchesCustomers;
 use App\Enums\CustomerOrderStatus;
 use App\Models\customer;
 use App\Models\CustomerOrder;
+use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
@@ -50,17 +52,23 @@ class Index extends Component
 
         $customer = customer::findOrFail($customerId);
 
-        $order = DB::transaction(function () use ($customer): CustomerOrder {
-            $order = CustomerOrder::create([
-                'customer_id' => $customer->id,
-                'store_id' => auth()->user()?->store_id,
-                'created_by' => auth()->id(),
-            ]);
+        try {
+            $order = DB::transaction(function () use ($customer): CustomerOrder {
+                $order = CustomerOrder::create([
+                    'customer_id' => $customer->id,
+                    'store_id' => auth()->user()?->store_id,
+                    'created_by' => auth()->id(),
+                ]);
 
-            $order->syncSalespeople([['user_id' => (int) auth()->id(), 'percent' => 100]]);
+                $order->syncSalespeople([['user_id' => (int) auth()->id(), 'percent' => 100]]);
 
-            return $order;
-        });
+                return $order;
+            });
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
 
         $this->redirectRoute('customer-orders.show', $order, navigate: true);
     }

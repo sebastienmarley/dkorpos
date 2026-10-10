@@ -30,8 +30,6 @@ use Illuminate\Support\Str;
  * @property int|null $store_id
  * @property CustomerOrderStatus $status
  * @property float $subtotal
- * @property float $gst
- * @property float $qst
  * @property float $total
  * @property float $amount_paid
  * @property float $balance_due
@@ -45,8 +43,9 @@ use Illuminate\Support\Str;
  * @property-read Collection<int, CustomerOrderLine> $lines
  * @property-read Collection<int, CustomerOrderPickup> $pickups
  * @property-read Collection<int, CustomerOrderPayment> $payments
+ * @property-read Collection<int, CustomerOrderTax> $taxLines
  */
-#[Fillable(['customer_id', 'store_id', 'status', 'subtotal', 'gst', 'qst', 'total', 'amount_paid', 'balance_due', 'created_by'])]
+#[Fillable(['customer_id', 'store_id', 'status', 'subtotal', 'total', 'amount_paid', 'balance_due', 'created_by'])]
 class CustomerOrder extends Model
 {
     /** @use HasFactory<CustomerOrderFactory> */
@@ -61,11 +60,14 @@ class CustomerOrder extends Model
         'status' => CustomerOrderStatus::class,
         'balance_due' => 'float',
         'subtotal' => 'float',
-        'gst' => 'float',
-        'qst' => 'float',
         'total' => 'float',
         'amount_paid' => 'float',
     ];
+
+    protected static function booted(): void
+    {
+        static::created(fn (CustomerOrder $order) => $order->freezeTaxes());
+    }
 
     /** @return BelongsTo<customer, $this> */
     public function customer(): BelongsTo
@@ -107,6 +109,59 @@ class CustomerOrder extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(CustomerOrderPayment::class);
+    }
+
+    /**
+     * Taxes figées de la commande, les individuelles avant celles en cascade.
+     *
+     * @return HasMany<CustomerOrderTax, $this>
+     */
+    public function taxLines(): HasMany
+    {
+        return $this->hasMany(CustomerOrderTax::class)->orderBy('is_compound')->orderBy('id');
+    }
+
+    /**
+     * Copie sur la commande les taxes en vigueur à sa date de création dans la province de son magasin, avec les
+     * numéros de taxe du marchand. Appelée une seule fois, à la création : les taux ne changent plus ensuite.
+     *
+     * @throws DomainException si la commande n'a pas de magasin ou si aucune taxe n'est en vigueur pour sa province.
+     */
+    public function freezeTaxes(): void
+    {
+        $store = $this->store;
+
+        if ($store === null) {
+            throw new DomainException(__('Votre utilisateur n\'a pas de magasin : une commande doit appartenir à un magasin pour connaître ses taxes.'));
+        }
+
+        $taxes = Tax::query()
+            ->activeOn($this->created_at ?? Carbon::today())
+            ->where('province', $store->province)
+            ->orderBy('start_date')
+            ->orderBy('id')
+            ->get();
+
+        if ($taxes->isEmpty()) {
+            throw new DomainException(__('Aucune taxe n\'est en vigueur pour la province du magasin « :store » (:province). Ajoutez-les dans Comptabilité > Taxes.', [
+                'store' => $store->name,
+                'province' => $store->province->label(),
+            ]));
+        }
+
+        $registrations = $store->taxRegistrations()->pluck('number', 'tax_name');
+
+        foreach ($taxes as $tax) {
+            $this->taxLines()->create([
+                'tax_id' => $tax->id,
+                'name' => $tax->name,
+                'rate' => $tax->rate,
+                'is_compound' => $tax->is_compound,
+                'registration_number' => $registrations[$tax->name] ?? null,
+            ]);
+        }
+
+        $this->unsetRelation('taxLines');
     }
 
     /** @return HasMany<CustomerOrderLine, $this> */
@@ -661,13 +716,15 @@ class CustomerOrder extends Model
             ->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable())
             ->sum(fn (CustomerOrderLine $line): float => $line->total)
             + $lines->sum(fn (CustomerOrderLine $line): float => (float) $line->cancellation_fee), 2);
-        $taxes = self::taxesFor($subtotal);
+        $taxes = $this->taxesFor($subtotal);
         $amountPaid = round((float) $this->payments()->sum('amount'), 2);
+
+        foreach ($this->taxLines as $taxLine) {
+            $taxLine->update(['amount' => $taxes['amounts'][$taxLine->id]]);
+        }
 
         $this->update([
             'subtotal' => $subtotal,
-            'gst' => $taxes['gst'],
-            'qst' => $taxes['qst'],
             'total' => $taxes['total'],
             'amount_paid' => $amountPaid,
             'balance_due' => round($taxes['total'] - $amountPaid, 2),
@@ -675,16 +732,26 @@ class CustomerOrder extends Model
     }
 
     /**
-     * TPS et TVQ calculées chacune sur le montant avant taxes, arrondies au cent.
+     * Taxes de la commande sur un montant avant taxes, arrondies au cent chacune. Les taxes individuelles se
+     * calculent sur le montant; celles en cascade sur le montant plus les taxes individuelles.
      *
-     * @return array{gst: float, qst: float, total: float}
+     * @return array{amounts: array<int, float>, total: float} montant par taxe (clé : id de la ligne de taxe) et montant taxes incluses
      */
-    public static function taxesFor(float $subtotal): array
+    public function taxesFor(float $amount): array
     {
-        $gst = round($subtotal * config('sales.taxes.gst') / 100, 2);
-        $qst = round($subtotal * config('sales.taxes.qst') / 100, 2);
+        $amounts = [];
+        $individual = 0.0;
 
-        return ['gst' => $gst, 'qst' => $qst, 'total' => round($subtotal + $gst + $qst, 2)];
+        foreach ($this->taxLines->sortBy('is_compound') as $taxLine) {
+            $base = $taxLine->is_compound ? $amount + $individual : $amount;
+            $amounts[$taxLine->id] = round($base * $taxLine->rate / 100, 2);
+
+            if (! $taxLine->is_compound) {
+                $individual += $amounts[$taxLine->id];
+            }
+        }
+
+        return ['amounts' => $amounts, 'total' => round($amount + array_sum($amounts), 2)];
     }
 
     /**
@@ -722,7 +789,7 @@ class CustomerOrder extends Model
 
         $this->refresh();
 
-        return max(0.0, min(self::taxesFor($returned)['total'], round($this->amount_paid - $required, 2)));
+        return max(0.0, min($this->taxesFor($returned)['total'], round($this->amount_paid - $required, 2)));
     }
 
     /**
@@ -739,8 +806,8 @@ class CustomerOrder extends Model
         $handedOver = round($lines->sum($handedOverValue), 2);
         $remaining = round($lines->sum(fn (CustomerOrderLine $line): float => $line->total) - $excludedValue - $handedOver, 2);
 
-        return self::taxesFor($handedOver)['total']
-            + self::taxesFor($remaining)['total'] * config('sales.deposit_percent') / 100;
+        return $this->taxesFor($handedOver)['total']
+            + $this->taxesFor($remaining)['total'] * config('sales.deposit_percent') / 100;
     }
 
     /**

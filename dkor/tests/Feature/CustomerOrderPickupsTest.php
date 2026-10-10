@@ -32,10 +32,10 @@ it('calcule la TPS et la TVQ sur les lignes facturables', function () {
 
     expect($this->order->fresh())
         ->subtotal->toBe(100.0)
-        ->gst->toBe(5.0)
-        ->qst->toBe(9.98)
         ->total->toBe(114.98)
         ->balance_due->toBe(114.98);
+
+    expect($this->order->taxLines->pluck('amount', 'name')->all())->toBe(['TPS' => 5.0, 'TVQ' => 9.98]);
 });
 
 it('exige 100 % des articles ramassés et 30 % de dépôt sur le reste, taxes incluses', function () {
