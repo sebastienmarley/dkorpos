@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $supplier_order_id
  * @property int|null $product_id
+ * @property int|null $part_id Pièce de remplacement commandée pour un client (non inventoriée).
  * @property string|null $description
  * @property int $quantity
  * @property float $unit_cost
@@ -28,12 +29,13 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read SupplierOrder $order
  * @property-read Product|null $product
+ * @property-read Part|null $part
  * @property-read CustomerOrderLine|null $customerOrderLine
  * @property-read float $total
  * @property-read int $quantity_outstanding
  * @property-read int $billable_quantity
  */
-#[Fillable(['supplier_order_id', 'product_id', 'description', 'quantity', 'unit_cost', 'quantity_received', 'status', 'cancellation_reason', 'cancellation_requested_at', 'cancelled_at', 'substituted_from_line_id'])]
+#[Fillable(['supplier_order_id', 'product_id', 'part_id', 'description', 'quantity', 'unit_cost', 'quantity_received', 'status', 'cancellation_reason', 'cancellation_requested_at', 'cancelled_at', 'substituted_from_line_id'])]
 class SupplierOrderLine extends Model
 {
     /** @use HasFactory<SupplierOrderLineFactory> */
@@ -75,6 +77,12 @@ class SupplierOrderLine extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /** @return BelongsTo<Part, $this> */
+    public function part(): BelongsTo
+    {
+        return $this->belongsTo(Part::class);
     }
 
     /**
@@ -119,10 +127,10 @@ class SupplierOrderLine extends Model
         return $this->order->requestLineCancellation($this, $reason);
     }
 
-    /** Quantité à facturer: ce qui est reçu pour un produit, la quantité commandée pour un service. */
+    /** Quantité à facturer: ce qui est reçu pour un produit ou une pièce, la quantité commandée pour un service. */
     public function getBillableQuantityAttribute(): int
     {
-        return $this->product_id !== null ? $this->quantity_received : $this->quantity;
+        return $this->product_id !== null || $this->part_id !== null ? $this->quantity_received : $this->quantity;
     }
 
     public function getLabelAttribute(): string

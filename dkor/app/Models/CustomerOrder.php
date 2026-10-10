@@ -217,6 +217,81 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Ajoute une pièce de remplacement : elle est toujours commandée (jamais prise en stock) sur le brouillon de
+     * commande du fournisseur de la pièce. La ligne en commande existante de la pièce est augmentée, sinon une ligne
+     * est créée à son prix de vente calculé, figé sur la ligne (il ne suit pas les changements de coût).
+     *
+     * @throws DomainException si la quantité est invalide ou si le fournisseur ne prend pas de commande.
+     */
+    public function addPart(Part $part, int $quantity = 1, ?string $note = null): CustomerOrderLine
+    {
+        if ($quantity < 1) {
+            throw new DomainException(__('La quantité doit être d\'au moins 1.'));
+        }
+
+        return DB::transaction(function () use ($part, $quantity, $note): CustomerOrderLine {
+            $line = $this->lines()
+                ->where('part_id', $part->id)
+                ->where('status', CustomerOrderLineStatus::OnOrder)
+                ->lockForUpdate()
+                ->first()
+                ?? $this->lines()->make(['part_id' => $part->id, 'unit_price' => $part->selling_price, 'note' => $note]);
+
+            $this->fillLineQuantities($line, 0, $line->quantity_on_order + $quantity);
+            $line->save();
+
+            $this->syncSupplierLine($line);
+            $this->recalculateBalance();
+            $this->refreshStatusFromLines();
+
+            return $line;
+        });
+    }
+
+    /**
+     * Met à jour une ligne de pièce : quantité tant qu'elle n'est pas commandée au fournisseur (la ligne de commande
+     * fournisseur suit), prix et « sans frais » (prix à 0 $) tant que la pièce n'est pas remise au client (elle est
+     * alors payée à 100 %), note en tout temps.
+     *
+     * @throws DomainException si la ligne n'est pas une pièce, si la quantité ou le prix ne peut plus changer.
+     */
+    public function updatePartLine(CustomerOrderLine $line, int $onOrder, float $unitPrice, bool $isNoCharge, ?string $note): void
+    {
+        DB::transaction(function () use ($line, $onOrder, $unitPrice, $isNoCharge, $note): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if (! $line->isPart()) {
+                throw new DomainException(__('Cette ligne n\'est pas une pièce.'));
+            }
+
+            $unitPrice = $isNoCharge ? 0.0 : round($unitPrice, 2);
+
+            if ($onOrder !== $line->quantity_on_order) {
+                if (! $line->status->isEditable()) {
+                    throw new DomainException(__('Cette pièce est déjà commandée au fournisseur : sa quantité ne peut plus changer.'));
+                }
+
+                $this->adjustLine($line, $line->quantity_reserved, $onOrder);
+                $line->refresh();
+            }
+
+            $changesPrice = $unitPrice !== round($line->unit_price, 2) || $isNoCharge !== $line->is_no_charge;
+
+            if ($changesPrice && ($line->status->isHandedOver() || ! $line->status->isBillable())) {
+                throw new DomainException(__('Cette pièce est remise au client ou annulée : son prix ne change plus.'));
+            }
+
+            $line->update([
+                'unit_price' => $unitPrice,
+                'is_no_charge' => $isNoCharge,
+                'note' => filled($note) ? $note : null,
+            ]);
+
+            $this->recalculateBalance();
+        });
+    }
+
+    /**
      * Ajuste la répartition d'une ligne entre le stock réservé et la partie en commande. Le stock libéré
      * redevient disponible pour les autres clients; toute augmentation de la réservation vérifie d'abord
      * que le stock est encore disponible. La ligne de commande fournisseur suit la partie en commande.
@@ -238,6 +313,10 @@ class CustomerOrder extends Model
 
             if ($line->is_custom && $reserved > $line->quantity_reserved) {
                 throw new DomainException(__('Un article sur mesure se commande toujours : il ne se prend pas en stock.'));
+            }
+
+            if ($line->isPart() && $reserved !== $line->quantity_reserved) {
+                throw new DomainException(__('Une pièce se commande toujours : elle ne se prend pas en stock.'));
             }
 
             $difference = $reserved - $line->quantity_reserved;
@@ -293,7 +372,9 @@ class CustomerOrder extends Model
                 return;
             }
 
-            $this->moveReservation($line->product_id, InventoryStatus::InStock, InventoryStatus::ReservedCustomer, $quantity);
+            if (! $line->isPart()) {
+                $this->moveReservation($line->product_id, InventoryStatus::InStock, InventoryStatus::ReservedCustomer, $quantity);
+            }
 
             $onOrder = $line->quantity_on_order - $quantity;
 
@@ -365,7 +446,9 @@ class CustomerOrder extends Model
                 throw new DomainException(__('La marchandise de la commande client #:id est déjà sortie : la réception ne peut plus être renversée.', ['id' => $this->id]));
             }
 
-            $this->moveReservation($line->product_id, InventoryStatus::ReservedCustomer, InventoryStatus::InStock, $quantity);
+            if (! $line->isPart()) {
+                $this->moveReservation($line->product_id, InventoryStatus::ReservedCustomer, InventoryStatus::InStock, $quantity);
+            }
 
             $line->update([
                 'quantity_reserved' => $line->quantity_reserved - $quantity,
@@ -640,6 +723,12 @@ class CustomerOrder extends Model
             return;
         }
 
+        if ($line->isPart()) {
+            $this->orderPartFromSupplier($line);
+
+            return;
+        }
+
         $product = $line->product()->with('supplier')->firstOrFail();
 
         if ($product->is_non_orderable || ! $product->supplier->is_active || ! $product->supplier->orderable || $product->supplier->type !== SupplierType::Product) {
@@ -697,6 +786,31 @@ class CustomerOrder extends Model
             'description' => Str::limit($service->name.' — '.$line->description.' (commande client #'.$this->id.')', 255, ''),
             'quantity' => $line->quantity_on_order,
             'unit_cost' => $service->pricingFor($supplier->id)['cost'],
+        ]);
+
+        $line->update(['supplier_order_line_id' => $supplierLine->id]);
+    }
+
+    /**
+     * Ajoute une pièce au brouillon de commande de produits de son fournisseur, à son dernier coût. La description
+     * identifie la pièce et le client pour la retrouver à la réception.
+     *
+     * @throws DomainException si le fournisseur ne prend pas de commande.
+     */
+    private function orderPartFromSupplier(CustomerOrderLine $line): void
+    {
+        $part = $line->part()->with('supplier')->firstOrFail();
+        $supplier = $part->supplier;
+
+        if (! $supplier->is_active || ! $supplier->orderable || $supplier->type !== SupplierType::Product) {
+            throw new DomainException(__('Aucune commande ne peut être passée chez :supplier.', ['supplier' => $supplier->name]));
+        }
+
+        $supplierLine = $this->supplierDraftFor($supplier->id, SupplierType::Product)->addLine([
+            'part_id' => $part->id,
+            'description' => Str::limit(__('Pièce :model — :description (commande client #:id)', ['model' => $part->model, 'description' => $part->description, 'id' => $this->id]), 255, ''),
+            'quantity' => $line->quantity_on_order,
+            'unit_cost' => $part->last_cost,
         ]);
 
         $line->update(['supplier_order_line_id' => $supplierLine->id]);
@@ -992,6 +1106,10 @@ class CustomerOrder extends Model
 
             if ($line->isService() || ! $line->status->isHandedOver()) {
                 throw new DomainException(__('Seul un article livré, ramassé ou expédié peut être retourné.'));
+            }
+
+            if ($line->isPart()) {
+                throw new DomainException(__('Une pièce de remplacement ne se retourne pas en magasin.'));
             }
 
             if ($quantity < 1 || $quantity > $line->quantity) {
@@ -1406,8 +1524,8 @@ class CustomerOrder extends Model
 
     private function guardDefectiveQuantity(CustomerOrderLine $line, int $quantity): void
     {
-        if ($line->isService() || ! $line->status->isHandedOver()) {
-            throw new DomainException(__('Seul un article livré, ramassé ou expédié peut être déclaré défectueux.'));
+        if ($line->isService() || $line->isPart() || ! $line->status->isHandedOver()) {
+            throw new DomainException(__('Seul un produit livré, ramassé ou expédié peut être déclaré défectueux.'));
         }
 
         if ($quantity < 1 || $quantity > $line->quantity) {
@@ -1558,15 +1676,17 @@ class CustomerOrder extends Model
 
     private function handOver(CustomerOrderLine $line, int $quantity, CustomerOrderPickup $pickup): void
     {
-        InventoryMovement::record($line->product_id, InventoryStatus::ReservedCustomer, null, $quantity, InventoryMovementType::CustomerPickup, $this);
+        if (! $line->isPart()) {
+            InventoryMovement::record($line->product_id, InventoryStatus::ReservedCustomer, null, $quantity, InventoryMovementType::CustomerPickup, $this);
 
-        InventoryUnit::query()
-            ->where('product_id', $line->product_id)
-            ->whereNull('delivered_at')
-            ->fifo()
-            ->limit($quantity)
-            ->get()
-            ->each(fn (InventoryUnit $unit) => $unit->update(['delivered_at' => today()]));
+            InventoryUnit::query()
+                ->where('product_id', $line->product_id)
+                ->whereNull('delivered_at')
+                ->fifo()
+                ->limit($quantity)
+                ->get()
+                ->each(fn (InventoryUnit $unit) => $unit->update(['delivered_at' => today()]));
+        }
 
         $pickedUp = [
             'quantity_reserved' => 0,

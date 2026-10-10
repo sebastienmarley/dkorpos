@@ -12,6 +12,7 @@ dataset('pages', [
     'inventory.movements' => ['inventory.movements', 'inventory.view'],
     'accounting.invoices' => ['accounting.invoices', 'invoices.view'],
     'products.index' => ['products.index', 'products.view'],
+    'parts.index' => ['parts.index', 'parts.view'],
     'supplier-orders.index' => ['supplier-orders.index', 'supplier_orders.view'],
     'catalog.departments' => ['catalog.departments', 'departments.view'],
     'catalog.categories' => ['catalog.categories', 'categories.view'],

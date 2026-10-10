@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-10 (141 migrations, 49 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-10 (145 migrations, 51 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 141 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
+les 145 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -46,6 +46,7 @@ erDiagram
     customers ||--o{ customer_orders : ""
     customer_order_pickups |o--o{ customer_order_lines : ""
     products |o--o{ customer_order_lines : ""
+    parts |o--o{ customer_order_lines : ""
     services |o--o{ customer_order_lines : ""
     suppliers |o--o{ customer_order_lines : ""
     customer_orders ||--o{ customer_order_lines : ""
@@ -63,6 +64,7 @@ erDiagram
     suppliers ||--o{ supplier_orders : ""
     supplier_orders ||--o{ supplier_order_lines : ""
     products |o--o{ supplier_order_lines : ""
+    parts |o--o{ supplier_order_lines : ""
     suppliers ||--o{ receptions : ""
     receptions ||--o{ reception_lines : ""
     supplier_order_lines ||--o{ reception_lines : ""
@@ -97,6 +99,9 @@ erDiagram
     shift_templates ||--o{ week_template_entries : ""
     week_templates ||--o{ week_template_entries : ""
     customers |o--o{ appointments : ""
+    suppliers ||--o{ parts : ""
+    products ||--o{ part_product : ""
+    parts ||--o{ part_product : ""
 ```
 
 ## Clients et ventes
@@ -109,7 +114,11 @@ erDiagram
   ramassage qui l'a remise au client (`customer_order_pickup_id`).
 - Une ligne vend **soit** un produit (`product_id`), **soit** un service (`service_id`, avec le
   fournisseur qui le rend dans `supplier_id`, vide pour un service interne, et la `description` précise
-  de la vente). Les deux clés sont `nullable`.
+  de la vente), **soit** une pièce de remplacement (`part_id`). Les trois clés sont `nullable`.
+- Une pièce est toujours commandée pour le client (jamais prise en stock) et ne crée aucun mouvement
+  d'inventaire : `quantity_reserved` compte ce qui est reçu et prêt à lui être remis. Son prix de vente
+  calculé est figé dans `unit_price` à l'ajout ; `is_no_charge` la remet sans frais (prix à 0 $, ex. :
+  sous garantie), tant qu'elle n'est pas remise au client.
 - Un article **sur mesure** (`is_custom`) vend un produit gabarit avec ses spécifications
   (`description`), le coût soumis par le fournisseur (`unit_cost`) et son numéro de soumission
   (`quote_number`); il est toujours commandé, jamais pris en stock.
@@ -126,6 +135,7 @@ erDiagram
     users |o--o{ customer_orders : "created_by · null"
     customer_order_pickups |o--o{ customer_order_lines : "customer_order_pickup_id · null"
     products |o--o{ customer_order_lines : "product_id · restrict"
+    parts |o--o{ customer_order_lines : "part_id · restrict"
     services |o--o{ customer_order_lines : "service_id · restrict"
     suppliers |o--o{ customer_order_lines : "supplier_id · restrict"
     customer_orders ||--o{ customer_order_lines : "customer_order_id · cascade"
@@ -176,6 +186,7 @@ erDiagram
         int id PK
         int customer_order_pickup_id FK "nullable"
         int product_id FK "nullable"
+        int part_id FK "nullable"
         int service_id FK "nullable"
         int supplier_id FK "nullable"
         int customer_order_id FK
@@ -183,6 +194,7 @@ erDiagram
         string description "nullable"
         int quantity
         decimal unit_price "10,2"
+        bool is_no_charge
         decimal unit_cost "10,2 · nullable"
         string quote_number "nullable"
         bool is_taxable
@@ -246,6 +258,9 @@ erDiagram
   clés sont uniques et `nullable`.
 - `supplier_order_lines.substituted_from_line_id` relie une ligne à celle qu'elle remplace
   (substitution par le fournisseur).
+- Une ligne de pièce (`part_id`) se reçoit comme un produit, mais sans entrer en inventaire. Sa
+  réception met à jour `parts.last_cost`. Une pièce liée à une commande ne peut pas être supprimée
+  (`restrict`).
 - Les documents se protègent en chaîne (`restrict`) : ligne de commande ← ligne de réception ← ligne
   de facture.
 
@@ -259,6 +274,7 @@ erDiagram
     supplier_order_lines |o--o{ supplier_order_lines : "substituted_from_line_id · null"
     supplier_orders ||--o{ supplier_order_lines : "supplier_order_id · cascade"
     products |o--o{ supplier_order_lines : "product_id · null"
+    parts |o--o{ supplier_order_lines : "part_id · restrict"
     users |o--o{ receptions : "received_by · null"
     suppliers ||--o{ receptions : "supplier_id · restrict"
     users |o--o{ reception_lines : "reversed_by · null"
@@ -342,6 +358,7 @@ erDiagram
         int substituted_from_line_id FK "nullable"
         int supplier_order_id FK
         int product_id FK "nullable"
+        int part_id FK "nullable"
         string description "nullable"
         int quantity
         decimal unit_cost "10,2"
@@ -502,6 +519,11 @@ erDiagram
 - Un produit appartient à un fournisseur (`cascade`) et se classe par département, catégorie et
   couleur. `is_taxable` indique s'il est assujetti aux taxes de vente; `is_custom` en fait un gabarit
   de produit sur mesure.
+- Une pièce de remplacement (`parts`) est commandée pour un client et n'est pas inventoriée. Elle est
+  unique chez son fournisseur par son modèle nettoyé (`supplier_id`, `clean_model`), la même
+  normalisation que les produits. `part_product` la relie aux produits qu'elle répare (ex. : les verres
+  d'une même famille de lampes). Son prix de vente n'est pas stocké : il est calculé à partir de
+  `last_cost` × le multiplicateur du fournisseur, avec l'arrondi des produits (0 $ si elle ne coûte rien).
 - Un service (`services`) est **interne** (`is_internal`, rendu par le magasin au `selling_price` du
   service) ou **externe** : offert par un ou plusieurs fournisseurs de service ou d'expédition, chacun
   avec son coût et son prix vendant (`service_supplier`, une offre par paire). `description_template`
@@ -524,6 +546,9 @@ erDiagram
     price_lists ||--o{ price_list_lists : "price_list_id · cascade"
     products |o--o{ price_list_items : "product_id · null"
     price_list_lists ||--o{ price_list_items : "price_list_list_id · cascade"
+    suppliers ||--o{ parts : "supplier_id · cascade"
+    products ||--o{ part_product : "product_id · cascade"
+    parts ||--o{ part_product : "part_id · cascade"
     products {
         int id PK
         int color_id FK "nullable"
@@ -546,6 +571,22 @@ erDiagram
         string supplier_clean_model "nullable"
         bool is_taxable
         bool is_custom
+        datetime created_at
+        datetime updated_at
+    }
+    parts {
+        int id PK
+        int supplier_id FK
+        string model
+        string clean_model
+        string description
+        decimal last_cost "10,2"
+        datetime created_at
+        datetime updated_at
+    }
+    part_product {
+        int part_id PK, FK
+        int product_id PK, FK
         datetime created_at
         datetime updated_at
     }
