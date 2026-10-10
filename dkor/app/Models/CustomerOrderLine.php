@@ -30,6 +30,7 @@ use Illuminate\Support\Carbon;
  * @property int $quantity_reserved
  * @property int $quantity_on_order
  * @property float $unit_price
+ * @property bool $is_no_charge Pièce remise sans frais (ex. : sous garantie) : prix vendant à 0 $.
  * @property float|null $cancellation_fee
  * @property string|null $note
  * @property CustomerOrderLineStatus $status
@@ -48,7 +49,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, DefectiveProduct> $defectiveProducts
  * @property-read float $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
+#[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'is_no_charge', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
@@ -59,6 +60,7 @@ class CustomerOrderLine extends Model
         'quantity_on_order' => 0,
         'is_taxable' => true,
         'is_custom' => false,
+        'is_no_charge' => false,
     ];
 
     protected $casts = [
@@ -66,6 +68,7 @@ class CustomerOrderLine extends Model
         'quantity_reserved' => 'integer',
         'quantity_on_order' => 'integer',
         'unit_price' => 'float',
+        'is_no_charge' => 'boolean',
         'is_taxable' => 'boolean',
         'is_custom' => 'boolean',
         'unit_cost' => 'float',
@@ -124,6 +127,7 @@ class CustomerOrderLine extends Model
             'supplier_id' => $this->supplier_id,
             'description' => $this->description,
             'unit_price' => $this->unit_price,
+            'is_no_charge' => $this->is_no_charge,
             'unit_cost' => $this->unit_cost,
             'quote_number' => $this->quote_number,
             'is_taxable' => $this->is_taxable,

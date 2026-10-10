@@ -174,6 +174,24 @@ it('modifie la fiche d\'une pièce', function () {
         ->last_cost->toBe(7.25);
 });
 
+it('calcule le prix de vente à partir du dernier coût et du multiplicateur du fournisseur', function (float $lastCost, float $expected) {
+    $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'base_multiplier' => 2.5]);
+
+    expect(Part::factory()->create(['supplier_id' => $supplier->id, 'last_cost' => $lastCost])->selling_price)->toBe($expected);
+})->with([
+    'sous 20 $, arrondi à x,99' => [3, 7.99],
+    'entre 20 et 100 $, arrondi au dollar' => [10, 25.0],
+    'pièce qui ne coûte rien' => [0, 0.0],
+]);
+
+it('affiche le prix de vente calculé dans le catalogue et sur la fiche', function () {
+    $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'base_multiplier' => 2.5]);
+    $part = Part::factory()->create(['supplier_id' => $supplier->id, 'last_cost' => 3]);
+
+    Livewire::test(Index::class)->assertSee('7.99 $');
+    Livewire::test(Show::class, ['part' => $part])->assertSee('7.99 $');
+});
+
 /**
  * Pièce ajoutée à une nouvelle commande client (commandée sur le brouillon de son fournisseur).
  *

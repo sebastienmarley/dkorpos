@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Supplier $supplier
+ * @property-read float $selling_price
  */
 #[Fillable(['supplier_id', 'model', 'description', 'last_cost'])]
 class Part extends Model
@@ -66,6 +67,19 @@ class Part extends Model
                     ->where('model', 'like', '%'.$term.'%')
                     ->orWhere('supplier_model', 'like', '%'.$term.'%'));
         });
+    }
+
+    /**
+     * Prix de vente calculé : dernier coût × multiplicateur du fournisseur, arrondi comme les produits. Une pièce
+     * qui ne coûte rien reste à 0 $.
+     */
+    public function getSellingPriceAttribute(): float
+    {
+        if ($this->last_cost <= 0) {
+            return 0.0;
+        }
+
+        return Product::roundSellingPrice($this->last_cost * ($this->supplier->price_multiplier ?? 1.0));
     }
 
     /** @return BelongsTo<Supplier, $this> */

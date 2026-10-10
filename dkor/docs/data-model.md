@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-10 (144 migrations, 51 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-10 (145 migrations, 51 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 144 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
+les 145 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -116,7 +116,9 @@ erDiagram
   fournisseur qui le rend dans `supplier_id`, vide pour un service interne, et la `description` précise
   de la vente), **soit** une pièce de remplacement (`part_id`). Les trois clés sont `nullable`.
 - Une pièce est toujours commandée pour le client (jamais prise en stock) et ne crée aucun mouvement
-  d'inventaire : `quantity_reserved` compte ce qui est reçu et prêt à lui être remis.
+  d'inventaire : `quantity_reserved` compte ce qui est reçu et prêt à lui être remis. Son prix de vente
+  calculé est figé dans `unit_price` à l'ajout ; `is_no_charge` la remet sans frais (prix à 0 $, ex. :
+  sous garantie), tant qu'elle n'est pas remise au client.
 - Un article **sur mesure** (`is_custom`) vend un produit gabarit avec ses spécifications
   (`description`), le coût soumis par le fournisseur (`unit_cost`) et son numéro de soumission
   (`quote_number`); il est toujours commandé, jamais pris en stock.
@@ -192,6 +194,7 @@ erDiagram
         string description "nullable"
         int quantity
         decimal unit_price "10,2"
+        bool is_no_charge
         decimal unit_cost "10,2 · nullable"
         string quote_number "nullable"
         bool is_taxable
@@ -519,7 +522,8 @@ erDiagram
 - Une pièce de remplacement (`parts`) est commandée pour un client et n'est pas inventoriée. Elle est
   unique chez son fournisseur par son modèle nettoyé (`supplier_id`, `clean_model`), la même
   normalisation que les produits. `part_product` la relie aux produits qu'elle répare (ex. : les verres
-  d'une même famille de lampes).
+  d'une même famille de lampes). Son prix de vente n'est pas stocké : il est calculé à partir de
+  `last_cost` × le multiplicateur du fournisseur, avec l'arrondi des produits (0 $ si elle ne coûte rien).
 - Un service (`services`) est **interne** (`is_internal`, rendu par le magasin au `selling_price` du
   service) ou **externe** : offert par un ou plusieurs fournisseurs de service ou d'expédition, chacun
   avec son coût et son prix vendant (`service_supplier`, une offre par paire). `description_template`

@@ -70,6 +70,8 @@ class Show extends Component
 
     public string $editNote = '';
 
+    public bool $editNoCharge = false;
+
     public string $editQuantity = '1';
 
     public string $editDescription = '';
@@ -404,6 +406,7 @@ class Show extends Component
         $this->editOnOrder = (string) $line->quantity_on_order;
         $this->editUnitPrice = number_format($line->unit_price, 2, '.', '');
         $this->editNote = $line->note ?? '';
+        $this->editNoCharge = $line->is_no_charge;
         $this->resetErrorBag();
         $this->showLineModal = true;
     }
@@ -424,6 +427,12 @@ class Show extends Component
 
         if ($line->is_custom) {
             $this->saveCustomLine($line);
+
+            return;
+        }
+
+        if ($line->isPart()) {
+            $this->savePartLine($line);
 
             return;
         }
@@ -516,6 +525,36 @@ class Show extends Component
 
         $this->showLineModal = false;
         $this->reset(['editingLineId', 'editQuantity', 'editDescription', 'editUnitCost', 'editQuoteNumber', 'editUnitPrice', 'editNote']);
+    }
+
+    /**
+     * « Sans frais » met le prix à 0 $; le retirer propose de nouveau le prix de vente calculé de la pièce.
+     */
+    public function updatedEditNoCharge(bool $isNoCharge): void
+    {
+        $part = $this->order->lines()->with('part.supplier')->find($this->editingLineId)?->part;
+
+        $this->editUnitPrice = number_format($isNoCharge ? 0 : ($part->selling_price ?? 0), 2, '.', '');
+    }
+
+    private function savePartLine(CustomerOrderLine $line): void
+    {
+        $this->validate([
+            'editOnOrder' => ['required', 'integer', 'min:1'],
+            'editUnitPrice' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'editNote' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        try {
+            $this->order->updatePartLine($line, (int) $this->editOnOrder, (float) $this->editUnitPrice, $this->editNoCharge, $this->editNote);
+        } catch (DomainException $exception) {
+            $this->addError('editUnitPrice', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showLineModal = false;
+        $this->reset(['editingLineId', 'editReserved', 'editOnOrder', 'editUnitPrice', 'editNote', 'editNoCharge']);
     }
 
     private function saveServiceLine(CustomerOrderLine $line): void

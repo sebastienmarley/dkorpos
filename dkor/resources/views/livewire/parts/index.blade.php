@@ -131,6 +131,7 @@
                     <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
                     <flux:table.column>{{ __('Produits') }}</flux:table.column>
                     <flux:table.column>{{ __('Dernier coût') }}</flux:table.column>
+                    <flux:table.column>{{ __('Prix de vente') }}</flux:table.column>
                 </flux:table.columns>
 
                 <flux:table.rows>
@@ -155,10 +156,12 @@
                             </flux:table.cell>
 
                             <flux:table.cell>{{ number_format($part->last_cost, 2) }} $</flux:table.cell>
+
+                            <flux:table.cell>{{ number_format($part->selling_price, 2) }} $</flux:table.cell>
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="5" class="py-12 text-center">
+                            <flux:table.cell colspan="6" class="py-12 text-center">
                                 <div class="flex flex-col items-center gap-2">
                                     <flux:icon name="puzzle-piece" class="h-8 w-8 text-zinc-300" />
                                     @if (filled($search))

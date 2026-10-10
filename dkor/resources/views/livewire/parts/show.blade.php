@@ -1,13 +1,21 @@
 <div class="p-6">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-center gap-4">
-        <flux:button variant="ghost" icon="arrow-left" :href="route('parts.index')" wire:navigate size="sm">
-            {{ __('Retour') }}
-        </flux:button>
+    <div class="mb-6 flex items-start justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <flux:button variant="ghost" icon="arrow-left" :href="route('parts.index')" wire:navigate size="sm">
+                {{ __('Retour') }}
+            </flux:button>
 
-        <div class="min-w-0">
-            <flux:heading level="1" size="xl">{{ $part->model }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ $part->description }} · {{ $part->supplier->name }}</flux:text>
+            <div class="min-w-0">
+                <flux:heading level="1" size="xl">{{ $part->model }}</flux:heading>
+                <flux:text class="mt-1 text-zinc-500">{{ $part->description }} · {{ $part->supplier->name }}</flux:text>
+            </div>
+        </div>
+
+        {{-- Prix de vente calculé --}}
+        <div class="flex-shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 px-5 py-3 text-right dark:border-zinc-700 dark:bg-zinc-800">
+            <flux:text class="text-xs text-zinc-400">{{ __('Prix de vente') }}</flux:text>
+            <div class="mt-0.5 text-2xl font-semibold text-zinc-900 dark:text-white">{{ number_format($part->selling_price, 2) }} $</div>
         </div>
     </div>
 

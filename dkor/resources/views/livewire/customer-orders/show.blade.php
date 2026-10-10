@@ -102,6 +102,9 @@
                                 @elseif ($line->isPart())
                                     {{ $line->part->model }}
                                     <flux:badge size="sm" color="amber" class="ms-1">{{ __('Pièce') }}</flux:badge>
+                                    @if ($line->is_no_charge)
+                                        <flux:badge size="sm" color="green" class="ms-1">{{ __('Sans frais') }}</flux:badge>
+                                    @endif
                                     <div class="max-w-xs truncate text-xs font-normal text-zinc-500">{{ $line->part->description }}</div>
                                 @else
                                     {{ $line->product->model }}
@@ -426,20 +429,23 @@
                         </flux:field>
                     </div>
                     @elseif ($editingLine->isPart())
+                    @php($partPriceEditable = ! $editingLine->status->isHandedOver() && $editingLine->status->isBillable())
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>
                             <flux:label>{{ __('Quantité à commander') }}</flux:label>
                             <flux:input wire:model="editOnOrder" type="number" min="1" :disabled="! $editable" />
                             <flux:error name="editOnOrder" />
-                            <flux:error name="editReserved" />
                         </flux:field>
 
                         <flux:field>
                             <flux:label>{{ __('Prix vendant') }}</flux:label>
-                            <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $editable" />
+                            <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $partPriceEditable || $editNoCharge" />
+                            <flux:description>{{ __('Prix calculé : :price $', ['price' => number_format($editingLine->part->selling_price, 2)]) }}</flux:description>
                             <flux:error name="editUnitPrice" />
                         </flux:field>
                     </div>
+
+                    <flux:checkbox wire:model.live="editNoCharge" :label="__('Sans frais')" :description="__('Pièce remise gratuitement au client (ex. : sous garantie) : prix de 0 $.')" :disabled="! $partPriceEditable" />
                     @else
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>

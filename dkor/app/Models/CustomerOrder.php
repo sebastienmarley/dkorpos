@@ -218,8 +218,8 @@ class CustomerOrder extends Model
 
     /**
      * Ajoute une pièce de remplacement : elle est toujours commandée (jamais prise en stock) sur le brouillon de
-     * commande du fournisseur de la pièce, sans frais pour le client en attendant le prix de vente des pièces. La
-     * ligne en commande existante de la pièce est augmentée, sinon une ligne est créée.
+     * commande du fournisseur de la pièce. La ligne en commande existante de la pièce est augmentée, sinon une ligne
+     * est créée à son prix de vente calculé, figé sur la ligne (il ne suit pas les changements de coût).
      *
      * @throws DomainException si la quantité est invalide ou si le fournisseur ne prend pas de commande.
      */
@@ -235,7 +235,7 @@ class CustomerOrder extends Model
                 ->where('status', CustomerOrderLineStatus::OnOrder)
                 ->lockForUpdate()
                 ->first()
-                ?? $this->lines()->make(['part_id' => $part->id, 'unit_price' => 0, 'note' => $note]);
+                ?? $this->lines()->make(['part_id' => $part->id, 'unit_price' => $part->selling_price, 'note' => $note]);
 
             $this->fillLineQuantities($line, 0, $line->quantity_on_order + $quantity);
             $line->save();
@@ -245,6 +245,49 @@ class CustomerOrder extends Model
             $this->refreshStatusFromLines();
 
             return $line;
+        });
+    }
+
+    /**
+     * Met à jour une ligne de pièce : quantité tant qu'elle n'est pas commandée au fournisseur (la ligne de commande
+     * fournisseur suit), prix et « sans frais » (prix à 0 $) tant que la pièce n'est pas remise au client (elle est
+     * alors payée à 100 %), note en tout temps.
+     *
+     * @throws DomainException si la ligne n'est pas une pièce, si la quantité ou le prix ne peut plus changer.
+     */
+    public function updatePartLine(CustomerOrderLine $line, int $onOrder, float $unitPrice, bool $isNoCharge, ?string $note): void
+    {
+        DB::transaction(function () use ($line, $onOrder, $unitPrice, $isNoCharge, $note): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if (! $line->isPart()) {
+                throw new DomainException(__('Cette ligne n\'est pas une pièce.'));
+            }
+
+            $unitPrice = $isNoCharge ? 0.0 : round($unitPrice, 2);
+
+            if ($onOrder !== $line->quantity_on_order) {
+                if (! $line->status->isEditable()) {
+                    throw new DomainException(__('Cette pièce est déjà commandée au fournisseur : sa quantité ne peut plus changer.'));
+                }
+
+                $this->adjustLine($line, $line->quantity_reserved, $onOrder);
+                $line->refresh();
+            }
+
+            $changesPrice = $unitPrice !== round($line->unit_price, 2) || $isNoCharge !== $line->is_no_charge;
+
+            if ($changesPrice && ($line->status->isHandedOver() || ! $line->status->isBillable())) {
+                throw new DomainException(__('Cette pièce est remise au client ou annulée : son prix ne change plus.'));
+            }
+
+            $line->update([
+                'unit_price' => $unitPrice,
+                'is_no_charge' => $isNoCharge,
+                'note' => filled($note) ? $note : null,
+            ]);
+
+            $this->recalculateBalance();
         });
     }
 

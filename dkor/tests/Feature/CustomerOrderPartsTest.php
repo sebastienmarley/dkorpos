@@ -5,11 +5,13 @@ use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
 use App\Livewire\CustomerOrders\Show;
 use App\Models\CustomerOrder;
+use App\Models\CustomerPaymentMethod;
 use App\Models\InventoryMovement;
 use App\Models\InventoryUnit;
 use App\Models\Part;
 use App\Models\Product;
 use App\Models\Role;
+use App\Models\Supplier;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
 use Illuminate\Database\QueryException;
@@ -22,10 +24,11 @@ beforeEach(function () {
     $this->actingAs($this->user);
 
     $this->order = CustomerOrder::factory()->create();
-    $this->part = Part::factory()->create(['model' => 'PC-12', 'description' => 'Verre de lampe', 'last_cost' => 3]);
+    $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'base_multiplier' => 2.5]);
+    $this->part = Part::factory()->create(['supplier_id' => $supplier->id, 'model' => 'PC-12', 'description' => 'Verre de lampe', 'last_cost' => 3]);
 });
 
-it('ajoute la pièce choisie dans « Ajouter une pièce » et la commande sans frais au fournisseur', function () {
+it('ajoute la pièce choisie dans « Ajouter une pièce » et la commande au fournisseur', function () {
     Livewire::test(Show::class, ['order' => $this->order])
         ->dispatch('part-selected', id: $this->part->id)
         ->assertSee('PC-12')
@@ -40,7 +43,7 @@ it('ajoute la pièce choisie dans « Ajouter une pièce » et la commande sans f
         ->status->toBe(CustomerOrderLineStatus::OnOrder)
         ->quantity_on_order->toBe(1)
         ->quantity_reserved->toBe(0)
-        ->unit_price->toBe(0.0)
+        ->unit_price->toBe(7.99)
         ->and($supplierLine)
         ->part_id->toBe($this->part->id)
         ->product_id->toBeNull()
@@ -117,7 +120,7 @@ it('suit la pièce de la commande à la remise au client, sans mouvement d\'inve
         ->quantity_on_order->toBe(0)
         ->and($this->part->fresh()->last_cost)->toBe(4.25);
 
-    $pickup = $this->order->fresh()->pickUp([$line->id => 2], []);
+    $pickup = $this->order->fresh()->pickUp([$line->id => 2], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => $this->order->fresh()->balance_due]]);
 
     expect($line->fresh())
         ->status->toBe(CustomerOrderLineStatus::PickedUp)
@@ -142,7 +145,7 @@ it('refuse le retour en magasin d\'une pièce remise au client', function () {
     $supplierLine = $line->supplierOrderLine;
     $supplierLine->order->send();
     $supplierLine->order->fresh()->receive([$supplierLine->id => ['quantity' => 1]]);
-    $this->order->fresh()->pickUp([$line->id => 1], []);
+    $this->order->fresh()->pickUp([$line->id => 1], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => $this->order->fresh()->balance_due]]);
 
     expect(fn () => $this->order->fresh()->returnLine($line->fresh(), 1, false))->toThrow(DomainException::class);
 
@@ -173,4 +176,69 @@ it('n\'offre pas « Ajouter une pièce » sans la permission de voir les pièces
 
     Livewire::test(Show::class, ['order' => $this->order])
         ->assertDontSee('Ajouter une pièce');
+});
+
+describe('prix de vente', function () {
+    it('fige sur la ligne le prix calculé au moment de l\'ajout', function () {
+        $line = $this->order->addPart($this->part);
+
+        $this->part->update(['last_cost' => 10]);
+        $laterLine = CustomerOrder::factory()->create()->addPart($this->part->fresh());
+
+        expect($line->fresh()->unit_price)->toBe(7.99)
+            ->and($laterLine->unit_price)->toBe(25.0);
+    });
+
+    it('remet une pièce sans frais depuis la commande, et le total en tient compte', function () {
+        $line = $this->order->addPart($this->part);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openLineModal', $line->id)
+            ->set('editNoCharge', true)
+            ->assertSet('editUnitPrice', '0.00')
+            ->call('saveLine')
+            ->assertHasNoErrors();
+
+        expect($line->fresh())
+            ->is_no_charge->toBeTrue()
+            ->unit_price->toBe(0.0)
+            ->and($this->order->fresh())
+            ->total->toBe(0.0)
+            ->balance_due->toBe(0.0);
+    });
+
+    it('propose de nouveau le prix calculé quand « sans frais » est retiré', function () {
+        $line = $this->order->addPart($this->part);
+        $this->order->updatePartLine($line, 1, 0, true, null);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openLineModal', $line->id)
+            ->assertSet('editNoCharge', true)
+            ->set('editNoCharge', false)
+            ->assertSet('editUnitPrice', '7.99');
+    });
+
+    it('change le prix d\'une pièce déjà commandée, mais plus sa quantité', function () {
+        $line = $this->order->addPart($this->part);
+        $line->supplierOrderLine->order->send();
+
+        $this->order->updatePartLine($line->fresh(), 1, 5, false, null);
+
+        expect($line->fresh()->unit_price)->toBe(5.0)
+            ->and(fn () => $this->order->updatePartLine($line->fresh(), 2, 5, false, null))->toThrow(DomainException::class);
+    });
+
+    it('ne change jamais le prix d\'une pièce remise au client', function () {
+        $line = $this->order->addPart($this->part);
+        $supplierLine = $line->supplierOrderLine;
+        $supplierLine->order->send();
+        $supplierLine->order->fresh()->receive([$supplierLine->id => ['quantity' => 1]]);
+        $this->order->fresh()->pickUp([$line->id => 1], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => $this->order->fresh()->balance_due]]);
+
+        expect(fn () => $this->order->fresh()->updatePartLine($line->fresh(), 1, 0, true, null))->toThrow(DomainException::class);
+
+        expect($line->fresh())
+            ->unit_price->toBe(7.99)
+            ->is_no_charge->toBeFalse();
+    });
 });

@@ -916,6 +916,7 @@ CREATE TABLE "customer_order_lines"(
   "unit_cost" numeric,
   "quote_number" varchar,
   "part_id" integer,
+  "is_no_charge" tinyint(1) not null default '0',
   foreign key("supplier_id") references suppliers("id") on delete restrict on update no action,
   foreign key("service_id") references services("id") on delete restrict on update no action,
   foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete set null on update no action,
@@ -1093,3 +1094,4 @@ INSERT INTO migrations VALUES(141,'2026_10_10_210943_add_customer_order_return_c
 INSERT INTO migrations VALUES(142,'2026_10_10_223128_create_parts_table',6);
 INSERT INTO migrations VALUES(143,'2026_10_10_223129_create_part_product_table',6);
 INSERT INTO migrations VALUES(144,'2026_10_10_225119_add_part_id_to_order_lines',7);
+INSERT INTO migrations VALUES(145,'2026_10_10_231243_add_is_no_charge_to_customer_order_lines_table',8);
