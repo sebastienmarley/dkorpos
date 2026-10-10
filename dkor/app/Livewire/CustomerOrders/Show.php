@@ -9,6 +9,7 @@ use App\Models\customer;
 use App\Models\CustomerOrder;
 use App\Models\CustomerOrderLine;
 use App\Models\CustomerPaymentMethod;
+use App\Models\Part;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductUpc;
@@ -330,6 +331,25 @@ class Show extends Component
 
         $this->showProductModal = false;
         $this->reset(['pendingUpc', 'linkPendingUpc']);
+    }
+
+    /**
+     * Pièce choisie ou créée dans « Ajouter une pièce » : elle est ajoutée à la commande et commandée au fournisseur.
+     */
+    #[On('part-selected')]
+    public function addPart(int $id): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        try {
+            $this->order->addPart(Part::findOrFail($id));
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        Flux::toast(text: __('Pièce ajoutée à la commande.'), variant: 'success');
     }
 
     public function scanUpc(): void
@@ -1233,12 +1253,12 @@ class Show extends Component
 
     public function render(): View
     {
-        $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStock', 'service', 'supplier', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
+        $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStock', 'part.supplier', 'service', 'supplier', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
         $returnLine = $this->returnLineId ? $this->order->lines()->with('product')->find($this->returnLineId) : null;
         $customProduct = $this->customProductId ? Product::with('supplier')->find($this->customProductId) : null;
         $defectiveLine = $this->defectiveLineId ? $this->order->lines()->with('product.supplier')->find($this->defectiveLineId) : null;
 
-        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'lines.defectiveProducts', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),

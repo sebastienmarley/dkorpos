@@ -55,6 +55,9 @@
             <div class="mb-3 flex items-start gap-3">
                 <flux:button icon="plus" wire:click="openProductModal">{{ __('Ajouter un produit') }}</flux:button>
                 <flux:button icon="wrench" wire:click="openServiceModal">{{ __('Ajouter un service') }}</flux:button>
+                @can('parts.view')
+                    <flux:button icon="puzzle-piece" x-on:click="$dispatch('open-part-picker')">{{ __('Ajouter une pièce') }}</flux:button>
+                @endcan
 
                 <form wire:submit="scanUpc" class="w-64">
                     <flux:field>
@@ -96,6 +99,10 @@
                                     {{ $line->service->name }}
                                     <flux:badge size="sm" color="blue" class="ms-1">{{ __('Service') }}</flux:badge>
                                     <div class="max-w-xs truncate text-xs font-normal text-zinc-500">{{ $line->description }}</div>
+                                @elseif ($line->isPart())
+                                    {{ $line->part->model }}
+                                    <flux:badge size="sm" color="amber" class="ms-1">{{ __('Pièce') }}</flux:badge>
+                                    <div class="max-w-xs truncate text-xs font-normal text-zinc-500">{{ $line->part->description }}</div>
                                 @else
                                     {{ $line->product->model }}
                                     <span class="font-normal text-zinc-500">#{{ $line->product_id }}</span>
@@ -117,7 +124,7 @@
                                     <div class="text-xs font-normal text-red-600 dark:text-red-400">{{ __('Frais d\'annulation : :fee $', ['fee' => number_format($line->cancellation_fee, 2)]) }}</div>
                                 @endif
                             </flux:table.cell>
-                            <flux:table.cell>{{ $line->isService() ? ($line->supplier?->name ?? __('Interne')) : $line->product->supplier->name }}</flux:table.cell>
+                            <flux:table.cell>{{ match (true) { $line->isService() => $line->supplier?->name ?? __('Interne'), $line->isPart() => $line->part->supplier->name, default => $line->product->supplier->name } }}</flux:table.cell>
                             <flux:table.cell>
                                 <flux:badge :color="$line->status->color()" size="sm">{{ $line->status->label() }}</flux:badge>
                             </flux:table.cell>
@@ -347,6 +354,9 @@
             @if ($editingLine)
                 @if ($editingLine->isService())
                     <flux:heading class="mb-1">{{ $editingLine->service->name }} <span class="font-normal text-zinc-500">· {{ $editingLine->supplier?->name ?? __('Interne') }}</span></flux:heading>
+                @elseif ($editingLine->isPart())
+                    <flux:heading class="mb-1">{{ __('Pièce') }} {{ $editingLine->part->model }} <span class="font-normal text-zinc-500">· {{ $editingLine->part->supplier->name }}</span></flux:heading>
+                    <flux:text class="text-sm text-zinc-500">{{ $editingLine->part->description }}</flux:text>
                 @else
                     <flux:heading class="mb-1">{{ $editingLine->product->model }} <span class="font-normal text-zinc-500">#{{ $editingLine->product_id }}</span></flux:heading>
                 @endif
@@ -412,6 +422,21 @@
                         <flux:field>
                             <flux:label>{{ __('Prix vendant') }}</flux:label>
                             <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $customEditable" />
+                            <flux:error name="editUnitPrice" />
+                        </flux:field>
+                    </div>
+                    @elseif ($editingLine->isPart())
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <flux:field>
+                            <flux:label>{{ __('Quantité à commander') }}</flux:label>
+                            <flux:input wire:model="editOnOrder" type="number" min="1" :disabled="! $editable" />
+                            <flux:error name="editOnOrder" />
+                            <flux:error name="editReserved" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Prix vendant') }}</flux:label>
+                            <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $editable" />
                             <flux:error name="editUnitPrice" />
                         </flux:field>
                     </div>
@@ -487,7 +512,7 @@
                         </div>
                     @endif
 
-                    @if (! $editingLine->isService() && $editingLine->status->isHandedOver())
+                    @if (! $editingLine->isService() && ! $editingLine->isPart() && $editingLine->status->isHandedOver())
                         <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                             <flux:text class="mb-2 text-sm font-medium">{{ __('Le client rapporte cet article ?') }}</flux:text>
                             <div class="flex gap-2">
@@ -669,7 +694,7 @@
                         <flux:error name="serviceSupplierId" />
                     @endif
 
-                    @php($productLines = $order->lines->reject(fn ($line) => $line->isService()))
+                    @php($productLines = $order->lines->reject(fn ($line) => $line->isService() || $line->isPart()))
                     @if ($productLines->isNotEmpty())
                         <flux:field>
                             <flux:label>{{ __('Pour le produit (optionnel)') }}</flux:label>
@@ -886,7 +911,14 @@
                     @foreach ($order->lines->filter(fn ($line) => isset($pickupQuantities[$line->id])) as $line)
                         <div wire:key="pickup-{{ $line->id }}" class="flex items-start justify-between gap-3">
                             <div class="min-w-0 text-sm">
-                                <div class="font-medium text-zinc-900 dark:text-white">{{ $line->product->model }} <span class="font-normal text-zinc-500">#{{ $line->product_id }}</span></div>
+                                <div class="font-medium text-zinc-900 dark:text-white">
+                                    {{ $line->label }}
+                                    @if ($line->isPart())
+                                        <flux:badge size="sm" color="amber" class="ms-1">{{ __('Pièce') }}</flux:badge>
+                                    @else
+                                        <span class="font-normal text-zinc-500">#{{ $line->product_id }}</span>
+                                    @endif
+                                </div>
                                 <div class="text-xs text-zinc-400">
                                     {{ __('Disponible : :count', ['count' => $line->quantity_reserved]) }} · {{ number_format($line->unit_price, 2) }} $
                                     @if ($line->quantity_on_order > 0)
@@ -990,4 +1022,8 @@
     <livewire:supplier-line-cancellation-request />
 
     <livewire:customer-form />
+
+    @if (auth()->user()->can('customer_orders.edit') && auth()->user()->can('parts.view'))
+        <livewire:part-picker />
+    @endif
 </div>

@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $customer_order_id
  * @property int|null $product_id
+ * @property int|null $part_id Pièce de remplacement (non inventoriée), au lieu d'un produit.
  * @property int|null $service_id
  * @property int|null $supplier_id
  * @property string|null $description
@@ -38,6 +39,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read CustomerOrder $order
  * @property-read Product|null $product
+ * @property-read Part|null $part
  * @property-read Service|null $service
  * @property-read Supplier|null $supplier
  * @property-read string $label
@@ -46,7 +48,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, DefectiveProduct> $defectiveProducts
  * @property-read float $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
+#[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
@@ -85,6 +87,12 @@ class CustomerOrderLine extends Model
         return $this->belongsTo(Product::class);
     }
 
+    /** @return BelongsTo<Part, $this> */
+    public function part(): BelongsTo
+    {
+        return $this->belongsTo(Part::class);
+    }
+
     /** @return BelongsTo<Service, $this> */
     public function service(): BelongsTo
     {
@@ -111,6 +119,7 @@ class CustomerOrderLine extends Model
     {
         return [
             'product_id' => $this->product_id,
+            'part_id' => $this->part_id,
             'service_id' => $this->service_id,
             'supplier_id' => $this->supplier_id,
             'description' => $this->description,
@@ -128,10 +137,20 @@ class CustomerOrderLine extends Model
         return $this->service_id !== null;
     }
 
-    /** Nom affiché : modèle du produit, ou nom du service. */
+    /** Pièce de remplacement : commandée pour le client, jamais prise en stock ni inventoriée. */
+    public function isPart(): bool
+    {
+        return $this->part_id !== null;
+    }
+
+    /** Nom affiché : modèle du produit ou de la pièce, ou nom du service. */
     public function getLabelAttribute(): string
     {
-        return $this->isService() ? $this->service->name : $this->product->model;
+        return match (true) {
+            $this->isService() => $this->service->name,
+            $this->isPart() => $this->part->model,
+            default => $this->product->model,
+        };
     }
 
     /** @return BelongsTo<SupplierOrderLine, $this> */

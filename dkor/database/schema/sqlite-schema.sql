@@ -382,25 +382,6 @@ CREATE TABLE "suppliers"(
   foreign key("currency_id") references currencies("id") on delete set null on update no action,
   foreign key("default_shipping_supplier_id") references "suppliers"("id") on delete set null
 );
-CREATE TABLE "supplier_order_lines"(
-  "id" integer primary key autoincrement not null,
-  "supplier_order_id" integer not null,
-  "product_id" integer,
-  "description" varchar,
-  "quantity" integer not null,
-  "unit_cost" numeric not null,
-  "quantity_received" integer not null default('0'),
-  "created_at" datetime,
-  "updated_at" datetime,
-  "status" varchar not null default('active'),
-  "cancellation_reason" varchar,
-  "cancellation_requested_at" datetime,
-  "cancelled_at" datetime,
-  "substituted_from_line_id" integer,
-  foreign key("product_id") references products("id") on delete set null on update no action,
-  foreign key("supplier_order_id") references supplier_orders("id") on delete cascade on update no action,
-  foreign key("substituted_from_line_id") references "supplier_order_lines"("id") on delete set null
-);
 CREATE TABLE "supplier_orders"(
   "id" integer primary key autoincrement not null,
   "number" varchar,
@@ -886,40 +867,6 @@ CREATE UNIQUE INDEX "service_supplier_service_id_supplier_id_unique" on "service
   "service_id",
   "supplier_id"
 );
-CREATE TABLE "customer_order_lines"(
-  "id" integer primary key autoincrement not null,
-  "customer_order_id" integer not null,
-  "product_id" integer,
-  "quantity" integer not null,
-  "unit_price" numeric not null,
-  "note" text,
-  "status" varchar not null,
-  "delivered_at" datetime,
-  "returned_at" datetime,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "quantity_reserved" integer not null default('0'),
-  "quantity_on_order" integer not null default('0'),
-  "supplier_order_line_id" integer,
-  "customer_order_pickup_id" integer,
-  "cancellation_fee" numeric,
-  "service_id" integer,
-  "supplier_id" integer,
-  "description" varchar,
-  "is_taxable" tinyint(1) not null default '1',
-  "is_custom" tinyint(1) not null default '0',
-  "unit_cost" numeric,
-  "quote_number" varchar,
-  foreign key("customer_order_pickup_id") references customer_order_pickups("id") on delete set null on update no action,
-  foreign key("product_id") references products("id") on delete restrict on update no action,
-  foreign key("customer_order_id") references customer_orders("id") on delete cascade on update no action,
-  foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete set null on update no action,
-  foreign key("service_id") references "services"("id") on delete restrict,
-  foreign key("supplier_id") references "suppliers"("id") on delete restrict
-);
-CREATE INDEX "customer_order_lines_status_index" on "customer_order_lines"(
-  "status"
-);
 CREATE TABLE "parts"(
   "id" integer primary key autoincrement not null,
   "supplier_id" integer not null,
@@ -943,6 +890,63 @@ CREATE TABLE "part_product"(
   foreign key("part_id") references "parts"("id") on delete cascade,
   foreign key("product_id") references "products"("id") on delete cascade,
   primary key("part_id", "product_id")
+);
+CREATE TABLE "customer_order_lines"(
+  "id" integer primary key autoincrement not null,
+  "customer_order_id" integer not null,
+  "product_id" integer,
+  "quantity" integer not null,
+  "unit_price" numeric not null,
+  "note" text,
+  "status" varchar not null,
+  "delivered_at" datetime,
+  "returned_at" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "quantity_reserved" integer not null default('0'),
+  "quantity_on_order" integer not null default('0'),
+  "supplier_order_line_id" integer,
+  "customer_order_pickup_id" integer,
+  "cancellation_fee" numeric,
+  "service_id" integer,
+  "supplier_id" integer,
+  "description" varchar,
+  "is_taxable" tinyint(1) not null default('1'),
+  "is_custom" tinyint(1) not null default('0'),
+  "unit_cost" numeric,
+  "quote_number" varchar,
+  "part_id" integer,
+  foreign key("supplier_id") references suppliers("id") on delete restrict on update no action,
+  foreign key("service_id") references services("id") on delete restrict on update no action,
+  foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete set null on update no action,
+  foreign key("customer_order_id") references customer_orders("id") on delete cascade on update no action,
+  foreign key("product_id") references products("id") on delete restrict on update no action,
+  foreign key("customer_order_pickup_id") references customer_order_pickups("id") on delete set null on update no action,
+  foreign key("part_id") references "parts"("id") on delete restrict
+);
+CREATE INDEX "customer_order_lines_status_index" on "customer_order_lines"(
+  "status"
+);
+CREATE TABLE "supplier_order_lines"(
+  "id" integer primary key autoincrement not null,
+  "supplier_order_id" integer not null,
+  "product_id" integer,
+  "description" varchar,
+  "quantity" integer not null,
+  "unit_cost" numeric not null,
+  "quantity_received" integer not null default('0'),
+  "created_at" datetime,
+  "updated_at" datetime,
+  "status" varchar not null default('active'),
+  "cancellation_reason" varchar,
+  "cancellation_requested_at" datetime,
+  "cancelled_at" datetime,
+  "substituted_from_line_id" integer,
+  "part_id" integer,
+  foreign key("substituted_from_line_id") references supplier_order_lines("id") on delete set null on update no action,
+  foreign key("supplier_order_id") references supplier_orders("id") on delete cascade on update no action,
+  foreign key("product_id") references products("id") on delete set null on update no action,
+  foreign key("part_id") references "parts"("id") on delete restrict
 );
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
@@ -1088,3 +1092,4 @@ INSERT INTO migrations VALUES(140,'2026_10_10_210942_add_custom_products',5);
 INSERT INTO migrations VALUES(141,'2026_10_10_210943_add_customer_order_return_custom_permission',5);
 INSERT INTO migrations VALUES(142,'2026_10_10_223128_create_parts_table',6);
 INSERT INTO migrations VALUES(143,'2026_10_10_223129_create_part_product_table',6);
+INSERT INTO migrations VALUES(144,'2026_10_10_225119_add_part_id_to_order_lines',7);

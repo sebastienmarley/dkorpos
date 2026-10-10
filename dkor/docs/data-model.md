@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-10 (143 migrations, 51 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-10 (144 migrations, 51 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 143 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
+les 144 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -46,6 +46,7 @@ erDiagram
     customers ||--o{ customer_orders : ""
     customer_order_pickups |o--o{ customer_order_lines : ""
     products |o--o{ customer_order_lines : ""
+    parts |o--o{ customer_order_lines : ""
     services |o--o{ customer_order_lines : ""
     suppliers |o--o{ customer_order_lines : ""
     customer_orders ||--o{ customer_order_lines : ""
@@ -63,6 +64,7 @@ erDiagram
     suppliers ||--o{ supplier_orders : ""
     supplier_orders ||--o{ supplier_order_lines : ""
     products |o--o{ supplier_order_lines : ""
+    parts |o--o{ supplier_order_lines : ""
     suppliers ||--o{ receptions : ""
     receptions ||--o{ reception_lines : ""
     supplier_order_lines ||--o{ reception_lines : ""
@@ -112,7 +114,9 @@ erDiagram
   ramassage qui l'a remise au client (`customer_order_pickup_id`).
 - Une ligne vend **soit** un produit (`product_id`), **soit** un service (`service_id`, avec le
   fournisseur qui le rend dans `supplier_id`, vide pour un service interne, et la `description` précise
-  de la vente). Les deux clés sont `nullable`.
+  de la vente), **soit** une pièce de remplacement (`part_id`). Les trois clés sont `nullable`.
+- Une pièce est toujours commandée pour le client (jamais prise en stock) et ne crée aucun mouvement
+  d'inventaire : `quantity_reserved` compte ce qui est reçu et prêt à lui être remis.
 - Un article **sur mesure** (`is_custom`) vend un produit gabarit avec ses spécifications
   (`description`), le coût soumis par le fournisseur (`unit_cost`) et son numéro de soumission
   (`quote_number`); il est toujours commandé, jamais pris en stock.
@@ -129,6 +133,7 @@ erDiagram
     users |o--o{ customer_orders : "created_by · null"
     customer_order_pickups |o--o{ customer_order_lines : "customer_order_pickup_id · null"
     products |o--o{ customer_order_lines : "product_id · restrict"
+    parts |o--o{ customer_order_lines : "part_id · restrict"
     services |o--o{ customer_order_lines : "service_id · restrict"
     suppliers |o--o{ customer_order_lines : "supplier_id · restrict"
     customer_orders ||--o{ customer_order_lines : "customer_order_id · cascade"
@@ -179,6 +184,7 @@ erDiagram
         int id PK
         int customer_order_pickup_id FK "nullable"
         int product_id FK "nullable"
+        int part_id FK "nullable"
         int service_id FK "nullable"
         int supplier_id FK "nullable"
         int customer_order_id FK
@@ -249,6 +255,9 @@ erDiagram
   clés sont uniques et `nullable`.
 - `supplier_order_lines.substituted_from_line_id` relie une ligne à celle qu'elle remplace
   (substitution par le fournisseur).
+- Une ligne de pièce (`part_id`) se reçoit comme un produit, mais sans entrer en inventaire. Sa
+  réception met à jour `parts.last_cost`. Une pièce liée à une commande ne peut pas être supprimée
+  (`restrict`).
 - Les documents se protègent en chaîne (`restrict`) : ligne de commande ← ligne de réception ← ligne
   de facture.
 
@@ -262,6 +271,7 @@ erDiagram
     supplier_order_lines |o--o{ supplier_order_lines : "substituted_from_line_id · null"
     supplier_orders ||--o{ supplier_order_lines : "supplier_order_id · cascade"
     products |o--o{ supplier_order_lines : "product_id · null"
+    parts |o--o{ supplier_order_lines : "part_id · restrict"
     users |o--o{ receptions : "received_by · null"
     suppliers ||--o{ receptions : "supplier_id · restrict"
     users |o--o{ reception_lines : "reversed_by · null"
@@ -345,6 +355,7 @@ erDiagram
         int substituted_from_line_id FK "nullable"
         int supplier_order_id FK
         int product_id FK "nullable"
+        int part_id FK "nullable"
         string description "nullable"
         int quantity
         decimal unit_cost "10,2"

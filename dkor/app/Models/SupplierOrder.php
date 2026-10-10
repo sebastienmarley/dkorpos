@@ -387,6 +387,7 @@ class SupplierOrder extends Model
      * en cours qui concernent cette commande. Les quantités sont replafonnées à ce qui reste à recevoir; une ligne
      * qui n'a plus rien à recevoir est retirée de la réception. La partie endommagée compte comme reçue mais entre en
      * inventaire défectueux (sans unité vendable) avec un dossier défectueux; pour un client lié, elle est recommandée.
+     * Une pièce de remplacement n'entre pas en inventaire : son dernier coût devient celui de la réception.
      * Appelé par Reception::complete dans sa transaction.
      *
      * @param  Collection<int, ReceptionLine>  $receptionLines
@@ -422,6 +423,10 @@ class SupplierOrder extends Model
             $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::DefectiveStock, $damaged, InventoryMovementType::ReceiptDamaged, $receptionLine);
 
             $line->update(['quantity_received' => $line->quantity_received + $quantity]);
+
+            if ($line->part_id !== null) {
+                Part::query()->whereKey($line->part_id)->update(['last_cost' => $cost]);
+            }
 
             if ($damaged > 0) {
                 DefectiveProduct::create([
@@ -586,7 +591,7 @@ class SupplierOrder extends Model
             throw new DomainException(__('Une substitution se fait sur une commande de produits envoyée et non reçue.'));
         }
 
-        if ($line->status !== SupplierOrderLineStatus::Active || $line->quantity_outstanding === 0) {
+        if ($line->status !== SupplierOrderLineStatus::Active || $line->quantity_outstanding === 0 || $line->part_id !== null) {
             throw new DomainException(__('Cette ligne ne peut pas être substituée.'));
         }
 
