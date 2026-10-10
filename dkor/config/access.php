@@ -21,6 +21,7 @@ $pageAccess = [
     'customer_orders.view',
     'customer_orders.create',
     'customer_orders.edit',
+    'services.view',
     'products.view',
     'products.create',
     'inventory.view',
@@ -33,6 +34,10 @@ $pageAccess = [
 
 $managementAccess = [
     'customer_orders.assign_salespeople',
+    'customer_orders.return_custom',
+    'services.view',
+    'services.create',
+    'services.edit',
 ];
 
 $warehouseAccess = [
@@ -46,6 +51,9 @@ $warehouseAccess = [
 ];
 
 $accountingAccess = [
+    'services.view',
+    'services.create',
+    'services.edit',
     'payment_methods.view',
     'payment_methods.create',
     'payment_methods.edit',
@@ -99,6 +107,7 @@ return [
         'customer_orders.view' => ['Voir — commandes clients', 'Accéder à la page : commandes clients.'],
         'customer_orders.create' => ['Créer — commandes clients', 'Créer dans : commandes clients.'],
         'customer_orders.edit' => ['Modifier — commandes clients', 'Modifier dans : commandes clients (client, produits).'],
+        'customer_orders.return_custom' => ['Autoriser un retour sur mesure — commandes clients', 'Reprendre en retour (échange ou remboursement) un article fabriqué sur mesure.'],
         'customer_orders.assign_salespeople' => ['Gérer les vendeurs — commandes clients', 'Modifier les vendeurs et la répartition de la vente dans : commandes clients.'],
         'suppliers.view' => ['Voir — fournisseurs', 'Accéder à la page : fournisseurs.'],
         'suppliers.create' => ['Créer — fournisseurs', 'Créer dans : fournisseurs.'],
@@ -115,6 +124,9 @@ return [
         'receptions.reverse' => ['Renverser — réceptions', 'Renverser une réception de produits non encore facturée (erreur de réception).'],
         'inventory.view' => ['Voir — journal d\'inventaire', 'Accéder à la page : journal d\'inventaire.'],
         'inventory.move' => ['Déplacer — inventaire', 'Déplacer des quantités entre états d\'inventaire (démo, défectueux, perdu…).'],
+        'services.view' => ['Voir — services', 'Accéder à la page : services.'],
+        'services.create' => ['Créer — services', 'Créer dans : services.'],
+        'services.edit' => ['Modifier — services', 'Modifier dans : services (fournisseurs et prix).'],
         'departments.view' => ['Voir — départements', 'Accéder à la page : départements.'],
         'departments.create' => ['Créer — départements', 'Créer dans : départements.'],
         'departments.edit' => ['Modifier — départements', 'Modifier dans : départements.'],

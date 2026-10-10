@@ -162,11 +162,20 @@
                     <flux:heading size="sm" class="mb-1">{{ __('Ventes') }}</flux:heading>
                     <flux:text class="mb-4 text-sm text-zinc-500">{{ __('Frais facturés au client qui annule un article déjà commandé au fournisseur sans attendre sa confirmation (en % du prix vendant).') }}</flux:text>
 
-                    <flux:field class="max-w-xs">
-                        <flux:label>{{ __('Frais d\'annulation (%)') }}</flux:label>
-                        <flux:input wire:model="cancellationFeePercent" type="number" step="0.01" min="0" max="100" />
-                        <flux:error name="cancellationFeePercent" />
-                    </flux:field>
+                    <div class="grid max-w-lg gap-4 sm:grid-cols-2">
+                        <flux:field>
+                            <flux:label>{{ __('Frais d\'annulation (%)') }}</flux:label>
+                            <flux:input wire:model="cancellationFeePercent" type="number" step="0.01" min="0" max="100" />
+                            <flux:error name="cancellationFeePercent" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Dépôt sur mesure (%)') }}</flux:label>
+                            <flux:input wire:model="customDepositPercent" type="number" step="0.01" min="0" max="100" />
+                            <flux:description>{{ __('Exigé sur les articles sur mesure non encore remis.') }}</flux:description>
+                            <flux:error name="customDepositPercent" />
+                        </flux:field>
+                    </div>
                 </div>
 
                 <div class="flex justify-end pt-2">

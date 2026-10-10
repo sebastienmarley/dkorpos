@@ -127,6 +127,10 @@ class SupplierOrderLine extends Model
 
     public function getLabelAttribute(): string
     {
-        return $this->product_id !== null ? $this->product->display_name : (string) $this->description;
+        if ($this->product_id === null) {
+            return (string) $this->description;
+        }
+
+        return $this->product->display_name.(filled($this->description) ? ' — '.$this->description : '');
     }
 }

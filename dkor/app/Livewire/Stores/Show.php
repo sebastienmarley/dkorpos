@@ -54,6 +54,8 @@ class Show extends Component
 
     public string $cancellationFeePercent = '0';
 
+    public string $customDepositPercent = '50';
+
     // Heures d'ouverture
 
     /** @var array<string, array{open: bool, from: string, to: string}> */
@@ -130,6 +132,7 @@ class Show extends Component
             'sickDaysFullTime' => ['nullable', 'integer', 'min:0', 'max:365'],
             'sickDaysPartTime' => ['nullable', 'integer', 'min:0', 'max:365'],
             'cancellationFeePercent' => ['required', 'numeric', 'min:0', 'max:100'],
+            'customDepositPercent' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
         $this->store->fill([
@@ -139,6 +142,7 @@ class Show extends Component
             'sick_days_full_time' => filled($this->sickDaysFullTime) ? $this->sickDaysFullTime : null,
             'sick_days_part_time' => filled($this->sickDaysPartTime) ? $this->sickDaysPartTime : null,
             'cancellation_fee_percent' => round((float) $this->cancellationFeePercent, 2),
+            'custom_deposit_percent' => round((float) $this->customDepositPercent, 2),
         ])->save();
 
         $this->saveTaxNumbers();
@@ -269,6 +273,7 @@ class Show extends Component
         $this->sickDaysFullTime = (string) ($this->store->sick_days_full_time ?? '');
         $this->sickDaysPartTime = (string) ($this->store->sick_days_part_time ?? '');
         $this->cancellationFeePercent = rtrim(rtrim(number_format($this->store->cancellation_fee_percent, 2, '.', ''), '0'), '.');
+        $this->customDepositPercent = rtrim(rtrim(number_format($this->store->custom_deposit_percent, 2, '.', ''), '0'), '.');
         $this->openingHours = array_replace_recursive(Store::defaultOpeningHours(), $this->store->opening_hours ?? []);
         $this->warehouseStoreId = (string) ($this->store->warehouse_store_id ?? '');
         $this->shippingWarehouseId = (string) ($this->store->shipping_warehouse_id ?? '');

@@ -33,6 +33,8 @@ use Illuminate\Support\Carbon;
  * @property float|null $weight
  * @property bool $is_discontinued
  * @property bool $is_non_orderable
+ * @property bool $is_taxable
+ * @property bool $is_custom Gabarit de produit sur mesure : chaque vente porte ses spécifications, son coût soumis et son prix.
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Supplier $supplier
@@ -41,11 +43,16 @@ use Illuminate\Support\Carbon;
  * @property-read Color|null $color
  * @property-read float $selling_price
  */
-#[Fillable(['supplier_id', 'department_id', 'category_id', 'color_id', 'model', 'clean_model', 'supplier_model', 'collection', 'cost', 'imap', 'description', 'length', 'width', 'height', 'weight', 'is_discontinued', 'is_non_orderable'])]
+#[Fillable(['supplier_id', 'department_id', 'category_id', 'color_id', 'model', 'clean_model', 'supplier_model', 'collection', 'cost', 'imap', 'description', 'length', 'width', 'height', 'weight', 'is_discontinued', 'is_non_orderable', 'is_taxable', 'is_custom'])]
 class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
     use HasFactory;
+
+    protected $attributes = [
+        'is_taxable' => true,
+        'is_custom' => false,
+    ];
 
     protected $casts = [
         'cost' => 'float',
@@ -56,6 +63,8 @@ class Product extends Model
         'weight' => 'float',
         'is_discontinued' => 'boolean',
         'is_non_orderable' => 'boolean',
+        'is_taxable' => 'boolean',
+        'is_custom' => 'boolean',
     ];
 
     protected static function booted(): void

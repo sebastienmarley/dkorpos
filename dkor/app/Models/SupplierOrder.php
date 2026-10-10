@@ -716,7 +716,8 @@ class SupplierOrder extends Model
     }
 
     /**
-     * Marque une commande de services comme complétée.
+     * Marque une commande de services comme complétée; les services vendus aux clients qu'elle couvre passent à
+     * « Complété ».
      */
     public function complete(): void
     {
@@ -724,7 +725,16 @@ class SupplierOrder extends Model
             throw new DomainException(__('Cette commande ne peut pas être complétée.'));
         }
 
-        $this->update(['status' => SupplierOrderStatus::Received, 'received_at' => now()]);
+        DB::transaction(function (): void {
+            $this->update(['status' => SupplierOrderStatus::Received, 'received_at' => now()]);
+
+            CustomerOrderLine::query()
+                ->with('order')
+                ->whereIn('supplier_order_line_id', $this->lines()->pluck('id'))
+                ->where('status', CustomerOrderLineStatus::Ordered)
+                ->get()
+                ->each(fn (CustomerOrderLine $line) => $line->order->completeServiceLine($line));
+        });
     }
 
     /**

@@ -171,6 +171,8 @@ CREATE TABLE "products"(
   "weight" numeric,
   "imap" numeric,
   "supplier_clean_model" varchar,
+  "is_taxable" tinyint(1) not null default '1',
+  "is_custom" tinyint(1) not null default '0',
   foreign key("supplier_id") references suppliers("id") on delete cascade on update no action,
   foreign key("department_id") references "departments"("id") on delete set null,
   foreign key("category_id") references "categories"("id") on delete set null,
@@ -550,8 +552,6 @@ CREATE TABLE "stores"(
   "address_province" varchar,
   "address_country" varchar,
   "address_postal_code" varchar,
-  "gst_number" varchar,
-  "qst_number" varchar,
   "bank_account" varchar,
   "opening_hours" text,
   "warehouse_store_id" integer,
@@ -564,6 +564,8 @@ CREATE TABLE "stores"(
   "sick_days_full_time" integer,
   "sick_days_part_time" integer,
   "cancellation_fee_percent" numeric not null default '0',
+  "province" varchar not null default 'QC',
+  "custom_deposit_percent" numeric not null default '50',
   foreign key("warehouse_store_id") references stores("id") on delete set null on update no action,
   foreign key("shipping_warehouse_id") references "stores"("id") on delete set null
 );
@@ -724,31 +726,6 @@ CREATE TABLE "customer_order_pickups"(
   foreign key("customer_order_id") references "customer_orders"("id") on delete cascade,
   foreign key("handled_by") references "users"("id") on delete set null
 );
-CREATE TABLE "customer_order_lines"(
-  "id" integer primary key autoincrement not null,
-  "customer_order_id" integer not null,
-  "product_id" integer not null,
-  "quantity" integer not null,
-  "unit_price" numeric not null,
-  "note" text,
-  "status" varchar not null,
-  "delivered_at" datetime,
-  "returned_at" datetime,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "quantity_reserved" integer not null default('0'),
-  "quantity_on_order" integer not null default('0'),
-  "supplier_order_line_id" integer,
-  "customer_order_pickup_id" integer,
-  "cancellation_fee" numeric,
-  foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete set null on update no action,
-  foreign key("customer_order_id") references customer_orders("id") on delete cascade on update no action,
-  foreign key("product_id") references products("id") on delete restrict on update no action,
-  foreign key("customer_order_pickup_id") references "customer_order_pickups"("id") on delete set null
-);
-CREATE INDEX "customer_order_lines_status_index" on "customer_order_lines"(
-  "status"
-);
 CREATE INDEX "customers_search_name_index" on "customers"("search_name");
 CREATE INDEX "users_search_name_index" on "users"("search_name");
 CREATE TABLE "customer_order_payments"(
@@ -781,8 +758,6 @@ CREATE TABLE "customer_orders"(
   "created_at" datetime,
   "updated_at" datetime,
   "subtotal" numeric not null default('0'),
-  "gst" numeric not null default('0'),
-  "qst" numeric not null default('0'),
   "total" numeric not null default('0'),
   "amount_paid" numeric not null default('0'),
   "store_id" integer,
@@ -840,6 +815,110 @@ CREATE INDEX "inventory_movements_product_id_created_at_index" on "inventory_mov
 CREATE INDEX "inventory_movements_reference_type_reference_id_index" on "inventory_movements"(
   "reference_type",
   "reference_id"
+);
+CREATE TABLE "taxes"(
+  "id" integer primary key autoincrement not null,
+  "province" varchar not null,
+  "name" varchar not null,
+  "rate" numeric not null,
+  "is_compound" tinyint(1) not null default '0',
+  "start_date" date not null,
+  "end_date" date not null default '2100-12-31',
+  "created_at" datetime,
+  "updated_at" datetime
+);
+CREATE INDEX "taxes_province_start_date_end_date_index" on "taxes"(
+  "province",
+  "start_date",
+  "end_date"
+);
+CREATE TABLE "store_tax_registrations"(
+  "id" integer primary key autoincrement not null,
+  "store_id" integer not null,
+  "tax_name" varchar not null,
+  "number" varchar not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("store_id") references "stores"("id") on delete cascade
+);
+CREATE UNIQUE INDEX "store_tax_registrations_store_id_tax_name_unique" on "store_tax_registrations"(
+  "store_id",
+  "tax_name"
+);
+CREATE TABLE "customer_order_taxes"(
+  "id" integer primary key autoincrement not null,
+  "customer_order_id" integer not null,
+  "tax_id" integer,
+  "name" varchar not null,
+  "rate" numeric not null,
+  "is_compound" tinyint(1) not null default '0',
+  "registration_number" varchar,
+  "amount" numeric not null default '0',
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("customer_order_id") references "customer_orders"("id") on delete cascade,
+  foreign key("tax_id") references "taxes"("id") on delete set null
+);
+CREATE TABLE "services"(
+  "id" integer primary key autoincrement not null,
+  "name" varchar not null,
+  "description_template" text,
+  "is_internal" tinyint(1) not null default '0',
+  "selling_price" numeric,
+  "is_taxable" tinyint(1) not null default '1',
+  "is_active" tinyint(1) not null default '1',
+  "created_at" datetime,
+  "updated_at" datetime
+);
+CREATE UNIQUE INDEX "services_name_unique" on "services"("name");
+CREATE TABLE "service_supplier"(
+  "id" integer primary key autoincrement not null,
+  "service_id" integer not null,
+  "supplier_id" integer not null,
+  "cost" numeric not null default '0',
+  "selling_price" numeric not null default '0',
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("service_id") references "services"("id") on delete cascade,
+  foreign key("supplier_id") references "suppliers"("id") on delete cascade
+);
+CREATE UNIQUE INDEX "service_supplier_service_id_supplier_id_unique" on "service_supplier"(
+  "service_id",
+  "supplier_id"
+);
+CREATE TABLE "customer_order_lines"(
+  "id" integer primary key autoincrement not null,
+  "customer_order_id" integer not null,
+  "product_id" integer,
+  "quantity" integer not null,
+  "unit_price" numeric not null,
+  "note" text,
+  "status" varchar not null,
+  "delivered_at" datetime,
+  "returned_at" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "quantity_reserved" integer not null default('0'),
+  "quantity_on_order" integer not null default('0'),
+  "supplier_order_line_id" integer,
+  "customer_order_pickup_id" integer,
+  "cancellation_fee" numeric,
+  "service_id" integer,
+  "supplier_id" integer,
+  "description" varchar,
+  "is_taxable" tinyint(1) not null default '1',
+  "is_custom" tinyint(1) not null default '0',
+  "unit_cost" numeric,
+  "quote_number" varchar,
+  foreign key("customer_order_pickup_id") references customer_order_pickups("id") on delete set null on update no action,
+  foreign key("product_id") references products("id") on delete restrict on update no action,
+  foreign key("customer_order_id") references customer_orders("id") on delete cascade on update no action,
+  foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete set null on update no action,
+  foreign key("service_id") references "services"("id") on delete restrict,
+  foreign key("supplier_id") references "suppliers"("id") on delete restrict
+);
+CREATE INDEX "customer_order_lines_status_index" on "customer_order_lines"(
+  "status"
 );
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
@@ -971,3 +1050,15 @@ INSERT INTO migrations VALUES(126,'2026_10_09_150123_add_cancellation_fee_to_cus
 INSERT INTO migrations VALUES(127,'2026_10_10_003112_create_defective_products_table',2);
 INSERT INTO migrations VALUES(128,'2026_10_10_004316_add_damaged_receipts',2);
 INSERT INTO migrations VALUES(129,'2026_10_10_154719_restrict_product_deletion_on_inventory_movements_table',2);
+INSERT INTO migrations VALUES(130,'2026_10_10_173537_create_taxes_table',3);
+INSERT INTO migrations VALUES(131,'2026_10_10_173544_add_tax_permissions',3);
+INSERT INTO migrations VALUES(132,'2026_10_10_180545_add_province_to_stores_table',3);
+INSERT INTO migrations VALUES(133,'2026_10_10_180546_create_store_tax_registrations_table',3);
+INSERT INTO migrations VALUES(134,'2026_10_10_181236_create_customer_order_taxes_table',3);
+INSERT INTO migrations VALUES(135,'2026_10_10_202303_create_services_table',4);
+INSERT INTO migrations VALUES(136,'2026_10_10_202304_create_service_supplier_table',4);
+INSERT INTO migrations VALUES(137,'2026_10_10_202305_add_is_taxable_to_products_table',4);
+INSERT INTO migrations VALUES(138,'2026_10_10_202306_add_service_columns_to_customer_order_lines_table',4);
+INSERT INTO migrations VALUES(139,'2026_10_10_202307_add_service_permissions',4);
+INSERT INTO migrations VALUES(140,'2026_10_10_210942_add_custom_products',5);
+INSERT INTO migrations VALUES(141,'2026_10_10_210943_add_customer_order_return_custom_permission',5);

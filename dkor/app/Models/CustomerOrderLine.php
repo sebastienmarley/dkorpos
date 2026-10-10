@@ -15,7 +15,14 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $customer_order_id
- * @property int $product_id
+ * @property int|null $product_id
+ * @property int|null $service_id
+ * @property int|null $supplier_id
+ * @property string|null $description
+ * @property bool $is_taxable
+ * @property bool $is_custom
+ * @property float|null $unit_cost Coût soumis par le fournisseur (article sur mesure).
+ * @property string|null $quote_number Numéro de soumission du fournisseur (article sur mesure).
  * @property int|null $supplier_order_line_id
  * @property int|null $customer_order_pickup_id
  * @property int $quantity
@@ -30,13 +37,16 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read CustomerOrder $order
- * @property-read Product $product
+ * @property-read Product|null $product
+ * @property-read Service|null $service
+ * @property-read Supplier|null $supplier
+ * @property-read string $label
  * @property-read SupplierOrderLine|null $supplierOrderLine
  * @property-read CustomerOrderPickup|null $pickup
  * @property-read Collection<int, DefectiveProduct> $defectiveProducts
  * @property-read float $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
+#[Fillable(['customer_order_id', 'product_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
@@ -45,6 +55,8 @@ class CustomerOrderLine extends Model
     protected $attributes = [
         'quantity_reserved' => 0,
         'quantity_on_order' => 0,
+        'is_taxable' => true,
+        'is_custom' => false,
     ];
 
     protected $casts = [
@@ -52,6 +64,9 @@ class CustomerOrderLine extends Model
         'quantity_reserved' => 'integer',
         'quantity_on_order' => 'integer',
         'unit_price' => 'float',
+        'is_taxable' => 'boolean',
+        'is_custom' => 'boolean',
+        'unit_cost' => 'float',
         'cancellation_fee' => 'float',
         'status' => CustomerOrderLineStatus::class,
         'delivered_at' => 'datetime',
@@ -68,6 +83,55 @@ class CustomerOrderLine extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /** @return BelongsTo<Service, $this> */
+    public function service(): BelongsTo
+    {
+        return $this->belongsTo(Service::class);
+    }
+
+    /**
+     * Fournisseur qui rend le service (aucun pour un service interne).
+     *
+     * @return BelongsTo<Supplier, $this>
+     */
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * Caractéristiques de la vente à recopier sur une ligne séparée de celle-ci (ramassage, retour, annulation,
+     * recommande…) : ce qui est vendu, sa description, son prix, son coût soumis et sa taxabilité.
+     *
+     * @return array<string, mixed>
+     */
+    public function saleAttributes(): array
+    {
+        return [
+            'product_id' => $this->product_id,
+            'service_id' => $this->service_id,
+            'supplier_id' => $this->supplier_id,
+            'description' => $this->description,
+            'unit_price' => $this->unit_price,
+            'unit_cost' => $this->unit_cost,
+            'quote_number' => $this->quote_number,
+            'is_taxable' => $this->is_taxable,
+            'is_custom' => $this->is_custom,
+            'note' => $this->note,
+        ];
+    }
+
+    public function isService(): bool
+    {
+        return $this->service_id !== null;
+    }
+
+    /** Nom affiché : modèle du produit, ou nom du service. */
+    public function getLabelAttribute(): string
+    {
+        return $this->isService() ? $this->service->name : $this->product->model;
     }
 
     /** @return BelongsTo<SupplierOrderLine, $this> */

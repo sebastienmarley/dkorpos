@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
@@ -148,5 +149,15 @@ class Supplier extends Model
     public function priceLists(): HasMany
     {
         return $this->hasMany(PriceList::class);
+    }
+
+    /**
+     * Services que ce fournisseur offre (pivot : cost, selling_price).
+     *
+     * @return BelongsToMany<Service, $this>
+     */
+    public function services(): BelongsToMany
+    {
+        return $this->belongsToMany(Service::class)->withPivot(['cost', 'selling_price'])->withTimestamps();
     }
 }

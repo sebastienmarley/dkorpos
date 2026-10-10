@@ -16,6 +16,7 @@ use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
 use App\Livewire\Catalog\PriceLists;
 use App\Livewire\Catalog\PriceListShow;
+use App\Livewire\Catalog\Services;
 use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
 use App\Livewire\CustomerOrders\Show as CustomerOrderShow;
 use App\Livewire\Customers\Index as CustomersIndex;
@@ -76,6 +77,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('catalog/departments', Departments::class)->middleware('can:departments.view')->name('catalog.departments');
     Route::get('catalog/categories', Categories::class)->middleware('can:categories.view')->name('catalog.categories');
+    Route::get('catalog/services', Services::class)->middleware('can:services.view')->name('catalog.services');
     Route::get('catalog/colors', Colors::class)->middleware('can:colors.view')->name('catalog.colors');
     Route::get('catalog/price-lists', PriceLists::class)->middleware('can:price_lists.view')->name('catalog.price-lists');
     Route::get('catalog/price-lists/{priceList}', PriceListShow::class)->middleware('can:price_lists.view')->name('catalog.price-lists.show');

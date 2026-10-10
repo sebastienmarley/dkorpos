@@ -7,10 +7,12 @@ use App\Concerns\SearchesCustomers;
 use App\Enums\SupplierType;
 use App\Models\customer;
 use App\Models\CustomerOrder;
+use App\Models\CustomerOrderLine;
 use App\Models\CustomerPaymentMethod;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\ProductUpc;
+use App\Models\Service;
 use App\Models\Supplier;
 use App\Models\User;
 use DomainException;
@@ -66,6 +68,43 @@ class Show extends Component
     public string $editUnitPrice = '';
 
     public string $editNote = '';
+
+    public string $editQuantity = '1';
+
+    public string $editDescription = '';
+
+    public string $editUnitCost = '';
+
+    public string $editQuoteNumber = '';
+
+    public bool $showCustomModal = false;
+
+    public ?int $customProductId = null;
+
+    public string $customSpecifications = '';
+
+    public string $customQuantity = '1';
+
+    public string $customCost = '';
+
+    public string $customQuoteNumber = '';
+
+    public string $customPrice = '';
+
+    public bool $showServiceModal = false;
+
+    public string $serviceId = '';
+
+    public string $serviceSupplierId = '';
+
+    /** Ligne de produit visée par le service ({produit} de la description modèle). */
+    public string $serviceProductLineId = '';
+
+    public string $serviceQuantity = '1';
+
+    public string $servicePrice = '';
+
+    public string $serviceDescription = '';
 
     public bool $showReturnModal = false;
 
@@ -268,6 +307,14 @@ class Show extends Component
 
         $product = Product::findOrFail($id);
 
+        if ($product->is_custom) {
+            $this->showProductModal = false;
+            $this->reset(['pendingUpc', 'linkPendingUpc']);
+            $this->openCustomModal($product->id);
+
+            return;
+        }
+
         try {
             $this->order->addProduct($product);
         } catch (DomainException $exception) {
@@ -329,6 +376,10 @@ class Show extends Component
         $line = $this->order->lines()->findOrFail($lineId);
 
         $this->editingLineId = $line->id;
+        $this->editQuantity = (string) $line->quantity;
+        $this->editDescription = $line->description ?? '';
+        $this->editUnitCost = $line->unit_cost === null ? '' : number_format($line->unit_cost, 2, '.', '');
+        $this->editQuoteNumber = $line->quote_number ?? '';
         $this->editReserved = (string) $line->quantity_reserved;
         $this->editOnOrder = (string) $line->quantity_on_order;
         $this->editUnitPrice = number_format($line->unit_price, 2, '.', '');
@@ -344,6 +395,18 @@ class Show extends Component
         $line = $this->order->lines()->findOrFail($this->editingLineId);
 
         $this->editUnitPrice = str_replace(',', '.', $this->editUnitPrice);
+
+        if ($line->isService()) {
+            $this->saveServiceLine($line);
+
+            return;
+        }
+
+        if ($line->is_custom) {
+            $this->saveCustomLine($line);
+
+            return;
+        }
 
         $this->validate([
             'editReserved' => ['required', 'integer', 'min:0'],
@@ -362,6 +425,224 @@ class Show extends Component
 
         $this->showLineModal = false;
         $this->reset(['editingLineId', 'editReserved', 'editOnOrder', 'editUnitPrice', 'editNote']);
+    }
+
+    public function openCustomModal(int $productId): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $product = Product::query()->where('is_custom', true)->findOrFail($productId);
+
+        $this->reset(['customSpecifications', 'customQuantity', 'customCost', 'customQuoteNumber', 'customPrice']);
+        $this->customProductId = $product->id;
+        $this->resetErrorBag();
+        $this->showCustomModal = true;
+    }
+
+    public function addCustom(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $this->customCost = str_replace(',', '.', $this->customCost);
+        $this->customPrice = str_replace(',', '.', $this->customPrice);
+
+        $this->validate([
+            'customSpecifications' => ['required', 'string', 'max:255'],
+            'customQuantity' => ['required', 'integer', 'min:1', 'max:99999'],
+            'customCost' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'customQuoteNumber' => ['nullable', 'string', 'max:255'],
+            'customPrice' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+        ]);
+
+        try {
+            $this->order->addCustomProduct(
+                Product::findOrFail($this->customProductId),
+                (int) $this->customQuantity,
+                $this->customSpecifications,
+                (float) $this->customCost,
+                (float) $this->customPrice,
+                $this->customQuoteNumber,
+            );
+        } catch (DomainException $exception) {
+            $this->addError('customSpecifications', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showCustomModal = false;
+        Flux::toast(text: __('Article sur mesure ajouté et commandé au fournisseur.'), variant: 'success');
+    }
+
+    private function saveCustomLine(CustomerOrderLine $line): void
+    {
+        $this->editUnitCost = str_replace(',', '.', $this->editUnitCost);
+
+        $this->validate([
+            'editQuantity' => ['required', 'integer', 'min:1', 'max:99999'],
+            'editDescription' => ['required', 'string', 'max:255'],
+            'editUnitCost' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'editQuoteNumber' => ['nullable', 'string', 'max:255'],
+            'editUnitPrice' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'editNote' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        try {
+            $this->order->updateCustomLine($line, (int) $this->editQuantity, $this->editDescription, (float) $this->editUnitCost, (float) $this->editUnitPrice, $this->editQuoteNumber, $this->editNote);
+        } catch (DomainException $exception) {
+            $this->addError('editQuantity', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showLineModal = false;
+        $this->reset(['editingLineId', 'editQuantity', 'editDescription', 'editUnitCost', 'editQuoteNumber', 'editUnitPrice', 'editNote']);
+    }
+
+    private function saveServiceLine(CustomerOrderLine $line): void
+    {
+        $this->validate([
+            'editQuantity' => ['required', 'integer', 'min:1', 'max:99999'],
+            'editUnitPrice' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'editDescription' => ['required', 'string', 'max:255'],
+            'editNote' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        try {
+            $this->order->updateServiceLine($line, (int) $this->editQuantity, (float) $this->editUnitPrice, $this->editDescription, $this->editNote);
+        } catch (DomainException $exception) {
+            $this->addError('editQuantity', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showLineModal = false;
+        $this->reset(['editingLineId', 'editQuantity', 'editDescription', 'editUnitPrice', 'editNote']);
+    }
+
+    public function completeService(int $lineId): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        try {
+            $this->order->completeServiceLine($this->order->lines()->findOrFail($lineId));
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->showLineModal = false;
+        Flux::toast(text: __('Service complété.'), variant: 'success');
+    }
+
+    public function openServiceModal(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $this->reset(['serviceId', 'serviceSupplierId', 'serviceProductLineId', 'serviceQuantity', 'servicePrice', 'serviceDescription']);
+        $this->resetErrorBag();
+        $this->showServiceModal = true;
+    }
+
+    /**
+     * Choix du service : fournisseur présélectionné s'il n'y en a qu'un, prix et description modèle proposés.
+     */
+    public function updatedServiceId(): void
+    {
+        $service = $this->selectedService();
+        $offers = $service?->is_internal ? collect() : ($service?->suppliers()->pluck('suppliers.id') ?? collect());
+
+        $this->serviceSupplierId = $offers->count() === 1 ? (string) $offers->first() : '';
+        $this->refreshServiceProposal();
+    }
+
+    public function updatedServiceSupplierId(): void
+    {
+        $this->refreshServiceProposal();
+    }
+
+    public function updatedServiceProductLineId(): void
+    {
+        $service = $this->selectedService();
+
+        if ($service !== null) {
+            $this->serviceDescription = $service->describe($this->serviceProductName());
+        }
+    }
+
+    public function addService(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $this->servicePrice = str_replace(',', '.', $this->servicePrice);
+
+        $this->validate([
+            'serviceId' => ['required', 'integer', Rule::exists('services', 'id')->where('is_active', true)],
+            'serviceSupplierId' => ['nullable', 'integer'],
+            'serviceQuantity' => ['required', 'integer', 'min:1', 'max:99999'],
+            'servicePrice' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'serviceDescription' => ['required', 'string', 'max:255'],
+        ]);
+
+        try {
+            $this->order->addService(
+                Service::findOrFail((int) $this->serviceId),
+                filled($this->serviceSupplierId) ? (int) $this->serviceSupplierId : null,
+                (int) $this->serviceQuantity,
+                $this->serviceDescription,
+                (float) $this->servicePrice,
+            );
+        } catch (DomainException $exception) {
+            $this->addError('serviceSupplierId', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showServiceModal = false;
+        Flux::toast(text: __('Service ajouté à la commande.'), variant: 'success');
+    }
+
+    /** @return Collection<int, Service> */
+    public function getServices(): Collection
+    {
+        return Service::query()->where('is_active', true)->orderBy('name')->get();
+    }
+
+    /** @return Collection<int, Supplier> */
+    public function getServiceOffers(): Collection
+    {
+        $service = $this->selectedService();
+
+        return $service === null || $service->is_internal ? new Collection : $service->suppliers()->orderBy('name')->get();
+    }
+
+    private function selectedService(): ?Service
+    {
+        return filled($this->serviceId) ? Service::find((int) $this->serviceId) : null;
+    }
+
+    private function serviceProductName(): ?string
+    {
+        if (blank($this->serviceProductLineId)) {
+            return null;
+        }
+
+        return $this->order->lines()->with('product')->find((int) $this->serviceProductLineId)?->product?->model;
+    }
+
+    private function refreshServiceProposal(): void
+    {
+        $service = $this->selectedService();
+
+        if ($service === null) {
+            $this->servicePrice = '';
+            $this->serviceDescription = '';
+
+            return;
+        }
+
+        $this->servicePrice = number_format($service->pricingFor(filled($this->serviceSupplierId) ? (int) $this->serviceSupplierId : null)['selling_price'], 2, '.', '');
+        $this->serviceDescription = $service->describe($this->serviceProductName());
     }
 
     public function addFromPriceList(int $itemId, CreateProductFromPriceListItem $createProduct): void
@@ -447,6 +728,10 @@ class Show extends Component
 
         $line = $this->order->lines()->findOrFail($lineId);
 
+        if ($line->is_custom) {
+            $this->authorize('customer_orders.return_custom');
+        }
+
         if (! $line->status->isHandedOver()) {
             Flux::toast(text: __('Seul un article livré, ramassé ou expédié peut être retourné.'), variant: 'warning');
 
@@ -472,6 +757,10 @@ class Show extends Component
         $this->authorize('customer_orders.edit');
 
         $line = $this->order->lines()->findOrFail($this->returnLineId);
+
+        if ($line->is_custom) {
+            $this->authorize('customer_orders.return_custom');
+        }
 
         $this->validate([
             'returnQuantity' => ['required', 'integer', 'min:1', 'max:'.$line->quantity],
@@ -521,6 +810,10 @@ class Show extends Component
         $this->authorize('customer_orders.edit');
 
         $line = $this->order->lines()->findOrFail($this->returnLineId);
+
+        if ($line->is_custom) {
+            $this->authorize('customer_orders.return_custom');
+        }
 
         $this->returnRefunds = array_map(
             fn (array $refund): array => ['method_id' => $refund['method_id'], 'amount' => str_replace(',', '.', (string) $refund['amount'])],
@@ -940,16 +1233,18 @@ class Show extends Component
 
     public function render(): View
     {
-        $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStock', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
+        $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStock', 'service', 'supplier', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
         $returnLine = $this->returnLineId ? $this->order->lines()->with('product')->find($this->returnLineId) : null;
+        $customProduct = $this->customProductId ? Product::with('supplier')->find($this->customProductId) : null;
         $defectiveLine = $this->defectiveLineId ? $this->order->lines()->with('product.supplier')->find($this->defectiveLineId) : null;
 
-        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'lines.defectiveProducts', 'payments.paymentMethod', 'payments.receiver']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'lines.defectiveProducts', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),
             'editingLine' => $editingLine,
             'returnLine' => $returnLine,
+            'customProduct' => $customProduct,
             'defectiveLine' => $defectiveLine,
         ])->layout('layouts.app', ['title' => __('Commande client #:id', ['id' => $this->order->id])]);
     }
