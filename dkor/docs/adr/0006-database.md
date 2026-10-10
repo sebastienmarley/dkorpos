@@ -119,7 +119,8 @@ que de dépendre d'une collation propre à un moteur.
 
 **Données de départ**
 
-- **Les migrations ne contiennent que la structure.** Les données dont l'application a besoin
+- **Les migrations ne contiennent que la structure** (voir [ADR 0007](0007-reference-data-seeders.md)).
+  Les données dont l'application a besoin
   viennent de `ReferenceDataSeeder` : permissions et rôles par défaut (`config/access.php`, via
   `PermissionSeeder` et `RoleSeeder`) et le mode de paiement « Comptant ». Ce seeder ne modifie rien
   de ce qui existe déjà : il peut être relancé sans risque.
