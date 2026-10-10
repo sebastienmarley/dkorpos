@@ -153,8 +153,15 @@
             {{-- Totaux --}}
             <dl class="space-y-1 text-sm">
                 <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Sous-total') }}</dt><dd>{{ number_format($order->subtotal, 2) }} $</dd></div>
-                <div class="flex justify-between"><dt class="text-zinc-500">{{ __('TPS') }}</dt><dd>{{ number_format($order->gst, 2) }} $</dd></div>
-                <div class="flex justify-between"><dt class="text-zinc-500">{{ __('TVQ') }}</dt><dd>{{ number_format($order->qst, 2) }} $</dd></div>
+                @foreach ($order->taxLines as $taxLine)
+                    <div class="flex justify-between">
+                        <dt class="text-zinc-500">
+                            {{ $taxLine->name }}
+                            <span class="text-xs text-zinc-400">{{ rtrim(rtrim(number_format($taxLine->rate, 3, '.', ''), '0'), '.') }} %@if ($taxLine->registrationNumber()) · {{ $taxLine->registrationNumber() }}@endif</span>
+                        </dt>
+                        <dd>{{ number_format($taxLine->amount, 2) }} $</dd>
+                    </div>
+                @endforeach
                 <div class="flex justify-between font-medium"><dt>{{ __('Total') }}</dt><dd>{{ number_format($order->total, 2) }} $</dd></div>
                 <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Payé') }}</dt><dd>{{ number_format($order->amount_paid, 2) }} $</dd></div>
                 <div class="flex justify-between border-t border-zinc-200 pt-1 font-semibold dark:border-zinc-700">

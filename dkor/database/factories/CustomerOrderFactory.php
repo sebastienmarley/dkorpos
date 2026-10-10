@@ -5,6 +5,8 @@ namespace Database\Factories;
 use App\Enums\CustomerOrderStatus;
 use App\Models\customer;
 use App\Models\CustomerOrder;
+use App\Models\Store;
+use Database\Seeders\TaxSeeder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,6 +21,11 @@ class CustomerOrderFactory extends Factory
     {
         return [
             'customer_id' => customer::factory(),
+            'store_id' => function (): int {
+                (new TaxSeeder)->run();
+
+                return Store::factory()->create()->id;
+            },
             'status' => CustomerOrderStatus::New,
             'balance_due' => 0,
         ];

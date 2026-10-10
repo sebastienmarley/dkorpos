@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Stores;
 
+use App\Enums\Province;
 use App\Enums\StoreType;
 use App\Models\Store;
 use Closure;
@@ -21,6 +22,8 @@ class Show extends Component
 
     public string $type = 'physical';
 
+    public string $province = 'QC';
+
     /** @var array{civic: string, apartment: string, street: string, city: string, province: string, country: string, postal_code: string} */
     public array $address = [
         'civic' => '', 'apartment' => '', 'street' => '',
@@ -32,9 +35,8 @@ class Show extends Component
     public string $email = '';
 
     // Comptabilité
-    public string $gstNumber = '';
-
-    public string $qstNumber = '';
+    /** @var array<int, array{name: string, number: string}> Numéro de taxe du marchand pour chaque taxe de la province. */
+    public array $taxNumbers = [];
 
     public string $bankAccount = '';
 
@@ -82,6 +84,7 @@ class Show extends Component
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::enum(StoreType::class)],
+            'province' => ['required', Rule::enum(Province::class)],
             'address.civic' => ['nullable', 'string', 'max:20'],
             'address.apartment' => ['nullable', 'string', 'max:20'],
             'address.street' => ['nullable', 'string', 'max:255'],
@@ -96,6 +99,7 @@ class Show extends Component
         $this->store->fill([
             'name' => $validated['name'],
             'type' => $validated['type'],
+            'province' => $validated['province'],
             'address_civic' => filled($this->address['civic']) ? $this->address['civic'] : null,
             'address_apartment' => filled($this->address['apartment']) ? $this->address['apartment'] : null,
             'address_street' => filled($this->address['street']) ? $this->address['street'] : null,
@@ -107,6 +111,8 @@ class Show extends Component
             'email' => filled($this->email) ? $this->email : null,
         ])->save();
 
+        $this->loadTaxNumbers();
+
         Flux::toast(text: __('Identification sauvegardée.'), variant: 'success');
     }
 
@@ -115,8 +121,7 @@ class Show extends Component
         $this->authorize('stores.edit');
 
         $this->validate([
-            'gstNumber' => ['nullable', 'string', 'max:255'],
-            'qstNumber' => ['nullable', 'string', 'max:255'],
+            'taxNumbers.*.number' => ['nullable', 'string', 'max:255'],
             'bankAccount' => ['nullable', 'string', 'max:255'],
             'vacationAccrualMonth' => ['nullable', 'integer', 'between:1,12', 'required_with:vacationAccrualDay'],
             'vacationAccrualDay' => ['nullable', 'integer', 'between:1,31', 'required_with:vacationAccrualMonth', $this->validDay($this->vacationAccrualMonth)],
@@ -128,8 +133,6 @@ class Show extends Component
         ]);
 
         $this->store->fill([
-            'gst_number' => filled($this->gstNumber) ? $this->gstNumber : null,
-            'qst_number' => filled($this->qstNumber) ? $this->qstNumber : null,
             'bank_account' => filled($this->bankAccount) ? $this->bankAccount : null,
             'vacation_accrual_start' => $this->monthDay($this->vacationAccrualMonth, $this->vacationAccrualDay),
             'sick_accrual_start' => $this->monthDay($this->sickAccrualMonth, $this->sickAccrualDay),
@@ -137,6 +140,8 @@ class Show extends Component
             'sick_days_part_time' => filled($this->sickDaysPartTime) ? $this->sickDaysPartTime : null,
             'cancellation_fee_percent' => round((float) $this->cancellationFeePercent, 2),
         ])->save();
+
+        $this->saveTaxNumbers();
 
         Flux::toast(text: __('Comptabilité sauvegardée.'), variant: 'success');
     }
@@ -211,6 +216,36 @@ class Show extends Component
         return $value === null ? ['', ''] : [(string) (int) substr($value, 0, 2), (string) (int) substr($value, 3, 2)];
     }
 
+    /**
+     * Une ligne par taxe en vigueur dans la province enregistrée du magasin. Les numéros des taxes d'une autre
+     * province sont conservés en base mais ne s'affichent pas.
+     */
+    private function loadTaxNumbers(): void
+    {
+        $registrations = $this->store->taxRegistrations()->pluck('number', 'tax_name');
+
+        $this->taxNumbers = $this->store->applicableTaxNames()
+            ->map(fn (string $name): array => ['name' => $name, 'number' => (string) ($registrations[$name] ?? '')])
+            ->all();
+    }
+
+    private function saveTaxNumbers(): void
+    {
+        $applicable = $this->store->applicableTaxNames();
+
+        foreach ($this->taxNumbers as $entry) {
+            if (! $applicable->contains($entry['name'])) {
+                continue;
+            }
+
+            if (filled($entry['number'])) {
+                $this->store->taxRegistrations()->updateOrCreate(['tax_name' => $entry['name']], ['number' => trim($entry['number'])]);
+            } else {
+                $this->store->taxRegistrations()->where('tax_name', $entry['name'])->delete();
+            }
+        }
+    }
+
     private function fillFromModel(): void
     {
         $this->name = $this->store->name;
@@ -226,8 +261,8 @@ class Show extends Component
         ];
         $this->phone = $this->store->phone ?? '';
         $this->email = $this->store->email ?? '';
-        $this->gstNumber = $this->store->gst_number ?? '';
-        $this->qstNumber = $this->store->qst_number ?? '';
+        $this->province = $this->store->province->value;
+        $this->loadTaxNumbers();
         $this->bankAccount = $this->store->bank_account ?? '';
         [$this->vacationAccrualMonth, $this->vacationAccrualDay] = $this->splitMonthDay($this->store->vacation_accrual_start);
         [$this->sickAccrualMonth, $this->sickAccrualDay] = $this->splitMonthDay($this->store->sick_accrual_start);
@@ -248,6 +283,7 @@ class Show extends Component
                 5 => __('Mai'), 6 => __('Juin'), 7 => __('Juillet'), 8 => __('Août'),
                 9 => __('Septembre'), 10 => __('Octobre'), 11 => __('Novembre'), 12 => __('Décembre'),
             ],
+            'provinces' => Province::cases(),
             'physicalStores' => Store::query()
                 ->where('type', StoreType::Physical)
                 ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->store->warehouse_store_id)->orWhere('id', $this->store->shipping_warehouse_id))
