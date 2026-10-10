@@ -158,9 +158,16 @@ que de dépendre d'une collation propre à un moteur.
 - **Montants en cents (`integer`)** plutôt qu'en décimal, pour une précision exacte quel que soit
   le moteur ?
 - **Regrouper les migrations** (`php artisan schema:dump --prune`) avant la mise en production.
+  Obstacle actuel : plusieurs migrations insèrent des données (rôles et permissions, comme
+  `add_customer_order_permissions`). Un dump ne contient que la structure. Avec un dump à jour, ces
+  migrations sont considérées comme déjà exécutées et leurs données n'existent plus : tous les tests
+  échouent (`There is no role named salesman`). Il faudrait d'abord déplacer ces données dans les
+  seeders (`PermissionSeeder`, `RoleSeeder`). C'est pourquoi le dump `database/schema/sqlite-schema.sql`
+  est resté à la version du 26 septembre (7 migrations).
 
 ## Références
 
 - `.env` / `.env.example` (`DB_CONNECTION=sqlite`), `phpunit.xml` (`DB_DATABASE=:memory:`)
+- [Modèle de données](../data-model.md) : diagrammes entité-relation par domaine
 - `database/migrations/`, `database/seeders/`, `database/factories/`
 - `app/Models/InventoryMovement.php`
