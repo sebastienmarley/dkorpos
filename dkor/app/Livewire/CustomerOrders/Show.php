@@ -82,6 +82,29 @@ class Show extends Component
     /** @var array<int, array{method_id: int|string, amount: string}> */
     public array $returnRefunds = [];
 
+    public bool $showDefectiveModal = false;
+
+    public ?int $defectiveLineId = null;
+
+    public string $defectiveStep = 'choice';
+
+    public string $defectiveQuantity = '1';
+
+    /** « part » : commander une pièce (le produit reste chez le client); « return » : reprendre le produit. */
+    public string $defectivePath = 'part';
+
+    public string $defectivePart = '';
+
+    public string $defectiveReason = '';
+
+    /** « replace » : produit de remplacement; « refund » : remboursement sans frais. */
+    public string $defectiveOutcome = 'replace';
+
+    public float $defectiveRefundable = 0;
+
+    /** @var array<int, array{method_id: int|string, amount: string}> */
+    public array $defectiveRefunds = [];
+
     public bool $showCreditRefundModal = false;
 
     /** @var array<int, array{method_id: int|string, amount: string}> */
@@ -537,6 +560,125 @@ class Show extends Component
         $this->reset(['returnLineId', 'returnQuantity', 'returnType', 'returnStep', 'returnRefundable', 'returnRefunds']);
     }
 
+    public function openDefectiveModal(int $lineId): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $line = $this->order->lines()->findOrFail($lineId);
+
+        if (! $line->status->isHandedOver()) {
+            Flux::toast(text: __('Seul un article livré, ramassé ou expédié peut être déclaré défectueux.'), variant: 'warning');
+
+            return;
+        }
+
+        $this->reset(['defectiveStep', 'defectivePath', 'defectivePart', 'defectiveReason', 'defectiveOutcome', 'defectiveRefundable', 'defectiveRefunds']);
+        $this->defectiveLineId = $line->id;
+        $this->defectiveQuantity = (string) $line->quantity;
+        $this->resetErrorBag();
+        $this->showLineModal = false;
+        $this->showDefectiveModal = true;
+    }
+
+    /**
+     * Pièce de remplacement : commandée tout de suite. Reprise du produit : remplacement tout de suite, ou étape du
+     * remboursement sans frais.
+     */
+    public function continueDefective(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $line = $this->order->lines()->findOrFail($this->defectiveLineId);
+
+        $this->validate([
+            'defectiveQuantity' => ['required', 'integer', 'min:1', 'max:'.$line->quantity],
+            'defectivePath' => ['required', Rule::in(['part', 'return'])],
+            'defectivePart' => [Rule::requiredIf($this->defectivePath === 'part'), 'nullable', 'string', 'max:200'],
+            'defectiveReason' => [Rule::requiredIf($this->defectivePath === 'return'), 'nullable', 'string', 'max:2000'],
+            'defectiveOutcome' => ['required', Rule::in(['replace', 'refund'])],
+        ]);
+
+        if ($this->defectivePath === 'return' && $this->defectiveOutcome === 'refund') {
+            $this->defectiveRefundable = $this->order->refundableFor($line, (int) $this->defectiveQuantity);
+            $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
+            $this->defectiveRefunds = [['method_id' => $firstMethod ?? '', 'amount' => number_format($this->defectiveRefundable, 2, '.', '')]];
+            $this->defectiveStep = 'refund';
+
+            return;
+        }
+
+        try {
+            $defective = $this->defectivePath === 'part'
+                ? $this->order->orderReplacementPart($line, (int) $this->defectiveQuantity, $this->defectivePart, $this->defectiveReason)
+                : $this->order->returnDefective($line, (int) $this->defectiveQuantity, $this->defectiveReason, replace: true);
+        } catch (DomainException $exception) {
+            $this->addError('defectiveQuantity', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showDefectiveModal = false;
+        Flux::toast(text: $this->defectivePath === 'part'
+            ? __('Dossier défectueux #:id : pièce ajoutée à la commande du fournisseur.', ['id' => $defective->id])
+            : __('Dossier défectueux #:id : produit repris, remplacement ajouté à la commande.', ['id' => $defective->id]), variant: 'success');
+    }
+
+    public function backToDefectiveChoice(): void
+    {
+        $this->defectiveStep = 'choice';
+        $this->resetErrorBag();
+    }
+
+    public function addDefectiveRefund(): void
+    {
+        $this->defectiveRefunds[] = ['method_id' => '', 'amount' => '0.00'];
+    }
+
+    public function removeDefectiveRefund(int $index): void
+    {
+        unset($this->defectiveRefunds[$index]);
+        $this->defectiveRefunds = array_values($this->defectiveRefunds);
+    }
+
+    public function confirmDefectiveRefund(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $line = $this->order->lines()->findOrFail($this->defectiveLineId);
+
+        $this->defectiveRefunds = array_map(
+            fn (array $refund): array => ['method_id' => $refund['method_id'], 'amount' => str_replace(',', '.', (string) $refund['amount'])],
+            $this->defectiveRefunds,
+        );
+
+        $this->validate([
+            'defectiveRefunds.*.method_id' => ['required', 'integer', Rule::exists('customer_payment_methods', 'id')->where('is_active', true)],
+            'defectiveRefunds.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+        ]);
+
+        try {
+            $defective = $this->order->returnDefective(
+                $line,
+                (int) $this->defectiveQuantity,
+                $this->defectiveReason,
+                replace: false,
+                refunds: array_map(fn (array $refund): array => ['method_id' => (int) $refund['method_id'], 'amount' => (float) $refund['amount']], $this->defectiveRefunds),
+            );
+        } catch (DomainException $exception) {
+            $this->addError('defectiveRefunds', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showDefectiveModal = false;
+        Flux::toast(text: __('Dossier défectueux #:id : produit repris et remboursé.', ['id' => $defective->id]), variant: 'success');
+    }
+
+    public function defectiveRefundsTotal(): float
+    {
+        return round(array_sum(array_map(fn (array $refund): float => (float) str_replace(',', '.', (string) $refund['amount']), $this->defectiveRefunds)), 2);
+    }
+
     public function openCreditRefundModal(): void
     {
         $this->authorize('customer_orders.edit');
@@ -800,13 +942,15 @@ class Show extends Component
     {
         $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStock', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
         $returnLine = $this->returnLineId ? $this->order->lines()->with('product')->find($this->returnLineId) : null;
+        $defectiveLine = $this->defectiveLineId ? $this->order->lines()->with('product.supplier')->find($this->defectiveLineId) : null;
 
-        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'payments.paymentMethod', 'payments.receiver']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'lines.defectiveProducts', 'payments.paymentMethod', 'payments.receiver']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),
             'editingLine' => $editingLine,
             'returnLine' => $returnLine,
+            'defectiveLine' => $defectiveLine,
         ])->layout('layouts.app', ['title' => __('Commande client #:id', ['id' => $this->order->id])]);
     }
 }

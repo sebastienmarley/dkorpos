@@ -46,7 +46,8 @@
                 @if ($inProgress)
                     <flux:table.column align="end">{{ __('Restant à recevoir') }}</flux:table.column>
                 @endif
-                <flux:table.column align="end">{{ $inProgress ? __('Quantité reçue') : __('Quantité reçue') }}</flux:table.column>
+                <flux:table.column align="end">{{ __('Quantité reçue') }}</flux:table.column>
+                <flux:table.column align="end">{{ __('dont endommagé') }}</flux:table.column>
                 @if (! $inProgress)
                     <flux:table.column align="end">{{ __('Renversée') }}</flux:table.column>
                 @endif
@@ -69,18 +70,33 @@
                                 <flux:error name="quantities.{{ $line->id }}" />
                             </flux:table.cell>
                             <flux:table.cell align="end">
+                                @if ($line->product_id)
+                                    <flux:input wire:model="damaged.{{ $line->id }}" type="number" min="0" step="1" class="w-24" />
+                                    <flux:error name="damaged.{{ $line->id }}" />
+                                @else
+                                    —
+                                @endif
+                            </flux:table.cell>
+                            <flux:table.cell align="end">
                                 @can('receptions.create')
                                     <flux:button size="xs" variant="ghost" icon="trash" wire:click="removeLine({{ $line->id }})" />
                                 @endcan
                             </flux:table.cell>
                         @else
                             <flux:table.cell align="end">{{ $line->quantity }}</flux:table.cell>
+                            <flux:table.cell align="end">
+                                @if ($line->quantity_damaged > 0)
+                                    <flux:badge color="amber" size="sm">{{ $line->quantity_damaged }}</flux:badge>
+                                @else
+                                    —
+                                @endif
+                            </flux:table.cell>
                             <flux:table.cell align="end">{{ $line->quantity_reversed ?: '—' }}</flux:table.cell>
                         @endif
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="5" class="py-8 text-center">
+                        <flux:table.cell colspan="6" class="py-8 text-center">
                             <flux:text class="text-zinc-400">{{ __('Aucun article dans cette réception.') }}</flux:text>
                         </flux:table.cell>
                     </flux:table.row>

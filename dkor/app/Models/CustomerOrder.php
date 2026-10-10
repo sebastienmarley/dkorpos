@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
+use App\Enums\DefectiveResolution;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
 use App\Enums\SupplierOrderLineStatus;
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
@@ -116,23 +118,26 @@ class CustomerOrder extends Model
     /**
      * Ajoute le produit à la commande : la quantité est d'abord réservée dans le stock disponible, le reste
      * est mis en commande sur le brouillon de commande fournisseur. La ligne modifiable existante du produit est
-     * augmentée, sinon une ligne est créée au prix vendant.
+     * augmentée, sinon une ligne est créée au prix vendant. Avec un prix imposé (ex. remplacement d'un défectueux),
+     * une ligne distincte est toujours créée à ce prix.
      *
      * @throws DomainException si une quantité doit être commandée et que le produit ne peut pas l'être.
      */
-    public function addProduct(Product $product, int $quantity = 1): CustomerOrderLine
+    public function addProduct(Product $product, int $quantity = 1, ?float $unitPrice = null, ?string $note = null): CustomerOrderLine
     {
         if ($quantity < 1) {
             throw new DomainException(__('La quantité doit être d\'au moins 1.'));
         }
 
-        return DB::transaction(function () use ($product, $quantity): CustomerOrderLine {
-            $line = $this->lines()
-                ->where('product_id', $product->id)
-                ->whereIn('status', [CustomerOrderLineStatus::InStock, CustomerOrderLineStatus::OnOrder])
-                ->lockForUpdate()
-                ->first()
-                ?? $this->lines()->make(['product_id' => $product->id, 'unit_price' => $product->selling_price]);
+        return DB::transaction(function () use ($product, $quantity, $unitPrice, $note): CustomerOrderLine {
+            $line = $unitPrice !== null
+                ? $this->lines()->make(['product_id' => $product->id, 'unit_price' => round($unitPrice, 2), 'note' => $note])
+                : $this->lines()
+                    ->where('product_id', $product->id)
+                    ->whereIn('status', [CustomerOrderLineStatus::InStock, CustomerOrderLineStatus::OnOrder])
+                    ->lockForUpdate()
+                    ->first()
+                    ?? $this->lines()->make(['product_id' => $product->id, 'unit_price' => $product->selling_price]);
 
             $available = InventoryStock::query()->lockForUpdate()->where('product_id', $product->id)->value('quantity_in_stock') ?? 0;
             $reserved = min((int) $available, $quantity);
@@ -238,6 +243,49 @@ class CustomerOrder extends Model
                     default => CustomerOrderLineStatus::Ordered,
                 },
             ]);
+        });
+    }
+
+    /**
+     * Répercute des articles reçus endommagés : ils ne sont pas remis au client, la quantité est donc recommandée
+     * sur le brouillon du fournisseur (ligne « En commande » distincte si une partie de la ligne est déjà en main).
+     */
+    public function applySupplierDamagedReceipt(CustomerOrderLine $line, int $quantity): void
+    {
+        DB::transaction(function () use ($line, $quantity): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+            $quantity = min($quantity, $line->quantity_on_order);
+
+            if ($quantity < 1) {
+                return;
+            }
+
+            if ($quantity === $line->quantity_on_order && $line->quantity_reserved === 0) {
+                $line->update(['supplier_order_line_id' => null, 'status' => CustomerOrderLineStatus::OnOrder]);
+                $this->syncSupplierLine($line);
+
+                return;
+            }
+
+            $onOrder = $line->quantity_on_order - $quantity;
+
+            $line->update([
+                'quantity_on_order' => $onOrder,
+                'quantity' => $line->quantity - $quantity,
+                'status' => $onOrder === 0 ? CustomerOrderLineStatus::Received : $line->status,
+            ]);
+
+            $reorder = $this->lines()->create([
+                'product_id' => $line->product_id,
+                'quantity' => $quantity,
+                'quantity_reserved' => 0,
+                'quantity_on_order' => $quantity,
+                'unit_price' => $line->unit_price,
+                'note' => $line->note,
+                'status' => CustomerOrderLineStatus::OnOrder,
+            ]);
+
+            $this->syncSupplierLine($reorder);
         });
     }
 
@@ -528,7 +576,21 @@ class CustomerOrder extends Model
             ]));
         }
 
-        $draft = SupplierOrder::query()
+        $supplierLine = $this->supplierDraftFor($product)->addLine([
+            'product_id' => $product->id,
+            'quantity' => $line->quantity_on_order,
+            'unit_cost' => $product->cost,
+        ]);
+
+        $line->update(['supplier_order_line_id' => $supplierLine->id]);
+    }
+
+    /**
+     * Brouillon de commande du fournisseur du produit (créé au besoin).
+     */
+    private function supplierDraftFor(Product $product): SupplierOrder
+    {
+        return SupplierOrder::query()
             ->where('supplier_id', $product->supplier_id)
             ->where('status', SupplierOrderStatus::Draft)
             ->lockForUpdate()
@@ -538,14 +600,6 @@ class CustomerOrder extends Model
                 'supplier_id' => $product->supplier_id,
                 'created_by' => auth()->id(),
             ]);
-
-        $supplierLine = $draft->addLine([
-            'product_id' => $product->id,
-            'quantity' => $line->quantity_on_order,
-            'unit_cost' => $product->cost,
-        ]);
-
-        $line->update(['supplier_order_line_id' => $supplierLine->id]);
     }
 
     /**
@@ -849,6 +903,139 @@ class CustomerOrder extends Model
             $this->recalculateBalance();
             $this->refreshStatusFromLines();
         });
+    }
+
+    /**
+     * Produit défectueux qui reste chez le client : une pièce de remplacement (texte libre) est commandée sans frais
+     * sur le brouillon du fournisseur du produit, et un dossier défectueux est ouvert.
+     *
+     * @throws DomainException si l'article n'a pas été remis au client, si la quantité est invalide ou si le
+     *                         fournisseur ne prend pas de commande.
+     */
+    public function orderReplacementPart(CustomerOrderLine $line, int $quantity, string $part, ?string $reason = null): DefectiveProduct
+    {
+        return DB::transaction(function () use ($line, $quantity, $part, $reason): DefectiveProduct {
+            $line = $this->lines()->with('product.supplier')->lockForUpdate()->findOrFail($line->id);
+            $this->guardDefectiveQuantity($line, $quantity);
+
+            if (blank($part)) {
+                throw new DomainException(__('Indiquez la pièce de remplacement à commander.'));
+            }
+
+            $supplier = $line->product->supplier;
+
+            if (! $supplier->is_active || ! $supplier->orderable || $supplier->type !== SupplierType::Product) {
+                throw new DomainException(__('Aucune commande ne peut être passée chez :supplier.', ['supplier' => $supplier->name]));
+            }
+
+            $supplierLine = $this->supplierDraftFor($line->product)->addLine([
+                'description' => Str::limit(__('Pièce : :part — :model (commande client #:id)', ['part' => trim($part), 'model' => $line->product->model, 'id' => $this->id]), 255, ''),
+                'quantity' => $quantity,
+                'unit_cost' => 0,
+            ]);
+
+            return DefectiveProduct::create([
+                'product_id' => $line->product_id,
+                'customer_order_id' => $this->id,
+                'customer_order_line_id' => $line->id,
+                'quantity' => $quantity,
+                'resolution' => DefectiveResolution::PartOrder,
+                'reason' => filled($reason) ? $reason : null,
+                'replacement_part' => trim($part),
+                'supplier_order_line_id' => $supplierLine->id,
+                'created_by' => auth()->id(),
+            ]);
+        });
+    }
+
+    /**
+     * Reprend un produit défectueux : il passe en inventaire défectueux et un dossier défectueux est ouvert (raison).
+     * Le client reçoit soit un produit de remplacement (nouvelle ligne au même prix, prise en stock ou commandée),
+     * soit un remboursement sans frais.
+     *
+     * @param  array<int, array{method_id: int, amount: float}>  $refunds
+     *
+     * @throws DomainException si l'article n'a pas été remis, si la raison manque ou si le remboursement dépasse le
+     *                         montant remboursable.
+     */
+    public function returnDefective(CustomerOrderLine $line, int $quantity, string $reason, bool $replace, array $refunds = []): DefectiveProduct
+    {
+        if (blank($reason)) {
+            throw new DomainException(__('Indiquez la raison du défaut.'));
+        }
+
+        return DB::transaction(function () use ($line, $quantity, $reason, $replace, $refunds): DefectiveProduct {
+            $line = $this->lines()->with('product')->lockForUpdate()->findOrFail($line->id);
+            $this->guardDefectiveQuantity($line, $quantity);
+
+            $refundable = $replace ? 0.0 : $this->refundableFor($line, $quantity);
+            $refunded = round(array_sum(array_column($refunds, 'amount')), 2);
+
+            if ($refunded > $refundable) {
+                throw new DomainException(__('Le remboursement (:refunded $) dépasse le montant remboursable (:refundable $).', [
+                    'refunded' => number_format($refunded, 2),
+                    'refundable' => number_format($refundable, 2),
+                ]));
+            }
+
+            InventoryMovement::record($line->product_id, null, InventoryStatus::DefectiveStock, $quantity, InventoryMovementType::CustomerDefectiveReturn, $this);
+
+            $returned = [
+                'status' => $replace ? CustomerOrderLineStatus::Returned : CustomerOrderLineStatus::Refunded,
+                'returned_at' => now(),
+            ];
+
+            if ($quantity === $line->quantity) {
+                $line->update($returned);
+                $returnedLine = $line;
+            } else {
+                $line->update(['quantity' => $line->quantity - $quantity]);
+
+                $returnedLine = $this->lines()->create([
+                    ...$returned,
+                    'product_id' => $line->product_id,
+                    'customer_order_pickup_id' => $line->customer_order_pickup_id,
+                    'quantity' => $quantity,
+                    'quantity_reserved' => 0,
+                    'quantity_on_order' => 0,
+                    'unit_price' => $line->unit_price,
+                    'note' => $line->note,
+                    'delivered_at' => $line->delivered_at,
+                ]);
+            }
+
+            $defective = DefectiveProduct::create([
+                'product_id' => $line->product_id,
+                'customer_order_id' => $this->id,
+                'customer_order_line_id' => $returnedLine->id,
+                'quantity' => $quantity,
+                'resolution' => $replace ? DefectiveResolution::Replacement : DefectiveResolution::Refund,
+                'reason' => $reason,
+                'created_by' => auth()->id(),
+            ]);
+
+            if ($replace) {
+                $this->addProduct($line->product, $quantity, $line->unit_price, __('Remplacement du produit défectueux (dossier #:id).', ['id' => $defective->id]));
+            } else {
+                $this->recordPayments($refunds, CustomerPaymentType::Refund);
+            }
+
+            $this->recalculateBalance();
+            $this->refreshStatusFromLines();
+
+            return $defective;
+        });
+    }
+
+    private function guardDefectiveQuantity(CustomerOrderLine $line, int $quantity): void
+    {
+        if (! $line->status->isHandedOver()) {
+            throw new DomainException(__('Seul un article livré, ramassé ou expédié peut être déclaré défectueux.'));
+        }
+
+        if ($quantity < 1 || $quantity > $line->quantity) {
+            throw new DomainException(__('La quantité défectueuse doit être entre 1 et :max.', ['max' => $line->quantity]));
+        }
     }
 
     /**

@@ -2,6 +2,7 @@
 
 use App\Models\CustomerOrder;
 use App\Models\CustomerOrderLine;
+use App\Models\CustomerPaymentMethod;
 use App\Models\InventoryStock;
 use App\Models\InventoryUnit;
 use App\Models\Product;
@@ -60,6 +61,17 @@ function stockedLine(CustomerOrder $order, int $inStock, int $quantity, float $p
 
     $line = $order->addProduct($product, $quantity);
     $order->updateLine($line, $line->quantity_reserved, $line->quantity_on_order, $price, null);
+
+    return $line->fresh();
+}
+
+/**
+ * Ligne ramassée et entièrement payée (quantité au prix donné).
+ */
+function pickedUpLine(CustomerOrder $order, int $quantity, float $price, CustomerPaymentMethod $method): CustomerOrderLine
+{
+    $line = stockedLine($order, $quantity, $quantity, $price);
+    $order->pickUp([$line->id => $quantity], [['method_id' => $method->id, 'amount' => $order->fresh()->balance_due]]);
 
     return $line->fresh();
 }

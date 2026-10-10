@@ -513,7 +513,7 @@
     {{-- Réception --}}
     <flux:modal wire:model="showReceive" class="w-full max-w-2xl">
         <flux:heading class="mb-1">{{ __('Réceptionner la commande') }}</flux:heading>
-        <flux:text class="text-zinc-500">{{ __('Saisissez les quantités reçues de chaque produit.') }}</flux:text>
+        <flux:text class="text-zinc-500">{{ __('Saisissez les quantités reçues de chaque produit, dont celles arrivées endommagées.') }}</flux:text>
 
         <form wire:submit="receive" class="mt-6 space-y-4">
             @foreach ($order->lines as $line)
@@ -529,8 +529,18 @@
                         <flux:input wire:model="receipts.{{ $line->id }}.quantity" type="number" min="0" max="{{ $line->quantity_outstanding }}" step="1" :label="__('Reçu')" />
                         <flux:error name="receipts.{{ $line->id }}.quantity" />
                     </div>
+                    @if ($line->product_id)
+                        <div class="w-28">
+                            <flux:input wire:model="receipts.{{ $line->id }}.damaged" type="number" min="0" step="1" :label="__('dont endommagé')" />
+                            <flux:error name="receipts.{{ $line->id }}.damaged" />
+                        </div>
+                    @else
+                        <div class="w-28"></div>
+                    @endif
                 </div>
             @endforeach
+
+            <flux:text class="text-xs text-zinc-400">{{ __('Les articles endommagés comptent comme reçus, entrent en inventaire défectueux et ouvrent un dossier « Endommagé à l\'arrivée ». Photo : bientôt disponible.') }}</flux:text>
 
             <div class="flex justify-end gap-3 pt-2">
                 <flux:button type="button" variant="ghost" wire:click="$set('showReceive', false)">{{ __('Annuler') }}</flux:button>

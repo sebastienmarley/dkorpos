@@ -434,7 +434,7 @@ class Show extends Component
         $this->authorize('supplier_orders.edit');
 
         $this->receipts = $this->order->lines->mapWithKeys(fn ($line) => [
-            $line->id => ['quantity' => (string) $line->quantity_outstanding],
+            $line->id => ['quantity' => (string) $line->quantity_outstanding, 'damaged' => '0'],
         ])->all();
 
         $this->resetValidation();
@@ -447,6 +447,7 @@ class Show extends Component
 
         $this->validate([
             'receipts.*.quantity' => ['required', 'integer', 'min:0', 'max:99999'],
+            'receipts.*.damaged' => ['nullable', 'integer', 'min:0', 'max:99999'],
         ]);
 
         $this->runTransition(fn () => $this->order->receive($this->receipts, auth()->id()), __('Réception enregistrée.'));

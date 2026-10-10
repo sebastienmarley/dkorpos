@@ -96,6 +96,9 @@
                                 @if ($line->note)
                                     <div class="max-w-xs truncate text-xs font-normal text-zinc-400">{{ $line->note }}</div>
                                 @endif
+                                @foreach ($line->defectiveProducts as $defective)
+                                    <div class="text-xs font-normal text-amber-600 dark:text-amber-400">{{ __('Défectueux — dossier #:id · :resolution', ['id' => $defective->id, 'resolution' => $defective->resolution->label()]) }}</div>
+                                @endforeach
                                 @if ($line->cancellation_fee)
                                     <div class="text-xs font-normal text-red-600 dark:text-red-400">{{ __('Frais d\'annulation : :fee $', ['fee' => number_format($line->cancellation_fee, 2)]) }}</div>
                                 @endif
@@ -399,7 +402,7 @@
                             <flux:text class="mb-2 text-sm font-medium">{{ __('Le client rapporte cet article ?') }}</flux:text>
                             <div class="flex gap-2">
                                 <flux:button type="button" size="sm" icon="arrow-uturn-left" wire:click="openReturnModal({{ $editingLine->id }})">{{ __('Retour') }}</flux:button>
-                                <flux:button type="button" size="sm" icon="wrench-screwdriver" disabled title="{{ __('Bientôt disponible') }}">{{ __('Défectueux') }}</flux:button>
+                                <flux:button type="button" size="sm" icon="wrench-screwdriver" wire:click="openDefectiveModal({{ $editingLine->id }})">{{ __('Défectueux') }}</flux:button>
                             </div>
                         </div>
                     @endif
@@ -480,6 +483,118 @@
 
                         <div class="flex justify-between gap-3 pt-2">
                             <flux:button type="button" variant="ghost" icon="arrow-left" wire:click="backToReturnChoice">{{ __('Retour') }}</flux:button>
+                            <flux:button type="submit" variant="primary">{{ __('Reprendre et rembourser') }}</flux:button>
+                        </div>
+                    </form>
+                @endif
+            @endif
+        </flux:modal>
+    @endcan
+
+    {{-- Produit défectueux --}}
+    @can('customer_orders.edit')
+        <flux:modal wire:model="showDefectiveModal" class="w-full max-w-lg">
+            @if ($defectiveLine)
+                <flux:heading class="mb-1">{{ __('Défectueux') }} — {{ $defectiveLine->product->model }} <span class="font-normal text-zinc-500">#{{ $defectiveLine->product_id }}</span></flux:heading>
+                <flux:text class="text-zinc-500">{{ __(':count remis au client à :price $', ['count' => $defectiveLine->quantity, 'price' => number_format($defectiveLine->unit_price, 2)]) }}</flux:text>
+
+                @if ($defectiveStep === 'choice')
+                    <form wire:submit="continueDefective" class="mt-6 space-y-4">
+                        <flux:field>
+                            <flux:label>{{ __('Quantité défectueuse') }}</flux:label>
+                            <flux:input wire:model="defectiveQuantity" type="number" min="1" :max="$defectiveLine->quantity" />
+                            <flux:error name="defectiveQuantity" />
+                        </flux:field>
+
+                        <flux:radio.group wire:model.live="defectivePath" :label="__('Solution')">
+                            <flux:radio value="part" :label="__('Commander une pièce de remplacement')" :description="__('Le produit reste chez le client; la pièce est ajoutée sans frais à la commande de :supplier.', ['supplier' => $defectiveLine->product->supplier->name])" />
+                            <flux:radio value="return" :label="__('Reprendre le produit')" :description="__('Le produit passe en inventaire défectueux; le client reçoit un remplacement ou un remboursement sans frais.')" />
+                        </flux:radio.group>
+
+                        @if ($defectivePath === 'part')
+                            <flux:field>
+                                <flux:label>{{ __('Pièce à commander') }}</flux:label>
+                                <flux:input wire:model="defectivePart" :placeholder="__('No de pièce, description…')" />
+                                <flux:error name="defectivePart" />
+                            </flux:field>
+
+                            <flux:field>
+                                <flux:label>{{ __('Raison (optionnel)') }}</flux:label>
+                                <flux:textarea wire:model="defectiveReason" rows="2" />
+                                <flux:error name="defectiveReason" />
+                            </flux:field>
+                        @else
+                            <flux:field>
+                                <flux:label>{{ __('Raison du défaut') }}</flux:label>
+                                <flux:textarea wire:model="defectiveReason" rows="3" />
+                                <flux:error name="defectiveReason" />
+                            </flux:field>
+
+                            <flux:field>
+                                <flux:label>{{ __('Photo') }}</flux:label>
+                                <flux:input type="file" accept="image/*" disabled />
+                                <flux:description>{{ __('Bientôt disponible.') }}</flux:description>
+                            </flux:field>
+
+                            <flux:radio.group wire:model.live="defectiveOutcome" :label="__('Le client veut')">
+                                <flux:radio value="replace" :label="__('Un remplacement')" :description="__('Même produit au même prix, pris en stock ou commandé.')" />
+                                <flux:radio value="refund" :label="__('Un remboursement sans frais')" />
+                            </flux:radio.group>
+                        @endif
+
+                        <div class="flex justify-end gap-3 pt-2">
+                            <flux:button type="button" variant="ghost" wire:click="$set('showDefectiveModal', false)">{{ __('Annuler') }}</flux:button>
+                            <flux:button type="submit" variant="primary">
+                                @if ($defectivePath === 'part')
+                                    {{ __('Commander la pièce') }}
+                                @elseif ($defectiveOutcome === 'refund')
+                                    {{ __('Continuer vers le remboursement') }}
+                                @else
+                                    {{ __('Reprendre et remplacer') }}
+                                @endif
+                            </flux:button>
+                        </div>
+                    </form>
+                @else
+                    <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
+                        <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Quantité reprise') }}</dt><dd>{{ $defectiveQuantity }}</dd></div>
+                        <div class="flex justify-between font-semibold"><dt>{{ __('Remboursable') }}</dt><dd>{{ number_format($defectiveRefundable, 2) }} $</dd></div>
+                    </dl>
+
+                    <form wire:submit="confirmDefectiveRefund" class="mt-6 space-y-3">
+                        @foreach ($defectiveRefunds as $index => $refund)
+                            <div wire:key="defective-refund-{{ $index }}" class="flex flex-wrap items-start gap-2">
+                                <div class="flex-1">
+                                    <flux:select wire:model.live="defectiveRefunds.{{ $index }}.method_id">
+                                        <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
+                                        @foreach ($this->getPaymentMethods() as $method)
+                                            <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+                                    <flux:error name="defectiveRefunds.{{ $index }}.method_id" />
+                                </div>
+                                <div class="w-32">
+                                    <flux:input wire:model.blur="defectiveRefunds.{{ $index }}.amount" inputmode="decimal" />
+                                    <flux:error name="defectiveRefunds.{{ $index }}.amount" />
+                                </div>
+                                @if (count($defectiveRefunds) > 1)
+                                    <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removeDefectiveRefund({{ $index }})" :label="__('Retirer')" />
+                                @endif
+                                @if ((int) $refund['method_id'] === $this->cashMethodId())
+                                    <flux:text class="w-full text-xs text-zinc-500">{{ __('À remettre en comptant (arrondi au 5 ¢) : :amount $', ['amount' => number_format($this->roundedCash($refund['amount']), 2)]) }}</flux:text>
+                                @endif
+                            </div>
+                        @endforeach
+
+                        <div class="flex items-center justify-between">
+                            <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addDefectiveRefund">{{ __('Ajouter un mode') }}</flux:button>
+                            <flux:text class="text-sm">{{ __('Total remboursé : :amount $', ['amount' => number_format($this->defectiveRefundsTotal(), 2)]) }}</flux:text>
+                        </div>
+
+                        <flux:error name="defectiveRefunds" />
+
+                        <div class="flex justify-between gap-3 pt-2">
+                            <flux:button type="button" variant="ghost" icon="arrow-left" wire:click="backToDefectiveChoice">{{ __('Retour') }}</flux:button>
                             <flux:button type="submit" variant="primary">{{ __('Reprendre et rembourser') }}</flux:button>
                         </div>
                     </form>

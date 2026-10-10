@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\CustomerOrderLineStatus;
+use App\Enums\DefectiveResolution;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
 use App\Enums\ReceptionStatus;
@@ -384,7 +385,9 @@ class SupplierOrder extends Model
     /**
      * Applique à l'inventaire (unités FIFO au coût de la commande, stock, « en commande ») les lignes d'une réception
      * en cours qui concernent cette commande. Les quantités sont replafonnées à ce qui reste à recevoir; une ligne
-     * qui n'a plus rien à recevoir est retirée de la réception. Appelé par Reception::complete dans sa transaction.
+     * qui n'a plus rien à recevoir est retirée de la réception. La partie endommagée compte comme reçue mais entre en
+     * inventaire défectueux (sans unité vendable) avec un dossier défectueux; pour un client lié, elle est recommandée.
+     * Appelé par Reception::complete dans sa transaction.
      *
      * @param  Collection<int, ReceptionLine>  $receptionLines
      */
@@ -401,10 +404,12 @@ class SupplierOrder extends Model
             }
 
             $cost = round($line->unit_cost, 2);
+            $damaged = $line->product_id === null ? 0 : min($receptionLine->quantity_damaged, $quantity);
+            $good = $quantity - $damaged;
 
-            $receptionLine->update(['quantity' => $quantity, 'unit_cost' => $cost]);
+            $receptionLine->update(['quantity' => $quantity, 'quantity_damaged' => $damaged, 'unit_cost' => $cost]);
 
-            for ($i = 0; $i < $quantity; $i++) {
+            for ($i = 0; $line->product_id !== null && $i < $good; $i++) {
                 InventoryUnit::create([
                     'product_id' => $line->product_id,
                     'reception_line_id' => $receptionLine->id,
@@ -413,12 +418,30 @@ class SupplierOrder extends Model
                 ]);
             }
 
-            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $quantity, InventoryMovementType::Receipt, $receptionLine);
+            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $good, InventoryMovementType::Receipt, $receptionLine);
+            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::DefectiveStock, $damaged, InventoryMovementType::ReceiptDamaged, $receptionLine);
 
             $line->update(['quantity_received' => $line->quantity_received + $quantity]);
 
+            if ($damaged > 0) {
+                DefectiveProduct::create([
+                    'product_id' => $line->product_id,
+                    'quantity' => $damaged,
+                    'resolution' => DefectiveResolution::DamagedOnArrival,
+                    'reason' => __('Endommagé à l\'arrivée'),
+                    'supplier_order_line_id' => $line->id,
+                    'reception_line_id' => $receptionLine->id,
+                    'created_by' => $reception->received_by ?? auth()->id(),
+                ]);
+            }
+
             $customerLine = $line->customerOrderLine()->with('order')->first();
-            $customerLine?->order->applySupplierReceipt($customerLine, $quantity);
+            $customerLine?->order->applySupplierReceipt($customerLine, $good);
+
+            if ($damaged > 0) {
+                $customerLine = $line->customerOrderLine()->with('order')->first();
+                $customerLine?->order->applySupplierDamagedReceipt($customerLine, $damaged);
+            }
         }
 
         $this->refreshStatusFromLines();

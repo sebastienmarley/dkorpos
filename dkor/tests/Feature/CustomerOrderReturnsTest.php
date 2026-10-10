@@ -6,7 +6,6 @@ use App\Enums\CustomerPaymentType;
 use App\Enums\InventoryMovementType;
 use App\Livewire\CustomerOrders\Show;
 use App\Models\CustomerOrder;
-use App\Models\CustomerOrderLine;
 use App\Models\CustomerPaymentMethod;
 use App\Models\InventoryMovement;
 use App\Models\InventoryUnit;
@@ -23,17 +22,6 @@ beforeEach(function () {
     $this->order = CustomerOrder::factory()->create();
     $this->cash = CustomerPaymentMethod::cash();
 });
-
-/**
- * Ligne ramassée et entièrement payée (quantité au prix donné).
- */
-function pickedUpLine(CustomerOrder $order, int $quantity, float $price, CustomerPaymentMethod $method): CustomerOrderLine
-{
-    $line = stockedLine($order, $quantity, $quantity, $price);
-    $order->pickUp([$line->id => $quantity], [['method_id' => $method->id, 'amount' => $order->fresh()->balance_due]]);
-
-    return $line->fresh();
-}
 
 it('reprend l\'article en stock lors d\'un échange et garde le payé au crédit de la commande', function () {
     $line = pickedUpLine($this->order, 1, 100, $this->cash);
