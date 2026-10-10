@@ -10,12 +10,13 @@ use Spatie\Permission\PermissionRegistrar;
 class RoleSeeder extends Seeder
 {
     /**
-     * Crée les rôles de config/access.php. Les permissions d'un rôle ne sont attribuées qu'à sa création,
-     * pour ne pas écraser ce qui a été modifié depuis dans l'interface.
+     * Crée les rôles de config/access.php et leur accorde leurs permissions. Un rôle créé reçoit toutes ses
+     * permissions; un rôle existant ne reçoit que les permissions créées par cette exécution, pour ne pas
+     * rétablir ce qui a été retiré depuis dans l'interface. Relancé à chaque déploiement.
      */
     public function run(): void
     {
-        $this->call(PermissionSeeder::class);
+        $createdPermissions = $this->resolve(PermissionSeeder::class)->__invoke();
 
         foreach (config('access.roles') as $name => $definition) {
             $role = Role::firstOrCreate(
@@ -23,10 +24,20 @@ class RoleSeeder extends Seeder
                 ['label' => $definition['label'], 'level' => $definition['level']],
             );
 
+            $permissions = $definition['permissions'] === '*'
+                ? Permission::pluck('name')->all()
+                : $definition['permissions'];
+
             if ($role->wasRecentlyCreated) {
-                $role->syncPermissions($definition['permissions'] === '*'
-                    ? Permission::all()
-                    : $definition['permissions']);
+                $role->syncPermissions($permissions);
+
+                continue;
+            }
+
+            $newPermissions = array_values(array_intersect($permissions, $createdPermissions));
+
+            if ($newPermissions !== []) {
+                $role->givePermissionTo($newPermissions);
             }
         }
 

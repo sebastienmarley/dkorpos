@@ -130,10 +130,23 @@ que de dépendre d'une collation propre à un moteur.
   (sans `--prune`). Laravel le charge avant les migrations.
 - **Installation neuve :** `php artisan migrate --seed` (ou
   `php artisan db:seed --class=ReferenceDataSeeder` sans les données de démo).
-- **Nouvelle permission :** l'ajouter dans `config/access.php`, aux rôles qui y ont droit. Sur une base
-  existante, `RoleSeeder` n'accorde les permissions qu'à la création d'un rôle, et aucun `Gate::before`
-  ne donne tout aux administrateurs. Il faut donc accorder la permission dans l'interface, ou par une
-  migration qui l'accorde **seulement** aux rôles prévus dans `config/access.php`.
+- **Déploiement :** chaque déploiement exécute, dans l'ordre :
+  1. `php artisan migrate --force`
+  2. `php artisan db:seed --class=ReferenceDataSeeder --force`
+- **Nouvelle permission :** il suffit de l'ajouter dans `config/access.php`, à deux endroits : dans
+  `permissions` (libellé et description), et dans la liste des rôles qui y ont droit. Pas de
+  migration à écrire. Au déploiement suivant :
+  - `PermissionSeeder` crée la permission et renvoie la liste de celles qu'il vient de créer ;
+  - `RoleSeeder` accorde ces nouvelles permissions aux rôles existants prévus par la config. Les
+    rôles `'*'` les reçoivent toutes ;
+  - les permissions déjà existantes ne sont jamais réaccordées ni retirées. Ce qu'un gérant a
+    changé dans l'interface est conservé.
+- **Nouveau rôle :** l'ajouter dans `config/access.php`. Il est créé au déploiement suivant avec
+  toutes ses permissions.
+- **Renommer ou supprimer** une permission ou un rôle n'est pas géré par les seeders : il faut une
+  migration ponctuelle.
+- Aucun `Gate::before` ne donne tout aux administrateurs : ils n'ont que les permissions accordées
+  à leur rôle.
 
 ## Conséquences
 

@@ -9,6 +9,9 @@
 | sont les clés utilisées par les gates et les policies de l'application. Les
 | rôles sont ensuite gérés en base (niveau hiérarchique, permissions de base).
 |
+| Une permission ajoutée ici est créée au prochain déploiement (ReferenceDataSeeder)
+| et accordée aux rôles existants qui la listent, sans toucher aux autres permissions.
+|
 */
 
 $pageAccess = [
