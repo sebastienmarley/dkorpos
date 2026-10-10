@@ -18,6 +18,17 @@
             <flux:error name="type" />
         </flux:field>
 
+        <flux:field>
+            <flux:label>{{ __('Province (taxes)') }}</flux:label>
+            <flux:select wire:model="province">
+                @foreach ($this->getProvinces() as $provinceOption)
+                    <flux:select.option :value="$provinceOption->value">{{ $provinceOption->label() }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:description>{{ __('Les taxes de la province s\'appliquent aux ventes du magasin.') }}</flux:description>
+            <flux:error name="province" />
+        </flux:field>
+
         <div class="flex justify-end gap-3 pt-2">
             <flux:button type="button" variant="ghost" wire:click="$set('showModal', false)">
                 {{ __('Annuler') }}

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\Province;
 use App\Enums\StoreType;
 use App\Models\Store;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -19,6 +20,7 @@ class StoreFactory extends Factory
         return [
             'name' => fake()->unique()->company(),
             'type' => StoreType::Physical,
+            'province' => Province::Quebec,
             'phone' => fake()->optional()->numerify('(###)###-####'),
             'email' => fake()->optional()->companyEmail(),
             'is_active' => true,

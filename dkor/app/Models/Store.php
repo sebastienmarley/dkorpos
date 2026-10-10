@@ -2,18 +2,22 @@
 
 namespace App\Models;
 
+use App\Enums\Province;
 use App\Enums\StoreType;
 use Database\Factories\StoreFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * @property int $id
  * @property string $name
  * @property StoreType $type
+ * @property Province $province Province dont les taxes s'appliquent aux ventes du magasin.
  * @property string|null $phone
  * @property string|null $email
  * @property string|null $address_civic
@@ -23,8 +27,6 @@ use Illuminate\Support\Carbon;
  * @property string|null $address_province
  * @property string|null $address_country
  * @property string|null $address_postal_code
- * @property string|null $gst_number
- * @property string|null $qst_number
  * @property string|null $bank_account
  * @property string|null $vacation_accrual_start Jour de début de l'accumulation des vacances (MM-JJ).
  * @property string|null $sick_accrual_start Jour de début de l'accumulation des maladies (MM-JJ).
@@ -39,10 +41,10 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'name', 'type', 'phone', 'email',
+    'name', 'type', 'province', 'phone', 'email',
     'address_civic', 'address_apartment', 'address_street', 'address_city',
     'address_province', 'address_country', 'address_postal_code',
-    'gst_number', 'qst_number', 'bank_account', 'cancellation_fee_percent',
+    'bank_account', 'cancellation_fee_percent',
     'vacation_accrual_start', 'sick_accrual_start', 'sick_days_full_time', 'sick_days_part_time',
     'opening_hours', 'warehouse_store_id', 'shipping_warehouse_id', 'is_active',
 ])]
@@ -59,12 +61,36 @@ class Store extends Model
 
     protected $casts = [
         'type' => StoreType::class,
+        'province' => Province::class,
         'opening_hours' => 'array',
         'cancellation_fee_percent' => 'float',
         'sick_days_full_time' => 'integer',
         'sick_days_part_time' => 'integer',
         'is_active' => 'boolean',
     ];
+
+    /** @return HasMany<StoreTaxRegistration, $this> */
+    public function taxRegistrations(): HasMany
+    {
+        return $this->hasMany(StoreTaxRegistration::class);
+    }
+
+    /**
+     * Noms des taxes en vigueur aujourd'hui dans la province du magasin (TPS, TVQ ou TVH…).
+     *
+     * @return Collection<int, string>
+     */
+    public function applicableTaxNames(): Collection
+    {
+        return Tax::query()
+            ->activeOn(Carbon::today())
+            ->where('province', $this->province)
+            ->orderBy('start_date')
+            ->orderBy('id')
+            ->pluck('name')
+            ->unique()
+            ->values();
+    }
 
     /**
      * Magasin physique qui sert d'entrepôt à cet emplacement.

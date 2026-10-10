@@ -19,7 +19,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([ReferenceDataSeeder::class, CurrencySeeder::class]);
+        $this->call([ReferenceDataSeeder::class, CurrencySeeder::class, TaxSeeder::class]);
 
         $store = Store::firstOrCreate(
             ['name' => 'Magasin principal'],

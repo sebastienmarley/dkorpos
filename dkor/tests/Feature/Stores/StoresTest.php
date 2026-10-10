@@ -1,12 +1,16 @@
 <?php
 
+use App\Enums\Province;
 use App\Enums\StoreType;
 use App\Livewire\StoreForm;
 use App\Livewire\Stores\Index;
 use App\Livewire\Stores\Show;
 use App\Models\Store;
+use App\Models\StoreTaxRegistration;
+use App\Models\Tax;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Database\Seeders\TaxSeeder;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -41,12 +45,14 @@ it('crée un magasin avec son nom et son type', function () {
         ->call('openCreate')
         ->set('name', 'Boutique en ligne')
         ->set('type', 'virtual')
+        ->set('province', 'ON')
         ->call('save')
         ->assertHasNoErrors()
         ->assertDispatched('store-saved');
 
     $store = Store::firstWhere('name', 'Boutique en ligne');
     expect($store->type)->toBe(StoreType::Virtual)
+        ->and($store->province)->toBe(Province::Ontario)
         ->and($store->opening_hours['monday']['open'])->toBeTrue();
 });
 
@@ -69,11 +75,11 @@ it('refuse la création sans permission', function () {
 it('filtre la liste par recherche et statut', function () {
     $this->actingAs(User::factory()->withRole('admin')->create());
     Store::factory()->create(['name' => 'Montréal']);
-    Store::factory()->create(['name' => 'Québec', 'is_active' => false]);
+    Store::factory()->create(['name' => 'Gatineau', 'is_active' => false]);
 
-    Livewire::test(Index::class)->assertSee('Montréal')->assertDontSee('Québec')
-        ->set('showInactive', true)->assertSee('Québec')
-        ->set('search', 'Mont')->assertDontSee('Québec');
+    Livewire::test(Index::class)->assertSee('Montréal')->assertDontSee('Gatineau')
+        ->set('showInactive', true)->assertSee('Gatineau')
+        ->set('search', 'Mont')->assertDontSee('Gatineau');
 });
 
 it('sauvegarde l\'identification, la comptabilité et les paramètres', function () {
@@ -87,7 +93,6 @@ it('sauvegarde l\'identification, la comptabilité et les paramètres', function
         ->set('address.city', 'Montréal')
         ->call('saveIdentification')
         ->assertHasNoErrors()
-        ->set('gstNumber', '123456789RT0001')
         ->call('saveAccounting')
         ->assertHasNoErrors()
         ->set('warehouseStoreId', (string) $warehouse->id)
@@ -99,7 +104,6 @@ it('sauvegarde l\'identification, la comptabilité et les paramètres', function
     $store->refresh();
     expect($store->name)->toBe('Nouveau nom')
         ->and($store->address_city)->toBe('Montréal')
-        ->and($store->gst_number)->toBe('123456789RT0001')
         ->and($store->warehouse_store_id)->toBe($warehouse->id)
         ->and($store->shipping_warehouse_id)->toBe($warehouse->id)
         ->and($store->is_active)->toBeFalse();
@@ -197,4 +201,121 @@ it('sauvegarde les frais d\'annulation du magasin', function () {
         ->set('cancellationFeePercent', '120')
         ->call('saveAccounting')
         ->assertHasErrors('cancellationFeePercent');
+});
+
+it('exige une province valide à la création d\'un magasin', function () {
+    $this->actingAs(User::factory()->withRole('owner')->create());
+
+    Livewire::test(StoreForm::class)
+        ->set('name', 'Boutique')
+        ->set('province', 'XX')
+        ->call('save')
+        ->assertHasErrors('province');
+});
+
+it('exige une province valide dans l\'identification', function () {
+    $this->actingAs(User::factory()->withRole('owner')->create());
+
+    Livewire::test(Show::class, ['store' => Store::factory()->create()])
+        ->set('province', '')
+        ->call('saveIdentification')
+        ->assertHasErrors('province');
+});
+
+function seedProvincialTaxes(): void
+{
+    Tax::factory()->create(['province' => 'QC', 'name' => 'TPS', 'start_date' => '2008-01-01']);
+    Tax::factory()->create(['province' => 'QC', 'name' => 'TVQ', 'start_date' => '2013-01-01']);
+    Tax::factory()->create(['province' => 'ON', 'name' => 'TVH', 'start_date' => '2010-07-01']);
+}
+
+it('affiche un numéro par taxe en vigueur dans la province du magasin', function () {
+    seedProvincialTaxes();
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    StoreTaxRegistration::factory()->create(['store_id' => ($store = Store::factory()->create())->id, 'tax_name' => 'TPS', 'number' => '111RT0001']);
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->assertSet('taxNumbers', [['name' => 'TPS', 'number' => '111RT0001'], ['name' => 'TVQ', 'number' => '']])
+        ->assertSee('Numéro de TPS')
+        ->assertSee('Numéro de TVQ')
+        ->assertDontSee('Numéro de TVH');
+
+    $ontario = Store::factory()->create(['province' => 'ON']);
+
+    Livewire::test(Show::class, ['store' => $ontario])
+        ->assertSet('taxNumbers', [['name' => 'TVH', 'number' => '']])
+        ->assertSee('Numéro de TVH')
+        ->assertDontSee('Numéro de TPS');
+});
+
+it('ignore les taxes expirées ou à venir dans les numéros du magasin', function () {
+    Tax::factory()->create(['province' => 'QC', 'name' => 'TPS', 'start_date' => '2008-01-01']);
+    Tax::factory()->create(['province' => 'QC', 'name' => 'Ancienne', 'start_date' => '2000-01-01', 'end_date' => '2007-12-31']);
+    Tax::factory()->create(['province' => 'QC', 'name' => 'Future', 'start_date' => '2099-01-01']);
+
+    expect(Store::factory()->create()->applicableTaxNames()->all())->toBe(['TPS']);
+});
+
+it('sauvegarde, modifie et efface les numéros de taxe', function () {
+    seedProvincialTaxes();
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    $store = Store::factory()->create();
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->set('taxNumbers.0.number', '123456789RT0001')
+        ->set('taxNumbers.1.number', '1234567890TQ0001')
+        ->call('saveAccounting')
+        ->assertHasNoErrors();
+
+    expect($store->taxRegistrations()->pluck('number', 'tax_name')->all())
+        ->toBe(['TPS' => '123456789RT0001', 'TVQ' => '1234567890TQ0001']);
+
+    Livewire::test(Show::class, ['store' => $store->fresh()])
+        ->assertSet('taxNumbers.0.number', '123456789RT0001')
+        ->set('taxNumbers.0.number', '')
+        ->set('taxNumbers.1.number', '999TQ0001')
+        ->call('saveAccounting');
+
+    expect($store->taxRegistrations()->pluck('number', 'tax_name')->all())->toBe(['TVQ' => '999TQ0001']);
+});
+
+it('conserve les numéros d\'une autre province quand la province change', function () {
+    seedProvincialTaxes();
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    $store = Store::factory()->create();
+
+    $component = Livewire::test(Show::class, ['store' => $store])
+        ->set('taxNumbers.0.number', '111RT0001')
+        ->call('saveAccounting')
+        ->set('province', 'ON')
+        ->call('saveIdentification')
+        ->assertSet('taxNumbers', [['name' => 'TVH', 'number' => '']])
+        ->set('taxNumbers.0.number', '222RT0001')
+        ->call('saveAccounting');
+
+    expect($store->taxRegistrations()->pluck('number', 'tax_name')->all())->toBe(['TPS' => '111RT0001', 'TVH' => '222RT0001']);
+
+    $component->set('province', 'QC')
+        ->call('saveIdentification')
+        ->assertSet('taxNumbers.0.number', '111RT0001');
+});
+
+it('ne sauvegarde pas le numéro d\'une taxe étrangère à la province du magasin', function () {
+    seedProvincialTaxes();
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    $store = Store::factory()->create();
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->set('taxNumbers', [['name' => 'TVH', 'number' => '123']])
+        ->call('saveAccounting');
+
+    expect($store->taxRegistrations()->count())->toBe(0);
+});
+
+it('sème les taxes de départ sans doublon', function () {
+    $this->seed(TaxSeeder::class);
+    $this->seed(TaxSeeder::class);
+
+    expect(Tax::count())->toBe(3)
+        ->and(Tax::activeOn('2026-01-01')->where('province', 'ON')->sole())->name->toBe('TVH')->rate->toBe('13.000');
 });
