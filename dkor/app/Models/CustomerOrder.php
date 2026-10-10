@@ -247,6 +247,49 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Répercute des articles reçus endommagés : ils ne sont pas remis au client, la quantité est donc recommandée
+     * sur le brouillon du fournisseur (ligne « En commande » distincte si une partie de la ligne est déjà en main).
+     */
+    public function applySupplierDamagedReceipt(CustomerOrderLine $line, int $quantity): void
+    {
+        DB::transaction(function () use ($line, $quantity): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+            $quantity = min($quantity, $line->quantity_on_order);
+
+            if ($quantity < 1) {
+                return;
+            }
+
+            if ($quantity === $line->quantity_on_order && $line->quantity_reserved === 0) {
+                $line->update(['supplier_order_line_id' => null, 'status' => CustomerOrderLineStatus::OnOrder]);
+                $this->syncSupplierLine($line);
+
+                return;
+            }
+
+            $onOrder = $line->quantity_on_order - $quantity;
+
+            $line->update([
+                'quantity_on_order' => $onOrder,
+                'quantity' => $line->quantity - $quantity,
+                'status' => $onOrder === 0 ? CustomerOrderLineStatus::Received : $line->status,
+            ]);
+
+            $reorder = $this->lines()->create([
+                'product_id' => $line->product_id,
+                'quantity' => $quantity,
+                'quantity_reserved' => 0,
+                'quantity_on_order' => $quantity,
+                'unit_price' => $line->unit_price,
+                'note' => $line->note,
+                'status' => CustomerOrderLineStatus::OnOrder,
+            ]);
+
+            $this->syncSupplierLine($reorder);
+        });
+    }
+
+    /**
      * Répercute le renversement d'une réception faite par erreur : la réservation des unités est libérée (le
      * fournisseur les remet ensuite « en commande ») et la ligne redevient « Commandé ».
      *

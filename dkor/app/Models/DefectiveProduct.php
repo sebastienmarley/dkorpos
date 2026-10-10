@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Dossier d'un produit défectueux rapporté par un client.
+ * Dossier d'un produit défectueux : rapporté par un client ou reçu endommagé du fournisseur.
  *
  * @property int $id
  * @property int $product_id
@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $reason
  * @property string|null $replacement_part
  * @property int|null $supplier_order_line_id
+ * @property int|null $reception_line_id
  * @property string|null $photo_path
  * @property int|null $created_by
  * @property Carbon|null $created_at
@@ -32,9 +33,10 @@ use Illuminate\Support\Carbon;
  * @property-read CustomerOrder|null $customerOrder
  * @property-read CustomerOrderLine|null $customerOrderLine
  * @property-read SupplierOrderLine|null $supplierOrderLine
+ * @property-read ReceptionLine|null $receptionLine
  * @property-read User|null $creator
  */
-#[Fillable(['product_id', 'customer_order_id', 'customer_order_line_id', 'quantity', 'resolution', 'status', 'reason', 'replacement_part', 'supplier_order_line_id', 'photo_path', 'created_by'])]
+#[Fillable(['product_id', 'customer_order_id', 'customer_order_line_id', 'quantity', 'resolution', 'status', 'reason', 'replacement_part', 'supplier_order_line_id', 'reception_line_id', 'photo_path', 'created_by'])]
 class DefectiveProduct extends Model
 {
     /** @use HasFactory<DefectiveProductFactory> */
@@ -72,6 +74,12 @@ class DefectiveProduct extends Model
     public function supplierOrderLine(): BelongsTo
     {
         return $this->belongsTo(SupplierOrderLine::class);
+    }
+
+    /** @return BelongsTo<ReceptionLine, $this> */
+    public function receptionLine(): BelongsTo
+    {
+        return $this->belongsTo(ReceptionLine::class);
     }
 
     /** @return BelongsTo<User, $this> */

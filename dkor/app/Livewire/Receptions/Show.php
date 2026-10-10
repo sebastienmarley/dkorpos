@@ -19,6 +19,9 @@ class Show extends Component
     /** @var array<int, string> Quantité à recevoir par ligne de réception. */
     public array $quantities = [];
 
+    /** @var array<int, string> Partie endommagée de la quantité reçue, par ligne de réception. */
+    public array $damaged = [];
+
     public function mount(Reception $reception): void
     {
         $this->reception = $reception;
@@ -33,11 +36,12 @@ class Show extends Component
             'reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'quantities.*' => ['required', 'integer', 'min:1', 'max:99999'],
+            'damaged.*' => ['nullable', 'integer', 'min:0', 'max:99999'],
         ]);
 
         $this->attempt(function (): void {
             foreach ($this->reception->lines()->with('orderLine')->get() as $line) {
-                $this->reception->setLineQuantity($line, (int) ($this->quantities[$line->id] ?? $line->quantity));
+                $this->reception->setLineQuantity($line, (int) ($this->quantities[$line->id] ?? $line->quantity), (int) ($this->damaged[$line->id] ?? $line->quantity_damaged));
             }
 
             $this->reception->updateDetails($this->reference, $this->notes);
@@ -102,9 +106,9 @@ class Show extends Component
         $this->reception->refresh()->unsetRelation('lines');
         $this->reference = $this->reception->reference ?? '';
         $this->notes = $this->reception->notes ?? '';
-        $this->quantities = $this->reception->lines()->get()
-            ->mapWithKeys(fn ($line) => [$line->id => (string) $line->quantity])
-            ->all();
+        $lines = $this->reception->lines()->get();
+        $this->quantities = $lines->mapWithKeys(fn ($line) => [$line->id => (string) $line->quantity])->all();
+        $this->damaged = $lines->mapWithKeys(fn ($line) => [$line->id => (string) $line->quantity_damaged])->all();
     }
 
     public function render(): View

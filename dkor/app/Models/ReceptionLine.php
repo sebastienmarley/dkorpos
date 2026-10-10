@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property int $supplier_order_line_id
  * @property int|null $product_id
  * @property int $quantity
+ * @property int $quantity_damaged Partie de la quantité reçue endommagée (inventaire défectueux).
  * @property float $unit_cost
  * @property int $quantity_reversed
  * @property Carbon|null $reversed_at
@@ -30,13 +31,14 @@ use Illuminate\Support\Carbon;
  * @property-read int $billable_quantity
  * @property-read string $label
  */
-#[Fillable(['reception_id', 'supplier_order_line_id', 'product_id', 'quantity', 'unit_cost', 'quantity_reversed', 'reversed_at', 'reversed_by', 'reversal_reason'])]
+#[Fillable(['reception_id', 'supplier_order_line_id', 'product_id', 'quantity', 'quantity_damaged', 'unit_cost', 'quantity_reversed', 'reversed_at', 'reversed_by', 'reversal_reason'])]
 class ReceptionLine extends Model
 {
     /** @use HasFactory<ReceptionLineFactory> */
     use HasFactory;
 
     protected $casts = [
+        'quantity_damaged' => 'integer',
         'quantity' => 'integer',
         'unit_cost' => 'float',
         'quantity_reversed' => 'integer',

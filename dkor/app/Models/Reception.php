@@ -101,9 +101,10 @@ class Reception extends Model
 
     /**
      * Commence une réception: elle contient les lignes de commande choisies et leur quantité, sans effet sur
-     * l'inventaire tant qu'elle n'est pas terminée. Les quantités sont plafonnées à ce qui reste à recevoir.
+     * l'inventaire tant qu'elle n'est pas terminée. Les quantités sont plafonnées à ce qui reste à recevoir; la
+     * quantité endommagée (facultative) fait partie de la quantité reçue.
      *
-     * @param  array<int, array{quantity: int|string}>  $receipts  Indexé par id de ligne de commande.
+     * @param  array<int, array{quantity: int|string, damaged?: int|string|null}>  $receipts  Indexé par id de ligne de commande.
      * @param  array{reference?: string|null, notes?: string|null, received_by?: int|string|null}  $details
      */
     public static function start(Supplier $supplier, array $receipts, array $details = []): Reception
@@ -149,6 +150,7 @@ class Reception extends Model
                         'supplier_order_line_id' => $line->id,
                         'product_id' => $line->product_id,
                         'quantity' => $quantity,
+                        'quantity_damaged' => self::damagedQuantity($line, $quantity, $receipts[$line->id]['damaged'] ?? 0),
                         'unit_cost' => $line->unit_cost,
                     ]);
                 }
@@ -163,9 +165,10 @@ class Reception extends Model
     }
 
     /**
-     * Change la quantité à recevoir d'une ligne d'une réception en cours (1 à ce qui reste à recevoir).
+     * Change la quantité à recevoir d'une ligne d'une réception en cours (1 à ce qui reste à recevoir) et, au
+     * besoin, la partie endommagée.
      */
-    public function setLineQuantity(ReceptionLine $line, int $quantity): void
+    public function setLineQuantity(ReceptionLine $line, int $quantity, ?int $damaged = null): void
     {
         $this->guardInProgress($line);
 
@@ -175,7 +178,27 @@ class Reception extends Model
             throw new DomainException(__('La quantité doit être entre 1 et :max.', ['max' => $outstanding]));
         }
 
-        $line->update(['quantity' => $quantity]);
+        $line->update([
+            'quantity' => $quantity,
+            'quantity_damaged' => self::damagedQuantity($line->orderLine, $quantity, $damaged ?? $line->quantity_damaged),
+        ]);
+    }
+
+    /**
+     * Quantité endommagée valide : entre 0 et la quantité reçue, et seulement pour un produit (une ligne libre
+     * n'entre pas en inventaire).
+     *
+     * @throws DomainException si elle dépasse la quantité reçue.
+     */
+    private static function damagedQuantity(SupplierOrderLine $orderLine, int $quantity, int|string|null $damaged): int
+    {
+        $damaged = (int) $damaged;
+
+        if ($damaged < 0 || $damaged > $quantity) {
+            throw new DomainException(__('La quantité endommagée doit être entre 0 et la quantité reçue (:max).', ['max' => $quantity]));
+        }
+
+        return $orderLine->product_id === null ? 0 : $damaged;
     }
 
     /**
@@ -251,7 +274,7 @@ class Reception extends Model
     /**
      * Enregistre et termine une réception d'un seul coup (réception depuis une commande).
      *
-     * @param  array<int, array{quantity: int|string}>  $receipts  Indexé par id de ligne de commande.
+     * @param  array<int, array{quantity: int|string, damaged?: int|string|null}>  $receipts  Indexé par id de ligne de commande.
      * @param  array{reference?: string|null, notes?: string|null, received_by?: int|string|null}  $details
      */
     public static function record(Supplier $supplier, array $receipts, array $details = []): Reception
