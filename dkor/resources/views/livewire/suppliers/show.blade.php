@@ -59,7 +59,12 @@
             <form wire:submit="saveIdentification" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
-                        <flux:label>{{ __('Type') }}</flux:label>
+                        <div class="flex items-center gap-1.5">
+                            <flux:label>{{ __('Type') }}</flux:label>
+                            <flux:tooltip :content="__('Les onglets Transport et Info commande dépendent du type de fournisseur.')">
+                                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                            </flux:tooltip>
+                        </div>
                         <flux:select wire:model="type">
                             @foreach ($this->getSupplierTypes() as $supplierType)
                                 <flux:select.option :value="$supplierType->value">{{ $supplierType->label() }}</flux:select.option>
@@ -90,10 +95,15 @@
                     </flux:field>
                 </div>
 
-                <flux:field>
-                    <flux:checkbox wire:model="isActive" :label="__('Actif')" />
-                    <flux:error name="isActive" />
-                </flux:field>
+                <div class="flex items-center gap-2">
+                    <flux:field variant="inline">
+                        <flux:checkbox wire:model="isActive" :label="__('Actif')" />
+                        <flux:error name="isActive" />
+                    </flux:field>
+                    <flux:tooltip :content="__('Un fournisseur inactif n\'est plus commandable.')">
+                        <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                    </flux:tooltip>
+                </div>
 
                 <div class="flex justify-end pt-2">
                     @can('suppliers.edit')
@@ -136,16 +146,24 @@
                         <flux:error name="earlyPaymentDiscountPercent" />
                     </flux:field>
 
-                    <flux:field>
-                        <flux:checkbox wire:model.live="earlyPaymentNextMonth" :label="__('Mois suivant')" />
-                        <flux:description>{{ __('Coché : l\'escompte est valide jusqu\'à un jour fixe du mois suivant la facturation (ex.: 2 % le 10 du mois suivant).') }}</flux:description>
-                        <flux:error name="earlyPaymentNextMonth" />
-                    </flux:field>
+                    <div class="flex items-center gap-2">
+                        <flux:field variant="inline">
+                            <flux:checkbox wire:model.live="earlyPaymentNextMonth" :label="__('Mois suivant')" />
+                            <flux:error name="earlyPaymentNextMonth" />
+                        </flux:field>
+                        <flux:tooltip :content="__('Coché : l\'escompte est valide jusqu\'à un jour fixe du mois suivant la facturation (ex.: 2 % le 10 du mois suivant).')">
+                            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                        </flux:tooltip>
+                    </div>
 
                     <flux:field>
-                        <flux:label>{{ $earlyPaymentNextMonth ? __('Jour du mois suivant') : __('Règle de l\'escompte (jours)') }}</flux:label>
+                        <div class="flex items-center gap-1.5">
+                            <flux:label>{{ $earlyPaymentNextMonth ? __('Jour du mois suivant') : __('Règle de l\'escompte (jours)') }}</flux:label>
+                            <flux:tooltip :content="$earlyPaymentNextMonth ? __('Jour du mois suivant limite pour profiter de l\'escompte.') : __('Délai pour profiter de l\'escompte à partir de la date de facturation.')">
+                                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                            </flux:tooltip>
+                        </div>
                         <flux:input wire:model="earlyPaymentDiscountDays" type="number" step="1" min="{{ $earlyPaymentNextMonth ? 1 : 0 }}" max="{{ $earlyPaymentNextMonth ? 31 : 365 }}" placeholder="{{ $earlyPaymentNextMonth ? __('Ex.: le 10') : __('Ex.: 15 jours') }}" />
-                        <flux:description>{{ $earlyPaymentNextMonth ? __('Jour du mois suivant limite pour profiter de l\'escompte.') : __('Délai pour profiter de l\'escompte à partir de la date de facturation.') }}</flux:description>
                         <flux:error name="earlyPaymentDiscountDays" />
                     </flux:field>
                 </div>
@@ -178,9 +196,13 @@
             <div x-show="tab === 'transport'" x-cloak>
                 <form wire:submit="saveTransport" class="mt-6 max-w-2xl space-y-6">
                     <flux:field>
-                        <flux:label>{{ __('Montant prepaid') }}</flux:label>
+                        <div class="flex items-center gap-1.5">
+                            <flux:label>{{ __('Montant prepaid') }}</flux:label>
+                            <flux:tooltip :content="__('Obligatoire sauf si le transport est en collect.')">
+                                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                            </flux:tooltip>
+                        </div>
                         <flux:input wire:model="prepaidAmount" type="number" step="0.01" min="0" />
-                        <flux:description>{{ __('Obligatoire sauf si le transport est en collect.') }}</flux:description>
                         <flux:error name="prepaidAmount" />
                     </flux:field>
 
@@ -231,9 +253,13 @@
                             </flux:field>
 
                             <flux:field>
-                                <flux:label>{{ __('Taux de change') }}</flux:label>
+                                <div class="flex items-center gap-1.5">
+                                    <flux:label>{{ __('Taux de change') }}</flux:label>
+                                    <flux:tooltip :content="$supplier->currency ? __('Taux de la devise :code.', ['code' => $supplier->currency->code]) : __('Aucune devise sélectionnée (Comptabilité).')">
+                                        <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                                    </flux:tooltip>
+                                </div>
                                 <flux:input :value="$supplier->exchangeRate()" type="number" disabled />
-                                <flux:description>{{ $supplier->currency ? __('Taux de la devise :code.', ['code' => $supplier->currency->code]) : __('Aucune devise sélectionnée (Comptabilité).') }}</flux:description>
                             </flux:field>
 
                             <flux:field>
@@ -248,10 +274,14 @@
                                 <flux:error name="shippingFee" />
                             </flux:field>
                         </div>
-                        <flux:text class="mt-3">
-                            {{ __('Multiplicateur calculé') }} : <strong>{{ number_format($this->computedMultiplier, 4) }}</strong>
-                            — {{ __('le prix de vente est calculé en multipliant le coût par ce facteur.') }}
-                        </flux:text>
+                        <div class="mt-3 flex items-center gap-1.5">
+                            <flux:text>
+                                {{ __('Multiplicateur calculé') }} : <strong>{{ number_format($this->computedMultiplier, 4) }}</strong>
+                            </flux:text>
+                            <flux:tooltip :content="__('Le prix de vente est calculé en multipliant le coût par ce facteur.')">
+                                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                            </flux:tooltip>
+                        </div>
                     </div>
 
                     <flux:field>
