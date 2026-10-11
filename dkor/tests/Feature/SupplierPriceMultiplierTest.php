@@ -182,12 +182,12 @@ it('affiche l\'onglet info commande sauf pour un fournisseur d\'expédition', fu
     $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(SupplierShow::class, ['supplier' => Supplier::factory()->create(['type' => SupplierType::Product])])
-        ->assertSee('Info commande');
+        ->assertSee('Multiplicateur de prix');
 
     $shipping = Supplier::factory()->create(['type' => SupplierType::Shipping]);
 
     Livewire::test(SupplierShow::class, ['supplier' => $shipping])
-        ->assertDontSee('Info commande')
+        ->assertDontSee('Multiplicateur de prix')
         ->call('saveParameters')
         ->assertNotFound();
 });
