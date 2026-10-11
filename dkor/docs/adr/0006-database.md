@@ -27,6 +27,7 @@ En même temps, le projet est développé par une seule personne, sur Laravel He
 - ❌ Un seul écrivain à la fois : les écritures concurrentes attendent leur tour
 - ❌ `lockForUpdate()` est ignoré : c'est le verrou global de la base qui protège les transactions
 - ❌ Pas de vrai type décimal : les colonnes `decimal` sont stockées en nombres à virgule flottante
+  (pour les montants, réglé par les cents de l'[ADR 0008](0008-money-in-cents.md))
 
 ### Option B — MySQL / MariaDB
 
@@ -58,14 +59,14 @@ dans le code ne doit empêcher de passer à MySQL ou PostgreSQL en production.
 
 | Donnée | Type | Exemple |
 |---|---|---|
-| Totaux, soldes, montants de facture | `decimal(12, 2)` | `customer_orders.total` |
-| Prix unitaires, frais | `decimal(10, 2)` ou `decimal(8, 2)` | `cancellation_fee` |
+| Montant d'argent (prix, coût, total, solde, paiement, frais, crédit, salaire) | `integer` en cents, casté en `Money` | `customer_orders.total` |
 | Pourcentages | `decimal(5, 2)` | `cancellation_fee_percent` |
-| Multiplicateurs, frais fournisseur | `decimal(8, 4)` | `suppliers.base_multiplier` |
+| Multiplicateurs, frais fournisseur (composantes du multiplicateur) | `decimal(8, 4)` | `suppliers.base_multiplier` |
 | Taux de change | `decimal(12, 6)` | `currencies.rate` |
 
-Dans les modèles, ces colonnes sont castées en `float`, et chaque calcul monétaire se termine par
-`round(…, 2)`.
+Les montants suivent l'[ADR 0008](0008-money-in-cents.md) : objet `Money`, calculs exacts en entiers et
+règles d'arrondi écrites une seule fois. `MoneySchemaTest` échoue si une colonne `decimal` n'est pas un
+taux ou une mesure de la liste permise.
 
 **Statuts**
 
@@ -160,9 +161,6 @@ que de dépendre d'une collation propre à un moteur.
 
 **Négatives / limitations**
 
-- **Précision des montants :** en SQLite, les décimaux sont stockés en virgule flottante. Le
-  `round(…, 2)` systématique compense, mais les sommes faites par la base (`sum()`) peuvent
-  présenter des écarts infimes.
 - **Concurrence :** en SQLite, `lockForUpdate()` n'a aucun effet. Les transactions restent sûres
   parce que la base n'accepte qu'un écrivain à la fois, mais les verrous par ligne ne serviront qu'en
   passant à MySQL ou PostgreSQL.
@@ -182,8 +180,6 @@ que de dépendre d'une collation propre à un moteur.
   (plusieurs postes de caisse qui écrivent en même temps) ? À décider avant le déploiement, dans un
   ADR distinct.
 - **`Relation::enforceMorphMap()`** pour découpler le journal des noms de classes.
-- **Montants en cents (`integer`)** plutôt qu'en décimal, pour une précision exacte quel que soit
-  le moteur ?
 - **Regrouper les migrations** (`php artisan schema:dump --prune`) avant la mise en production ?
   C'est maintenant possible : les données de référence ne dépendent plus des migrations. Les
   anciennes migrations de données (`add_*_permissions`…) sont restées en place, puisqu'une

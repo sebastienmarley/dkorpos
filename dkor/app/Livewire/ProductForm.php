@@ -117,7 +117,7 @@ class ProductForm extends Component
 
     private function normalizeCost(string $value): string
     {
-        return number_format((float) str_replace(',', '.', $value), 2, '.', '');
+        return Money::tryParse($value)?->toDecimal() ?? $value;
     }
 
     /** @return Collection<int, Supplier> */

@@ -159,11 +159,55 @@ au module qui les rend inutiles.
 - **Format d'affichage** québécois (« 12,34 $ ») : décision séparée, facile à appliquer ensuite grâce à
   `format()`.
 
+## Bilan (2026-10-11)
+
+Le chantier est terminé : les 36 montants sont en cents, dans 6 PR.
+
+| PR | Résultat |
+|---|---|
+| 0 | ADR et tests témoins, dont 2 qui reproduisent l'écart d'un cent |
+| 1 | `Money`, `MoneyCast` et leurs tests unitaires |
+| 2 | Catalogue, services et pièces (8 colonnes) |
+| 3 | Fournisseurs, réceptions, inventaire et factures (13 colonnes) |
+| 4 | Ventes (13 colonnes). Les 2 tests de l'écart d'un cent passent : 30 % de 2,05 $ donne 0,62 $ |
+| 5 | RH (2 colonnes) |
+| 6 | Test de garde sur le schéma (`MoneySchemaTest`), ménage, documentation |
+
+**Les tests témoins n'ont jamais changé de valeur attendue** : seule leur mise en place a été adaptée.
+
+**Ce que le chantier a révélé**
+
+- **`Money` n'est pas convertible en chaîne.** Avec `__toString()`, un montant écrit par erreur dans un
+  tableau (`make([...])`, `update([...])`), que PHPStan ne voit pas, aurait été enregistré comme texte
+  (« 12.34 $ ») sans erreur.
+- **Écritures qui contournent les casts :** `insert()` en masse (import des listes de prix), mise à jour
+  par requête (`whereKey()->update()`, report du coût réel vers les unités d'inventaire), `attach()` ou
+  `sync()` d'un pivot avec un modèle de pivot personnalisé. Elles écrivent maintenant des cents
+  explicitement, ou passent par le modèle `ServiceSupplier`.
+- **`increment()` et `decrement()`** ne fonctionnent pas avec un attribut casté en `Money`, et
+  `update([...])` ignore en silence un attribut non assignable (`credit_balance`). Le crédit client
+  passe par `forceFill()->save()` sur la ligne verrouillée.
+- **Des montants absents d'une commande tout juste créée** s'affichaient « 0.00 » par hasard
+  (`number_format(null)`). Ils ont maintenant 0 comme valeur par défaut, comme en base.
+- **Saisies invalides :** une saisie comme « abc » devenait « 0.00 » avant la validation, en passant par
+  un `float`. Elle est maintenant refusée par la validation.
+- **Dépôt mixte :** le dépôt du sur-mesure et celui des articles ordinaires sont arrondis séparément
+  (une seule fois chacun). Un écart d'un cent est possible seulement pour une commande qui mélange les
+  deux.
+
+**Pour ajouter un montant**
+
+1. Une colonne `integer` (en cents), jamais `decimal`.
+2. Le cast `MoneyCast` et la PHPDoc `@property Money`.
+3. Dans les formulaires : `Money::parse()` à l'enregistrement, `toDecimal()` pour préremplir,
+   `tryParse()` pour un aperçu calculé pendant la saisie. À l'affichage : `format()`.
+4. Toute écriture qui contourne les casts (`insert`, `update` par requête, `attach`) écrit des cents.
+
 ## Références
 
 - Issue #76
 - `app/Support/Money.php`, `app/Casts/MoneyCast.php` (nouveaux dossiers approuvés le 2026-10-11)
 - `tests/Unit/Support/MoneyTest.php`, `tests/Unit/Casts/MoneyCastTest.php`
-- `tests/Feature/MoneyGoldenTest.php`
+- `tests/Feature/MoneyGoldenTest.php`, `tests/Feature/MoneySchemaTest.php`
 - [ADR 0005](0005-code-organization.md) : organisation du code
 - [ADR 0006](0006-database.md) : SQLite et stockage des décimaux

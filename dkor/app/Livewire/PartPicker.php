@@ -68,7 +68,7 @@ class PartPicker extends Component
     {
         $this->authorize('parts.create');
 
-        $this->lastCost = filled($this->lastCost) ? number_format((float) str_replace(',', '.', $this->lastCost), 2, '.', '') : '0.00';
+        $this->lastCost = filled($this->lastCost) ? (Money::tryParse($this->lastCost)?->toDecimal() ?? $this->lastCost) : '0.00';
 
         $this->validate([
             'supplierId' => ['required', 'exists:suppliers,id'],

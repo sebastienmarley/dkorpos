@@ -39,7 +39,7 @@ class Show extends Component
     {
         $this->authorize('parts.edit');
 
-        $this->lastCost = number_format((float) str_replace(',', '.', $this->lastCost), 2, '.', '');
+        $this->lastCost = Money::tryParse($this->lastCost)?->toDecimal() ?? $this->lastCost;
 
         $this->validate([
             'supplierId' => ['required', 'exists:suppliers,id'],
