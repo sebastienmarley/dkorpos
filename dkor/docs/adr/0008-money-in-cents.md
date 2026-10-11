@@ -62,21 +62,28 @@ Nous retenons l'**option C**.
 
 ### Objet `Money`
 
-Un objet immuable, en une seule devise (le dollar canadien des ventes), qui contient un nombre entier
+`App\Support\Money` (cast : `App\Casts\MoneyCast`). Un objet immuable, en une seule devise (le dollar canadien des ventes), qui contient un nombre entier
 de cents. Opérations prévues :
 
 | Besoin | Méthode |
 |---|---|
-| Créer | `Money::of(int $cents)`, `Money::zero()`, `Money::parse('12,34')` (saisie d'un formulaire) |
-| Lire | `cents(): int`, `toDecimal(): string` (« 12.34 »), `format(): string` (« 12.34 $ ») |
-| Calculer | `plus()`, `minus()`, `times(int $quantity)`, `negate()`, `sum(iterable)` |
-| Pourcentage, taux | `percent(string\|float $rate)`, `multiply(string\|float $factor)` : arrondis au cent |
-| Comparer | `equals()`, `isZero()`, `isNegative()`, `greaterThan()`, `lessThan()` |
+| Créer | `Money::of(int $cents)`, `Money::zero()`, `Money::parse('12,34')` (saisie en dollars), `Money::sum(iterable)` |
+| Lire | `cents(): int`, `toDecimal(): string` (« 1234.50 », pour un formulaire), `format(): string` (« 1,234.50 $ », pour l'affichage) |
+| Calculer | `plus()`, `minus()`, `times(int $quantity)`, `negate()`, `abs()` |
+| Pourcentage, taux | `percent($rate)`, `multiply($factor)` : calculés exactement en entiers, arrondis une seule fois au cent |
+| Comptant | `roundTo(5)` : au multiple de 5 ¢ le plus proche |
+| Comparer | `equals()`, `isZero()`, `isPositive()`, `isNegative()`, `greaterThan()`, `lessThan()` (et « ou égal »), `min()`, `max()` |
 
 - **`MoneyCast`** lit l'entier de la base et le transforme en `Money`. À l'écriture, il accepte seulement un
-  `Money` ou `null` : un `float` est refusé.
+  `Money` ou `null`.
+  - Larastan vérifie les affectations directes : `$model->total = 12.5` et `$model->total * 2` sont des
+    erreurs d'analyse.
+  - Le cast revérifie les affectations en masse (`fill`, `create`, `update`), que l'analyse ne voit pas.
+  - Il refuse aussi de lire une colonne qui contient encore des dollars décimaux : une colonne castée avant
+    sa migration est donc repérée tout de suite.
 - Les **propriétés Livewire** des formulaires restent des chaînes. `Money::parse()` les convertit au
-  moment d'enregistrer.
+  moment d'enregistrer. Le composant `x-cost-input` produit déjà une saisie compatible (virgule changée
+  en point, deux décimales au plus) : il ne change pas.
 - L'**affichage** reste au format actuel (« 12.34 $ »). Passer au format québécois (« 12,34 $ ») est
   une autre décision.
 
@@ -109,7 +116,7 @@ son prix de vente alimente la commande client.
 
 | PR | Module | Colonnes |
 |---|---|---|
-| 1 | **Fondation** | `Money`, `MoneyCast`, `Money::parse()`, adaptation de `x-cost-input`, tests unitaires (aucune colonne) |
+| 1 | **Fondation** | `Money`, `MoneyCast`, tests unitaires (aucune colonne) |
 | 2 | **Catalogue, services et pièces** (8) | `products.cost`, `products.imap`, `price_list_items.cost`, `price_list_items.imap`, `services.selling_price`, `service_supplier.cost`, `service_supplier.selling_price`, `parts.last_cost` |
 | 3 | **Fournisseurs, réceptions, inventaire et factures** (13) | `suppliers.prepaid_amount`, `supplier_order_lines.unit_cost`, `reception_lines.unit_cost`, `inventory_units.cost`, `supplier_invoices.merchandise_total`, `.freight_fee`, `.customs_fee`, `.taxes`, `.computed_total`, `.invoice_total`, `.variance`, `.discount_amount`, `supplier_invoice_lines.unit_cost` |
 | 4 | **Ventes** (13) | `customer_orders.subtotal`, `.total`, `.amount_paid`, `.balance_due`, `customer_order_lines.unit_price`, `.unit_cost`, `.cancellation_fee`, `customer_order_payments.amount`, `.rounding_adjustment`, `.cash_tendered`, `.change_given`, `customer_order_taxes.amount`, `customers.credit_balance` |
@@ -149,14 +156,14 @@ au module qui les rend inutiles.
 
 ## Questions ouvertes
 
-- **Emplacement de `Money` :** `app/Casts/` (créé par `php artisan make:cast`) pour le cast, mais où mettre
-  l'objet ? Proposition : `app/Support/Money.php`. C'est un nouveau dossier, à approuver.
 - **Format d'affichage** québécois (« 12,34 $ ») : décision séparée, facile à appliquer ensuite grâce à
   `format()`.
 
 ## Références
 
 - Issue #76
+- `app/Support/Money.php`, `app/Casts/MoneyCast.php` (nouveaux dossiers approuvés le 2026-10-11)
+- `tests/Unit/Support/MoneyTest.php`, `tests/Unit/Casts/MoneyCastTest.php`
 - `tests/Feature/MoneyGoldenTest.php`
 - [ADR 0005](0005-code-organization.md) : organisation du code
 - [ADR 0006](0006-database.md) : SQLite et stockage des décimaux
