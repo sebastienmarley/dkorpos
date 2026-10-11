@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Models\PriceListItem;
 use App\Models\Product;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -43,7 +44,7 @@ class CreateProductFromPriceListItem
                 'model' => $item->model,
                 'clean_model' => $item->clean_model,
                 'supplier_model' => $item->model,
-                'cost' => max(0.01, round(($item->cost ?? 0.01) * (1 - $list->discount_percent / 100), 2)),
+                'cost' => ($item->cost ?? Money::of(1))->percent(100 - $list->discount_percent)->max(Money::of(1)),
                 'imap' => $item->imap,
                 'collection' => $item->collection,
                 'description' => $item->description,

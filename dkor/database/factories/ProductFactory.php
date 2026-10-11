@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\SupplierType;
 use App\Models\Product;
 use App\Models\Supplier;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -21,7 +22,7 @@ class ProductFactory extends Factory
             'supplier_id' => Supplier::factory()->state(['type' => SupplierType::Product]),
             'model' => fake()->words(3, true),
             'supplier_model' => fake()->optional()->bothify('??-####'),
-            'cost' => fake()->randomFloat(2, 1, 500),
+            'cost' => Money::of(fake()->numberBetween(100, 50000)),
         ];
     }
 }

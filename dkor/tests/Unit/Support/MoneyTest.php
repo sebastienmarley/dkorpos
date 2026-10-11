@@ -35,8 +35,7 @@ it('écrit le montant pour un formulaire et pour l\'affichage', function (int $c
     $money = Money::of($cents);
 
     expect($money->toDecimal())->toBe($decimal)
-        ->and($money->format())->toBe($formatted)
-        ->and((string) $money)->toBe($formatted);
+        ->and($money->format())->toBe($formatted);
 })->with([
     'milliers' => [123450, '1234.50', '1,234.50 $'],
     'moins d\'un dollar' => [7, '0.07', '0.07 $'],
@@ -114,4 +113,8 @@ it('compare deux montants', function () {
 
 it('se sérialise en cents', function () {
     expect(json_encode(['total' => Money::of(1234)]))->toBe('{"total":1234}');
+});
+
+it('ne se convertit pas en chaîne, pour qu\'un montant mal écrit échoue', function () {
+    expect(fn () => (string) Money::of(1234))->toThrow(Error::class);
 });

@@ -14,6 +14,7 @@ use App\Models\Role;
 use App\Models\Supplier;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
@@ -25,7 +26,7 @@ beforeEach(function () {
 
     $this->order = CustomerOrder::factory()->create();
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'base_multiplier' => 2.5]);
-    $this->part = Part::factory()->create(['supplier_id' => $supplier->id, 'model' => 'PC-12', 'description' => 'Verre de lampe', 'last_cost' => 3]);
+    $this->part = Part::factory()->create(['supplier_id' => $supplier->id, 'model' => 'PC-12', 'description' => 'Verre de lampe', 'last_cost' => Money::parse(3)]);
 });
 
 it('ajoute la pièce choisie dans « Ajouter une pièce » et la commande au fournisseur', function () {
@@ -118,7 +119,7 @@ it('suit la pièce de la commande à la remise au client, sans mouvement d\'inve
         ->status->toBe(CustomerOrderLineStatus::Received)
         ->quantity_reserved->toBe(2)
         ->quantity_on_order->toBe(0)
-        ->and($this->part->fresh()->last_cost)->toBe(4.25);
+        ->and($this->part->fresh()->last_cost)->toBeMoney(425);
 
     $pickup = $this->order->fresh()->pickUp([$line->id => 2], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => $this->order->fresh()->balance_due]]);
 
@@ -182,7 +183,7 @@ describe('prix de vente', function () {
     it('fige sur la ligne le prix calculé au moment de l\'ajout', function () {
         $line = $this->order->addPart($this->part);
 
-        $this->part->update(['last_cost' => 10]);
+        $this->part->update(['last_cost' => Money::parse(10)]);
         $laterLine = CustomerOrder::factory()->create()->addPart($this->part->fresh());
 
         expect($line->fresh()->unit_price)->toBe(7.99)

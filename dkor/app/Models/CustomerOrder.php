@@ -11,6 +11,7 @@ use App\Enums\InventoryStatus;
 use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
+use App\Support\Money;
 use Database\Factories\CustomerOrderFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -164,6 +165,16 @@ class CustomerOrder extends Model
         $this->unsetRelation('taxLines');
     }
 
+    /**
+     * Montant du catalogue (Money) converti en dollars pour les colonnes de commande encore en float.
+     *
+     * @todo #76 transition : à retirer quand les commandes client et fournisseur passent en Money.
+     */
+    private static function transitionalDollars(Money $amount): float
+    {
+        return (float) $amount->toDecimal();
+    }
+
     /** @return HasMany<CustomerOrderLine, $this> */
     public function lines(): HasMany
     {
@@ -196,7 +207,7 @@ class CustomerOrder extends Model
                     ->whereIn('status', [CustomerOrderLineStatus::InStock, CustomerOrderLineStatus::OnOrder])
                     ->lockForUpdate()
                     ->first()
-                    ?? $this->lines()->make(['product_id' => $product->id, 'unit_price' => $product->selling_price, 'is_taxable' => $product->is_taxable]);
+                    ?? $this->lines()->make(['product_id' => $product->id, 'unit_price' => self::transitionalDollars($product->selling_price), 'is_taxable' => $product->is_taxable]);
 
             $available = InventoryStock::query()->lockForUpdate()->where('product_id', $product->id)->value('quantity_in_stock') ?? 0;
             $reserved = min((int) $available, $quantity);
@@ -235,7 +246,7 @@ class CustomerOrder extends Model
                 ->where('status', CustomerOrderLineStatus::OnOrder)
                 ->lockForUpdate()
                 ->first()
-                ?? $this->lines()->make(['part_id' => $part->id, 'unit_price' => $part->selling_price, 'note' => $note]);
+                ?? $this->lines()->make(['part_id' => $part->id, 'unit_price' => self::transitionalDollars($part->selling_price), 'note' => $note]);
 
             $this->fillLineQuantities($line, 0, $line->quantity_on_order + $quantity);
             $line->save();
@@ -582,7 +593,7 @@ class CustomerOrder extends Model
     {
         return DB::transaction(function () use ($line, $quantityReceived, $replacement): CustomerOrderLine {
             $line = $this->lines()->with('product')->lockForUpdate()->findOrFail($line->id);
-            $sellingPrice = Product::query()->with('supplier')->findOrFail($replacement->product_id)->selling_price;
+            $sellingPrice = self::transitionalDollars(Product::query()->with('supplier')->findOrFail($replacement->product_id)->selling_price);
 
             $note = __('Substitut fournisseur de :model.', ['model' => $line->product->model]);
 
@@ -742,7 +753,7 @@ class CustomerOrder extends Model
             'product_id' => $product->id,
             'description' => $line->is_custom ? $this->customSpecifications($line) : null,
             'quantity' => $line->quantity_on_order,
-            'unit_cost' => $line->is_custom ? (float) $line->unit_cost : $product->cost,
+            'unit_cost' => $line->is_custom ? (float) $line->unit_cost : self::transitionalDollars($product->cost),
         ]);
 
         $line->update(['supplier_order_line_id' => $supplierLine->id]);
@@ -785,7 +796,7 @@ class CustomerOrder extends Model
         $supplierLine = $this->supplierDraftFor($supplier->id, SupplierType::Service)->addLine([
             'description' => Str::limit($service->name.' — '.$line->description.' (commande client #'.$this->id.')', 255, ''),
             'quantity' => $line->quantity_on_order,
-            'unit_cost' => $service->pricingFor($supplier->id)['cost'],
+            'unit_cost' => self::transitionalDollars($service->pricingFor($supplier->id)['cost']),
         ]);
 
         $line->update(['supplier_order_line_id' => $supplierLine->id]);
@@ -810,7 +821,7 @@ class CustomerOrder extends Model
             'part_id' => $part->id,
             'description' => Str::limit(__('Pièce :model — :description (commande client #:id)', ['model' => $part->model, 'description' => $part->description, 'id' => $this->id]), 255, ''),
             'quantity' => $line->quantity_on_order,
-            'unit_cost' => $part->last_cost,
+            'unit_cost' => self::transitionalDollars($part->last_cost),
         ]);
 
         $line->update(['supplier_order_line_id' => $supplierLine->id]);
@@ -1308,7 +1319,7 @@ class CustomerOrder extends Model
                 'quantity' => $quantity,
                 'quantity_reserved' => 0,
                 'quantity_on_order' => $supplierId === null ? 0 : $quantity,
-                'unit_price' => round($unitPrice ?? $service->pricingFor($supplierId)['selling_price'], 2),
+                'unit_price' => round($unitPrice ?? self::transitionalDollars($service->pricingFor($supplierId)['selling_price']), 2),
                 'is_taxable' => $service->is_taxable,
                 'status' => $supplierId === null ? CustomerOrderLineStatus::ToDo : CustomerOrderLineStatus::OnOrder,
             ]);

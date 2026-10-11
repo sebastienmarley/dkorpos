@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Rules\UniqueCleanProductModel;
+use App\Support\Money;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,8 +26,8 @@ use Illuminate\Support\Carbon;
  * @property string $clean_model
  * @property string|null $supplier_model
  * @property string|null $supplier_clean_model
- * @property float $cost
- * @property float|null $imap
+ * @property Money $cost
+ * @property Money|null $imap
  * @property string|null $collection
  * @property string|null $description
  * @property float|null $length
@@ -42,7 +44,7 @@ use Illuminate\Support\Carbon;
  * @property-read Department|null $department
  * @property-read Category|null $category
  * @property-read Color|null $color
- * @property-read float $selling_price
+ * @property-read Money $selling_price
  */
 #[Fillable(['supplier_id', 'department_id', 'category_id', 'color_id', 'model', 'clean_model', 'supplier_model', 'collection', 'cost', 'imap', 'description', 'length', 'width', 'height', 'weight', 'is_discontinued', 'is_non_orderable', 'is_taxable', 'is_custom'])]
 class Product extends Model
@@ -56,8 +58,8 @@ class Product extends Model
     ];
 
     protected $casts = [
-        'cost' => 'float',
-        'imap' => 'float',
+        'cost' => MoneyCast::class,
+        'imap' => MoneyCast::class,
         'length' => 'float',
         'width' => 'float',
         'height' => 'float',
@@ -139,29 +141,41 @@ class Product extends Model
         return $this->hasOne(InventoryStock::class);
     }
 
-    public function getSellingPriceAttribute(): float
+    public function getSellingPriceAttribute(): Money
     {
-        return self::roundSellingPrice($this->cost * ($this->supplier->price_multiplier ?? 1.0));
+        return self::sellingPriceFor($this->cost, $this->supplier->price_multiplier ?? 1.0);
     }
 
-    public static function roundSellingPrice(float $price): float
+    /**
+     * Prix de vente d'un coût : coût × multiplicateur du fournisseur, arrondi au cent, puis à sa tranche (ADR 0008).
+     */
+    public static function sellingPriceFor(Money $cost, float|string $multiplier): Money
     {
-        if ($price < 20.0) {
-            $whole = (int) floor($price);
+        return self::roundSellingPrice($cost->multiply($multiplier));
+    }
 
-            return ($whole + 0.99 >= $price) ? $whole + 0.99 : $whole + 1.99;
+    /**
+     * Tranches du prix de vente : x,99 $ sous 20 $, dollar supérieur jusqu'à 100 $, puis un prix qui finit par 4 ou 9.
+     */
+    public static function roundSellingPrice(Money $price): Money
+    {
+        $cents = $price->cents();
+
+        if ($cents < 2000) {
+            $candidate = intdiv($cents, 100) * 100 + 99;
+
+            return Money::of($candidate >= $cents ? $candidate : $candidate + 100);
         }
 
-        if ($price <= 100.0) {
-            return (float) (int) ceil($price);
+        $dollars = intdiv($cents + 99, 100);
+
+        if ($cents <= 10000) {
+            return Money::of($dollars * 100);
         }
 
-        $base = (int) ceil($price);
-        $lastDigit = $base % 10;
+        $lastDigit = $dollars % 10;
 
-        return (float) ($lastDigit <= 4
-            ? $base + (4 - $lastDigit)
-            : $base + (9 - $lastDigit));
+        return Money::of(($dollars + ($lastDigit <= 4 ? 4 - $lastDigit : 9 - $lastDigit)) * 100);
     }
 
     public function getDisplayNameAttribute(): string

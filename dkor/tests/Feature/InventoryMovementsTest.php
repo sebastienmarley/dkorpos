@@ -11,6 +11,7 @@ use App\Models\ReceptionLine;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
@@ -30,7 +31,7 @@ function journal(Product $product): array
 function pendingOrder(int $quantity = 10): array
 {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 5]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(5)]);
     $line = SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => 5]);
     $order->markPending();
 

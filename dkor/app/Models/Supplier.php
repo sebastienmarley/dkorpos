@@ -157,10 +157,10 @@ class Supplier extends Model
     /**
      * Services que ce fournisseur offre (pivot : cost, selling_price).
      *
-     * @return BelongsToMany<Service, $this>
+     * @return BelongsToMany<Service, $this, ServiceSupplier>
      */
     public function services(): BelongsToMany
     {
-        return $this->belongsToMany(Service::class)->withPivot(['cost', 'selling_price'])->withTimestamps();
+        return $this->belongsToMany(Service::class)->using(ServiceSupplier::class)->withPivot(['id', 'cost', 'selling_price'])->withTimestamps();
     }
 }

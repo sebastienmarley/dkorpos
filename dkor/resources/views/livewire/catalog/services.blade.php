@@ -44,10 +44,10 @@
                         </flux:table.cell>
                         <flux:table.cell align="end">
                             @if ($service->is_internal)
-                                {{ number_format($service->selling_price ?? 0, 2) }} $
+                                {{ ($service->selling_price ?? \App\Support\Money::zero())->format() }}
                             @elseif ($service->suppliers->isNotEmpty())
-                                @php($prices = $service->suppliers->map(fn ($supplier) => (float) $supplier->pivot->selling_price))
-                                {{ $prices->min() === $prices->max() ? number_format($prices->min(), 2).' $' : number_format($prices->min(), 2).' – '.number_format($prices->max(), 2).' $' }}
+                                @php($prices = $service->suppliers->map(fn ($supplier) => $supplier->pivot->selling_price)->sortBy(fn ($price) => $price->cents())->values())
+                                {{ $prices->first()->equals($prices->last()) ? $prices->first()->format() : rtrim($prices->first()->format(), ' $').' – '.$prices->last()->format() }}
                             @else
                                 —
                             @endif

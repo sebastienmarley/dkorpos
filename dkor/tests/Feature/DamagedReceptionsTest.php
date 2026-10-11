@@ -15,6 +15,7 @@ use App\Models\Reception;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -29,7 +30,7 @@ beforeEach(function () {
 function sentOrderWithLine(int $quantity): array
 {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 5]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(5)]);
     $line = SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => 5]);
     $order->send();
 

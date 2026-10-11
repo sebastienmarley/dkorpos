@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Models\PriceListItem;
 use App\Models\PriceListList;
 use App\Rules\UniqueCleanProductModel;
+use App\Support\Money;
 use InvalidArgumentException;
 
 /**
@@ -138,8 +139,8 @@ class ImportPriceListCsv
         return [
             'model' => $model,
             'clean_model' => UniqueCleanProductModel::clean($model),
-            'cost' => $cost,
-            'imap' => $number('imap'),
+            'cost' => Money::parse($cost)->cents(),
+            'imap' => ($imap = $number('imap')) !== null ? Money::parse($imap)->cents() : null,
             'upc' => $upc !== null && ctype_digit($upc) ? $upc : null,
             'collection' => $text('collection'),
             'description' => $text('description'),

@@ -13,6 +13,7 @@ use App\Enums\SupplierType;
 use App\Events\SupplierOrderLineSubstituted;
 use App\Mail\SupplierOrderLineCancellationRequested;
 use App\Mail\SupplierOrderPlaced;
+use App\Support\Money;
 use Database\Factories\SupplierOrderFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -425,7 +426,7 @@ class SupplierOrder extends Model
             $line->update(['quantity_received' => $line->quantity_received + $quantity]);
 
             if ($line->part_id !== null) {
-                Part::query()->whereKey($line->part_id)->update(['last_cost' => $cost]);
+                Part::query()->whereKey($line->part_id)->update(['last_cost' => Money::parse($cost)->cents()]);
             }
 
             if ($damaged > 0) {
@@ -607,7 +608,7 @@ class SupplierOrder extends Model
             $replacement = $this->lines()->create([
                 'product_id' => $product->id,
                 'quantity' => $quantity,
-                'unit_cost' => $product->cost,
+                'unit_cost' => (float) $product->cost->toDecimal(), // @todo #76 transition : ligne fournisseur en float jusqu'au module Fournisseurs.
                 'substituted_from_line_id' => $line->id,
             ]);
 

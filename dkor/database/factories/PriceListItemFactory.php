@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\PriceListItem;
 use App\Models\PriceListList;
 use App\Rules\UniqueCleanProductModel;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -23,7 +24,7 @@ class PriceListItemFactory extends Factory
             'price_list_list_id' => PriceListList::factory(),
             'model' => $model,
             'clean_model' => UniqueCleanProductModel::clean($model),
-            'cost' => fake()->randomFloat(2, 1, 500),
+            'cost' => Money::of(fake()->numberBetween(100, 50000)),
         ];
     }
 }

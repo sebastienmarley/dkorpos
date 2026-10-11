@@ -18,6 +18,7 @@ use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Support\Facades\Mail;
 
 beforeEach(function () {
@@ -106,7 +107,7 @@ it('rembourse un article remis avec ses taxes', function () {
 
 it('arrondit le prix de vente d\'un produit selon sa tranche', function (string $cost, float $multiplier, int $expected) {
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'base_multiplier' => $multiplier]);
-    $product = Product::factory()->create(['supplier_id' => $supplier->id, 'cost' => $cost]);
+    $product = Product::factory()->create(['supplier_id' => $supplier->id, 'cost' => Money::parse($cost)]);
 
     expect(centsOf($product->fresh()->selling_price))->toBe($expected);
 })->with([

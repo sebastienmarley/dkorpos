@@ -12,6 +12,7 @@ use App\Models\Store;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -23,7 +24,7 @@ beforeEach(function () {
     $this->order = CustomerOrder::factory()->create();
     $this->order->store->update(['custom_deposit_percent' => 50]);
     $this->order->refresh();
-    $this->template = Product::factory()->create(['model' => 'SOFA-SUR-MESURE', 'is_custom' => true, 'cost' => 1]);
+    $this->template = Product::factory()->create(['model' => 'SOFA-SUR-MESURE', 'is_custom' => true, 'cost' => Money::parse(1)]);
 });
 
 it('vend un article sur mesure : toujours commandé, avec spécifications, coût soumis et prix saisi', function () {

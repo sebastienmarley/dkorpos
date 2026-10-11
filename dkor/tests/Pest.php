@@ -6,6 +6,7 @@ use App\Models\CustomerPaymentMethod;
 use App\Models\InventoryStock;
 use App\Models\InventoryUnit;
 use App\Models\Product;
+use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -37,6 +38,16 @@ pest()->extend(TestCase::class)
 
 expect()->extend('toBeOne', function () {
     return $this->toBe(1);
+});
+
+/**
+ * Montant (Money) égal au nombre de cents donné (ADR 0008).
+ */
+expect()->extend('toBeMoney', function (int $cents) {
+    expect($this->value)->toBeInstanceOf(Money::class)
+        ->and($this->value->cents())->toBe($cents);
+
+    return $this;
 });
 
 /*

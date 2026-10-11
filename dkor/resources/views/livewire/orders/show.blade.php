@@ -220,7 +220,7 @@
                                                 <button type="button" wire:key="product-result-{{ $result->id }}" wire:click="selectProduct({{ $result->id }})"
                                                     class="flex w-full items-center justify-between px-3 py-2 text-start hover:bg-zinc-50 dark:hover:bg-zinc-800">
                                                     <span>{{ $result->display_name }}</span>
-                                                    <span class="text-sm text-zinc-400">#{{ $result->id }} · {{ number_format($result->cost, 2) }} $</span>
+                                                    <span class="text-sm text-zinc-400">#{{ $result->id }} · {{ $result->cost->format() }}</span>
                                                 </button>
                                             @empty
                                                 <div class="p-3 text-center"><flux:text class="text-zinc-400">{{ __('Aucun produit trouvé.') }}</flux:text></div>
@@ -472,7 +472,7 @@
                             'old' => $substitutedLine?->label,
                             'new' => $substituteProduct->display_name,
                             'quantity' => $substitutedLine?->quantity_outstanding,
-                            'cost' => number_format($substituteProduct->cost, 2),
+                            'cost' => $substituteProduct->cost->toDecimal(),
                         ]) }}
                     </flux:callout.text>
                 </flux:callout>
@@ -491,7 +491,7 @@
                         <button type="button" wire:key="substitute-{{ $result->id }}" wire:click="selectSubstitute({{ $result->id }})"
                             class="flex w-full items-center justify-between px-3 py-2 text-start hover:bg-zinc-50 dark:hover:bg-zinc-800">
                             <span>{{ $result->display_name }}</span>
-                            <span class="text-sm text-zinc-400">{{ number_format($result->cost, 2) }} $</span>
+                            <span class="text-sm text-zinc-400">{{ $result->cost->format() }}</span>
                         </button>
                     @empty
                         <div class="p-4 text-center">

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
+use App\Support\Money;
 use Database\Factories\ServiceFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
@@ -18,7 +20,7 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property string|null $description_template
  * @property bool $is_internal
- * @property float|null $selling_price
+ * @property Money|null $selling_price
  * @property bool $is_taxable
  * @property bool $is_active
  * @property Carbon|null $created_at
@@ -39,7 +41,7 @@ class Service extends Model
 
     protected $casts = [
         'is_internal' => 'boolean',
-        'selling_price' => 'float',
+        'selling_price' => MoneyCast::class,
         'is_taxable' => 'boolean',
         'is_active' => 'boolean',
     ];
@@ -47,27 +49,27 @@ class Service extends Model
     /**
      * Fournisseurs qui offrent ce service (pivot : cost, selling_price).
      *
-     * @return BelongsToMany<Supplier, $this>
+     * @return BelongsToMany<Supplier, $this, ServiceSupplier>
      */
     public function suppliers(): BelongsToMany
     {
-        return $this->belongsToMany(Supplier::class)->withPivot(['cost', 'selling_price'])->withTimestamps();
+        return $this->belongsToMany(Supplier::class)->using(ServiceSupplier::class)->withPivot(['id', 'cost', 'selling_price'])->withTimestamps();
     }
 
     /**
      * Prix vendant et coût du service chez ce fournisseur (ou au magasin pour un service interne).
      *
-     * @return array{selling_price: float, cost: float}
+     * @return array{selling_price: Money, cost: Money}
      */
     public function pricingFor(?int $supplierId): array
     {
         if ($this->is_internal || $supplierId === null) {
-            return ['selling_price' => (float) $this->selling_price, 'cost' => 0.0];
+            return ['selling_price' => $this->selling_price ?? Money::zero(), 'cost' => Money::zero()];
         }
 
-        $offer = $this->suppliers()->newPivotQuery()->where('supplier_id', $supplierId)->first(['cost', 'selling_price']);
+        $offer = ServiceSupplier::query()->where('service_id', $this->id)->where('supplier_id', $supplierId)->first();
 
-        return ['selling_price' => (float) ($offer->selling_price ?? 0), 'cost' => (float) ($offer->cost ?? 0)];
+        return ['selling_price' => $offer->selling_price ?? Money::zero(), 'cost' => $offer->cost ?? Money::zero()];
     }
 
     /**

@@ -16,7 +16,7 @@
                                 <span class="text-zinc-500"> · {{ $part->description }}</span>
                                 <span class="block text-xs text-zinc-400">{{ $part->supplier->name }}</span>
                             </span>
-                            <span class="flex-shrink-0 text-zinc-500">{{ number_format($part->last_cost, 2) }} $</span>
+                            <span class="flex-shrink-0 text-zinc-500">{{ $part->last_cost->format() }}</span>
                         </button>
                     @empty
                         <div class="px-3 py-2 text-sm text-zinc-400">{{ __('Aucune pièce trouvée.') }}</div>

@@ -6,6 +6,7 @@ use App\Models\PriceListItem;
 use App\Models\PriceListList;
 use App\Models\Product;
 use App\Models\ProductUpc;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -79,8 +80,8 @@ class ApplyPriceListItems
             fn (mixed $value): bool => $value !== null,
         );
 
-        if ($item->cost !== null && $item->cost > 0) {
-            $changes['cost'] = max(0.01, round($item->cost * (1 - $discountPercent / 100), 2));
+        if ($item->cost !== null && $item->cost->isPositive()) {
+            $changes['cost'] = $item->cost->percent(100 - $discountPercent)->max(Money::of(1));
         }
 
         $product->update($changes);

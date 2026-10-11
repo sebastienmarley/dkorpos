@@ -54,9 +54,9 @@
                             </flux:link>
                         </flux:table.cell>
 
-                        <flux:table.cell>{{ number_format($product->cost, 2) }} $</flux:table.cell>
+                        <flux:table.cell>{{ $product->cost->format() }}</flux:table.cell>
 
-                        <flux:table.cell>{{ number_format($product->selling_price, 2) }} $</flux:table.cell>
+                        <flux:table.cell>{{ $product->selling_price->format() }}</flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>

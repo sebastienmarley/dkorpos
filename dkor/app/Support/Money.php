@@ -4,15 +4,17 @@ namespace App\Support;
 
 use InvalidArgumentException;
 use JsonSerializable;
-use Stringable;
 
 /**
  * Montant d'argent exact, en cents (ADR 0008). Immuable : chaque opération retourne un nouveau montant.
  *
+ * Volontairement non convertible en chaîne : un montant écrit par erreur dans une colonne ou un texte échoue au lieu
+ * de passer inaperçu. Pour l'afficher : format(); pour un formulaire : toDecimal().
+ *
  * Les calculs sont faits en entiers. Un pourcentage ou un facteur appliqué à un montant est arrondi une seule fois
  * au cent, la demie arrondie en s'éloignant de zéro (0,615 $ → 0,62 $; -0,615 $ → -0,62 $).
  */
-final class Money implements JsonSerializable, Stringable
+final class Money implements JsonSerializable
 {
     private function __construct(private readonly int $cents) {}
 
@@ -191,11 +193,6 @@ final class Money implements JsonSerializable, Stringable
     public function jsonSerialize(): int
     {
         return $this->cents;
-    }
-
-    public function __toString(): string
-    {
-        return $this->format();
     }
 
     /**

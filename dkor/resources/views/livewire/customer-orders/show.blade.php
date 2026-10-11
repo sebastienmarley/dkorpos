@@ -338,7 +338,7 @@
                                                 <span class="text-zinc-500"> · {{ $result->collection }}</span>
                                             @endif
                                         </span>
-                                        <span class="flex-shrink-0 text-zinc-500">{{ number_format($result->cost ?? 0, 2) }} $</span>
+                                        <span class="flex-shrink-0 text-zinc-500">{{ $result->cost?->format() ?? '—' }}</span>
                                     </button>
                                 @empty
                                     <div class="px-3 py-2 text-sm text-zinc-400">{{ __('Aucun résultat dans les listes de prix actives.') }}</div>
@@ -440,7 +440,7 @@
                         <flux:field>
                             <flux:label>{{ __('Prix vendant') }}</flux:label>
                             <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $partPriceEditable || $editNoCharge" />
-                            <flux:description>{{ __('Prix calculé : :price $', ['price' => number_format($editingLine->part->selling_price, 2)]) }}</flux:description>
+                            <flux:description>{{ __('Prix calculé : :price $', ['price' => $editingLine->part->selling_price->toDecimal()]) }}</flux:description>
                             <flux:error name="editUnitPrice" />
                         </flux:field>
                     </div>
@@ -467,7 +467,7 @@
                     <flux:field>
                         <flux:label>{{ __('Prix vendant') }}</flux:label>
                         <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $editable" />
-                        <flux:description>{{ __('Prix suggéré : :price $', ['price' => number_format($editingLine->product->selling_price, 2)]) }}</flux:description>
+                        <flux:description>{{ __('Prix suggéré : :price $', ['price' => $editingLine->product->selling_price->toDecimal()]) }}</flux:description>
                         <flux:error name="editUnitPrice" />
                     </flux:field>
                     @endif
@@ -690,7 +690,7 @@
                             <flux:select wire:model.live="serviceSupplierId">
                                 <flux:select.option value="">{{ __('Choisir un fournisseur…') }}</flux:select.option>
                                 @foreach ($offers as $supplier)
-                                    <flux:select.option :value="$supplier->id">{{ $supplier->name }} — {{ number_format((float) $supplier->pivot->selling_price, 2) }} $</flux:select.option>
+                                    <flux:select.option :value="$supplier->id">{{ $supplier->name }} — {{ $supplier->pivot->selling_price->format() }}</flux:select.option>
                                 @endforeach
                             </flux:select>
                             <flux:error name="serviceSupplierId" />

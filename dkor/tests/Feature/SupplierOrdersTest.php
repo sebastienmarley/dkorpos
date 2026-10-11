@@ -16,6 +16,7 @@ use App\Models\Supplier;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
@@ -33,7 +34,7 @@ function sendOrder(SupplierOrder $order): void
 function productOrderWithLine(int $quantity = 10, float $cost = 5.0): array
 {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => $cost]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse($cost)]);
     $line = SupplierOrderLine::factory()->forProduct($product)->create([
         'supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => $cost,
     ]);
@@ -80,7 +81,7 @@ it('n\'offre pas la commande pour un fournisseur d\'expédition', function () {
 
 it('ajoute une ligne produit avec le coût du produit par défaut', function () {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 12.5]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(12.5)]);
 
     Livewire::test(Show::class, ['order' => $order])
         ->set('productId', (string) $product->id)
@@ -513,7 +514,7 @@ it('refuse de supprimer une commande envoyée ou annulée', function (SupplierOr
 it('ajoute une ligne produit après l\'envoi et la met en commande', function () {
     [$order, $product] = productOrderWithLine(10);
     sendOrder($order);
-    $other = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 8]);
+    $other = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(8)]);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
         ->set('productId', (string) $other->id)
@@ -531,7 +532,7 @@ it('ajoute une ligne à une commande partiellement reçue sans changer son statu
     [$order, , $line] = productOrderWithLine(10);
     sendOrder($order);
     $order->fresh()->receive([$line->id => ['quantity' => 4, 'unit_cost' => 5]]);
-    $other = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 8]);
+    $other = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(8)]);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
         ->set('productId', (string) $other->id)
@@ -574,7 +575,7 @@ it('substitue un produit: nouvelle ligne avec la quantité, ancienne à 0 et sub
     Event::fake([SupplierOrderLineSubstituted::class]);
     [$order, $product, $line] = productOrderWithLine(10, 5);
     sendOrder($order);
-    $new = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 9]);
+    $new = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(9)]);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
         ->call('openSubstitute', $line->id)
@@ -632,7 +633,7 @@ it('ne substitue que ce qui reste à recevoir d\'une ligne partiellement reçue'
 it('réceptionne la ligne de remplacement et clôt la commande', function () {
     [$order, , $line] = productOrderWithLine(3);
     sendOrder($order);
-    $new = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 2]);
+    $new = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(2)]);
     $replacement = $line->fresh()->substituteWith($new);
 
     $order->fresh()->receive([$line->id => ['quantity' => 3, 'unit_cost' => 5], $replacement->id => ['quantity' => 3, 'unit_cost' => 2]]);
@@ -1167,7 +1168,7 @@ it('cherche le produit à ajouter par id, modèle ou modèle fournisseur, sans c
 
 it('choisit le produit trouvé, propose son coût puis l\'ajoute à la commande', function () {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Fauteuil Zéphyr', 'cost' => 42.5]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Fauteuil Zéphyr', 'cost' => Money::parse(42.5)]);
 
     Livewire::test(Show::class, ['order' => $order])
         ->set('productSearch', 'Zéphyr')
@@ -1212,7 +1213,7 @@ it('cherche aussi par id le produit de substitution', function () {
 
 it('choisit le premier résultat avec Entrée et ramène le focus sur la quantité', function () {
     $order = SupplierOrder::factory()->create();
-    $first = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Chaise A', 'cost' => 12]);
+    $first = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Chaise A', 'cost' => Money::parse(12)]);
     Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Chaise B']);
 
     $component = Livewire::test(Show::class, ['order' => $order])
@@ -1227,7 +1228,7 @@ it('choisit le premier résultat avec Entrée et ramène le focus sur la quantit
 
 it('remet le focus dans la recherche après l\'ajout d\'une ligne', function () {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 3]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(3)]);
 
     $component = Livewire::test(Show::class, ['order' => $order])
         ->call('selectProduct', $product->id)

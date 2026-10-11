@@ -7,6 +7,7 @@ use App\Models\Part;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Rules\UniqueCleanProductModel;
+use App\Support\Money;
 use Closure;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -64,7 +65,7 @@ class Show extends Component
             'supplier_id' => $this->supplierId,
             'model' => trim($this->model),
             'description' => trim($this->description),
-            'last_cost' => $this->lastCost,
+            'last_cost' => Money::parse($this->lastCost),
         ]);
 
         $this->part->refresh();
@@ -125,7 +126,7 @@ class Show extends Component
         $this->supplierId = (string) $this->part->supplier_id;
         $this->model = $this->part->model;
         $this->description = $this->part->description;
-        $this->lastCost = number_format($this->part->last_cost, 2, '.', '');
+        $this->lastCost = $this->part->last_cost->toDecimal();
     }
 
     public function render(): View

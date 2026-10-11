@@ -18,6 +18,7 @@ use App\Models\SupplierInvoice;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 
@@ -38,7 +39,7 @@ function sentOrder(?Supplier $supplier = null, array $quantities = [10], float $
 
     foreach ($quantities as $quantity) {
         $lines[] = SupplierOrderLine::factory()
-            ->forProduct(Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => $cost]))
+            ->forProduct(Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse($cost)]))
             ->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => $cost]);
     }
 

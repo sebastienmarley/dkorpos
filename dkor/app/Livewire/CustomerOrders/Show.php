@@ -534,7 +534,7 @@ class Show extends Component
     {
         $part = $this->order->lines()->with('part.supplier')->find($this->editingLineId)?->part;
 
-        $this->editUnitPrice = number_format($isNoCharge ? 0 : ($part->selling_price ?? 0), 2, '.', '');
+        $this->editUnitPrice = $isNoCharge ? '0.00' : ($part?->selling_price->toDecimal() ?? '0.00');
     }
 
     private function savePartLine(CustomerOrderLine $line): void
@@ -700,7 +700,7 @@ class Show extends Component
             return;
         }
 
-        $this->servicePrice = number_format($service->pricingFor(filled($this->serviceSupplierId) ? (int) $this->serviceSupplierId : null)['selling_price'], 2, '.', '');
+        $this->servicePrice = $service->pricingFor(filled($this->serviceSupplierId) ? (int) $this->serviceSupplierId : null)['selling_price']->toDecimal();
         $this->serviceDescription = $service->describe($this->serviceProductName());
     }
 

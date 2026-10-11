@@ -13,6 +13,7 @@ use App\Models\Part;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\Money;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -74,7 +75,7 @@ it('crée une pièce et la transmet à la page', function () {
         ->supplier_id->toBe($supplier->id)
         ->clean_model->toBe('pc12')
         ->description->toBe('Verre de lampe')
-        ->last_cost->toBe(4.5);
+        ->last_cost->toBeMoney(450);
 });
 
 it('sélectionne la pièce existante du fournisseur au lieu de créer un doublon', function () {
@@ -171,22 +172,22 @@ it('modifie la fiche d\'une pièce', function () {
         ->model->toBe('PC-12B')
         ->clean_model->toBe('pc12b')
         ->description->toBe('Verre givré')
-        ->last_cost->toBe(7.25);
+        ->last_cost->toBeMoney(725);
 });
 
-it('calcule le prix de vente à partir du dernier coût et du multiplicateur du fournisseur', function (float $lastCost, float $expected) {
+it('calcule le prix de vente à partir du dernier coût et du multiplicateur du fournisseur', function (float $lastCost, int $expected) {
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'base_multiplier' => 2.5]);
 
-    expect(Part::factory()->create(['supplier_id' => $supplier->id, 'last_cost' => $lastCost])->selling_price)->toBe($expected);
+    expect(Part::factory()->create(['supplier_id' => $supplier->id, 'last_cost' => Money::parse($lastCost)])->selling_price)->toBeMoney($expected);
 })->with([
-    'sous 20 $, arrondi à x,99' => [3, 7.99],
-    'entre 20 et 100 $, arrondi au dollar' => [10, 25.0],
-    'pièce qui ne coûte rien' => [0, 0.0],
+    'sous 20 $, arrondi à x,99' => [3, 799],
+    'entre 20 et 100 $, arrondi au dollar' => [10, 2500],
+    'pièce qui ne coûte rien' => [0, 0],
 ]);
 
 it('affiche le prix de vente calculé dans le catalogue et sur la fiche', function () {
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'base_multiplier' => 2.5]);
-    $part = Part::factory()->create(['supplier_id' => $supplier->id, 'last_cost' => 3]);
+    $part = Part::factory()->create(['supplier_id' => $supplier->id, 'last_cost' => Money::parse(3)]);
 
     Livewire::test(Index::class)->assertSee('7.99 $');
     Livewire::test(Show::class, ['part' => $part])->assertSee('7.99 $');

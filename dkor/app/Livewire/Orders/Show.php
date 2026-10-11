@@ -197,7 +197,7 @@ class Show extends Component
     {
         $product = filled($this->productId) ? $this->orderableProducts()->find((int) $this->productId) : null;
 
-        $this->unitCost = $product ? number_format($product->cost, 2, '.', '') : '';
+        $this->unitCost = $product?->cost->toDecimal() ?? '';
     }
 
     public function saveNotes(): void
