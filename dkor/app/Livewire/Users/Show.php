@@ -10,6 +10,7 @@ use App\Models\Position;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\Money;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -219,8 +220,8 @@ class Show extends Component
             'insurance_plan' => $validated['hasGroupInsurance'] ? $validated['insurancePlan'] : null,
             'is_salaried' => $validated['isSalaried'],
             // Taux horaire et salaire hebdomadaire sont mutuellement exclusifs.
-            'hourly_rate' => $validated['isSalaried'] || blank($validated['hourlyRate']) ? null : $validated['hourlyRate'],
-            'weekly_salary' => ! $validated['isSalaried'] || blank($validated['weeklySalary']) ? null : $validated['weeklySalary'],
+            'hourly_rate' => $validated['isSalaried'] || blank($validated['hourlyRate']) ? null : Money::parse($validated['hourlyRate']),
+            'weekly_salary' => ! $validated['isSalaried'] || blank($validated['weeklySalary']) ? null : Money::parse($validated['weeklySalary']),
             'has_commission' => $validated['hasCommission'],
             'commission_rate' => $validated['hasCommission'] ? $validated['commissionRate'] : null,
             'has_bonus' => $validated['hasBonus'],
@@ -415,8 +416,8 @@ class Show extends Component
             $this->hasGroupInsurance = $this->user->has_group_insurance;
             $this->insurancePlan = $this->user->insurance_plan?->value;
             $this->isSalaried = $this->user->is_salaried;
-            $this->hourlyRate = $this->user->hourly_rate;
-            $this->weeklySalary = $this->user->weekly_salary;
+            $this->hourlyRate = $this->user->hourly_rate?->toDecimal();
+            $this->weeklySalary = $this->user->weekly_salary?->toDecimal();
             $this->hasCommission = $this->user->has_commission;
             $this->commissionRate = $this->user->commission_rate;
             $this->hasBonus = $this->user->has_bonus;

@@ -377,57 +377,6 @@ CREATE TABLE "user_denied_permissions"(
   foreign key("permission_id") references "permissions"("id") on delete cascade,
   primary key("user_id", "permission_id")
 );
-CREATE TABLE "users"(
-  "id" integer primary key autoincrement not null,
-  "email" varchar not null,
-  "email_verified_at" datetime,
-  "password" varchar not null,
-  "remember_token" varchar,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "is_active" tinyint(1) not null default('1'),
-  "firstname" varchar,
-  "lastname" varchar,
-  "username" varchar,
-  "first_day" date,
-  "last_day" date,
-  "personal_email" varchar,
-  "phone" varchar,
-  "cellphone" varchar,
-  "last_modified" datetime,
-  "last_modified_by" integer,
-  "position_id" integer,
-  "address_civic" varchar,
-  "address_apartment" varchar,
-  "address_street" varchar,
-  "address_city" varchar,
-  "address_province" varchar,
-  "address_country" varchar,
-  "address_postal_code" varchar,
-  "is_full_time" tinyint(1) not null default('0'),
-  "has_group_insurance" tinyint(1) not null default('0'),
-  "insurance_plan" varchar,
-  "is_salaried" tinyint(1) not null default('0'),
-  "hourly_rate" numeric,
-  "weekly_salary" numeric,
-  "commission_rate" numeric,
-  "has_commission" tinyint(1) not null default('0'),
-  "has_bonus" tinyint(1) not null default('0'),
-  "weekly_sales_target" integer,
-  "bonus_amount" integer,
-  "bonus_step" integer,
-  "hours_per_day" numeric,
-  "vacation_days_accrued" numeric,
-  "vacation_hours_available" numeric,
-  "vacation_balance_computed_at" datetime,
-  "store_id" integer,
-  "search_name" varchar,
-  foreign key("position_id") references positions("id") on delete set null on update no action,
-  foreign key("last_modified_by") references users("id") on delete set null on update no action,
-  foreign key("store_id") references "stores"("id") on delete set null
-);
-CREATE UNIQUE INDEX "users_email_unique" on "users"("email");
-CREATE UNIQUE INDEX "users_username_unique" on "users"("username");
 CREATE TABLE "payroll_periods"(
   "id" integer primary key autoincrement not null,
   "start_date" date not null,
@@ -501,7 +450,6 @@ CREATE TABLE "customer_order_pickups"(
   foreign key("customer_order_id") references "customer_orders"("id") on delete cascade,
   foreign key("handled_by") references "users"("id") on delete set null
 );
-CREATE INDEX "users_search_name_index" on "users"("search_name");
 CREATE UNIQUE INDEX "customer_payment_methods_code_unique" on "customer_payment_methods"(
   "code"
 );
@@ -950,6 +898,58 @@ CREATE TABLE "customers"(
 );
 CREATE UNIQUE INDEX "customers_email_unique" on "customers"("email");
 CREATE INDEX "customers_search_name_index" on "customers"("search_name");
+CREATE TABLE "users"(
+  "id" integer primary key autoincrement not null,
+  "email" varchar not null,
+  "email_verified_at" datetime,
+  "password" varchar not null,
+  "remember_token" varchar,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "is_active" tinyint(1) not null default('1'),
+  "firstname" varchar,
+  "lastname" varchar,
+  "username" varchar,
+  "first_day" date,
+  "last_day" date,
+  "personal_email" varchar,
+  "phone" varchar,
+  "cellphone" varchar,
+  "last_modified" datetime,
+  "last_modified_by" integer,
+  "position_id" integer,
+  "address_civic" varchar,
+  "address_apartment" varchar,
+  "address_street" varchar,
+  "address_city" varchar,
+  "address_province" varchar,
+  "address_country" varchar,
+  "address_postal_code" varchar,
+  "is_full_time" tinyint(1) not null default('0'),
+  "has_group_insurance" tinyint(1) not null default('0'),
+  "insurance_plan" varchar,
+  "is_salaried" tinyint(1) not null default('0'),
+  "hourly_rate" integer,
+  "weekly_salary" integer,
+  "commission_rate" numeric,
+  "has_commission" tinyint(1) not null default('0'),
+  "has_bonus" tinyint(1) not null default('0'),
+  "weekly_sales_target" integer,
+  "bonus_amount" integer,
+  "bonus_step" integer,
+  "hours_per_day" numeric,
+  "vacation_days_accrued" numeric,
+  "vacation_hours_available" numeric,
+  "vacation_balance_computed_at" datetime,
+  "store_id" integer,
+  "search_name" varchar,
+  foreign key("store_id") references stores("id") on delete set null on update no action,
+  foreign key("last_modified_by") references users("id") on delete set null on update no action,
+  foreign key("position_id") references positions("id") on delete set null on update no action
+);
+CREATE UNIQUE INDEX "users_email_unique" on "users"("email");
+CREATE INDEX "users_search_name_index" on "users"("search_name");
+CREATE UNIQUE INDEX "users_username_unique" on "users"("username");
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1100,3 +1100,4 @@ INSERT INTO migrations VALUES(146,'2026_10_11_145758_add_custom_made_to_supplier
 INSERT INTO migrations VALUES(147,'2026_10_11_153519_convert_catalog_amounts_to_cents',9);
 INSERT INTO migrations VALUES(148,'2026_10_11_155355_convert_supplier_amounts_to_cents',10);
 INSERT INTO migrations VALUES(149,'2026_10_11_160341_convert_sales_amounts_to_cents',11);
+INSERT INTO migrations VALUES(150,'2026_10_11_161649_convert_hr_amounts_to_cents',12);

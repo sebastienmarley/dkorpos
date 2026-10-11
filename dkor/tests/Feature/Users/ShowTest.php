@@ -7,6 +7,7 @@ use App\Models\Permission;
 use App\Models\Position;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -454,7 +455,7 @@ it('sauvegarde les informations RH d\'un employé à taux horaire', function () 
         ->and($user->has_group_insurance)->toBeTrue()
         ->and($user->insurance_plan)->toBe(InsurancePlan::SingleParent)
         ->and($user->is_salaried)->toBeFalse()
-        ->and($user->hourly_rate)->toBe('24.50')
+        ->and($user->hourly_rate)->toBeMoney(2450)
         ->and($user->weekly_salary)->toBeNull()
         ->and($user->has_commission)->toBeTrue()
         ->and($user->commission_rate)->toBe('2.75')
@@ -462,7 +463,7 @@ it('sauvegarde les informations RH d\'un employé à taux horaire', function () 
 });
 
 it('remplace le taux horaire par le salaire hebdomadaire pour un salarié', function () {
-    $user = employeComplet(['hourly_rate' => '20.00']);
+    $user = employeComplet(['hourly_rate' => Money::parse('20.00')]);
 
     $this->actingAs(User::factory()->withRole('admin')->create());
 
@@ -477,7 +478,7 @@ it('remplace le taux horaire par le salaire hebdomadaire pour un salarié', func
     $user->refresh();
 
     expect($user->is_salaried)->toBeTrue()
-        ->and($user->weekly_salary)->toBe('1250.00')
+        ->and($user->weekly_salary)->toBeMoney(125000)
         ->and($user->hourly_rate)->toBeNull();
 
     Livewire::test(Show::class, ['user' => $user])
@@ -487,7 +488,7 @@ it('remplace le taux horaire par le salaire hebdomadaire pour un salarié', func
 
     $user->refresh();
 
-    expect($user->hourly_rate)->toBe('22.00')->and($user->weekly_salary)->toBeNull();
+    expect($user->hourly_rate)->toBeMoney(2200)->and($user->weekly_salary)->toBeNull();
 });
 
 it('exige le type d\'assurance quand les assurances collectives sont cochées', function () {
@@ -629,7 +630,7 @@ it('donne la permission RH à la comptabilité, à l\'administrateur et au propr
 });
 
 it('ne montre pas l\'onglet RH ni ses données à un directeur', function () {
-    $user = employeComplet(['hourly_rate' => '31.75', 'commission_rate' => '4.50']);
+    $user = employeComplet(['hourly_rate' => Money::parse('31.75'), 'commission_rate' => '4.50']);
 
     $this->actingAs(User::factory()->withRole('manager')->create());
 
@@ -662,7 +663,7 @@ it('permet à la comptabilité d\'ouvrir la fiche et de modifier uniquement les 
         ->call('saveIdentification')
         ->assertForbidden();
 
-    expect($user->fresh()->hourly_rate)->toBe('27.00');
+    expect($user->fresh()->hourly_rate)->toBeMoney(2700);
 });
 
 it('interdit à la comptabilité de modifier ses propres informations RH', function () {
