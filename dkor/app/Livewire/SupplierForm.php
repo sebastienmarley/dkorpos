@@ -17,8 +17,6 @@ class SupplierForm extends Component
 
     public string $name = '';
 
-    public string $address = '';
-
     public string $phone = '';
 
     #[On('open-supplier-create')]
@@ -26,7 +24,7 @@ class SupplierForm extends Component
     {
         $this->authorize('suppliers.create');
 
-        $this->reset(['type', 'name', 'address', 'phone']);
+        $this->reset(['type', 'name', 'phone']);
         $this->type = 'product';
         $this->showModal = true;
     }
@@ -38,18 +36,15 @@ class SupplierForm extends Component
         $validated = $this->validate([
             'type' => ['required', Rule::enum(SupplierType::class)],
             'name' => ['required', 'string', 'max:255'],
-            'address' => ['nullable', 'string', 'max:500'],
             'phone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
         ]);
 
-        foreach (['address', 'phone'] as $field) {
-            $validated[$field] = filled($validated[$field]) ? $validated[$field] : null;
-        }
+        $validated['phone'] = filled($validated['phone']) ? $validated['phone'] : null;
 
         $supplier = Supplier::create($validated);
 
         $this->showModal = false;
-        $this->reset(['type', 'name', 'address', 'phone']);
+        $this->reset(['type', 'name', 'phone']);
         $this->type = 'product';
 
         $this->dispatch('supplier-saved', id: $supplier->id);

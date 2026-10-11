@@ -18,12 +18,6 @@
             <flux:error name="name" />
         </flux:field>
 
-        <flux:field>
-            <flux:label>{{ __('Adresse') }}</flux:label>
-            <flux:input wire:model="address" type="text" />
-            <flux:error name="address" />
-        </flux:field>
-
         <x-phone-input wire:model="phone" label="{{ __('Téléphone') }}" name="phone" />
 
         <div class="flex justify-end gap-3 pt-2">
