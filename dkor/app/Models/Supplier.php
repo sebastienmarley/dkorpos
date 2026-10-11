@@ -47,6 +47,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $default_shipping_supplier_id
  * @property float $price_multiplier
  * @property bool $orderable
+ * @property bool $custom_made
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -59,7 +60,7 @@ use Illuminate\Support\Carbon;
     'payment_address_civic', 'payment_address_apartment', 'payment_address_street',
     'payment_address_city', 'payment_address_province', 'payment_address_country',
     'payment_address_postal_code',
-    'order_email', 'base_multiplier', 'customs_fee', 'shipping_fee', 'prepaid_amount', 'collect', 'default_shipping_supplier_id', 'price_multiplier', 'orderable', 'is_active',
+    'order_email', 'base_multiplier', 'customs_fee', 'shipping_fee', 'prepaid_amount', 'collect', 'default_shipping_supplier_id', 'price_multiplier', 'orderable', 'custom_made', 'is_active',
 ])]
 class Supplier extends Model
 {
@@ -72,6 +73,7 @@ class Supplier extends Model
         'shipping_fee' => 0,
         'prepaid_amount' => 0,
         'collect' => false,
+        'custom_made' => false,
         'early_payment_discount_percent' => 0,
         'early_payment_next_month' => false,
     ];
@@ -88,6 +90,7 @@ class Supplier extends Model
         'early_payment_next_month' => 'boolean',
         'price_multiplier' => 'float',
         'orderable' => 'boolean',
+        'custom_made' => 'boolean',
         'is_active' => 'boolean',
     ];
 

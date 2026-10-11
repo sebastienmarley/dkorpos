@@ -289,6 +289,11 @@
                         <flux:error name="orderable" />
                     </flux:field>
 
+                    <flux:field>
+                        <flux:checkbox wire:model="customMade" :label="__('Sur-mesure')" />
+                        <flux:error name="customMade" />
+                    </flux:field>
+
                     <div class="flex justify-end pt-2">
                         @can('suppliers.edit')
                             <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>

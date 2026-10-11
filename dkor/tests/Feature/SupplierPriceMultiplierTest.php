@@ -191,3 +191,17 @@ it('affiche l\'onglet info commande sauf pour un fournisseur d\'expédition', fu
         ->call('saveParameters')
         ->assertNotFound();
 });
+
+it('enregistre le booléen sur-mesure dans l\'info commande', function () {
+    $this->actingAs(User::factory()->withRole('admin')->create());
+    $supplier = Supplier::factory()->create(['type' => SupplierType::Product]);
+
+    expect($supplier->fresh()->custom_made)->toBeFalse();
+
+    Livewire::test(SupplierShow::class, ['supplier' => $supplier])
+        ->set('customMade', true)
+        ->call('saveParameters')
+        ->assertHasNoErrors();
+
+    expect($supplier->fresh()->custom_made)->toBeTrue();
+});

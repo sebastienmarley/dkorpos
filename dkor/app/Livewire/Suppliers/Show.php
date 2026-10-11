@@ -70,6 +70,8 @@ class Show extends Component
 
     public bool $orderable = true;
 
+    public bool $customMade = false;
+
     public bool $isActive = true;
 
     public function mount(Supplier $supplier): void
@@ -223,6 +225,7 @@ class Show extends Component
             'customsFee' => ['required', 'numeric', 'min:0', 'max:9999'],
             'shippingFee' => ['required', 'numeric', 'min:0', 'max:9999'],
             'orderable' => ['boolean'],
+            'customMade' => ['boolean'],
         ]);
 
         $this->supplier->fill([
@@ -231,6 +234,7 @@ class Show extends Component
             'customs_fee' => $this->customsFee,
             'shipping_fee' => $this->shippingFee,
             'orderable' => $this->orderable,
+            'custom_made' => $this->customMade,
         ])->save();
 
         $this->orderable = $this->supplier->orderable;
@@ -295,6 +299,7 @@ class Show extends Component
         $this->customsFee = (string) $this->supplier->customs_fee;
         $this->shippingFee = (string) $this->supplier->shipping_fee;
         $this->orderable = $this->supplier->orderable;
+        $this->customMade = $this->supplier->custom_made;
         $this->isActive = $this->supplier->is_active;
     }
 
