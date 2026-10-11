@@ -33,7 +33,12 @@
                     @foreach ($invoice->lines as $invoiceLine)
                         <flux:table.row :key="$invoiceLine->id">
                             <flux:table.cell variant="strong">{{ $invoiceLine->label }}</flux:table.cell>
-                            <flux:table.cell align="end">{{ $invoiceLine->quantity }}</flux:table.cell>
+                            <flux:table.cell align="end">
+                                {{ $invoiceLine->quantity }}
+                                @if ($invoiceLine->quantity_short > 0)
+                                    <div class="text-xs text-red-600 dark:text-red-400">{{ __('dont :count manquant(s)', ['count' => $invoiceLine->quantity_short]) }}</div>
+                                @endif
+                            </flux:table.cell>
                             <flux:table.cell align="end">{{ $invoiceLine->unit_cost->format() }}</flux:table.cell>
                             <flux:table.cell align="end">{{ $invoiceLine->total->format() }}</flux:table.cell>
                         </flux:table.row>
@@ -67,7 +72,42 @@
                         <dd>{{ $invoice->discount_amount->format() }}</dd>
                     </div>
                 @endif
+                @if ($invoice->credit_requested->isPositive())
+                    <div class="flex justify-between border-t border-zinc-200 pt-2 dark:border-zinc-700">
+                        <dt>{{ __('Demande de crédit (manquants)') }}</dt>
+                        <dd>{{ $invoice->credit_requested->negate()->format() }}</dd>
+                    </div>
+                    <div class="flex justify-between font-medium"><dt>{{ __('Net après crédit') }}</dt><dd>{{ $invoice->netTotal()->format() }}</dd></div>
+                    <div class="flex items-center justify-between">
+                        <dt>{{ __('Note de crédit') }}</dt>
+                        <dd>
+                            @if ($invoice->isCreditPending())
+                                <flux:badge color="amber" size="sm">{{ __('En attente') }}</flux:badge>
+                            @else
+                                <flux:badge color="green" size="sm">{{ __(':number reçue le :date', ['number' => $invoice->credit_note_number, 'date' => $invoice->credit_received_at->format('Y-m-d')]) }}</flux:badge>
+                            @endif
+                        </dd>
+                    </div>
+                @endif
             </dl>
+
+            @if ($invoice->isCreditPending())
+                @can('invoices.edit')
+                    <form wire:submit="recordCreditNote" class="mt-4 flex flex-wrap items-end gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                        <flux:field class="flex-1">
+                            <flux:label>{{ __('N° de la note de crédit') }}</flux:label>
+                            <flux:input wire:model="creditNoteNumber" type="text" />
+                            <flux:error name="creditNoteNumber" />
+                        </flux:field>
+                        <flux:field>
+                            <flux:label>{{ __('Reçue le') }}</flux:label>
+                            <flux:input wire:model="creditReceivedAt" type="date" />
+                            <flux:error name="creditReceivedAt" />
+                        </flux:field>
+                        <flux:button type="submit">{{ __('Inscrire la note de crédit') }}</flux:button>
+                    </form>
+                @endcan
+            @endif
         </div>
     @else
         @can('invoices.create')
@@ -103,7 +143,12 @@
                                 <flux:table.row :key="$line->id">
                                     <flux:table.cell variant="strong">{{ $line->label }}</flux:table.cell>
                                     <flux:table.cell>{{ $line instanceof \App\Models\ReceptionLine ? $line->orderLine->order->number : $line->order->number }}</flux:table.cell>
-                                    <flux:table.cell align="end">{{ $line->billable_quantity }}</flux:table.cell>
+                                    <flux:table.cell align="end">
+                                        {{ $line->billable_quantity }}
+                                        @if ($line->quantity_short > 0)
+                                            <div class="text-xs text-red-600 dark:text-red-400">{{ __('dont :count manquant(s)', ['count' => $line->quantity_short]) }}</div>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell align="end">
                                         <flux:input wire:model.live.debounce.400ms="unitCosts.{{ $line->id }}" type="number" min="0" step="0.01" class="w-28" />
                                         <flux:error name="unitCosts.{{ $line->id }}" />
@@ -162,6 +207,17 @@
                                 <dt>{{ __('Escompte :percent % si payé avant le :date', ['percent' => $totals['discount_percent'], 'date' => $totals['discount_due_date']->format('Y-m-d')]) }}</dt>
                                 <dd>{{ $totals['discount_amount']->format() }}</dd>
                             </div>
+                        @endif
+                        @if ($totals['credit_requested']->isPositive())
+                            <div class="flex justify-between border-t border-zinc-200 pt-2 dark:border-zinc-700">
+                                <dt>{{ __('Demande de crédit (manquants)') }}</dt>
+                                <dd>{{ $totals['credit_requested']->negate()->format() }}</dd>
+                            </div>
+                            <div class="flex justify-between font-medium">
+                                <dt>{{ __('Net après crédit') }}</dt>
+                                <dd>{{ (\App\Support\Money::tryParse($invoiceTotal) ?? \App\Support\Money::zero())->minus($totals['credit_requested'])->format() }}</dd>
+                            </div>
+                            <flux:text class="pt-1 text-xs text-zinc-500">{{ __('Les manquants sont facturés par le fournisseur : la facture balance avec le total calculé, et le crédit demandé ramène le net à ce qui a été reçu.') }}</flux:text>
                         @endif
                     </dl>
                 </div>

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ReceptionStatus;
 use App\Enums\SupplierType;
+use App\Mail\ReceptionDiscrepancyReported;
 use App\Support\Money;
 use Database\Factories\ReceptionFactory;
 use DomainException;
@@ -16,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 /**
  * @property int $id
@@ -81,13 +84,13 @@ class Reception extends Model
     }
 
     /**
-     * Lignes de cette réception encore comptées après renversements (à facturer).
+     * Lignes de cette réception à facturer : reçues (après renversements) ou manquantes.
      *
      * @return HasMany<ReceptionLine, $this>
      */
     public function invoiceableLines(): HasMany
     {
-        return $this->lines()->whereColumn('quantity', '>', 'quantity_reversed');
+        return $this->lines()->whereRaw('quantity + quantity_short > quantity_reversed');
     }
 
     public function getTotalAttribute(): Money
@@ -103,14 +106,15 @@ class Reception extends Model
     /**
      * Commence une réception: elle contient les lignes de commande choisies et leur quantité, sans effet sur
      * l'inventaire tant qu'elle n'est pas terminée. Les quantités sont plafonnées à ce qui reste à recevoir; la
-     * quantité endommagée (facultative) fait partie de la quantité reçue.
+     * quantité endommagée (facultative) fait partie de la quantité reçue; la quantité manquante (facultative) est
+     * annoncée par le fournisseur, mais non reçue.
      *
-     * @param  array<int, array{quantity: int|string, damaged?: int|string|null}>  $receipts  Indexé par id de ligne de commande.
+     * @param  array<int, array{quantity: int|string, damaged?: int|string|null, short?: int|string|null}>  $receipts  Indexé par id de ligne de commande.
      * @param  array{reference?: string|null, notes?: string|null, received_by?: int|string|null}  $details
      */
     public static function start(Supplier $supplier, array $receipts, array $details = []): Reception
     {
-        $receipts = array_filter($receipts, fn (array $receipt) => (int) $receipt['quantity'] > 0);
+        $receipts = array_filter($receipts, fn (array $receipt) => (int) $receipt['quantity'] + (int) ($receipt['short'] ?? 0) > 0);
 
         if ($receipts === []) {
             throw new DomainException(__('Saisissez au moins une quantité à réceptionner.'));
@@ -144,14 +148,16 @@ class Reception extends Model
             ]);
 
             foreach ($lines as $line) {
-                $quantity = min((int) $receipts[$line->id]['quantity'], $line->quantity_outstanding);
+                $quantity = min(max(0, (int) $receipts[$line->id]['quantity']), $line->quantity_outstanding);
+                $short = min(max(0, (int) ($receipts[$line->id]['short'] ?? 0)), $line->quantity_outstanding - $quantity);
 
-                if ($quantity > 0) {
+                if ($quantity + $short > 0) {
                     $reception->lines()->create([
                         'supplier_order_line_id' => $line->id,
                         'product_id' => $line->product_id,
                         'quantity' => $quantity,
                         'quantity_damaged' => self::damagedQuantity($line, $quantity, $receipts[$line->id]['damaged'] ?? 0),
+                        'quantity_short' => $short,
                         'unit_cost' => $line->unit_cost,
                     ]);
                 }
@@ -166,23 +172,88 @@ class Reception extends Model
     }
 
     /**
-     * Change la quantité à recevoir d'une ligne d'une réception en cours (1 à ce qui reste à recevoir) et, au
-     * besoin, la partie endommagée.
+     * Change les quantités d'une ligne d'une réception en cours : reçue, dont endommagée, et manquante (annoncée par
+     * le fournisseur, mais non reçue). Reçu et manquant ensemble vont de 1 à ce qui reste à recevoir. Pour un article
+     * reçu en trop, la quantité de la ligne de commande suit et il n'y a pas de manquant.
+     *
+     * @throws DomainException si une quantité est invalide.
      */
-    public function setLineQuantity(ReceptionLine $line, int $quantity, ?int $damaged = null): void
+    public function setLineQuantity(ReceptionLine $line, int $quantity, ?int $damaged = null, ?int $short = null): void
     {
         $this->guardInProgress($line);
 
-        $outstanding = $line->orderLine->quantity_outstanding;
+        $orderLine = $line->orderLine;
+        $short = $orderLine->is_overship ? 0 : ($short ?? $line->quantity_short);
 
-        if ($quantity < 1 || $quantity > $outstanding) {
-            throw new DomainException(__('La quantité doit être entre 1 et :max.', ['max' => $outstanding]));
+        if ($orderLine->is_overship && $quantity !== $orderLine->quantity) {
+            if ($quantity < 1) {
+                throw new DomainException(__('La quantité reçue en trop doit être d\'au moins 1.'));
+            }
+
+            $orderLine->order->updateLine($orderLine, $quantity, Money::zero());
+            $orderLine->refresh();
+        }
+
+        $outstanding = $orderLine->quantity_outstanding;
+
+        if ($quantity < 0 || $short < 0 || $quantity + $short < 1 || $quantity + $short > $outstanding) {
+            throw new DomainException(__('La quantité reçue et la quantité manquante doivent totaliser entre 1 et :max.', ['max' => $outstanding]));
         }
 
         $line->update([
             'quantity' => $quantity,
-            'quantity_damaged' => self::damagedQuantity($line->orderLine, $quantity, $damaged ?? $line->quantity_damaged),
+            'quantity_damaged' => self::damagedQuantity($orderLine, $quantity, $damaged ?? $line->quantity_damaged),
+            'quantity_short' => $short,
         ]);
+    }
+
+    /**
+     * Ajoute à la réception en cours un article reçu en trop (absent de la commande, ou en plus de ce qui reste à
+     * recevoir) : une ligne à coût nul est ajoutée à la commande du fournisseur, puis reçue. Il entre en inventaire
+     * à la fin de la réception; la comptabilité met son coût réel sur la facture si le fournisseur le facture.
+     *
+     * @throws DomainException si la réception est terminée, si le produit n'est pas de ce fournisseur ou si aucune
+     *                         commande de la réception ne peut recevoir l'article.
+     */
+    public function addOvership(Product $product, int $quantity, ?SupplierOrder $order = null): ReceptionLine
+    {
+        if (! $this->isInProgress()) {
+            throw new DomainException(__('Cette réception est terminée.'));
+        }
+
+        if ($product->supplier_id !== $this->supplier_id || $product->is_custom) {
+            throw new DomainException(__('Ce produit ne peut pas être reçu chez ce fournisseur.'));
+        }
+
+        if ($quantity < 1) {
+            throw new DomainException(__('La quantité reçue en trop doit être d\'au moins 1.'));
+        }
+
+        $order ??= $this->lines()->with('orderLine.order')->get()->map(fn (ReceptionLine $line) => $line->orderLine->order)->first();
+
+        if ($order === null || $order->supplier_id !== $this->supplier_id || ! $order->isProductOrder() || ! $order->status->isOpen()) {
+            throw new DomainException(__('Ajoutez d\'abord une commande ouverte de ce fournisseur à la réception.'));
+        }
+
+        return DB::transaction(function () use ($product, $quantity, $order): ReceptionLine {
+            $orderLine = $order->addLine([
+                'product_id' => $product->id,
+                'quantity' => $quantity,
+                'unit_cost' => Money::zero(),
+                'is_overship' => true,
+            ]);
+
+            $line = $this->lines()->create([
+                'supplier_order_line_id' => $orderLine->id,
+                'product_id' => $product->id,
+                'quantity' => $quantity,
+                'unit_cost' => Money::zero(),
+            ]);
+
+            $this->unsetRelation('lines');
+
+            return $line;
+        });
     }
 
     /**
@@ -209,7 +280,15 @@ class Reception extends Model
     {
         $this->guardInProgress($line);
 
-        $line->delete();
+        DB::transaction(function () use ($line): void {
+            $orderLine = $line->orderLine;
+            $line->delete();
+
+            if ($orderLine->is_overship) {
+                $orderLine->order->removeOvershipLine($orderLine);
+            }
+        });
+
         $this->unsetRelation('lines');
     }
 
@@ -231,8 +310,11 @@ class Reception extends Model
     /**
      * Termine la réception: les quantités entrent en inventaire (unités FIFO au coût de la commande, stock en main,
      * « en commande »), les lignes de commande et leur statut sont mis à jour et le journal d'inventaire consigné.
+     * S'il y a des articles manquants ou reçus en trop, le fournisseur en est avisé par courriel (demande de crédit).
+     *
+     * @return bool Faux seulement si un courriel d'écart devait partir mais n'a pas pu être envoyé.
      */
-    public function complete(): void
+    public function complete(): bool
     {
         if (! $this->isInProgress()) {
             throw new DomainException(__('Cette réception est déjà terminée.'));
@@ -258,6 +340,59 @@ class Reception extends Model
             $this->update(['status' => ReceptionStatus::Completed, 'completed_at' => now(), 'received_at' => now()]);
             $this->unsetRelation('lines');
         });
+
+        return $this->notifyDiscrepancies();
+    }
+
+    /**
+     * Lignes manquantes (annoncées par le fournisseur, mais non reçues) de la réception.
+     *
+     * @return Collection<int, ReceptionLine>
+     */
+    public function shortLines(): Collection
+    {
+        return $this->lines->filter(fn (ReceptionLine $line): bool => $line->quantity_short > 0)->values();
+    }
+
+    /**
+     * Articles reçus en trop de la réception.
+     *
+     * @return Collection<int, ReceptionLine>
+     */
+    public function overshipLines(): Collection
+    {
+        return $this->lines->filter(fn (ReceptionLine $line): bool => $line->orderLine->is_overship)->values();
+    }
+
+    /**
+     * Avise le fournisseur des articles manquants (demande de crédit) et reçus en trop, au courriel de commande (ou
+     * général) du fournisseur. Rien n'est envoyé sans écart ni quand les courriels aux fournisseurs sont désactivés.
+     *
+     * @return bool Faux seulement si un courriel devait partir mais n'a pas pu être envoyé.
+     */
+    public function notifyDiscrepancies(): bool
+    {
+        $this->load(['supplier', 'lines.orderLine.order', 'lines.orderLine.product']);
+
+        if (($this->shortLines()->isEmpty() && $this->overshipLines()->isEmpty()) || ! SupplierOrder::emailEnabled()) {
+            return true;
+        }
+
+        $recipient = $this->supplier->order_email ?: $this->supplier->email;
+
+        if (blank($recipient)) {
+            return false;
+        }
+
+        try {
+            Mail::to($recipient)->send(new ReceptionDiscrepancyReported($this));
+        } catch (Throwable $e) {
+            report($e);
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -269,7 +404,15 @@ class Reception extends Model
             throw new DomainException(__('Une réception terminée ne peut pas être abandonnée : renversez ses lignes.'));
         }
 
-        $this->delete();
+        DB::transaction(function (): void {
+            $overshipLines = $this->lines()->with('orderLine.order')->get()
+                ->map(fn (ReceptionLine $line) => $line->orderLine)
+                ->filter(fn (SupplierOrderLine $orderLine) => $orderLine->is_overship);
+
+            $this->delete();
+
+            $overshipLines->each(fn (SupplierOrderLine $orderLine) => $orderLine->order->removeOvershipLine($orderLine));
+        });
     }
 
     /**

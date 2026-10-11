@@ -401,6 +401,24 @@ class CustomerOrder extends Model
      */
     public function applySupplierDamagedReceipt(CustomerOrderLine $line, int $quantity): void
     {
+        $this->reorderFromSupplier($line, $quantity);
+    }
+
+    /**
+     * Répercute des articles manquants à la réception (facturés par le fournisseur, mais jamais reçus; un crédit est
+     * demandé) : la quantité est recommandée sur le brouillon du fournisseur, comme un article reçu endommagé.
+     */
+    public function applySupplierShortShipment(CustomerOrderLine $line, int $quantity): void
+    {
+        $this->reorderFromSupplier($line, $quantity);
+    }
+
+    /**
+     * Recommande sur le brouillon du fournisseur une quantité qui ne sera pas remise au client par la commande
+     * fournisseur actuelle (ligne « En commande » distincte si une partie de la ligne est déjà en main).
+     */
+    private function reorderFromSupplier(CustomerOrderLine $line, int $quantity): void
+    {
         DB::transaction(function () use ($line, $quantity): void {
             $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
             $quantity = min($quantity, $line->quantity_on_order);

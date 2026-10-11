@@ -195,6 +195,9 @@ Le chantier est terminé : les 36 montants sont en cents, dans 6 PR.
   (une seule fois chacun). Un écart d'un cent est possible seulement pour une commande qui mélange les
   deux.
 
+**Après le chantier :** `supplier_invoices.credit_requested` (demande de crédit des erreurs d'expédition, issue
+#66) est le 37e montant. `MoneySchemaTest` l'a signalé tant que son compte attendu n'avait pas été mis à jour.
+
 **Pour ajouter un montant**
 
 1. Une colonne `integer` (en cents), jamais `decimal`.

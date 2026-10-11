@@ -43,6 +43,9 @@
                         <flux:table.cell>
                             @if ($row['invoice'])
                                 <flux:badge color="green" size="sm">{{ __('Facturée') }} · {{ $row['invoice']->invoice_number }}</flux:badge>
+                                @if ($row['invoice']->isCreditPending())
+                                    <flux:badge color="amber" size="sm" class="ms-1">{{ __('Crédit en attente : :amount', ['amount' => $row['invoice']->credit_requested->format()]) }}</flux:badge>
+                                @endif
                             @else
                                 <flux:badge color="amber" size="sm">{{ __('À facturer') }}</flux:badge>
                             @endif

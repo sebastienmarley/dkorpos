@@ -39,6 +39,10 @@ class Form extends Component
 
     public string $taxes = '0';
 
+    public string $creditNoteNumber = '';
+
+    public string $creditReceivedAt = '';
+
     public string $invoiceTotal = '';
 
     /** @var array<int, string> Coût réel par ligne (de réception ou de commande de services). */
@@ -108,6 +112,32 @@ class Form extends Component
         $this->order?->refresh()->unsetRelation('supplierInvoice');
 
         Flux::toast(text: __('Facture enregistrée.'), variant: 'success');
+    }
+
+    /**
+     * Inscrit la note de crédit reçue du fournisseur pour les articles manquants de la facture.
+     */
+    public function recordCreditNote(): void
+    {
+        $this->authorize('invoices.edit');
+
+        $this->validate([
+            'creditNoteNumber' => ['required', 'string', 'max:100'],
+            'creditReceivedAt' => ['required', 'date'],
+        ]);
+
+        $invoice = $this->reception ? $this->reception->invoice()->firstOrFail() : $this->order->supplierInvoice()->firstOrFail();
+
+        try {
+            $invoice->recordCreditNote($this->creditNoteNumber, Carbon::parse($this->creditReceivedAt));
+        } catch (DomainException $e) {
+            Flux::toast(text: $e->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->reset(['creditNoteNumber', 'creditReceivedAt']);
+        Flux::toast(text: __('Note de crédit enregistrée.'), variant: 'success');
     }
 
     private function supplier(): Supplier

@@ -7,6 +7,7 @@ use App\Enums\ReceptionStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
 use App\Support\Money;
+use Carbon\CarbonInterface;
 use Database\Factories\SupplierInvoiceFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -41,6 +42,9 @@ use Illuminate\Support\Facades\DB;
  * @property bool $discount_next_month
  * @property Carbon|null $discount_due_date
  * @property Money $discount_amount
+ * @property Money $credit_requested Demande de crédit au fournisseur pour les articles facturés mais manquants à la réception.
+ * @property string|null $credit_note_number Numéro de la note de crédit du fournisseur, une fois reçue.
+ * @property Carbon|null $credit_received_at
  * @property int|null $created_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -52,12 +56,16 @@ use Illuminate\Support\Facades\DB;
 #[Fillable([
     'supplier_id', 'reception_id', 'supplier_order_id', 'invoice_number', 'invoice_date', 'description', 'merchandise_total', 'freight_fee', 'customs_fee',
     'taxes', 'computed_total', 'invoice_total', 'variance', 'discount_percent', 'discount_days', 'discount_next_month', 'discount_due_date',
-    'discount_amount', 'created_by',
+    'discount_amount', 'credit_requested', 'credit_note_number', 'credit_received_at', 'created_by',
 ])]
 class SupplierInvoice extends Model
 {
     /** @use HasFactory<SupplierInvoiceFactory> */
     use HasFactory;
+
+    protected $attributes = [
+        'credit_requested' => 0,
+    ];
 
     protected $casts = [
         'invoice_date' => 'date',
@@ -73,6 +81,8 @@ class SupplierInvoice extends Model
         'discount_next_month' => 'boolean',
         'discount_due_date' => 'date',
         'discount_amount' => MoneyCast::class,
+        'credit_requested' => MoneyCast::class,
+        'credit_received_at' => 'date',
     ];
 
     /** @return BelongsTo<Supplier, $this> */
@@ -109,13 +119,44 @@ class SupplierInvoice extends Model
         return ! $this->variance->isZero();
     }
 
+    /** Une demande de crédit attend la note de crédit du fournisseur. */
+    public function isCreditPending(): bool
+    {
+        return $this->credit_requested->isPositive() && $this->credit_received_at === null;
+    }
+
+    /** Montant de la facture moins la demande de crédit : ce qui est réellement dû pour ce qui a été reçu. */
+    public function netTotal(): Money
+    {
+        return $this->invoice_total->minus($this->credit_requested);
+    }
+
     /**
-     * Totaux d'une facture: marchandises aux coûts réels, total calculé avec les frais et taxes, écart avec le
-     * montant de la facture, et escompte de paiement rapide du fournisseur.
+     * Enregistre la note de crédit reçue du fournisseur pour les manquants de cette facture.
+     *
+     * @throws DomainException si la facture n'a pas de demande de crédit en attente.
+     */
+    public function recordCreditNote(string $creditNoteNumber, CarbonInterface $receivedAt): void
+    {
+        if (! $this->isCreditPending()) {
+            throw new DomainException(__('Cette facture n\'a pas de demande de crédit en attente.'));
+        }
+
+        if (blank($creditNoteNumber)) {
+            throw new DomainException(__('Indiquez le numéro de la note de crédit du fournisseur.'));
+        }
+
+        $this->update(['credit_note_number' => trim($creditNoteNumber), 'credit_received_at' => $receivedAt]);
+    }
+
+    /**
+     * Totaux d'une facture: marchandises facturées (reçues et manquantes) aux coûts réels, total calculé avec les frais
+     * et taxes, écart avec le montant de la facture, escompte de paiement rapide du fournisseur, et demande de crédit
+     * pour les manquants (facturés, mais non reçus).
      *
      * @param  \Illuminate\Support\Collection<int, ReceptionLine>|\Illuminate\Support\Collection<int, SupplierOrderLine>  $lines  Lignes à facturer (réception ou service).
      * @param  array<int, Money>  $unitCosts  Coût réel par id de ligne (sinon le coût actuel).
-     * @return array{merchandise_total: Money, computed_total: Money, variance: Money, discount_percent: float, discount_days: int|null, discount_next_month: bool, discount_due_date: Carbon|null, discount_amount: Money}
+     * @return array{merchandise_total: Money, computed_total: Money, variance: Money, discount_percent: float, discount_days: int|null, discount_next_month: bool, discount_due_date: Carbon|null, discount_amount: Money, credit_requested: Money}
      */
     public static function totals(Supplier $supplier, \Illuminate\Support\Collection $lines, array $unitCosts, Money $freight, Money $customs, Money $taxes, Money $invoiceTotal, ?Carbon $invoiceDate = null, ?Money $merchandise = null): array
     {
@@ -136,6 +177,7 @@ class SupplierInvoice extends Model
             'discount_next_month' => $nextMonth,
             'discount_due_date' => $hasDiscount && $invoiceDate ? static::discountDueDate($invoiceDate, $days, $nextMonth) : null,
             'discount_amount' => $hasDiscount ? $invoiceTotal->percent($percent) : Money::zero(),
+            'credit_requested' => Money::sum($lines->map(fn (ReceptionLine|SupplierOrderLine $line): Money => ($unitCosts[$line->id] ?? $line->unit_cost)->times($line->quantity_short))),
         ];
     }
 
@@ -292,6 +334,7 @@ class SupplierInvoice extends Model
             $invoice->lines()->create([
                 ($line instanceof ReceptionLine ? 'reception_line_id' : 'supplier_order_line_id') => $line->id,
                 'quantity' => $line->billable_quantity,
+                'quantity_short' => $line->quantity_short,
                 'unit_cost' => $costs[$line->id] ?? $line->unit_cost,
             ]);
         }

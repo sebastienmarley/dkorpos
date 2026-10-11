@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-11 (150 migrations, 51 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-11 (151 migrations, 51 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 150 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
+les 151 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -259,6 +259,12 @@ erDiagram
   clés sont uniques et `nullable`.
 - `supplier_order_lines.substituted_from_line_id` relie une ligne à celle qu'elle remplace
   (substitution par le fournisseur).
+- **Erreurs d'expédition :** à la réception, `quantity_short` compte ce qui est annoncé (et facturé) par
+  le fournisseur, mais pas reçu. Le manquant ferme la ligne de commande, sans entrer en inventaire, et la
+  facture le compte comme facturé. `supplier_invoices.credit_requested` (manquants × coût réel) est la
+  demande de crédit qui balance la facture, jusqu'à l'inscription de la note de crédit
+  (`credit_note_number`, `credit_received_at`). Un article reçu en trop est une ligne de commande
+  `is_overship`, à coût nul.
 - Une ligne de pièce (`part_id`) se reçoit comme un produit, mais sans entrer en inventaire. Sa
   réception met à jour `parts.last_cost`. Une pièce liée à une commande ne peut pas être supprimée
   (`restrict`).
@@ -364,6 +370,8 @@ erDiagram
         int quantity
         int unit_cost "cents"
         int quantity_received
+        int quantity_short
+        bool is_overship
         string status "SupplierOrderLineStatus"
         string cancellation_reason "nullable"
         datetime cancellation_requested_at "nullable"
@@ -396,6 +404,7 @@ erDiagram
         datetime reversed_at "nullable"
         string reversal_reason "nullable"
         int quantity_damaged
+        int quantity_short
         datetime created_at
         datetime updated_at
     }
@@ -418,6 +427,9 @@ erDiagram
         int discount_days "nullable"
         date discount_due_date "nullable"
         int discount_amount "cents"
+        int credit_requested "cents"
+        string credit_note_number "nullable"
+        date credit_received_at "nullable"
         bool discount_next_month
         string description "nullable"
         datetime created_at
@@ -429,6 +441,7 @@ erDiagram
         int supplier_invoice_id FK
         int reception_line_id FK "nullable"
         int quantity
+        int quantity_short
         int unit_cost "cents"
         datetime created_at
         datetime updated_at
