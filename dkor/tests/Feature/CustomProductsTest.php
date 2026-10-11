@@ -30,7 +30,7 @@ beforeEach(function () {
 it('vend un article sur mesure : toujours commandé, avec spécifications, coût soumis et prix saisi', function () {
     InventoryStock::factory()->create(['product_id' => $this->template->id, 'quantity_in_stock' => 5, 'quantity_reserved' => 0]);
 
-    $line = $this->order->addCustomProduct($this->template, 1, '84 po, tissu Lin gris, pattes noires', 900, 1899.99, 'S-4521');
+    $line = $this->order->addCustomProduct($this->template, 1, '84 po, tissu Lin gris, pattes noires', Money::parse(900), Money::parse(1899.99), 'S-4521');
 
     $supplierLine = SupplierOrderLine::sole();
 
@@ -39,8 +39,8 @@ it('vend un article sur mesure : toujours commandé, avec spécifications, coût
         ->status->toBe(CustomerOrderLineStatus::OnOrder)
         ->quantity_reserved->toBe(0)
         ->quantity_on_order->toBe(1)
-        ->unit_price->toBe(1899.99)
-        ->unit_cost->toBe(900.0)
+        ->unit_price->toBeMoney(189999)
+        ->unit_cost->toBeMoney(90000)
         ->quote_number->toBe('S-4521')
         ->and($supplierLine)
         ->product_id->toBe($this->template->id)
@@ -51,8 +51,8 @@ it('vend un article sur mesure : toujours commandé, avec spécifications, coût
 });
 
 it('crée une ligne distincte pour chaque article sur mesure', function () {
-    $this->order->addCustomProduct($this->template, 1, 'Gris', 900, 1800);
-    $this->order->addCustomProduct($this->template, 1, 'Bleu', 950, 1900);
+    $this->order->addCustomProduct($this->template, 1, 'Gris', Money::parse(900), Money::parse(1800));
+    $this->order->addCustomProduct($this->template, 1, 'Bleu', Money::parse(950), Money::parse(1900));
 
     expect($this->order->lines()->count())->toBe(2)
         ->and(SupplierOrderLine::count())->toBe(2);
@@ -60,16 +60,16 @@ it('crée une ligne distincte pour chaque article sur mesure', function () {
 
 it('refuse d\'ajouter un gabarit sur mesure comme un produit ordinaire', function () {
     expect(fn () => $this->order->addProduct($this->template))->toThrow(DomainException::class)
-        ->and(fn () => $this->order->addCustomProduct(Product::factory()->create(), 1, 'x', 1, 1))->toThrow(DomainException::class)
-        ->and(fn () => $this->order->addCustomProduct($this->template, 1, '  ', 1, 1))->toThrow(DomainException::class);
+        ->and(fn () => $this->order->addCustomProduct(Product::factory()->create(), 1, 'x', Money::parse(1), Money::parse(1)))->toThrow(DomainException::class)
+        ->and(fn () => $this->order->addCustomProduct($this->template, 1, '  ', Money::parse(1), Money::parse(1)))->toThrow(DomainException::class);
 });
 
 it('modifie un article sur mesure non envoyé et la ligne fournisseur suit', function () {
-    $line = $this->order->addCustomProduct($this->template, 1, 'Gris', 900, 1800);
+    $line = $this->order->addCustomProduct($this->template, 1, 'Gris', Money::parse(900), Money::parse(1800));
 
-    $this->order->updateCustomLine($line, 2, 'Gris pâle', 925, 1850, 'S-9', 'Livrer en avril');
+    $this->order->updateCustomLine($line, 2, 'Gris pâle', Money::parse(925), Money::parse(1850), 'S-9', 'Livrer en avril');
 
-    expect($line->fresh())->quantity->toBe(2)->unit_cost->toBe(925.0)->unit_price->toBe(1850.0)->note->toBe('Livrer en avril')
+    expect($line->fresh())->quantity->toBe(2)->unit_cost->toBeMoney(92500)->unit_price->toBeMoney(185000)->note->toBe('Livrer en avril')
         ->and(SupplierOrderLine::sole())
         ->quantity->toBe(2)
         ->unit_cost->toBeMoney(92500)
@@ -77,18 +77,18 @@ it('modifie un article sur mesure non envoyé et la ligne fournisseur suit', fun
 });
 
 it('ne modifie plus un article sur mesure envoyé, sauf la note', function () {
-    $line = $this->order->addCustomProduct($this->template, 1, 'Gris', 900, 1800);
+    $line = $this->order->addCustomProduct($this->template, 1, 'Gris', Money::parse(900), Money::parse(1800));
     SupplierOrder::sole()->send();
 
-    expect(fn () => $this->order->updateCustomLine($line->fresh(), 1, 'Bleu', 900, 1800, null, null))->toThrow(DomainException::class);
+    expect(fn () => $this->order->updateCustomLine($line->fresh(), 1, 'Bleu', Money::parse(900), Money::parse(1800), null, null))->toThrow(DomainException::class);
 
-    $this->order->updateCustomLine($line->fresh(), 1, 'Gris', 900, 1800, null, 'Appeler le client');
+    $this->order->updateCustomLine($line->fresh(), 1, 'Gris', Money::parse(900), Money::parse(1800), null, 'Appeler le client');
 
     expect($line->fresh()->note)->toBe('Appeler le client');
 });
 
 it('réserve au client l\'article sur mesure reçu', function () {
-    $line = $this->order->addCustomProduct($this->template, 1, 'Gris', 900, 1800);
+    $line = $this->order->addCustomProduct($this->template, 1, 'Gris', Money::parse(900), Money::parse(1800));
     $supplierOrder = SupplierOrder::sole();
     $supplierOrder->send();
 
@@ -98,17 +98,17 @@ it('réserve au client l\'article sur mesure reçu', function () {
 });
 
 it('exige le dépôt sur mesure du magasin sur les articles sur mesure', function () {
-    $this->order->addCustomProduct($this->template, 1, 'Gris', 500, 1000);
+    $this->order->addCustomProduct($this->template, 1, 'Gris', Money::parse(500), Money::parse(1000));
     stockedLine($this->order, 1, 1, 100);
 
     $order = $this->order->fresh();
-    $expected = round($order->taxesFor(1000)['total'] * 0.5 + $order->taxesFor(100)['total'] * 0.3, 2);
+    $expected = $order->taxesFor(Money::parse(1000))['total']->percent(50)->plus($order->taxesFor(Money::parse(100))['total']->percent(30));
 
-    expect($order->amountRequiredFor([]))->toBe($expected);
+    expect($order->amountRequiredFor([]))->toBeMoney($expected->cents());
 });
 
 it('garde les caractéristiques sur mesure quand la ligne est séparée au ramassage', function () {
-    $line = $this->order->addCustomProduct($this->template, 2, 'Gris', 500, 1000);
+    $line = $this->order->addCustomProduct($this->template, 2, 'Gris', Money::parse(500), Money::parse(1000));
     $supplierOrder = SupplierOrder::sole();
     $supplierOrder->send();
     $supplierOrder->fresh()->receive([SupplierOrderLine::sole()->id => ['quantity' => 2]]);
@@ -118,11 +118,11 @@ it('garde les caractéristiques sur mesure quand la ligne est séparée au ramas
     expect($this->order->lines()->where('status', CustomerOrderLineStatus::PickedUp)->sole())
         ->is_custom->toBeTrue()
         ->description->toBe('Gris')
-        ->unit_cost->toBe(500.0);
+        ->unit_cost->toBeMoney(50000);
 });
 
 it('recommande un article sur mesure défectueux avec les mêmes spécifications', function () {
-    $line = $this->order->addCustomProduct($this->template, 1, 'Gris', 500, 1000);
+    $line = $this->order->addCustomProduct($this->template, 1, 'Gris', Money::parse(500), Money::parse(1000));
     $supplierOrder = SupplierOrder::sole();
     $supplierOrder->send();
     $supplierOrder->fresh()->receive([SupplierOrderLine::sole()->id => ['quantity' => 1]]);
@@ -133,8 +133,8 @@ it('recommande un article sur mesure défectueux avec les mêmes spécifications
     expect($this->order->lines()->where('status', CustomerOrderLineStatus::OnOrder)->sole())
         ->is_custom->toBeTrue()
         ->description->toBe('Gris')
-        ->unit_cost->toBe(500.0)
-        ->unit_price->toBe(1000.0);
+        ->unit_cost->toBeMoney(50000)
+        ->unit_price->toBeMoney(100000);
 });
 
 describe('écran', function () {
@@ -157,11 +157,11 @@ describe('écran', function () {
             ->assertHasNoErrors()
             ->assertSet('showCustomModal', false);
 
-        expect($this->order->lines()->sole())->is_custom->toBeTrue()->unit_price->toBe(1899.99);
+        expect($this->order->lines()->sole())->is_custom->toBeTrue()->unit_price->toBeMoney(189999);
     });
 
     it('exige l\'autorisation de la gestion pour reprendre un article sur mesure en retour', function () {
-        $line = $this->order->addCustomProduct($this->template, 1, 'Gris', 500, 1000);
+        $line = $this->order->addCustomProduct($this->template, 1, 'Gris', Money::parse(500), Money::parse(1000));
         $supplierOrder = SupplierOrder::sole();
         $supplierOrder->send();
         $supplierOrder->fresh()->receive([SupplierOrderLine::sole()->id => ['quantity' => 1]]);

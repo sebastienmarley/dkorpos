@@ -5,6 +5,7 @@ use App\Models\CustomerPaymentMethod;
 use App\Models\MerchantPaymentMethod;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Money;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -84,17 +85,17 @@ it('refuse de créer un autre mode portant le nom réservé', function () {
         ->assertHasErrors('name');
 });
 
-it('arrondit le comptant au 5 sous près', function (float $amount, float $rounded) {
-    expect(CustomerPaymentMethod::roundCash($amount))->toBe($rounded);
+it('arrondit le comptant au 5 sous près', function (int $amount, int $rounded) {
+    expect(CustomerPaymentMethod::roundCash(Money::of($amount)))->toBeMoney($rounded);
 })->with([
-    [114.98, 115.00],
-    [114.97, 114.95],
-    [114.96, 114.95],
-    [114.93, 114.95],
-    [114.92, 114.90],
-    [114.95, 114.95],
-    [0.02, 0.00],
-    [0.03, 0.05],
+    [11498, 11500],
+    [11497, 11495],
+    [11496, 11495],
+    [11493, 11495],
+    [11492, 11490],
+    [11495, 11495],
+    [2, 0],
+    [3, 5],
 ]);
 
 it('gère les méthodes marchandes', function () {

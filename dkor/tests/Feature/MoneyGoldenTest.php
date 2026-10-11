@@ -72,7 +72,7 @@ describe('commande client (TPS 5 %, TVQ 9,975 %)', function () {
     });
 
     it('arrondit un paiement comptant à 0,05 $ et rend la monnaie', function () {
-        $this->order->pickUp([], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => 23.69, 'tendered' => 30]]);
+        $this->order->pickUp([], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => Money::parse(23.69), 'tendered' => Money::parse(30)]]);
 
         $payment = $this->order->payments()->sole();
 
@@ -89,7 +89,7 @@ it('calcule les frais d\'annulation sur le prix et les taxe', function () {
     $order->store->update(['cancellation_fee_percent' => 15]);
     $product = Product::factory()->create(['supplier_id' => Supplier::factory()->create(['type' => SupplierType::Product])->id]);
     $line = $order->addProduct($product, 2);
-    $order->updateLine($line, 0, 2, 33.33, null);
+    $order->updateLine($line, 0, 2, Money::parse(33.33), null);
     $line->fresh()->supplierOrderLine->order->send();
 
     $fee = $order->fresh()->cancelLineWithFee($line->fresh());
@@ -137,8 +137,8 @@ it('calcule le total, l\'écart et l\'escompte d\'une facture fournisseur', func
 });
 
 /*
- * Écarts d'un cent : le float donne 0,61 $ là où 0,615 $ doit s'arrondir à 0,62 $ (125 écarts trouvés sur 400 000
- * calculs de pourcentage). Ces tests échouent tant que les montants sont en float.
+ * Écarts d'un cent : le float donnait 0,61 $ là où 0,615 $ doit s'arrondir à 0,62 $ (125 écarts trouvés sur 400 000
+ * calculs de pourcentage). Ces tests échouaient tant que les montants étaient en float.
  */
 describe('écarts d\'un cent dus au float', function () {
     it('arrondit un dépôt de 30 % à la demie supérieure', function () {
@@ -146,16 +146,16 @@ describe('écarts d\'un cent dus au float', function () {
         goldenLine($order, 1, '2.05', isTaxable: false);
 
         expect(centsOf($order->fresh()->amountRequiredFor([])))->toBe(62);
-    })->skip('Bogue connu du float (issue #76) : à réactiver au module Ventes.');
+    });
 
     it('arrondit des frais d\'annulation de 15 % à la demie supérieure', function () {
         $order = CustomerOrder::factory()->create();
         $order->store->update(['cancellation_fee_percent' => 15]);
         $product = Product::factory()->create(['supplier_id' => Supplier::factory()->create(['type' => SupplierType::Product])->id]);
         $line = $order->addProduct($product);
-        $order->updateLine($line, 0, 1, 4.10, null);
+        $order->updateLine($line, 0, 1, Money::parse(4.10), null);
         $line->fresh()->supplierOrderLine->order->send();
 
         expect(centsOf($order->fresh()->cancelLineWithFee($line->fresh())))->toBe(62);
-    })->skip('Bogue connu du float (issue #76) : à réactiver au module Ventes.');
+    });
 });

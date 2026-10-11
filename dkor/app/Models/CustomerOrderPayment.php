@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Enums\CustomerPaymentType;
+use App\Support\Money;
 use Database\Factories\CustomerOrderPaymentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,10 +18,10 @@ use Illuminate\Support\Carbon;
  * @property int|null $customer_order_pickup_id
  * @property int|null $customer_payment_method_id
  * @property CustomerPaymentType $type
- * @property float $amount
- * @property float|null $rounding_adjustment
- * @property float|null $cash_tendered
- * @property float|null $change_given
+ * @property Money $amount
+ * @property Money|null $rounding_adjustment
+ * @property Money|null $cash_tendered
+ * @property Money|null $change_given
  * @property int|null $received_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -35,10 +37,10 @@ class CustomerOrderPayment extends Model
     use HasFactory;
 
     protected $casts = [
-        'amount' => 'float',
-        'rounding_adjustment' => 'float',
-        'cash_tendered' => 'float',
-        'change_given' => 'float',
+        'amount' => MoneyCast::class,
+        'rounding_adjustment' => MoneyCast::class,
+        'cash_tendered' => MoneyCast::class,
+        'change_given' => MoneyCast::class,
         'type' => CustomerPaymentType::class,
     ];
 

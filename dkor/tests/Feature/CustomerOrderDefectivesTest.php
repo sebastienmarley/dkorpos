@@ -15,6 +15,7 @@ use App\Models\InventoryUnit;
 use App\Models\Role;
 use App\Models\SupplierOrder;
 use App\Models\User;
+use App\Support\Money;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -92,7 +93,7 @@ describe('reprise du produit', function () {
             ->and($line->fresh()->status)->toBe(CustomerOrderLineStatus::Returned)
             ->and($replacement)
             ->product_id->toBe($line->product_id)
-            ->unit_price->toBe(100.0)
+            ->unit_price->toBeMoney(10000)
             ->quantity_reserved->toBe(1)
             ->status->toBe(CustomerOrderLineStatus::InStock)
             ->note->toContain('#'.$defective->id)
@@ -100,7 +101,7 @@ describe('reprise du produit', function () {
             ->quantity_defective_stock->toBe(1)
             ->quantity_in_stock->toBe(0)
             ->and(InventoryMovement::where('type', InventoryMovementType::CustomerDefectiveReturn)->sole()->quantity)->toBe(1)
-            ->and($this->order->fresh()->balance_due)->toBe(0.0);
+            ->and($this->order->fresh()->balance_due)->toBeMoney(0);
     });
 
     it('commande le remplacement quand il n\'y en a pas en stock', function () {
@@ -116,12 +117,12 @@ describe('reprise du produit', function () {
     it('reprend le produit et rembourse sans frais', function () {
         $line = pickedUpLine($this->order, 1, 100, $this->cash);
 
-        $defective = $this->order->returnDefective($line, 1, 'Tissu déchiré', replace: false, refunds: [['method_id' => $this->cash->id, 'amount' => 114.98]]);
+        $defective = $this->order->returnDefective($line, 1, 'Tissu déchiré', replace: false, refunds: [['method_id' => $this->cash->id, 'amount' => Money::parse(114.98)]]);
 
         expect($defective->resolution)->toBe(DefectiveResolution::Refund)
             ->and($line->fresh()->status)->toBe(CustomerOrderLineStatus::Refunded)
-            ->and($this->order->fresh())->balance_due->toBe(0.0)->amount_paid->toBe(0.0)
-            ->and($this->order->payments()->where('type', CustomerPaymentType::Refund)->sole()->amount)->toBe(-114.98)
+            ->and($this->order->fresh())->balance_due->toBeMoney(0)->amount_paid->toBeMoney(0)
+            ->and($this->order->payments()->where('type', CustomerPaymentType::Refund)->sole()->amount)->toBeMoney(-11498)
             ->and($line->product->inventoryStock()->sole()->quantity_defective_stock)->toBe(1);
     });
 
@@ -204,7 +205,7 @@ describe('modal défectueux', function () {
             ->set('defectiveOutcome', 'refund')
             ->call('continueDefective')
             ->assertSet('defectiveStep', 'refund')
-            ->assertSet('defectiveRefundable', 114.98)
+            ->assertSet('defectiveRefundableCents', 11498)
             ->call('confirmDefectiveRefund')
             ->assertHasNoErrors()
             ->assertSet('showDefectiveModal', false);

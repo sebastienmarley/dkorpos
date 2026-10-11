@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Money;
 use Database\Factories\CustomerPaymentMethodFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -51,8 +52,8 @@ class CustomerPaymentMethod extends Model
     /**
      * Montant arrondi au 5 ¢ près pour un paiement comptant (0,01-0,02 vers le bas, 0,03-0,04 vers le haut).
      */
-    public static function roundCash(float $amount): float
+    public static function roundCash(Money $amount): Money
     {
-        return round(round($amount * 20) / 20, 2);
+        return $amount->roundTo(5);
     }
 }

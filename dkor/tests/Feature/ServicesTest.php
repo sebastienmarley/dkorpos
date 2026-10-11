@@ -150,17 +150,17 @@ describe('services dans la commande client', function () {
             ->status->toBe(CustomerOrderLineStatus::ToDo)
             ->supplier_id->toBeNull()
             ->supplier_order_line_id->toBeNull()
-            ->unit_price->toBe(80.0)
+            ->unit_price->toBeMoney(8000)
             ->description->toBe('Livraison 2e étage')
             ->and(SupplierOrder::count())->toBe(0)
-            ->and($this->order->fresh()->subtotal)->toBe(80.0);
+            ->and($this->order->fresh()->subtotal)->toBeMoney(8000);
 
-        expect($this->order->amountRequiredFor([]))->toBe(round($this->order->fresh()->total * 0.3, 2));
+        expect($this->order->amountRequiredFor([]))->toBeMoney($this->order->fresh()->total->percent(30)->cents());
 
         $this->order->completeServiceLine($line);
 
         expect($line->fresh())->status->toBe(CustomerOrderLineStatus::Completed)->delivered_at->not->toBeNull()
-            ->and($this->order->fresh()->amountRequiredFor([]))->toBe($this->order->fresh()->total);
+            ->and($this->order->fresh()->amountRequiredFor([]))->toBeMoney($this->order->fresh()->total->cents());
     });
 
     it('commande un service externe au fournisseur choisi, puis le complète avec la commande de services', function () {
@@ -173,7 +173,7 @@ describe('services dans la commande client', function () {
         expect($line->fresh())
             ->status->toBe(CustomerOrderLineStatus::OnOrder)
             ->quantity_on_order->toBe(2)
-            ->unit_price->toBe(100.0)
+            ->unit_price->toBeMoney(10000)
             ->and($supplierLine)
             ->product_id->toBeNull()
             ->quantity->toBe(2)
@@ -207,11 +207,11 @@ describe('services dans la commande client', function () {
         stockedLine($this->order, 1, 1, 100);
 
         $order = $this->order->fresh();
-        $taxed = $order->taxesFor(100)['total'];
+        $taxed = $order->taxesFor(Money::parse(100))['total'];
 
-        expect($order->subtotal)->toBe(150.0)
-            ->and($order->total)->toBe(round($taxed + 50, 2))
-            ->and($order->taxLines->sum('amount'))->toEqual(round($taxed - 100, 2));
+        expect($order->subtotal)->toBeMoney(15000)
+            ->and($order->total)->toBeMoney($taxed->plus(Money::parse(50))->cents())
+            ->and($order->taxLines->sum(fn ($taxLine) => $taxLine->amount->cents()))->toBe($taxed->minus(Money::parse(100))->cents());
     });
 
     it('fige la taxabilité du produit sur la ligne', function () {
@@ -226,9 +226,9 @@ describe('services dans la commande client', function () {
         [$service, $supplier] = externalService();
         $line = $this->order->addService($service, $supplier->id, 1, 'Installation');
 
-        $this->order->updateServiceLine($line, 3, 120, 'Installation au sous-sol', 'Appeler avant');
+        $this->order->updateServiceLine($line, 3, Money::parse(120), 'Installation au sous-sol', 'Appeler avant');
 
-        expect($line->fresh())->quantity->toBe(3)->unit_price->toBe(120.0)->description->toBe('Installation au sous-sol')->note->toBe('Appeler avant')
+        expect($line->fresh())->quantity->toBe(3)->unit_price->toBeMoney(12000)->description->toBe('Installation au sous-sol')->note->toBe('Appeler avant')
             ->and(SupplierOrderLine::sole()->quantity)->toBe(3);
     });
 
@@ -237,9 +237,9 @@ describe('services dans la commande client', function () {
         $line = $this->order->addService($service, $supplier->id, 1, 'Installation');
         SupplierOrder::sole()->send();
 
-        expect(fn () => $this->order->updateServiceLine($line->fresh(), 2, 100, 'Installation', null))->toThrow(DomainException::class);
+        expect(fn () => $this->order->updateServiceLine($line->fresh(), 2, Money::parse(100), 'Installation', null))->toThrow(DomainException::class);
 
-        $this->order->updateServiceLine($line->fresh(), 1, 100, 'Installation', 'Note ajoutée');
+        $this->order->updateServiceLine($line->fresh(), 1, Money::parse(100), 'Installation', 'Note ajoutée');
 
         expect($line->fresh()->note)->toBe('Note ajoutée');
     });

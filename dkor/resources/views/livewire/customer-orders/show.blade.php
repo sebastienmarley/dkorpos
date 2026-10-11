@@ -24,8 +24,8 @@
                 <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $order->customer->firstname }} {{ $order->customer->lastname }}</span>
             </div>
 
-            @if ($order->customer->credit_balance > 0)
-                <flux:badge color="green" size="sm" icon="wallet">{{ __('Crédit au compte : :amount $', ['amount' => number_format($order->customer->credit_balance, 2)]) }}</flux:badge>
+            @if ($order->customer->credit_balance->isPositive())
+                <flux:badge color="green" size="sm" icon="wallet">{{ __('Crédit au compte : :amount $', ['amount' => $order->customer->credit_balance->toDecimal()]) }}</flux:badge>
             @endif
 
             <div class="text-center text-sm text-zinc-600 dark:text-zinc-300">
@@ -66,7 +66,7 @@
                     </flux:field>
                 </form>
 
-                @if ($order->balance_due > 0 || $order->lines->contains(fn ($line) => $line->status->isPickable() && $line->quantity_reserved > 0))
+                @if ($order->balance_due->isPositive() || $order->lines->contains(fn ($line) => $line->status->isPickable() && $line->quantity_reserved > 0))
                     <flux:button variant="primary" icon="hand-raised" wire:click="openPickupModal" class="ms-auto">{{ __('Ramasser') }}</flux:button>
                 @endif
             </div>
@@ -123,8 +123,8 @@
                                 @foreach ($line->defectiveProducts as $defective)
                                     <div class="text-xs font-normal text-amber-600 dark:text-amber-400">{{ __('Défectueux — dossier #:id · :resolution', ['id' => $defective->id, 'resolution' => $defective->resolution->label()]) }}</div>
                                 @endforeach
-                                @if ($line->cancellation_fee)
-                                    <div class="text-xs font-normal text-red-600 dark:text-red-400">{{ __('Frais d\'annulation : :fee $', ['fee' => number_format($line->cancellation_fee, 2)]) }}</div>
+                                @if ($line->cancellation_fee && ! $line->cancellation_fee->isZero())
+                                    <div class="text-xs font-normal text-red-600 dark:text-red-400">{{ __('Frais d\'annulation : :fee $', ['fee' => $line->cancellation_fee->toDecimal()]) }}</div>
                                 @endif
                             </flux:table.cell>
                             <flux:table.cell>{{ match (true) { $line->isService() => $line->supplier?->name ?? __('Interne'), $line->isPart() => $line->part->supplier->name, default => $line->product->supplier->name } }}</flux:table.cell>
@@ -134,8 +134,8 @@
                             <flux:table.cell align="end">{{ $line->isService() ? '—' : $line->quantity_reserved }}</flux:table.cell>
                             <flux:table.cell align="end">{{ $line->isService() ? '—' : $line->quantity_on_order }}</flux:table.cell>
                             <flux:table.cell align="end">{{ $line->quantity }}</flux:table.cell>
-                            <flux:table.cell align="end">{{ number_format($line->unit_price, 2) }} $</flux:table.cell>
-                            <flux:table.cell align="end">{{ number_format($line->total, 2) }} $</flux:table.cell>
+                            <flux:table.cell align="end">{{ $line->unit_price->format() }}</flux:table.cell>
+                            <flux:table.cell align="end">{{ $line->total->format() }}</flux:table.cell>
                             <flux:table.cell align="end">
                                 @can('customer_orders.edit')
                                     @if ($line->status->isEditable())
@@ -167,7 +167,7 @@
                                 <span class="text-zinc-400">· {{ $payment->receiver->fullName() }}</span>
                             @endif
                         </span>
-                        <span @class(['text-red-600 dark:text-red-400' => $payment->amount < 0])>{{ number_format($payment->amount, 2) }} $</span>
+                        <span @class(['text-red-600 dark:text-red-400' => $payment->amount->isNegative()])>{{ $payment->amount->format() }}</span>
                     </div>
                 @empty
                     <flux:text class="text-sm text-zinc-400">{{ __('Aucun paiement.') }}</flux:text>
@@ -176,24 +176,24 @@
 
             {{-- Totaux --}}
             <dl class="space-y-1 text-sm">
-                <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Sous-total') }}</dt><dd>{{ number_format($order->subtotal, 2) }} $</dd></div>
+                <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Sous-total') }}</dt><dd>{{ $order->subtotal->format() }}</dd></div>
                 @foreach ($order->taxLines as $taxLine)
                     <div class="flex justify-between">
                         <dt class="text-zinc-500">
                             {{ $taxLine->name }}
                             <span class="text-xs text-zinc-400">{{ rtrim(rtrim(number_format($taxLine->rate, 3, '.', ''), '0'), '.') }} %@if ($taxLine->registrationNumber()) · {{ $taxLine->registrationNumber() }}@endif</span>
                         </dt>
-                        <dd>{{ number_format($taxLine->amount, 2) }} $</dd>
+                        <dd>{{ $taxLine->amount->format() }}</dd>
                     </div>
                 @endforeach
-                <div class="flex justify-between font-medium"><dt>{{ __('Total') }}</dt><dd>{{ number_format($order->total, 2) }} $</dd></div>
-                <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Payé') }}</dt><dd>{{ number_format($order->amount_paid, 2) }} $</dd></div>
+                <div class="flex justify-between font-medium"><dt>{{ __('Total') }}</dt><dd>{{ $order->total->format() }}</dd></div>
+                <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Payé') }}</dt><dd>{{ $order->amount_paid->format() }}</dd></div>
                 <div class="flex justify-between border-t border-zinc-200 pt-1 font-semibold dark:border-zinc-700">
-                    <dt>{{ $order->balance_due < 0 ? __('Crédit du client') : __('Solde à payer') }}</dt>
-                    <dd>{{ number_format(abs($order->balance_due), 2) }} $</dd>
+                    <dt>{{ $order->balance_due->isNegative() ? __('Crédit du client') : __('Solde à payer') }}</dt>
+                    <dd>{{ $order->balance_due->abs()->format() }}</dd>
                 </div>
 
-                @if ($order->credit() > 0)
+                @if ($order->credit()->isPositive())
                     @can('customer_orders.edit')
                         <div class="flex flex-col gap-2 pt-2">
                             <flux:button size="sm" icon="banknotes" wire:click="openCreditRefundModal">{{ __('Rembourser le crédit') }}</flux:button>
@@ -201,7 +201,7 @@
                                 size="sm"
                                 icon="wallet"
                                 wire:click="transferCreditToCustomer"
-                                wire:confirm="{{ __('Porter :amount $ au compte du client ? La commande sera soldée.', ['amount' => number_format($order->credit(), 2)]) }}"
+                                wire:confirm="{{ __('Porter :amount $ au compte du client ? La commande sera soldée.', ['amount' => $order->credit()->toDecimal()]) }}"
                             >
                                 {{ __('Porter au compte du client') }}
                             </flux:button>
@@ -502,7 +502,7 @@
                             <flux:text class="mb-2 text-sm">
                                 {{ __('Le client ne veut pas attendre la réponse du fournisseur : annuler maintenant avec :percent % de frais (:fee $ avant taxes).', [
                                     'percent' => rtrim(rtrim(number_format($order->store->cancellation_fee_percent ?? 0, 2), '0'), '.'),
-                                    'fee' => number_format($cancellationFee, 2),
+                                    'fee' => $cancellationFee->toDecimal(),
                                 ]) }}
                             </flux:text>
                             <flux:button
@@ -511,7 +511,7 @@
                                 variant="danger"
                                 icon="x-circle"
                                 wire:click="cancelLineWithFee({{ $editingLine->id }})"
-                                wire:confirm="{{ __('Annuler :count article(s) avec :fee $ de frais ? La marchandise qui arrivera du fournisseur entrera en stock.', ['count' => $editingLine->quantity_on_order, 'fee' => number_format($cancellationFee, 2)]) }}"
+                                wire:confirm="{{ __('Annuler :count article(s) avec :fee $ de frais ? La marchandise qui arrivera du fournisseur entrera en stock.', ['count' => $editingLine->quantity_on_order, 'fee' => $cancellationFee->toDecimal()]) }}"
                             >
                                 {{ __('Annuler avec frais') }}
                             </flux:button>
@@ -546,7 +546,7 @@
         <flux:modal wire:model="showReturnModal" class="w-full max-w-lg">
             @if ($returnLine)
                 <flux:heading class="mb-1">{{ __('Retour') }} — {{ $returnLine->product->model }} <span class="font-normal text-zinc-500">#{{ $returnLine->product_id }}</span></flux:heading>
-                <flux:text class="text-zinc-500">{{ __(':count remis au client à :price $', ['count' => $returnLine->quantity, 'price' => number_format($returnLine->unit_price, 2)]) }}</flux:text>
+                <flux:text class="text-zinc-500">{{ __(':count remis au client à :price $', ['count' => $returnLine->quantity, 'price' => $returnLine->unit_price->toDecimal()]) }}</flux:text>
 
                 @if ($returnStep === 'choice')
                     <form wire:submit="continueReturn" class="mt-6 space-y-4">
@@ -570,7 +570,7 @@
                 @else
                     <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
                         <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Quantité reprise') }}</dt><dd>{{ $returnQuantity }}</dd></div>
-                        <div class="flex justify-between font-semibold"><dt>{{ __('Remboursable') }}</dt><dd>{{ number_format($returnRefundable, 2) }} $</dd></div>
+                        <div class="flex justify-between font-semibold"><dt>{{ __('Remboursable') }}</dt><dd>{{ \App\Support\Money::of($returnRefundableCents)->format() }}</dd></div>
                     </dl>
                     <flux:text class="mt-1 text-xs text-zinc-400">{{ __('Valeur retournée taxes incluses, sans descendre sous ce qu\'exige le reste de la commande.') }}</flux:text>
 
@@ -591,7 +591,7 @@
                                     <flux:error name="returnRefunds.{{ $index }}.amount" />
                                 </div>
                                 @if ((int) $refund['method_id'] === $this->cashMethodId())
-                                    <flux:text class="w-full text-xs text-zinc-500">{{ __('À remettre en comptant (arrondi au 5 ¢) : :amount $', ['amount' => number_format($this->roundedCash($refund['amount']), 2)]) }}</flux:text>
+                                    <flux:text class="w-full text-xs text-zinc-500">{{ __('À remettre en comptant (arrondi au 5 ¢) : :amount $', ['amount' => $this->roundedCash($refund['amount'])->toDecimal()]) }}</flux:text>
                                 @endif
                                 @if (count($returnRefunds) > 1)
                                     <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removeReturnRefund({{ $index }})" :label="__('Retirer')" />
@@ -601,7 +601,7 @@
 
                         <div class="flex items-center justify-between">
                             <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addReturnRefund">{{ __('Ajouter un mode') }}</flux:button>
-                            <flux:text class="text-sm">{{ __('Total remboursé : :amount $', ['amount' => number_format($this->returnRefundsTotal(), 2)]) }}</flux:text>
+                            <flux:text class="text-sm">{{ __('Total remboursé : :amount $', ['amount' => $this->returnRefundsTotal()->toDecimal()]) }}</flux:text>
                         </div>
 
                         <flux:error name="returnRefunds" />
@@ -748,7 +748,7 @@
         <flux:modal wire:model="showDefectiveModal" class="w-full max-w-lg">
             @if ($defectiveLine)
                 <flux:heading class="mb-1">{{ __('Défectueux') }} — {{ $defectiveLine->product->model }} <span class="font-normal text-zinc-500">#{{ $defectiveLine->product_id }}</span></flux:heading>
-                <flux:text class="text-zinc-500">{{ __(':count remis au client à :price $', ['count' => $defectiveLine->quantity, 'price' => number_format($defectiveLine->unit_price, 2)]) }}</flux:text>
+                <flux:text class="text-zinc-500">{{ __(':count remis au client à :price $', ['count' => $defectiveLine->quantity, 'price' => $defectiveLine->unit_price->toDecimal()]) }}</flux:text>
 
                 @if ($defectiveStep === 'choice')
                     <form wire:submit="continueDefective" class="mt-6 space-y-4">
@@ -810,7 +810,7 @@
                 @else
                     <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
                         <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Quantité reprise') }}</dt><dd>{{ $defectiveQuantity }}</dd></div>
-                        <div class="flex justify-between font-semibold"><dt>{{ __('Remboursable') }}</dt><dd>{{ number_format($defectiveRefundable, 2) }} $</dd></div>
+                        <div class="flex justify-between font-semibold"><dt>{{ __('Remboursable') }}</dt><dd>{{ \App\Support\Money::of($defectiveRefundableCents)->format() }}</dd></div>
                     </dl>
 
                     <form wire:submit="confirmDefectiveRefund" class="mt-6 space-y-3">
@@ -833,14 +833,14 @@
                                     <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removeDefectiveRefund({{ $index }})" :label="__('Retirer')" />
                                 @endif
                                 @if ((int) $refund['method_id'] === $this->cashMethodId())
-                                    <flux:text class="w-full text-xs text-zinc-500">{{ __('À remettre en comptant (arrondi au 5 ¢) : :amount $', ['amount' => number_format($this->roundedCash($refund['amount']), 2)]) }}</flux:text>
+                                    <flux:text class="w-full text-xs text-zinc-500">{{ __('À remettre en comptant (arrondi au 5 ¢) : :amount $', ['amount' => $this->roundedCash($refund['amount'])->toDecimal()]) }}</flux:text>
                                 @endif
                             </div>
                         @endforeach
 
                         <div class="flex items-center justify-between">
                             <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addDefectiveRefund">{{ __('Ajouter un mode') }}</flux:button>
-                            <flux:text class="text-sm">{{ __('Total remboursé : :amount $', ['amount' => number_format($this->defectiveRefundsTotal(), 2)]) }}</flux:text>
+                            <flux:text class="text-sm">{{ __('Total remboursé : :amount $', ['amount' => $this->defectiveRefundsTotal()->toDecimal()]) }}</flux:text>
                         </div>
 
                         <flux:error name="defectiveRefunds" />
@@ -859,7 +859,7 @@
     @can('customer_orders.edit')
         <flux:modal wire:model="showCreditRefundModal" class="w-full max-w-lg">
             <flux:heading class="mb-1">{{ __('Rembourser le crédit') }}</flux:heading>
-            <flux:text class="text-zinc-500">{{ __('Crédit de la commande : :amount $', ['amount' => number_format($order->credit(), 2)]) }}</flux:text>
+            <flux:text class="text-zinc-500">{{ __('Crédit de la commande : :amount $', ['amount' => $order->credit()->toDecimal()]) }}</flux:text>
 
             <form wire:submit="refundCredit" class="mt-6 space-y-3">
                 @foreach ($creditRefunds as $index => $refund)
@@ -878,7 +878,7 @@
                             <flux:error name="creditRefunds.{{ $index }}.amount" />
                         </div>
                                 @if ((int) $refund['method_id'] === $this->cashMethodId())
-                                    <flux:text class="w-full text-xs text-zinc-500">{{ __('À remettre en comptant (arrondi au 5 ¢) : :amount $', ['amount' => number_format($this->roundedCash($refund['amount']), 2)]) }}</flux:text>
+                                    <flux:text class="w-full text-xs text-zinc-500">{{ __('À remettre en comptant (arrondi au 5 ¢) : :amount $', ['amount' => $this->roundedCash($refund['amount'])->toDecimal()]) }}</flux:text>
                                 @endif
                         @if (count($creditRefunds) > 1)
                             <flux:button type="button" variant="ghost" icon="x-mark" wire:click="removeCreditRefund({{ $index }})" :label="__('Retirer')" />
@@ -888,7 +888,7 @@
 
                 <div class="flex items-center justify-between">
                     <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addCreditRefund">{{ __('Ajouter un mode') }}</flux:button>
-                    <flux:text class="text-sm">{{ __('Total remboursé : :amount $', ['amount' => number_format($this->creditRefundsTotal(), 2)]) }}</flux:text>
+                    <flux:text class="text-sm">{{ __('Total remboursé : :amount $', ['amount' => $this->creditRefundsTotal()->toDecimal()]) }}</flux:text>
                 </div>
 
                 <flux:error name="creditRefunds" />
@@ -926,7 +926,7 @@
                                     @endif
                                 </div>
                                 <div class="text-xs text-zinc-400">
-                                    {{ __('Disponible : :count', ['count' => $line->quantity_reserved]) }} · {{ number_format($line->unit_price, 2) }} $
+                                    {{ __('Disponible : :count', ['count' => $line->quantity_reserved]) }} · {{ $line->unit_price->format() }}
                                     @if ($line->quantity_on_order > 0)
                                         · {{ __(':count encore en commande', ['count' => $line->quantity_on_order]) }}
                                     @endif
@@ -948,21 +948,21 @@
                 </form>
             @else
                 <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
-                    <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Total de la commande') }}</dt><dd>{{ number_format($order->total, 2) }} $</dd></div>
-                    <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Déjà payé') }}</dt><dd>{{ number_format($order->amount_paid, 2) }} $</dd></div>
-                    <div class="flex justify-between font-semibold"><dt>{{ __('À encaisser maintenant') }}</dt><dd>{{ number_format($pickupRequired, 2) }} $</dd></div>
+                    <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Total de la commande') }}</dt><dd>{{ $order->total->format() }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Déjà payé') }}</dt><dd>{{ $order->amount_paid->format() }}</dd></div>
+                    <div class="flex justify-between font-semibold"><dt>{{ __('À encaisser maintenant') }}</dt><dd>{{ \App\Support\Money::of($pickupRequiredCents)->format() }}</dd></div>
                 </dl>
                 <flux:text class="mt-1 text-xs text-zinc-400">
                     {{ __('Articles remis payés à 100 %, dépôt de :percent % sur le reste, taxes incluses.', ['percent' => rtrim(rtrim(number_format(config('sales.deposit_percent'), 2), '0'), '.')]) }}
                 </flux:text>
 
                 <form wire:submit="confirmPickup" class="mt-6 space-y-3">
-                    @if ($order->customer->credit_balance > 0)
+                    @if ($order->customer->credit_balance->isPositive())
                         <div class="flex items-start gap-2">
                             <div class="flex flex-1 items-center gap-2 text-sm">
                                 <flux:icon.wallet class="h-4 w-4 text-green-600" />
                                 <span>{{ __('Crédit client') }}</span>
-                                <span class="text-zinc-400">{{ __('(disponible : :amount $)', ['amount' => number_format($order->customer->credit_balance, 2)]) }}</span>
+                                <span class="text-zinc-400">{{ __('(disponible : :amount $)', ['amount' => $order->customer->credit_balance->toDecimal()]) }}</span>
                             </div>
                             <div class="w-32">
                                 <flux:input wire:model.blur="pickupCredit" inputmode="decimal" />
@@ -995,14 +995,14 @@
 
                             @if ((int) $payment['method_id'] === $this->cashMethodId())
                                 <div class="flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-800">
-                                    <span>{{ __('À percevoir (arrondi au 5 ¢) : :amount $', ['amount' => number_format($this->roundedCash($payment['amount']), 2)]) }}</span>
+                                    <span>{{ __('À percevoir (arrondi au 5 ¢) : :amount $', ['amount' => $this->roundedCash($payment['amount'])->toDecimal()]) }}</span>
                                     <div class="flex items-center gap-2">
                                         <span class="text-zinc-500">{{ __('Reçu') }}</span>
                                         <div class="w-28">
                                             <flux:input wire:model.live.debounce.400ms="pickupPayments.{{ $index }}.tendered" inputmode="decimal" size="sm" />
                                         </div>
                                     </div>
-                                    <span class="font-semibold">{{ __('Monnaie à rendre : :amount $', ['amount' => number_format($this->changeDue($index), 2)]) }}</span>
+                                    <span class="font-semibold">{{ __('Monnaie à rendre : :amount $', ['amount' => $this->changeDue($index)->toDecimal()]) }}</span>
                                     <flux:error name="pickupPayments.{{ $index }}.tendered" />
                                 </div>
                             @endif
@@ -1011,7 +1011,7 @@
 
                     <div class="flex items-center justify-between">
                         <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addPickupPayment">{{ __('Ajouter un mode de paiement') }}</flux:button>
-                        <flux:text class="text-sm">{{ __('Total reçu : :amount $', ['amount' => number_format($this->pickupPaymentsTotal(), 2)]) }}</flux:text>
+                        <flux:text class="text-sm">{{ __('Total reçu : :amount $', ['amount' => $this->pickupPaymentsTotal()->toDecimal()]) }}</flux:text>
                     </div>
 
                     <flux:error name="pickupPayments" />

@@ -62,7 +62,7 @@ expect()->extend('toBeMoney', function (int $cents) {
 */
 
 /**
- * Produit en stock (avec ses unités d'inventaire) ajouté à la commande, au prix vendant donné.
+ * Produit en stock (avec ses unités d'inventaire) ajouté à la commande, au prix vendant donné (en dollars).
  */
 function stockedLine(CustomerOrder $order, int $inStock, int $quantity, float $price): CustomerOrderLine
 {
@@ -71,7 +71,7 @@ function stockedLine(CustomerOrder $order, int $inStock, int $quantity, float $p
     InventoryUnit::factory()->count($inStock)->create(['product_id' => $product->id, 'delivered_at' => null]);
 
     $line = $order->addProduct($product, $quantity);
-    $order->updateLine($line, $line->quantity_reserved, $line->quantity_on_order, $price, null);
+    $order->updateLine($line, $line->quantity_reserved, $line->quantity_on_order, Money::parse($price), null);
 
     return $line->fresh();
 }

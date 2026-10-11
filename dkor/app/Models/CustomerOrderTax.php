@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
+use App\Support\Money;
 use Database\Factories\CustomerOrderTaxFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,7 +22,7 @@ use Illuminate\Support\Carbon;
  * @property float $rate Pourcentage (ex. 9.975).
  * @property bool $is_compound En cascade : calculée sur le montant plus les taxes individuelles.
  * @property string|null $registration_number Numéro de taxe du marchand au moment de la commande.
- * @property float $amount
+ * @property Money $amount
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read CustomerOrder $order
@@ -31,10 +33,14 @@ class CustomerOrderTax extends Model
     /** @use HasFactory<CustomerOrderTaxFactory> */
     use HasFactory;
 
+    protected $attributes = [
+        'amount' => 0,
+    ];
+
     protected $casts = [
         'rate' => 'float',
         'is_compound' => 'boolean',
-        'amount' => 'float',
+        'amount' => MoneyCast::class,
     ];
 
     /** @return BelongsTo<CustomerOrder, $this> */

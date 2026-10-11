@@ -6,6 +6,7 @@ use App\Enums\CustomerOrderStatus;
 use App\Models\customer;
 use App\Models\CustomerOrder;
 use App\Models\Store;
+use App\Support\Money;
 use Database\Seeders\TaxSeeder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -27,7 +28,7 @@ class CustomerOrderFactory extends Factory
                 return Store::factory()->create()->id;
             },
             'status' => CustomerOrderStatus::New,
-            'balance_due' => 0,
+            'balance_due' => Money::zero(),
         ];
     }
 
