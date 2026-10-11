@@ -162,8 +162,8 @@
                             @if ($isProduct && ! $status->isEditable())
                                 <flux:table.cell align="end">{{ $line->quantity_received }}</flux:table.cell>
                             @endif
-                            <flux:table.cell align="end">{{ number_format($line->unit_cost, 2) }} $</flux:table.cell>
-                            <flux:table.cell align="end">{{ number_format($line->total, 2) }} $</flux:table.cell>
+                            <flux:table.cell align="end">{{ $line->unit_cost->format() }}</flux:table.cell>
+                            <flux:table.cell align="end">{{ $line->total->format() }}</flux:table.cell>
                             @if ($status->isEditable() || $status->isOpen())
                                 <flux:table.cell align="end">
                                     @can('supplier_orders.edit')
@@ -252,7 +252,7 @@
     </div>
 
     <div class="mt-3 text-end">
-        <flux:text class="text-lg font-semibold">{{ __('Total') }} : {{ number_format($order->total, 2) }} $</flux:text>
+        <flux:text class="text-lg font-semibold">{{ __('Total') }} : {{ $order->total->format() }}</flux:text>
     </div>
 
     {{-- Réceptions (produits) --}}
@@ -290,7 +290,7 @@
                                     —
                                 @endif
                             </flux:table.cell>
-                            <flux:table.cell align="end">{{ number_format($receptionLine->unit_cost, 2) }} $</flux:table.cell>
+                            <flux:table.cell align="end">{{ $receptionLine->unit_cost->format() }}</flux:table.cell>
                             <flux:table.cell align="end">
                                 @if ($canReverse && $receptionLine->quantity_net > 0 && ! $receptionLine->reception->invoice)
                                     @can('receptions.reverse')
@@ -310,7 +310,7 @@
         @php
             $threshold = $order->prepaidThreshold();
             $orderTotal = $order->total;
-            $ratio = $threshold > 0 ? min(100, round($orderTotal / $threshold * 100)) : 100;
+            $ratio = $threshold->isPositive() ? min(100, (int) round($orderTotal->cents() / $threshold->cents() * 100)) : 100;
         @endphp
         <div class="mt-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <flux:heading size="lg">{{ __('Transport') }}</flux:heading>
@@ -322,13 +322,13 @@
                         — {{ $order->shippingSupplier->name }}
                     @endif
                 </flux:text>
-            @elseif ($threshold > 0)
+            @elseif ($threshold->isPositive())
                 <div class="mt-2 flex items-center justify-between">
-                    <flux:text>{{ number_format($orderTotal, 2) }} $ / {{ number_format($threshold, 2) }} $ {{ __('(transport prépayé)') }}</flux:text>
+                    <flux:text>{{ $orderTotal->format() }} / {{ $threshold->format() }} {{ __('(transport prépayé)') }}</flux:text>
                     @if ($order->meetsPrepaidThreshold())
                         <flux:badge color="green" size="sm">{{ __('Transport prépayé') }}</flux:badge>
                     @else
-                        <flux:badge color="amber" size="sm">{{ __(':amount $ manquants', ['amount' => number_format($order->missingForPrepaid(), 2)]) }}</flux:badge>
+                        <flux:badge color="amber" size="sm">{{ __(':amount $ manquants', ['amount' => $order->missingForPrepaid()->toDecimal()]) }}</flux:badge>
                     @endif
                 </div>
                 <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
@@ -403,9 +403,9 @@
                             · {{ __('Facture n° :number du :date', ['number' => $invoice->invoice_number, 'date' => $invoice->invoice_date->format('Y-m-d')]) }}
                         </flux:text>
                         <flux:text>
-                            {{ number_format($invoice->invoice_total, 2) }} $
+                            {{ $invoice->invoice_total->format() }}
                             @if ($invoice->hasVariance())
-                                <flux:badge color="red" size="sm" class="ms-2">{{ __('Écart') }} {{ number_format($invoice->variance, 2) }} $</flux:badge>
+                                <flux:badge color="red" size="sm" class="ms-2">{{ __('Écart') }} {{ $invoice->variance->format() }}</flux:badge>
                             @endif
                         </flux:text>
                     </div>

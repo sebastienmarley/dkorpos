@@ -177,7 +177,7 @@ describe('services dans la commande client', function () {
             ->and($supplierLine)
             ->product_id->toBeNull()
             ->quantity->toBe(2)
-            ->unit_cost->toBe(60.0)
+            ->unit_cost->toBeMoney(6000)
             ->description->toContain('Installation lave-vaisselle')
             ->and($supplierLine->order)
             ->type->toBe(SupplierType::Service)

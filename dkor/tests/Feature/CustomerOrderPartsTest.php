@@ -49,7 +49,7 @@ it('ajoute la pièce choisie dans « Ajouter une pièce » et la commande au fou
         ->part_id->toBe($this->part->id)
         ->product_id->toBeNull()
         ->quantity->toBe(1)
-        ->unit_cost->toBe(3.0)
+        ->unit_cost->toBeMoney(300)
         ->description->toContain('PC-12')
         ->description->toContain('commande client #'.$this->order->id)
         ->and($supplierLine->order)
@@ -107,7 +107,7 @@ it('suit la pièce de la commande à la remise au client, sans mouvement d\'inve
     $line = $this->order->addPart($this->part, 2);
     $supplierLine = $line->supplierOrderLine;
     $supplierOrder = $supplierLine->order;
-    $supplierOrder->updateLine($supplierLine, 2, 4.25);
+    $supplierOrder->updateLine($supplierLine, 2, Money::parse(4.25));
 
     $supplierOrder->send();
 

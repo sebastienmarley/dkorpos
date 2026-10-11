@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\Product;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,7 +23,7 @@ class SupplierOrderLineFactory extends Factory
             'product_id' => null,
             'description' => fake()->sentence(3),
             'quantity' => fake()->numberBetween(1, 20),
-            'unit_cost' => fake()->randomFloat(2, 1, 500),
+            'unit_cost' => Money::of(fake()->numberBetween(100, 50000)),
         ];
     }
 

@@ -5,6 +5,7 @@ namespace App\Livewire\Suppliers;
 use App\Enums\SupplierType;
 use App\Models\Currency;
 use App\Models\Supplier;
+use App\Support\Money;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
@@ -199,7 +200,7 @@ class Show extends Component
         ]);
 
         $this->supplier->fill([
-            'prepaid_amount' => filled($this->prepaidAmount) ? $this->prepaidAmount : null,
+            'prepaid_amount' => filled($this->prepaidAmount) ? Money::parse($this->prepaidAmount) : null,
             'collect' => $this->collect,
             'default_shipping_supplier_id' => $this->collect && filled($this->defaultShippingSupplierId)
                 ? $this->defaultShippingSupplierId
@@ -291,7 +292,7 @@ class Show extends Component
         ];
         $this->sameAsMainAddress = $this->address === $this->paymentAddress
             && filled($this->address['civic']);
-        $this->prepaidAmount = (string) ($this->supplier->prepaid_amount ?? '');
+        $this->prepaidAmount = $this->supplier->prepaid_amount?->toDecimal() ?? '';
         $this->collect = $this->supplier->collect;
         $this->defaultShippingSupplierId = (string) ($this->supplier->default_shipping_supplier_id ?? '');
         $this->orderEmail = $this->supplier->order_email ?? '';

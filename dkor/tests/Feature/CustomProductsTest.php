@@ -44,7 +44,7 @@ it('vend un article sur mesure : toujours commandé, avec spécifications, coût
         ->quote_number->toBe('S-4521')
         ->and($supplierLine)
         ->product_id->toBe($this->template->id)
-        ->unit_cost->toBe(900.0)
+        ->unit_cost->toBeMoney(90000)
         ->description->toBe('84 po, tissu Lin gris, pattes noires (soumission S-4521)')
         ->label->toContain('tissu Lin gris')
         ->and($this->template->inventoryStock()->sole()->quantity_in_stock)->toBe(5);
@@ -72,7 +72,7 @@ it('modifie un article sur mesure non envoyé et la ligne fournisseur suit', fun
     expect($line->fresh())->quantity->toBe(2)->unit_cost->toBe(925.0)->unit_price->toBe(1850.0)->note->toBe('Livrer en avril')
         ->and(SupplierOrderLine::sole())
         ->quantity->toBe(2)
-        ->unit_cost->toBe(925.0)
+        ->unit_cost->toBeMoney(92500)
         ->description->toBe('Gris pâle (soumission S-9)');
 });
 

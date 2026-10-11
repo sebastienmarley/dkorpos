@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Enums\SupplierType;
+use App\Support\Money;
 use Database\Factories\SupplierFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -42,7 +44,7 @@ use Illuminate\Support\Carbon;
  * @property float $base_multiplier
  * @property float $customs_fee
  * @property float $shipping_fee
- * @property float|null $prepaid_amount
+ * @property Money|null $prepaid_amount
  * @property bool $collect
  * @property int|null $default_shipping_supplier_id
  * @property float $price_multiplier
@@ -83,7 +85,7 @@ class Supplier extends Model
         'base_multiplier' => 'float',
         'customs_fee' => 'float',
         'shipping_fee' => 'float',
-        'prepaid_amount' => 'float',
+        'prepaid_amount' => MoneyCast::class,
         'collect' => 'boolean',
         'early_payment_discount_percent' => 'float',
         'early_payment_discount_days' => 'integer',

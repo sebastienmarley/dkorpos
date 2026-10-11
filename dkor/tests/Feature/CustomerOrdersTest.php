@@ -657,7 +657,7 @@ describe('lien avec les commandes fournisseurs', function () {
         $supplierLine = $supplierOrder->lines()->sole();
 
         expect($supplierOrder)->supplier_id->toBe($product->supplier_id)->status->toBe(SupplierOrderStatus::Draft)
-            ->and($supplierLine)->product_id->toBe($product->id)->quantity->toBe(2)->unit_cost->toBe(40.0)
+            ->and($supplierLine)->product_id->toBe($product->id)->quantity->toBe(2)->unit_cost->toBeMoney(4000)
             ->and($line->fresh()->supplier_order_line_id)->toBe($supplierLine->id);
     });
 

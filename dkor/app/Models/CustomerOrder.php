@@ -175,6 +175,16 @@ class CustomerOrder extends Model
         return (float) $amount->toDecimal();
     }
 
+    /**
+     * Montant d'une ligne de commande client encore en float (coût soumis du sur-mesure) converti en Money.
+     *
+     * @todo #76 transition : à retirer quand les commandes client passent en Money.
+     */
+    private static function transitionalMoney(float $dollars): Money
+    {
+        return Money::parse($dollars);
+    }
+
     /** @return HasMany<CustomerOrderLine, $this> */
     public function lines(): HasMany
     {
@@ -713,9 +723,9 @@ class CustomerOrder extends Model
         $supplierLine = $line->supplierOrderLine()->with('order')->first();
 
         if ($supplierLine !== null) {
-            $unitCost = $line->is_custom ? (float) $line->unit_cost : $supplierLine->unit_cost;
+            $unitCost = $line->is_custom ? self::transitionalMoney((float) $line->unit_cost) : $supplierLine->unit_cost;
 
-            if ($supplierLine->quantity !== $line->quantity_on_order || round($unitCost, 2) !== round($supplierLine->unit_cost, 2)) {
+            if ($supplierLine->quantity !== $line->quantity_on_order || ! $unitCost->equals($supplierLine->unit_cost)) {
                 $this->guardSupplierLineEditable($supplierLine);
                 $supplierLine->order->updateLine($supplierLine, $line->quantity_on_order, $unitCost);
             }
@@ -753,7 +763,7 @@ class CustomerOrder extends Model
             'product_id' => $product->id,
             'description' => $line->is_custom ? $this->customSpecifications($line) : null,
             'quantity' => $line->quantity_on_order,
-            'unit_cost' => $line->is_custom ? (float) $line->unit_cost : self::transitionalDollars($product->cost),
+            'unit_cost' => $line->is_custom ? self::transitionalMoney((float) $line->unit_cost) : $product->cost,
         ]);
 
         $line->update(['supplier_order_line_id' => $supplierLine->id]);
@@ -796,7 +806,7 @@ class CustomerOrder extends Model
         $supplierLine = $this->supplierDraftFor($supplier->id, SupplierType::Service)->addLine([
             'description' => Str::limit($service->name.' — '.$line->description.' (commande client #'.$this->id.')', 255, ''),
             'quantity' => $line->quantity_on_order,
-            'unit_cost' => self::transitionalDollars($service->pricingFor($supplier->id)['cost']),
+            'unit_cost' => $service->pricingFor($supplier->id)['cost'],
         ]);
 
         $line->update(['supplier_order_line_id' => $supplierLine->id]);
@@ -821,7 +831,7 @@ class CustomerOrder extends Model
             'part_id' => $part->id,
             'description' => Str::limit(__('Pièce :model — :description (commande client #:id)', ['model' => $part->model, 'description' => $part->description, 'id' => $this->id]), 255, ''),
             'quantity' => $line->quantity_on_order,
-            'unit_cost' => self::transitionalDollars($part->last_cost),
+            'unit_cost' => $part->last_cost,
         ]);
 
         $line->update(['supplier_order_line_id' => $supplierLine->id]);
@@ -1432,7 +1442,7 @@ class CustomerOrder extends Model
             $supplierLine = $this->supplierDraftFor($line->product->supplier_id, SupplierType::Product)->addLine([
                 'description' => Str::limit(__('Pièce : :part — :model (commande client #:id)', ['part' => trim($part), 'model' => $line->product->model, 'id' => $this->id]), 255, ''),
                 'quantity' => $quantity,
-                'unit_cost' => 0,
+                'unit_cost' => Money::zero(),
             ]);
 
             return DefectiveProduct::create([

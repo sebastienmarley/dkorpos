@@ -40,7 +40,7 @@ function sentOrder(?Supplier $supplier = null, array $quantities = [10], float $
     foreach ($quantities as $quantity) {
         $lines[] = SupplierOrderLine::factory()
             ->forProduct(Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse($cost)]))
-            ->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => $cost]);
+            ->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => Money::parse($cost)]);
     }
 
     $order->markPending();
@@ -58,9 +58,9 @@ it('enregistre une réception partielle: inventaire, ligne de commande et statut
     expect($reception->number)->toBe('RC-'.str_pad((string) $reception->id, 6, '0', STR_PAD_LEFT))
         ->and($reception->reference)->toBe('BL-1')
         ->and($reception->lines)->toHaveCount(1)
-        ->and($reception->lines->first())->quantity->toBe(4)->unit_cost->toBe(5.0)->supplier_order_line_id->toBe($line->id)
-        ->and($reception->total)->toBe(20.0)
-        ->and($line->fresh())->quantity_received->toBe(4)->unit_cost->toBe(5.0)
+        ->and($reception->lines->first())->quantity->toBe(4)->unit_cost->toBeMoney(500)->supplier_order_line_id->toBe($line->id)
+        ->and($reception->total)->toBeMoney(2000)
+        ->and($line->fresh())->quantity_received->toBe(4)->unit_cost->toBeMoney(500)
         ->and($stock)->quantity_in_stock->toBe(4)->quantity_on_order->toBe(6)
         ->and(InventoryUnit::where('product_id', $line->product_id)->count())->toBe(4)
         ->and($order->fresh()->status)->toBe(SupplierOrderStatus::PartiallyReceived);
@@ -81,7 +81,7 @@ it('réceptionne plusieurs commandes du même fournisseur en une seule réceptio
         ->and(Reception::count())->toBe(1)
         ->and($orderA->fresh()->status)->toBe(SupplierOrderStatus::Received)
         ->and($orderB->fresh()->status)->toBe(SupplierOrderStatus::PartiallyReceived)
-        ->and($lineA->fresh()->unit_cost)->toBe(5.0);
+        ->and($lineA->fresh()->unit_cost)->toBeMoney(500);
 });
 
 it('plafonne la quantité à ce qui reste et ignore les lignes à zéro', function () {
@@ -286,7 +286,7 @@ it('renverse toute la réception: la ligne redevient non réceptionnée et la co
         ->and($stock)->quantity_in_stock->toBe(0)->quantity_on_order->toBe(5)
         ->and(InventoryUnit::count())->toBe(0)
         ->and($order->fresh()->status)->toBe(SupplierOrderStatus::Sent)
-        ->and($reception->fresh()->total)->toBe(0.0);
+        ->and($reception->fresh()->total)->toBeMoney(0);
 
     $second = Reception::record($order->supplier, [$line->id => ['quantity' => 5]]);
     expect($order->fresh()->status)->toBe(SupplierOrderStatus::Received)
@@ -302,7 +302,7 @@ it('ne retire que les unités de la réception renversée', function () {
 
     expect(InventoryUnit::where('reception_line_id', $first->lines->first()->id)->count())->toBe(4)
         ->and(InventoryUnit::where('reception_line_id', $second->lines->first()->id)->count())->toBe(0)
-        ->and(InventoryUnit::pluck('cost')->unique()->all())->toBe([5.0]);
+        ->and(InventoryUnit::pluck('cost')->map->cents()->unique()->all())->toBe([500]);
 });
 
 it('refuse de renverser plus que la quantité nette ou une quantité invalide', function () {
@@ -411,7 +411,7 @@ it('ne montre ni ne permet de modifier le coût unitaire pendant une réception'
         ->assertDontSee('Coût')
         ->call('complete');
 
-    expect($reception->fresh()->lines->first()->unit_cost)->toBe(7.25);
+    expect($reception->fresh()->lines->first()->unit_cost)->toBeMoney(725);
 
     $this->get(route('receptions.show', $reception))->assertOk()->assertDontSee('7.25 $')->assertDontSee('Coût');
 

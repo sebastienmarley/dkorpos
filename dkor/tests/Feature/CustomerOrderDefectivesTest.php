@@ -44,7 +44,7 @@ describe('pièce de remplacement', function () {
             ->and($supplierLine)
             ->product_id->toBeNull()
             ->quantity->toBe(1)
-            ->unit_cost->toBe(0.0)
+            ->unit_cost->toBeMoney(0)
             ->description->toContain('P-221')
             ->description->toContain('commande client #'.$this->order->id)
             ->and($supplierLine->order)

@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Reception;
 use App\Models\SupplierInvoice;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -16,7 +17,7 @@ class SupplierInvoiceFactory extends Factory
      */
     public function definition(): array
     {
-        $total = fake()->randomFloat(2, 10, 1000);
+        $total = Money::of(fake()->numberBetween(1000, 100000));
 
         return [
             'reception_id' => Reception::factory(),

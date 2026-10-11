@@ -12,11 +12,11 @@
 | {{ $order->isProductOrder() ? __('Produit') : __('Description') }} | {{ __('Quantité') }} | {{ __('Coût unitaire') }} | {{ __('Total') }} |
 | :-- | --: | --: | --: |
 @foreach ($lines as $line)
-| {{ $line->label }} | {{ $line->quantity }} | {{ number_format($line->unit_cost, 2) }} $ | {{ number_format($line->total, 2) }} $ |
+| {{ $line->label }} | {{ $line->quantity }} | {{ $line->unit_cost->format() }} | {{ $line->total->format() }} |
 @endforeach
 </x-mail::table>
 
-**{{ __('Total') }}** : {{ number_format($order->total, 2) }} $
+**{{ __('Total') }}** : {{ $order->total->format() }}
 
 @if ($order->isProductOrder())
 @if ($order->isCollectShipping())

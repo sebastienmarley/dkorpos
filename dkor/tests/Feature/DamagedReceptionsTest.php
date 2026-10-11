@@ -31,7 +31,7 @@ function sentOrderWithLine(int $quantity): array
 {
     $order = SupplierOrder::factory()->create();
     $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(5)]);
-    $line = SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => 5]);
+    $line = SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => Money::parse(5)]);
     $order->send();
 
     return [$order->fresh(), $product, $line->fresh()];

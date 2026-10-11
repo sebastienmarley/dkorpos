@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Enums\SupplierOrderLineStatus;
+use App\Support\Money;
 use Database\Factories\SupplierOrderLineFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,7 +20,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $part_id Pièce de remplacement commandée pour un client (non inventoriée).
  * @property string|null $description
  * @property int $quantity
- * @property float $unit_cost
+ * @property Money $unit_cost
  * @property int $quantity_received
  * @property SupplierOrderLineStatus $status
  * @property string|null $cancellation_reason
@@ -31,7 +33,7 @@ use Illuminate\Support\Carbon;
  * @property-read Product|null $product
  * @property-read Part|null $part
  * @property-read CustomerOrderLine|null $customerOrderLine
- * @property-read float $total
+ * @property-read Money $total
  * @property-read int $quantity_outstanding
  * @property-read int $billable_quantity
  */
@@ -48,7 +50,7 @@ class SupplierOrderLine extends Model
 
     protected $casts = [
         'quantity' => 'integer',
-        'unit_cost' => 'float',
+        'unit_cost' => MoneyCast::class,
         'quantity_received' => 'integer',
         'status' => SupplierOrderLineStatus::class,
         'cancellation_requested_at' => 'datetime',
@@ -95,9 +97,9 @@ class SupplierOrderLine extends Model
         return $this->hasOne(CustomerOrderLine::class);
     }
 
-    public function getTotalAttribute(): float
+    public function getTotalAttribute(): Money
     {
-        return round($this->quantity * $this->unit_cost, 2);
+        return $this->unit_cost->times($this->quantity);
     }
 
     public function getQuantityOutstandingAttribute(): int

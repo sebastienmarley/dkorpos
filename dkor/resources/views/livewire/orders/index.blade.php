@@ -73,7 +73,7 @@
                             <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label($order->type) }}</flux:badge>
                         </flux:table.cell>
 
-                        <flux:table.cell>{{ number_format($order->total, 2) }} $</flux:table.cell>
+                        <flux:table.cell>{{ $order->total->format() }}</flux:table.cell>
 
                         <flux:table.cell>{{ $order->created_at->format('Y-m-d') }}</flux:table.cell>
 

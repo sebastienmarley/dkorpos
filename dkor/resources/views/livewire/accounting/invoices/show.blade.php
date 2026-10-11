@@ -17,17 +17,17 @@
 
     <div class="max-w-xl rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <dl class="space-y-1 text-sm">
-            <div class="flex justify-between"><dt>{{ __('Montant avant frais et taxes') }}</dt><dd>{{ number_format($invoice->merchandise_total, 2) }} $</dd></div>
-            <div class="flex justify-between"><dt>{{ __('Transport') }}</dt><dd>{{ number_format($invoice->freight_fee, 2) }} $</dd></div>
-            <div class="flex justify-between"><dt>{{ __('Douanes') }}</dt><dd>{{ number_format($invoice->customs_fee, 2) }} $</dd></div>
-            <div class="flex justify-between"><dt>{{ __('Taxes') }}</dt><dd>{{ number_format($invoice->taxes, 2) }} $</dd></div>
-            <div class="flex justify-between font-medium"><dt>{{ __('Total calculé') }}</dt><dd>{{ number_format($invoice->computed_total, 2) }} $</dd></div>
-            <div class="flex justify-between font-medium"><dt>{{ __('Montant de la facture') }}</dt><dd>{{ number_format($invoice->invoice_total, 2) }} $</dd></div>
+            <div class="flex justify-between"><dt>{{ __('Montant avant frais et taxes') }}</dt><dd>{{ $invoice->merchandise_total->format() }}</dd></div>
+            <div class="flex justify-between"><dt>{{ __('Transport') }}</dt><dd>{{ $invoice->freight_fee->format() }}</dd></div>
+            <div class="flex justify-between"><dt>{{ __('Douanes') }}</dt><dd>{{ $invoice->customs_fee->format() }}</dd></div>
+            <div class="flex justify-between"><dt>{{ __('Taxes') }}</dt><dd>{{ $invoice->taxes->format() }}</dd></div>
+            <div class="flex justify-between font-medium"><dt>{{ __('Total calculé') }}</dt><dd>{{ $invoice->computed_total->format() }}</dd></div>
+            <div class="flex justify-between font-medium"><dt>{{ __('Montant de la facture') }}</dt><dd>{{ $invoice->invoice_total->format() }}</dd></div>
             <div class="flex justify-between">
                 <dt>{{ __('Écart') }}</dt>
                 <dd>
                     @if ($invoice->hasVariance())
-                        <flux:badge color="red" size="sm">{{ number_format($invoice->variance, 2) }} $</flux:badge>
+                        <flux:badge color="red" size="sm">{{ $invoice->variance->format() }}</flux:badge>
                     @else
                         <flux:badge color="green" size="sm">{{ __('Aucun') }}</flux:badge>
                     @endif
@@ -36,7 +36,7 @@
             @if ($invoice->discount_due_date)
                 <div class="flex justify-between text-zinc-500">
                     <dt>{{ __('Escompte :percent % avant le :date', ['percent' => $invoice->discount_percent, 'date' => $invoice->discount_due_date->format('Y-m-d')]) }}</dt>
-                    <dd>{{ number_format($invoice->discount_amount, 2) }} $</dd>
+                    <dd>{{ $invoice->discount_amount->format() }}</dd>
                 </div>
             @endif
         </dl>

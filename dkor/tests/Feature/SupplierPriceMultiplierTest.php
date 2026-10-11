@@ -109,7 +109,7 @@ it('exige un montant prepaid sauf si collect est coché', function () {
         ->call('saveTransport')
         ->assertHasNoErrors();
 
-    expect($supplier->fresh())->prepaid_amount->toBe(125.5)->collect->toBeFalse();
+    expect($supplier->fresh())->prepaid_amount->toBeMoney(12550)->collect->toBeFalse();
 
     Livewire::test(SupplierShow::class, ['supplier' => $supplier->fresh()])
         ->set('collect', true)

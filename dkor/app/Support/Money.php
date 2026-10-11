@@ -52,6 +52,22 @@ final class Money implements JsonSerializable
     }
 
     /**
+     * Comme parse(), mais null pour une saisie vide ou invalide (ex. aperçu calculé pendant la saisie).
+     */
+    public static function tryParse(string|int|float|null $amount): ?self
+    {
+        if ($amount === null || (is_string($amount) && trim($amount) === '')) {
+            return null;
+        }
+
+        try {
+            return self::parse($amount);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+    }
+
+    /**
      * Somme de montants (zéro pour une liste vide).
      *
      * @param  iterable<Money>  $amounts
