@@ -21,6 +21,7 @@ use App\Models\Role;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Database\Seeders\TaxSeeder;
 use Livewire\Livewire;
 
@@ -164,7 +165,7 @@ describe('show', function () {
     });
 
     it('réserve le stock dès l\'ajout du produit, au prix vendant, et met à jour le solde', function () {
-        $product = Product::factory()->create(['cost' => 50]);
+        $product = Product::factory()->create(['cost' => Money::parse(50)]);
         InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 5, 'quantity_reserved' => 0]);
 
         Livewire::test(Show::class, ['order' => $this->order])->call('addProduct', $product->id);
@@ -176,10 +177,10 @@ describe('show', function () {
             ->and($line->quantity)->toBe(1)
             ->and($line->quantity_reserved)->toBe(1)
             ->and($line->quantity_on_order)->toBe(0)
-            ->and($line->unit_price)->toBe($product->selling_price)
+            ->and($line->unit_price)->toBeMoney($product->selling_price->cents())
             ->and($stock->quantity_in_stock)->toBe(4)
             ->and($stock->quantity_reserved)->toBe(1)
-            ->and($this->order->fresh()->subtotal)->toBe($product->selling_price);
+            ->and($this->order->fresh()->subtotal)->toBeMoney($product->selling_price->cents());
 
         expect(InventoryMovement::sole())
             ->type->toBe(InventoryMovementType::CustomerReservation)
@@ -234,7 +235,7 @@ describe('show', function () {
             ->assertSet('showLineModal', true)
             ->assertSet('editReserved', '0')
             ->assertSet('editOnOrder', '1')
-            ->assertSet('editUnitPrice', number_format($line->unit_price, 2, '.', ''))
+            ->assertSet('editUnitPrice', $line->unit_price->toDecimal())
             ->assertSet('editNote', 'Livrer au sous-sol');
     });
 
@@ -249,8 +250,8 @@ describe('show', function () {
             ->assertHasNoErrors()
             ->assertSet('showLineModal', false);
 
-        expect($line->fresh())->unit_price->toBe(199.95)->note->toBe('Couleur à confirmer')
-            ->and($this->order->fresh()->subtotal)->toBe(199.95);
+        expect($line->fresh())->unit_price->toBeMoney(19995)->note->toBe('Couleur à confirmer')
+            ->and($this->order->fresh()->subtotal)->toBeMoney(19995);
     });
 
     it('libère le stock quand on réduit la réservation', function () {
@@ -339,7 +340,7 @@ describe('show', function () {
 
     it('permet seulement la note sur une ligne livrée', function () {
         $line = CustomerOrderLine::factory()->for($this->order, 'order')->status(CustomerOrderLineStatus::Delivered)
-            ->create(['quantity' => 1, 'quantity_reserved' => 1, 'unit_price' => 100]);
+            ->create(['quantity' => 1, 'quantity_reserved' => 1, 'unit_price' => Money::parse(100)]);
 
         Livewire::test(Show::class, ['order' => $this->order])
             ->call('openLineModal', $line->id)
@@ -351,7 +352,7 @@ describe('show', function () {
             ->call('saveLine')
             ->assertHasErrors('editReserved');
 
-        expect($line->fresh())->note->toBe('Client satisfait')->unit_price->toBe(100.0);
+        expect($line->fresh())->note->toBe('Client satisfait')->unit_price->toBeMoney(10000);
     });
 
     it('retire une ligne, libère son stock et recalcule le solde', function () {
@@ -362,7 +363,7 @@ describe('show', function () {
         Livewire::test(Show::class, ['order' => $this->order])->call('removeLine', $line->id);
 
         expect($this->order->lines()->count())->toBe(0)
-            ->and($this->order->fresh()->balance_due)->toBe(0.0)
+            ->and($this->order->fresh()->balance_due)->toBeMoney(0)
             ->and($product->inventoryStock()->sole())
             ->quantity_in_stock->toBe(1)
             ->quantity_reserved->toBe(0);
@@ -632,11 +633,11 @@ describe('show', function () {
 
 it('rattache des lignes à une commande client', function () {
     $order = CustomerOrder::factory()->create();
-    $line = CustomerOrderLine::factory()->for($order, 'order')->create(['quantity' => 2, 'unit_price' => 149.99, 'note' => 'Livrer au sous-sol']);
+    $line = CustomerOrderLine::factory()->for($order, 'order')->create(['quantity' => 2, 'unit_price' => Money::parse(149.99), 'note' => 'Livrer au sous-sol']);
 
     expect($order->lines->pluck('id')->all())->toBe([$line->id])
         ->and($line->fresh()->status)->toBe(CustomerOrderLineStatus::InStock)
-        ->and($line->total)->toBe(299.98)
+        ->and($line->total)->toBeMoney(29998)
         ->and($line->delivered_at)->toBeNull()
         ->and($line->returned_at)->toBeNull();
 });
@@ -647,7 +648,7 @@ describe('lien avec les commandes fournisseurs', function () {
     });
 
     it('met la quantité à commander sur le brouillon du fournisseur, créé au besoin', function () {
-        $product = Product::factory()->create(['cost' => 40]);
+        $product = Product::factory()->create(['cost' => Money::parse(40)]);
 
         $line = $this->order->addProduct($product);
         $this->order->addProduct($product);
@@ -656,7 +657,7 @@ describe('lien avec les commandes fournisseurs', function () {
         $supplierLine = $supplierOrder->lines()->sole();
 
         expect($supplierOrder)->supplier_id->toBe($product->supplier_id)->status->toBe(SupplierOrderStatus::Draft)
-            ->and($supplierLine)->product_id->toBe($product->id)->quantity->toBe(2)->unit_cost->toBe(40.0)
+            ->and($supplierLine)->product_id->toBe($product->id)->quantity->toBe(2)->unit_cost->toBeMoney(4000)
             ->and($line->fresh()->supplier_order_line_id)->toBe($supplierLine->id);
     });
 
@@ -760,7 +761,7 @@ describe('lien avec les commandes fournisseurs', function () {
             ->quantity_on_order->toBe(3)
             ->quantity->toBe(4)
             ->status->toBe(CustomerOrderLineStatus::OnOrder)
-            ->and($this->order->fresh()->subtotal)->toBe(round(4 * $line->unit_price, 2));
+            ->and($this->order->fresh()->subtotal)->toBeMoney($line->unit_price->times(4)->cents());
     });
 
     it('répercute aussi la quantité modifiée après l\'envoi sans changer le statut « Commandé »', function () {
@@ -778,8 +779,8 @@ describe('lien avec les commandes fournisseurs', function () {
 
     describe('substitution fournisseur', function () {
         beforeEach(function () {
-            $this->product = Product::factory()->create(['model' => 'SOFA-A', 'cost' => 100]);
-            $this->substitute = Product::factory()->create(['model' => 'SOFA-B', 'cost' => 150, 'supplier_id' => $this->product->supplier_id]);
+            $this->product = Product::factory()->create(['model' => 'SOFA-A', 'cost' => Money::parse(100)]);
+            $this->substitute = Product::factory()->create(['model' => 'SOFA-B', 'cost' => Money::parse(150), 'supplier_id' => $this->product->supplier_id]);
         });
 
         it('change le produit de la ligne client quand rien n\'est réservé ni reçu, au prix vendant du substitut', function () {
@@ -793,11 +794,11 @@ describe('lien avec les commandes fournisseurs', function () {
                 ->product_id->toBe($this->substitute->id)
                 ->supplier_order_line_id->toBe($replacement->id)
                 ->quantity_on_order->toBe(2)
-                ->unit_price->toBe($this->substitute->selling_price)
+                ->unit_price->toBeMoney($this->substitute->selling_price->cents())
                 ->status->toBe(CustomerOrderLineStatus::Ordered)
                 ->note->toContain('SOFA-A')
                 ->and($this->order->lines()->count())->toBe(1)
-                ->and($this->order->fresh()->subtotal)->toBe(round(2 * $this->substitute->selling_price, 2));
+                ->and($this->order->fresh()->subtotal)->toBeMoney($this->substitute->selling_price->times(2)->cents());
         });
 
         it('garde la partie réservée et crée une ligne pour le substitut', function () {
@@ -818,9 +819,9 @@ describe('lien avec les commandes fournisseurs', function () {
             expect($this->order->lines()->where('product_id', $this->substitute->id)->sole())
                 ->supplier_order_line_id->toBe($replacement->id)
                 ->quantity_on_order->toBe(2)
-                ->unit_price->toBe($this->substitute->selling_price)
+                ->unit_price->toBeMoney($this->substitute->selling_price->cents())
                 ->status->toBe(CustomerOrderLineStatus::Ordered)
-                ->and($this->order->fresh()->subtotal)->toBe(round($line->unit_price + 2 * $this->substitute->selling_price, 2));
+                ->and($this->order->fresh()->subtotal)->toBeMoney($line->unit_price->plus($this->substitute->selling_price->times(2))->cents());
         });
 
         it('garde la partie déjà reçue sur la ligne d\'origine', function () {
@@ -849,7 +850,7 @@ describe('lien avec les commandes fournisseurs', function () {
             $supplierOrder->cancel();
 
             expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::Cancelled)
-                ->and($this->order->fresh()->balance_due)->toBe(0.0);
+                ->and($this->order->fresh()->balance_due)->toBeMoney(0);
         });
 
         it('annule aussi pour le client un brouillon fournisseur annulé', function () {
@@ -875,7 +876,7 @@ describe('lien avec les commandes fournisseurs', function () {
                 ->quantity->toBe(1)
                 ->status->toBe(CustomerOrderLineStatus::InStock)
                 ->supplier_order_line_id->toBeNull()
-                ->and($this->order->fresh()->subtotal)->toBe($line->unit_price);
+                ->and($this->order->fresh()->subtotal)->toBeMoney($line->unit_price->cents());
         });
 
         it('répercute l\'annulation confirmée d\'une ligne en gardant ce qui est reçu', function () {

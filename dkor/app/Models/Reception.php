@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ReceptionStatus;
 use App\Enums\SupplierType;
+use App\Support\Money;
 use Database\Factories\ReceptionFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -31,7 +32,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Supplier $supplier
  * @property-read User|null $receiver
  * @property-read Collection<int, ReceptionLine> $lines
- * @property-read float $total
+ * @property-read Money $total
  */
 #[Fillable(['number', 'supplier_id', 'status', 'received_by', 'received_at', 'completed_at', 'reference', 'notes'])]
 class Reception extends Model
@@ -89,9 +90,9 @@ class Reception extends Model
         return $this->lines()->whereColumn('quantity', '>', 'quantity_reversed');
     }
 
-    public function getTotalAttribute(): float
+    public function getTotalAttribute(): Money
     {
-        return round($this->lines->sum(fn (ReceptionLine $line) => $line->total), 2);
+        return Money::sum($this->lines->map(fn (ReceptionLine $line): Money => $line->total));
     }
 
     public function isInProgress(): bool

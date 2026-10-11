@@ -25,7 +25,7 @@
             <flux:text class="text-xs text-zinc-400">{{ __('Prix de vente') }}</flux:text>
             <div class="mt-0.5 text-2xl font-semibold text-zinc-900 dark:text-white">
                 @php $sp = $this->getSellingPrice(); @endphp
-                {{ number_format($sp, fmod($sp, 1.0) > 0 ? 2 : 0) }} $
+                {{ $sp->cents() % 100 === 0 ? number_format(intdiv($sp->cents(), 100)).' $' : $sp->format() }}
             </div>
         </div>
     </div>
@@ -258,7 +258,7 @@
                                 <span class="text-zinc-500"> · {{ $part->description }}</span>
                                 <span class="block text-xs text-zinc-400">{{ $part->supplier->name }}</span>
                             </span>
-                            <span class="flex-shrink-0 text-zinc-500">{{ number_format($part->last_cost, 2) }} $</span>
+                            <span class="flex-shrink-0 text-zinc-500">{{ $part->last_cost->format() }}</span>
                         </div>
                     @empty
                         <div class="px-3 py-2 text-sm text-zinc-400">{{ __('Aucune pièce liée à ce produit.') }}</div>

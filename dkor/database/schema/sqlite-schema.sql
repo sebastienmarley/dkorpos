@@ -379,6 +379,7 @@ CREATE TABLE "suppliers"(
   "early_payment_discount_percent" numeric not null default '0',
   "early_payment_discount_days" integer,
   "early_payment_next_month" tinyint(1) not null default '0',
+  "custom_made" tinyint(1) not null default '0',
   foreign key("currency_id") references currencies("id") on delete set null on update no action,
   foreign key("default_shipping_supplier_id") references "suppliers"("id") on delete set null
 );
@@ -1095,3 +1096,4 @@ INSERT INTO migrations VALUES(142,'2026_10_10_223128_create_parts_table',6);
 INSERT INTO migrations VALUES(143,'2026_10_10_223129_create_part_product_table',6);
 INSERT INTO migrations VALUES(144,'2026_10_10_225119_add_part_id_to_order_lines',7);
 INSERT INTO migrations VALUES(145,'2026_10_10_231243_add_is_no_charge_to_customer_order_lines_table',8);
+INSERT INTO migrations VALUES(146,'2026_10_11_145758_add_custom_made_to_suppliers_table',9);

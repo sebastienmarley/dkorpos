@@ -16,6 +16,7 @@ use App\Models\ProductUpc;
 use App\Models\Service;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\Money;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -119,7 +120,7 @@ class Show extends Component
 
     public string $returnType = 'exchange';
 
-    public float $returnRefundable = 0;
+    public int $returnRefundableCents = 0;
 
     /** @var array<int, array{method_id: int|string, amount: string}> */
     public array $returnRefunds = [];
@@ -142,7 +143,7 @@ class Show extends Component
     /** « replace » : produit de remplacement; « refund » : remboursement sans frais. */
     public string $defectiveOutcome = 'replace';
 
-    public float $defectiveRefundable = 0;
+    public int $defectiveRefundableCents = 0;
 
     /** @var array<int, array{method_id: int|string, amount: string}> */
     public array $defectiveRefunds = [];
@@ -159,7 +160,7 @@ class Show extends Component
     /** @var array<int, int|string> quantité à ramasser par ligne */
     public array $pickupQuantities = [];
 
-    public float $pickupRequired = 0;
+    public int $pickupRequiredCents = 0;
 
     /** Montant payé avec le crédit au compte du client (champ affiché seulement si le client a un crédit). */
     public string $pickupCredit = '0.00';
@@ -400,11 +401,11 @@ class Show extends Component
         $this->editingLineId = $line->id;
         $this->editQuantity = (string) $line->quantity;
         $this->editDescription = $line->description ?? '';
-        $this->editUnitCost = $line->unit_cost === null ? '' : number_format($line->unit_cost, 2, '.', '');
+        $this->editUnitCost = $line->unit_cost?->toDecimal() ?? '';
         $this->editQuoteNumber = $line->quote_number ?? '';
         $this->editReserved = (string) $line->quantity_reserved;
         $this->editOnOrder = (string) $line->quantity_on_order;
-        $this->editUnitPrice = number_format($line->unit_price, 2, '.', '');
+        $this->editUnitPrice = $line->unit_price->toDecimal();
         $this->editNote = $line->note ?? '';
         $this->editNoCharge = $line->is_no_charge;
         $this->resetErrorBag();
@@ -445,7 +446,7 @@ class Show extends Component
         ]);
 
         try {
-            $this->order->updateLine($line, (int) $this->editReserved, (int) $this->editOnOrder, (float) $this->editUnitPrice, $this->editNote);
+            $this->order->updateLine($line, (int) $this->editReserved, (int) $this->editOnOrder, Money::parse($this->editUnitPrice), $this->editNote);
         } catch (DomainException $exception) {
             $this->addError('editReserved', $exception->getMessage());
 
@@ -488,8 +489,8 @@ class Show extends Component
                 Product::findOrFail($this->customProductId),
                 (int) $this->customQuantity,
                 $this->customSpecifications,
-                (float) $this->customCost,
-                (float) $this->customPrice,
+                Money::parse($this->customCost),
+                Money::parse($this->customPrice),
                 $this->customQuoteNumber,
             );
         } catch (DomainException $exception) {
@@ -516,7 +517,7 @@ class Show extends Component
         ]);
 
         try {
-            $this->order->updateCustomLine($line, (int) $this->editQuantity, $this->editDescription, (float) $this->editUnitCost, (float) $this->editUnitPrice, $this->editQuoteNumber, $this->editNote);
+            $this->order->updateCustomLine($line, (int) $this->editQuantity, $this->editDescription, Money::parse($this->editUnitCost), Money::parse($this->editUnitPrice), $this->editQuoteNumber, $this->editNote);
         } catch (DomainException $exception) {
             $this->addError('editQuantity', $exception->getMessage());
 
@@ -534,7 +535,7 @@ class Show extends Component
     {
         $part = $this->order->lines()->with('part.supplier')->find($this->editingLineId)?->part;
 
-        $this->editUnitPrice = number_format($isNoCharge ? 0 : ($part->selling_price ?? 0), 2, '.', '');
+        $this->editUnitPrice = $isNoCharge ? '0.00' : ($part?->selling_price->toDecimal() ?? '0.00');
     }
 
     private function savePartLine(CustomerOrderLine $line): void
@@ -546,7 +547,7 @@ class Show extends Component
         ]);
 
         try {
-            $this->order->updatePartLine($line, (int) $this->editOnOrder, (float) $this->editUnitPrice, $this->editNoCharge, $this->editNote);
+            $this->order->updatePartLine($line, (int) $this->editOnOrder, Money::parse($this->editUnitPrice), $this->editNoCharge, $this->editNote);
         } catch (DomainException $exception) {
             $this->addError('editUnitPrice', $exception->getMessage());
 
@@ -567,7 +568,7 @@ class Show extends Component
         ]);
 
         try {
-            $this->order->updateServiceLine($line, (int) $this->editQuantity, (float) $this->editUnitPrice, $this->editDescription, $this->editNote);
+            $this->order->updateServiceLine($line, (int) $this->editQuantity, Money::parse($this->editUnitPrice), $this->editDescription, $this->editNote);
         } catch (DomainException $exception) {
             $this->addError('editQuantity', $exception->getMessage());
 
@@ -649,7 +650,7 @@ class Show extends Component
                 filled($this->serviceSupplierId) ? (int) $this->serviceSupplierId : null,
                 (int) $this->serviceQuantity,
                 $this->serviceDescription,
-                (float) $this->servicePrice,
+                Money::parse($this->servicePrice),
             );
         } catch (DomainException $exception) {
             $this->addError('serviceSupplierId', $exception->getMessage());
@@ -700,7 +701,7 @@ class Show extends Component
             return;
         }
 
-        $this->servicePrice = number_format($service->pricingFor(filled($this->serviceSupplierId) ? (int) $this->serviceSupplierId : null)['selling_price'], 2, '.', '');
+        $this->servicePrice = $service->pricingFor(filled($this->serviceSupplierId) ? (int) $this->serviceSupplierId : null)['selling_price']->toDecimal();
         $this->serviceDescription = $service->describe($this->serviceProductName());
     }
 
@@ -827,9 +828,9 @@ class Show extends Component
         ]);
 
         if ($this->returnType === 'refund') {
-            $this->returnRefundable = $this->order->refundableFor($line, (int) $this->returnQuantity);
+            $this->returnRefundableCents = $this->order->refundableFor($line, (int) $this->returnQuantity)->cents();
             $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
-            $this->returnRefunds = [['method_id' => $firstMethod ?? '', 'amount' => number_format($this->returnRefundable, 2, '.', '')]];
+            $this->returnRefunds = [['method_id' => $firstMethod ?? '', 'amount' => Money::of($this->returnRefundableCents)->toDecimal()]];
             $this->returnStep = 'refund';
 
             return;
@@ -889,7 +890,7 @@ class Show extends Component
                 $line,
                 (int) $this->returnQuantity,
                 refund: true,
-                refunds: array_map(fn (array $refund): array => ['method_id' => (int) $refund['method_id'], 'amount' => (float) $refund['amount']], $this->returnRefunds),
+                refunds: self::refundsFrom($this->returnRefunds),
             );
         } catch (DomainException $exception) {
             $this->addError('returnRefunds', $exception->getMessage());
@@ -901,15 +902,15 @@ class Show extends Component
         Flux::toast(text: __('Retour remboursé.'), variant: 'success');
     }
 
-    public function returnRefundsTotal(): float
+    public function returnRefundsTotal(): Money
     {
-        return round(array_sum(array_map(fn (array $refund): float => (float) str_replace(',', '.', (string) $refund['amount']), $this->returnRefunds)), 2);
+        return self::enteredTotal($this->returnRefunds);
     }
 
     private function closeReturnModal(): void
     {
         $this->showReturnModal = false;
-        $this->reset(['returnLineId', 'returnQuantity', 'returnType', 'returnStep', 'returnRefundable', 'returnRefunds']);
+        $this->reset(['returnLineId', 'returnQuantity', 'returnType', 'returnStep', 'returnRefundableCents', 'returnRefunds']);
     }
 
     public function openDefectiveModal(int $lineId): void
@@ -924,7 +925,7 @@ class Show extends Component
             return;
         }
 
-        $this->reset(['defectiveStep', 'defectivePath', 'defectivePart', 'defectiveReason', 'defectiveOutcome', 'defectiveRefundable', 'defectiveRefunds']);
+        $this->reset(['defectiveStep', 'defectivePath', 'defectivePart', 'defectiveReason', 'defectiveOutcome', 'defectiveRefundableCents', 'defectiveRefunds']);
         $this->defectiveLineId = $line->id;
         $this->defectiveQuantity = (string) $line->quantity;
         $this->resetErrorBag();
@@ -951,9 +952,9 @@ class Show extends Component
         ]);
 
         if ($this->defectivePath === 'return' && $this->defectiveOutcome === 'refund') {
-            $this->defectiveRefundable = $this->order->refundableFor($line, (int) $this->defectiveQuantity);
+            $this->defectiveRefundableCents = $this->order->refundableFor($line, (int) $this->defectiveQuantity)->cents();
             $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
-            $this->defectiveRefunds = [['method_id' => $firstMethod ?? '', 'amount' => number_format($this->defectiveRefundable, 2, '.', '')]];
+            $this->defectiveRefunds = [['method_id' => $firstMethod ?? '', 'amount' => Money::of($this->defectiveRefundableCents)->toDecimal()]];
             $this->defectiveStep = 'refund';
 
             return;
@@ -1014,7 +1015,7 @@ class Show extends Component
                 (int) $this->defectiveQuantity,
                 $this->defectiveReason,
                 replace: false,
-                refunds: array_map(fn (array $refund): array => ['method_id' => (int) $refund['method_id'], 'amount' => (float) $refund['amount']], $this->defectiveRefunds),
+                refunds: self::refundsFrom($this->defectiveRefunds),
             );
         } catch (DomainException $exception) {
             $this->addError('defectiveRefunds', $exception->getMessage());
@@ -1026,9 +1027,9 @@ class Show extends Component
         Flux::toast(text: __('Dossier défectueux #:id : produit repris et remboursé.', ['id' => $defective->id]), variant: 'success');
     }
 
-    public function defectiveRefundsTotal(): float
+    public function defectiveRefundsTotal(): Money
     {
-        return round(array_sum(array_map(fn (array $refund): float => (float) str_replace(',', '.', (string) $refund['amount']), $this->defectiveRefunds)), 2);
+        return self::enteredTotal($this->defectiveRefunds);
     }
 
     public function openCreditRefundModal(): void
@@ -1036,7 +1037,7 @@ class Show extends Component
         $this->authorize('customer_orders.edit');
 
         $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
-        $this->creditRefunds = [['method_id' => $firstMethod ?? '', 'amount' => number_format($this->order->credit(), 2, '.', '')]];
+        $this->creditRefunds = [['method_id' => $firstMethod ?? '', 'amount' => $this->order->credit()->toDecimal()]];
         $this->resetErrorBag();
         $this->showCreditRefundModal = true;
     }
@@ -1067,7 +1068,7 @@ class Show extends Component
         ]);
 
         try {
-            $this->order->refundCredit(array_map(fn (array $refund): array => ['method_id' => (int) $refund['method_id'], 'amount' => (float) $refund['amount']], $this->creditRefunds));
+            $this->order->refundCredit(self::refundsFrom($this->creditRefunds));
         } catch (DomainException $exception) {
             $this->addError('creditRefunds', $exception->getMessage());
 
@@ -1079,9 +1080,9 @@ class Show extends Component
         Flux::toast(text: __('Crédit remboursé.'), variant: 'success');
     }
 
-    public function creditRefundsTotal(): float
+    public function creditRefundsTotal(): Money
     {
-        return round(array_sum(array_map(fn (array $refund): float => (float) str_replace(',', '.', (string) $refund['amount']), $this->creditRefunds)), 2);
+        return self::enteredTotal($this->creditRefunds);
     }
 
     public function transferCreditToCustomer(): void
@@ -1096,7 +1097,7 @@ class Show extends Component
             return;
         }
 
-        Flux::toast(text: __(':amount $ portés au compte du client.', ['amount' => number_format($credit, 2)]), variant: 'success');
+        Flux::toast(text: __(':amount $ portés au compte du client.', ['amount' => $credit->toDecimal()]), variant: 'success');
     }
 
     /**
@@ -1116,7 +1117,7 @@ class Show extends Component
 
         $this->showLineModal = false;
         $this->order->refresh();
-        Flux::toast(text: __('Ligne annulée avec :fee $ de frais. Le crédit éventuel peut être remboursé ou porté au compte du client.', ['fee' => number_format($fee, 2)]), variant: 'success');
+        Flux::toast(text: __('Ligne annulée avec :fee $ de frais. Le crédit éventuel peut être remboursé ou porté au compte du client.', ['fee' => $fee->toDecimal()]), variant: 'success');
     }
 
     #[On('supplier-line-cancellation-requested')]
@@ -1163,18 +1164,19 @@ class Show extends Component
             }
         }
 
-        $this->pickupRequired = $this->order->amountRequiredFor($quantities);
-        $credit = min($this->order->customer()->value('credit_balance') ?? 0, $this->pickupRequired);
-        $this->pickupCredit = number_format((float) $credit, 2, '.', '');
+        $required = $this->order->amountRequiredFor($quantities);
+        $credit = $this->order->customer()->firstOrFail()->credit_balance->min($required);
+        $this->pickupRequiredCents = $required->cents();
+        $this->pickupCredit = $credit->toDecimal();
 
-        if (array_sum($quantities) === 0 && $this->order->balance_due <= 0) {
+        if (array_sum($quantities) === 0 && ! $this->order->balance_due->isPositive()) {
             $this->addError('pickupQuantities', __('Aucun article choisi et rien à payer.'));
 
             return;
         }
 
         $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
-        $this->pickupPayments = [['method_id' => $firstMethod ?? '', 'amount' => number_format(max(0, $this->pickupRequired - (float) $credit), 2, '.', '')]];
+        $this->pickupPayments = [['method_id' => $firstMethod ?? '', 'amount' => $required->minus($credit)->max(Money::zero())->toDecimal()]];
         $this->pickupStep = 'payment';
     }
 
@@ -1186,9 +1188,9 @@ class Show extends Component
 
     public function addPickupPayment(): void
     {
-        $remaining = max(0, round($this->pickupRequired - $this->pickupPaymentsTotal(), 2));
+        $remaining = Money::of($this->pickupRequiredCents)->minus($this->pickupPaymentsTotal())->max(Money::zero());
 
-        $this->pickupPayments[] = ['method_id' => '', 'amount' => number_format($remaining, 2, '.', '')];
+        $this->pickupPayments[] = ['method_id' => '', 'amount' => $remaining->toDecimal()];
     }
 
     public function removePickupPayment(int $index): void
@@ -1213,7 +1215,7 @@ class Show extends Component
         $this->pickupCredit = str_replace(',', '.', $this->pickupCredit);
         $this->pickupPayments = array_values(array_filter(
             $this->pickupPayments,
-            fn (array $payment): bool => (float) $payment['amount'] > 0 || filled($payment['method_id']),
+            fn (array $payment): bool => (Money::tryParse($payment['amount'])?->isPositive() ?? false) || filled($payment['method_id']),
         ));
 
         $this->validate([
@@ -1228,10 +1230,10 @@ class Show extends Component
                 $this->pickupQuantitiesAsIntegers(),
                 array_map(fn (array $payment): array => [
                     'method_id' => (int) $payment['method_id'],
-                    'amount' => (float) $payment['amount'],
-                    'tendered' => filled($payment['tendered']) ? (float) $payment['tendered'] : null,
+                    'amount' => Money::parse($payment['amount']),
+                    'tendered' => filled($payment['tendered']) ? Money::parse($payment['tendered']) : null,
                 ], $this->pickupPayments),
-                (float) $this->pickupCredit,
+                Money::parse($this->pickupCredit),
             );
         } catch (DomainException $exception) {
             $this->addError('pickupPayments', $exception->getMessage());
@@ -1240,15 +1242,14 @@ class Show extends Component
         }
 
         $this->showPickupModal = false;
-        $this->reset(['pickupQuantities', 'pickupPayments', 'pickupRequired', 'pickupCredit']);
+        $this->reset(['pickupQuantities', 'pickupPayments', 'pickupRequiredCents', 'pickupCredit']);
         Flux::toast(text: $pickup === null ? __('Paiement enregistré.') : __('Ramassage enregistré.'), variant: 'success');
     }
 
     /** Total reçu : modes de paiement et crédit client utilisé. */
-    public function pickupPaymentsTotal(): float
+    public function pickupPaymentsTotal(): Money
     {
-        return round(array_sum(array_map(fn (array $payment): float => (float) str_replace(',', '.', (string) $payment['amount']), $this->pickupPayments))
-            + (float) str_replace(',', '.', $this->pickupCredit), 2);
+        return self::enteredTotal($this->pickupPayments)->plus(Money::tryParse($this->pickupCredit) ?? Money::zero());
     }
 
     /** @return Collection<int, CustomerPaymentMethod> */
@@ -1265,23 +1266,45 @@ class Show extends Component
     /**
      * Montant à percevoir ou à remettre en comptant (arrondi au 5 ¢ près).
      */
-    public function roundedCash(int|string $amount): float
+    public function roundedCash(int|string $amount): Money
     {
-        return CustomerPaymentMethod::roundCash((float) str_replace(',', '.', (string) $amount));
+        return CustomerPaymentMethod::roundCash(Money::tryParse($amount) ?? Money::zero());
     }
 
     /**
      * Monnaie à rendre pour une ligne de paiement comptant du ramassage.
      */
-    public function changeDue(int $index): float
+    public function changeDue(int $index): Money
     {
-        $payment = $this->pickupPayments[$index] ?? null;
+        $tendered = Money::tryParse($this->pickupPayments[$index]['tendered'] ?? null);
 
-        if ($payment === null || blank($payment['tendered'] ?? null)) {
-            return 0.0;
+        if ($tendered === null) {
+            return Money::zero();
         }
 
-        return max(0.0, round((float) str_replace(',', '.', (string) $payment['tendered']) - $this->roundedCash($payment['amount']), 2));
+        return $tendered->minus($this->roundedCash($this->pickupPayments[$index]['amount']))->max(Money::zero());
+    }
+
+    /**
+     * Total des montants saisis (en dollars) d'une liste de paiements ou de remboursements; une saisie invalide
+     * compte pour 0 $.
+     *
+     * @param  array<int, array{amount: int|string|float}>  $entries
+     */
+    private static function enteredTotal(array $entries): Money
+    {
+        return Money::sum(array_map(fn (array $entry): Money => Money::tryParse($entry['amount']) ?? Money::zero(), $entries));
+    }
+
+    /**
+     * Remboursements saisis, validés, convertis pour la commande.
+     *
+     * @param  array<int, array{method_id: int|string, amount: int|string|float}>  $refunds
+     * @return array<int, array{method_id: int, amount: Money}>
+     */
+    private static function refundsFrom(array $refunds): array
+    {
+        return array_map(fn (array $refund): array => ['method_id' => (int) $refund['method_id'], 'amount' => Money::parse($refund['amount'])], $refunds);
     }
 
     /** @return array<int, int> */

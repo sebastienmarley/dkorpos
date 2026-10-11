@@ -9,10 +9,12 @@ use App\Models\Department;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Rules\UniqueCleanProductModel;
+use App\Support\Money;
 use Closure;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
+use InvalidArgumentException;
 use Livewire\Component;
 
 class Show extends Component
@@ -117,7 +119,7 @@ class Show extends Component
             'is_non_orderable' => $this->isNonOrderable,
             'is_taxable' => $this->isTaxable,
             'is_custom' => $this->isCustom,
-            'cost' => $this->cost,
+            'cost' => Money::parse($this->cost),
         ])->save();
 
         $this->product->refresh();
@@ -141,7 +143,7 @@ class Show extends Component
 
         $this->product->fill([
             'color_id' => filled($this->colorId) ? $this->colorId : null,
-            'imap' => filled($this->imap) ? $this->imap : null,
+            'imap' => filled($this->imap) ? Money::parse($this->imap) : null,
             'collection' => filled($this->collection) ? $this->collection : null,
             'description' => filled($this->description) ? $this->description : null,
             'length' => filled($this->length) ? $this->length : null,
@@ -172,11 +174,18 @@ class Show extends Component
         $this->product->upcs()->whereKey($upcId)->delete();
     }
 
-    public function getSellingPrice(): float
+    /**
+     * Prix de vente du coût en cours de saisie (0 $ tant que le coût n'est pas un montant valide).
+     */
+    public function getSellingPrice(): Money
     {
-        $multiplier = Supplier::find($this->supplierId)->price_multiplier ?? 1.0;
+        try {
+            $cost = Money::parse($this->cost);
+        } catch (InvalidArgumentException) {
+            $cost = Money::zero();
+        }
 
-        return Product::roundSellingPrice((float) $this->cost * $multiplier);
+        return Product::sellingPriceFor($cost, Supplier::find($this->supplierId)->price_multiplier ?? 1.0);
     }
 
     /** @return Collection<int, Supplier> */
@@ -207,7 +216,7 @@ class Show extends Component
 
     private function normalizeCost(string $value): string
     {
-        return number_format((float) str_replace(',', '.', $value), 2, '.', '');
+        return Money::tryParse($value)?->toDecimal() ?? $value;
     }
 
     private function fillFromModel(): void
@@ -222,9 +231,9 @@ class Show extends Component
         $this->isNonOrderable = $this->product->is_non_orderable;
         $this->isTaxable = $this->product->is_taxable;
         $this->isCustom = $this->product->is_custom;
-        $this->cost = (string) $this->product->cost;
+        $this->cost = $this->product->cost->toDecimal();
         $this->colorId = (string) ($this->product->color_id ?? '');
-        $this->imap = $this->product->imap !== null ? (string) $this->product->imap : '';
+        $this->imap = $this->product->imap?->toDecimal() ?? '';
         $this->collection = $this->product->collection ?? '';
         $this->description = $this->product->description ?? '';
         $this->length = $this->product->length !== null ? (string) $this->product->length : '';

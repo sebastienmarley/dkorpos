@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\InventoryUnit;
 use App\Models\Product;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -20,7 +21,7 @@ class InventoryUnitFactory extends Factory
 
         return [
             'product_id' => Product::factory(),
-            'cost' => fake()->randomFloat(2, 1, 500),
+            'cost' => Money::of(fake()->numberBetween(100, 50000)),
             'inserted_at' => $insertedAt,
             'delivered_at' => fake()->optional()->dateTimeBetween($insertedAt, 'now'),
         ];

@@ -8,6 +8,7 @@ use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Rules\UniqueCleanProductModel;
+use App\Support\Money;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -60,7 +61,7 @@ class ProductForm extends Component
             'supplier_id' => $this->supplierId,
             'model' => $this->model,
             'clean_model' => $this->cleanModel,
-            'cost' => $this->cost,
+            'cost' => Money::parse($this->cost),
         ]);
 
         $this->showModal = false;
@@ -116,7 +117,7 @@ class ProductForm extends Component
 
     private function normalizeCost(string $value): string
     {
-        return number_format((float) str_replace(',', '.', $value), 2, '.', '');
+        return Money::tryParse($value)?->toDecimal() ?? $value;
     }
 
     /** @return Collection<int, Supplier> */

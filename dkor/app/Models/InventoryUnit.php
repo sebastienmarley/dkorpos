@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
+use App\Support\Money;
 use Database\Factories\InventoryUnitFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -14,7 +16,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $product_id
  * @property int|null $reception_line_id
- * @property float $cost
+ * @property Money $cost
  * @property Carbon $inserted_at
  * @property Carbon|null $delivered_at
  * @property Carbon|null $created_at
@@ -28,7 +30,7 @@ class InventoryUnit extends Model
     use HasFactory;
 
     protected $casts = [
-        'cost' => 'float',
+        'cost' => MoneyCast::class,
         'inserted_at' => 'date',
         'delivered_at' => 'date',
     ];

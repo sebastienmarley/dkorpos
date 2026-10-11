@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\ProductUpc;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -168,8 +169,8 @@ it('importe le CSV, conserve toutes les lignes et met à jour seulement les prod
     $list = PriceListList::factory()->for($priceList)->create(['discount_percent' => 10]);
     $other = Supplier::factory()->create(['type' => SupplierType::Product]);
 
-    $match = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'ab 100', 'clean_model' => 'ab100', 'supplier_model' => 'AB-100', 'cost' => 5, 'description' => 'Ancienne']);
-    $foreign = Product::factory()->create(['supplier_id' => $other->id, 'model' => 'ab 100', 'clean_model' => 'ab100', 'supplier_model' => 'AB-100', 'cost' => 5]);
+    $match = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'ab 100', 'clean_model' => 'ab100', 'supplier_model' => 'AB-100', 'cost' => Money::parse(5), 'description' => 'Ancienne']);
+    $foreign = Product::factory()->create(['supplier_id' => $other->id, 'model' => 'ab 100', 'clean_model' => 'ab100', 'supplier_model' => 'AB-100', 'cost' => Money::parse(5)]);
 
     $csv = "\xEF\xBB\xBFModele;cout;IMAP;UPC;collection;description;longueur;largeur;hauteur;poids\n"
         ."AB 100;100,00;150;123456;Nordique;;10,5;20;30;4\n"
@@ -183,17 +184,17 @@ it('importe le CSV, conserve toutes les lignes et met à jour seulement les prod
 
     expect(PriceListItem::count())->toBe(2)
         ->and(PriceListItem::where('clean_model', 'ab100')->firstOrFail())
-        ->product_id->toBe($match->id)->imap->toBe(150.0)->upc->toBe('123456')->cost->toBe(100.0)
+        ->product_id->toBe($match->id)->imap->toBeMoney(15000)->upc->toBe('123456')->cost->toBeMoney(10000)
         ->and(PriceListItem::where('clean_model', 'zz1')->firstOrFail())->product_id->toBeNull();
 
     expect($match->fresh())
-        ->cost->toBe(90.0)
+        ->cost->toBeMoney(9000)
         ->collection->toBe('Nordique')
         ->description->toBe('Ancienne')
         ->length->toBe(10.5)
         ->weight->toBe(4.0)
-        ->imap->toBe(150.0)
-        ->and($foreign->fresh()->cost)->toBe(5.0);
+        ->imap->toBeMoney(15000)
+        ->and($foreign->fresh()->cost)->toBeMoney(500);
 });
 
 it('importe par lots de 200 et remplace le contenu précédent', function () {
@@ -248,7 +249,7 @@ it('ajoute les UPC importés sans remplacer ni dupliquer les existants', functio
 it('ignore les lignes dont le coût est vide, nul ou invalide', function () {
     $priceList = PriceList::factory()->create();
     $list = PriceListList::factory()->for($priceList)->create();
-    $product = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'ab 100', 'clean_model' => 'ab100', 'supplier_model' => 'AB-100', 'cost' => 5]);
+    $product = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'ab 100', 'clean_model' => 'ab100', 'supplier_model' => 'AB-100', 'cost' => Money::parse(5)]);
 
     $csv = "Modele;cout\nAB100;0\nA2;0,00\nA3;\nA4;abc\nA5;-3\nA6;12,50\n";
 
@@ -258,7 +259,7 @@ it('ignore les lignes dont le coût est vide, nul ou invalide', function () {
         ->call('import');
 
     expect($list->items()->pluck('model')->all())->toBe(['A6'])
-        ->and($product->fresh()->cost)->toBe(5.0);
+        ->and($product->fresh()->cost)->toBeMoney(500);
 });
 
 it('vide un UPC non numérique sans bloquer l\'importation', function () {
@@ -295,8 +296,8 @@ it('n\'accepte que des chiffres pour un UPC ajouté à la main', function () {
 it('apparie sur le modèle fournisseur nettoyé, qui reprend le modèle par défaut', function () {
     $priceList = PriceList::factory()->create();
     $list = PriceListList::factory()->for($priceList)->create();
-    $withSupplierModel = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'Chaise X', 'clean_model' => 'chaisex', 'supplier_model' => 'CX-1', 'cost' => 5]);
-    $withoutSupplierModel = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'Table T', 'clean_model' => 'tablet', 'supplier_model' => null, 'cost' => 5]);
+    $withSupplierModel = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'Chaise X', 'clean_model' => 'chaisex', 'supplier_model' => 'CX-1', 'cost' => Money::parse(5)]);
+    $withoutSupplierModel = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'Table T', 'clean_model' => 'tablet', 'supplier_model' => null, 'cost' => Money::parse(5)]);
 
     expect($withSupplierModel->supplier_clean_model)->toBe('cx1');
 
@@ -305,12 +306,12 @@ it('apparie sur le modèle fournisseur nettoyé, qui reprend le modèle par déf
         ->set('file', csvUpload("Modele;cout\nCX 1;10\nChaise X;20\nTABLE-T;30\n"))
         ->call('import');
 
-    expect($withSupplierModel->fresh()->cost)->toBe(10.0)
-        ->and($withoutSupplierModel->fresh()->cost)->toBe(30.0);
+    expect($withSupplierModel->fresh()->cost)->toBeMoney(1000)
+        ->and($withoutSupplierModel->fresh()->cost)->toBeMoney(3000);
 });
 
 it('exige que le modèle fournisseur nettoyé soit identique au modèle nettoyé et unique', function () {
-    $product = Product::factory()->create(['model' => 'Chaise X', 'clean_model' => 'chaisex', 'cost' => 5])->fresh();
+    $product = Product::factory()->create(['model' => 'Chaise X', 'clean_model' => 'chaisex', 'cost' => Money::parse(5)])->fresh();
     Product::factory()->create(['supplier_id' => $product->supplier_id, 'model' => 'Autre', 'clean_model' => 'autre', 'supplier_model' => 'ZZ-9']);
 
     Livewire::test(Show::class, ['product' => $product])
@@ -327,7 +328,7 @@ it('exige que le modèle fournisseur nettoyé soit identique au modèle nettoyé
 it('verrouille le modèle fournisseur d\'un produit présent dans une liste de prix', function () {
     $priceList = PriceList::factory()->create();
     $list = PriceListList::factory()->for($priceList)->create();
-    $product = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'Chaise X', 'clean_model' => 'chaisex', 'supplier_model' => 'Chaise X', 'cost' => 5])->fresh();
+    $product = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'Chaise X', 'clean_model' => 'chaisex', 'supplier_model' => 'Chaise X', 'cost' => Money::parse(5)])->fresh();
 
     $component = Livewire::test(Show::class, ['product' => $product])
         ->set('supplierModel', 'Chaise-X')
@@ -360,16 +361,16 @@ it('ignore à l\'importation les modèles déjà présents dans une autre liste 
     $first = PriceListList::factory()->for($priceList)->create();
     $second = PriceListList::factory()->for($priceList)->create();
     $otherPriceList = PriceListList::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'AB-100', 'clean_model' => 'ab100', 'supplier_model' => 'AB-100', 'cost' => 5]);
+    $product = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'AB-100', 'clean_model' => 'ab100', 'supplier_model' => 'AB-100', 'cost' => Money::parse(5)]);
 
     $component = Livewire::test(PriceListShow::class, ['priceList' => $priceList]);
     $component->call('openImport', $first->id)->set('file', csvUpload("Modele;cout\nAB-100;10\nCD-1;5\n"))->call('import');
-    Product::whereKey($product->id)->update(['cost' => 5]);
+    Product::whereKey($product->id)->update(['cost' => 500]);
     $component->call('openImport', $second->id)->set('file', csvUpload("Modele;cout\nab 100;99\nCD-2;7\nCD-2;8\n"))->call('import');
 
     expect($first->items()->count())->toBe(2)
         ->and($second->items()->pluck('model')->all())->toBe(['CD-2'])
-        ->and($product->fresh()->cost)->toBe(5.0);
+        ->and($product->fresh()->cost)->toBeMoney(500);
 
     Livewire::test(PriceListShow::class, ['priceList' => $otherPriceList->priceList])
         ->call('openImport', $otherPriceList->id)
@@ -445,7 +446,7 @@ it('refuse de modifier les dates pour chevaucher une autre liste active', functi
 it('n\'applique pas aux produits une liste future et l\'applique à sa date de début', function () {
     $priceList = PriceList::factory()->create(['starts_on' => '2026-11-01']);
     $list = PriceListList::factory()->for($priceList)->create(['discount_percent' => 10]);
-    $product = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'AB-100', 'clean_model' => 'ab100', 'supplier_model' => 'AB-100', 'cost' => 5]);
+    $product = Product::factory()->create(['supplier_id' => $priceList->supplier_id, 'model' => 'AB-100', 'clean_model' => 'ab100', 'supplier_model' => 'AB-100', 'cost' => Money::parse(5)]);
 
     Livewire::test(PriceListShow::class, ['priceList' => $priceList])
         ->call('openImport', $list->id)
@@ -455,22 +456,22 @@ it('n\'applique pas aux produits une liste future et l\'applique à sa date de d
 
     $this->artisan('price-lists:apply')->assertSuccessful();
 
-    expect($product->fresh()->cost)->toBe(5.0)
+    expect($product->fresh()->cost)->toBeMoney(500)
         ->and($list->items()->count())->toBe(1)
         ->and($list->fresh()->applied_at)->toBeNull();
 
     Carbon::setTestNow('2026-11-01 05:00:00');
     $this->artisan('price-lists:apply')->assertSuccessful();
 
-    expect($product->fresh()->cost)->toBe(90.0)
+    expect($product->fresh()->cost)->toBeMoney(9000)
         ->and($product->upcs()->pluck('upc')->all())->toBe(['555'])
         ->and($list->items()->firstOrFail()->product_id)->toBe($product->id)
         ->and($list->fresh()->applied_at)->not->toBeNull();
 
-    $product->update(['cost' => 7]);
+    $product->update(['cost' => Money::parse(7)]);
     $this->artisan('price-lists:apply')->assertSuccessful();
 
-    expect($product->fresh()->cost)->toBe(7.0);
+    expect($product->fresh()->cost)->toBeMoney(700);
 });
 
 it('planifie l\'application des listes à 5 h', function () {
@@ -506,7 +507,7 @@ function itemInActiveList(array $listAttributes = [], array $itemAttributes = []
 {
     $list = PriceListList::factory()->for(PriceList::factory()->create($listAttributes))->create(['discount_percent' => 10]);
 
-    return PriceListItem::factory()->for($list)->create($itemAttributes + ['model' => 'Chaise X-1', 'clean_model' => 'chaisex1', 'cost' => 100, 'collection' => 'Nordique', 'upc' => '999', 'imap' => 150]);
+    return PriceListItem::factory()->for($list)->create($itemAttributes + ['model' => 'Chaise X-1', 'clean_model' => 'chaisex1', 'cost' => Money::parse(100), 'collection' => 'Nordique', 'upc' => '999', 'imap' => Money::parse(150)]);
 }
 
 it('cherche dans les listes actives du fournisseur par modèle ou collection', function () {
@@ -536,7 +537,7 @@ it('crée le produit à la sélection avec les données de la ligne et l\'escomp
     $product = Product::firstOrFail();
 
     expect($product)->supplier_id->toBe($supplierId)->model->toBe('Chaise X-1')->supplier_clean_model->toBe('chaisex1')
-        ->cost->toBe(90.0)->imap->toBe(150.0)->collection->toBe('Nordique')
+        ->cost->toBeMoney(9000)->imap->toBeMoney(15000)->collection->toBe('Nordique')
         ->and($product->upcs()->pluck('upc')->all())->toBe(['999'])
         ->and($item->fresh()->product_id)->toBe($product->id);
 });
@@ -544,13 +545,13 @@ it('crée le produit à la sélection avec les données de la ligne et l\'escomp
 it('ne recrée pas un produit qui existe déjà chez le fournisseur', function () {
     $item = itemInActiveList();
     $supplierId = $item->priceListList->priceList->supplier_id;
-    $existing = Product::factory()->create(['supplier_id' => $supplierId, 'model' => 'chaise x 1', 'clean_model' => 'chaisex1', 'supplier_model' => 'chaise x 1', 'cost' => 5]);
+    $existing = Product::factory()->create(['supplier_id' => $supplierId, 'model' => 'chaise x 1', 'clean_model' => 'chaisex1', 'supplier_model' => 'chaise x 1', 'cost' => Money::parse(5)]);
 
     Livewire::test(ProductForm::class)
         ->set('supplierId', (string) $supplierId)
         ->call('selectFromPriceList', $item->id);
 
-    expect(Product::count())->toBe(1)->and($existing->fresh()->cost)->toBe(5.0)->and($item->fresh()->product_id)->toBe($existing->id);
+    expect(Product::count())->toBe(1)->and($existing->fresh()->cost)->toBeMoney(500)->and($item->fresh()->product_id)->toBe($existing->id);
 });
 
 it('refuse de créer depuis une ligne archivée ou d\'un autre fournisseur', function () {

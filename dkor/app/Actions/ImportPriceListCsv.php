@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Models\PriceListItem;
 use App\Models\PriceListList;
 use App\Rules\UniqueCleanProductModel;
+use App\Support\Money;
 use InvalidArgumentException;
 
 /**
@@ -125,21 +126,22 @@ class ImportPriceListCsv
     {
         $text = fn (string $key): ?string => isset($columns[$key]) ? $this->text($row[$columns[$key]] ?? null) : null;
         $number = fn (string $key): ?float => isset($columns[$key]) ? $this->number($row[$columns[$key]] ?? null) : null;
+        $money = fn (string $key): ?Money => isset($columns[$key]) ? $this->money($row[$columns[$key]] ?? null) : null;
 
         $model = $text('modele');
 
-        $cost = $number('cout');
+        $cost = $money('cout');
         $upc = $text('upc');
 
-        if ($model === null || $cost === null || $cost <= 0) {
+        if ($model === null || $cost === null || ! $cost->isPositive()) {
             return null;
         }
 
         return [
             'model' => $model,
             'clean_model' => UniqueCleanProductModel::clean($model),
-            'cost' => $cost,
-            'imap' => $number('imap'),
+            'cost' => $cost->cents(),
+            'imap' => $money('imap')?->cents(),
             'upc' => $upc !== null && ctype_digit($upc) ? $upc : null,
             'collection' => $text('collection'),
             'description' => $text('description'),
@@ -188,6 +190,14 @@ class ImportPriceListCsv
         $value = str_replace(',', '.', $value);
 
         return is_numeric($value) ? (float) $value : null;
+    }
+
+    /**
+     * Montant d'une cellule (« 1 234,56 $ »), sans passer par un float; null si la cellule n'est pas un montant.
+     */
+    private function money(?string $value): ?Money
+    {
+        return Money::tryParse(trim($this->toUtf8((string) $value)));
     }
 
     private function toUtf8(string $value): string

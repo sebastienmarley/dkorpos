@@ -16,6 +16,7 @@ use App\Models\Supplier;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
@@ -33,9 +34,9 @@ function sendOrder(SupplierOrder $order): void
 function productOrderWithLine(int $quantity = 10, float $cost = 5.0): array
 {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => $cost]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse($cost)]);
     $line = SupplierOrderLine::factory()->forProduct($product)->create([
-        'supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => $cost,
+        'supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => Money::parse($cost),
     ]);
 
     return [$order, $product, $line];
@@ -80,7 +81,7 @@ it('n\'offre pas la commande pour un fournisseur d\'expédition', function () {
 
 it('ajoute une ligne produit avec le coût du produit par défaut', function () {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 12.5]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(12.5)]);
 
     Livewire::test(Show::class, ['order' => $order])
         ->set('productId', (string) $product->id)
@@ -92,7 +93,7 @@ it('ajoute une ligne produit avec le coût du produit par défaut', function () 
     expect($order->lines()->first())
         ->product_id->toBe($product->id)
         ->quantity->toBe(3)
-        ->unit_cost->toBe(12.5);
+        ->unit_cost->toBeMoney(1250);
 });
 
 it('refuse un produit d\'un autre fournisseur ou non commandable', function () {
@@ -167,7 +168,7 @@ it('réceptionne partiellement puis complètement au coût de la commande', func
         ->and($stock->quantity_in_stock)->toBe(4)
         ->and($stock->quantity_on_order)->toBe(6)
         ->and(InventoryUnit::where('product_id', $product->id)->count())->toBe(4)
-        ->and(InventoryUnit::first()->cost)->toBe(5.0);
+        ->and(InventoryUnit::first()->cost)->toBeMoney(500);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
         ->call('openReceive')
@@ -228,7 +229,7 @@ it('annule un brouillon sans toucher à l\'inventaire', function () {
 
 it('complète une commande de services sans effet sur l\'inventaire', function () {
     $order = SupplierOrder::factory()->service()->create();
-    SupplierOrderLine::factory()->create(['supplier_order_id' => $order->id, 'quantity' => 2, 'unit_cost' => 100]);
+    SupplierOrderLine::factory()->create(['supplier_order_id' => $order->id, 'quantity' => 2, 'unit_cost' => Money::parse(100)]);
 
     $component = Livewire::test(Show::class, ['order' => $order])->call('markPending')->call('send');
     expect($order->fresh()->status)->toBe(SupplierOrderStatus::Sent);
@@ -268,7 +269,7 @@ it('modifie une ligne en brouillon sans toucher à l\'inventaire', function () {
         ->assertHasNoErrors()
         ->assertSet('editingLineId', null);
 
-    expect($line->fresh())->quantity->toBe(4)->unit_cost->toBe(6.25)
+    expect($line->fresh())->quantity->toBe(4)->unit_cost->toBeMoney(625)
         ->and(InventoryStock::where('product_id', $product->id)->exists())->toBeFalse();
 });
 
@@ -316,7 +317,7 @@ it('passe la commande à reçue quand la réduction égale ce qui est déjà re�
 
 it('modifie une ligne de service après l\'envoi', function () {
     $order = SupplierOrder::factory()->service()->create();
-    $line = SupplierOrderLine::factory()->create(['supplier_order_id' => $order->id, 'quantity' => 2, 'unit_cost' => 100]);
+    $line = SupplierOrderLine::factory()->create(['supplier_order_id' => $order->id, 'quantity' => 2, 'unit_cost' => Money::parse(100)]);
     sendOrder($order);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
@@ -325,7 +326,7 @@ it('modifie une ligne de service après l\'envoi', function () {
         ->set('editUnitCost', '90')
         ->call('saveLine');
 
-    expect($line->fresh())->quantity->toBe(3)->unit_cost->toBe(90.0);
+    expect($line->fresh())->quantity->toBe(3)->unit_cost->toBeMoney(9000);
 });
 
 it('refuse la modification d\'une ligne une fois la commande reçue', function () {
@@ -443,13 +444,13 @@ it('garde la commande ouverte quand une seule de ses lignes est annulée et excl
     Mail::fake();
     [$order, , $cancelled] = productOrderWithLine(2, 10);
     $kept = SupplierOrderLine::factory()->forProduct(Product::factory()->create(['supplier_id' => $order->supplier_id]))
-        ->create(['supplier_order_id' => $order->id, 'quantity' => 1, 'unit_cost' => 7]);
+        ->create(['supplier_order_id' => $order->id, 'quantity' => 1, 'unit_cost' => Money::parse(7)]);
     sendOrder($order);
     $cancelled->fresh()->requestCancellation();
     $order->fresh()->confirmLineCancellation($cancelled->fresh());
 
     expect($order->fresh()->status)->toBe(SupplierOrderStatus::Sent)
-        ->and($order->fresh()->load('lines')->total)->toBe(7.0);
+        ->and($order->fresh()->load('lines')->total)->toBeMoney(700);
 
     $order->fresh()->receive([$kept->id => ['quantity' => 1, 'unit_cost' => 7], $cancelled->id => ['quantity' => 2, 'unit_cost' => 10]]);
 
@@ -513,7 +514,7 @@ it('refuse de supprimer une commande envoyée ou annulée', function (SupplierOr
 it('ajoute une ligne produit après l\'envoi et la met en commande', function () {
     [$order, $product] = productOrderWithLine(10);
     sendOrder($order);
-    $other = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 8]);
+    $other = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(8)]);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
         ->set('productId', (string) $other->id)
@@ -531,7 +532,7 @@ it('ajoute une ligne à une commande partiellement reçue sans changer son statu
     [$order, , $line] = productOrderWithLine(10);
     sendOrder($order);
     $order->fresh()->receive([$line->id => ['quantity' => 4, 'unit_cost' => 5]]);
-    $other = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 8]);
+    $other = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(8)]);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
         ->set('productId', (string) $other->id)
@@ -574,7 +575,7 @@ it('substitue un produit: nouvelle ligne avec la quantité, ancienne à 0 et sub
     Event::fake([SupplierOrderLineSubstituted::class]);
     [$order, $product, $line] = productOrderWithLine(10, 5);
     sendOrder($order);
-    $new = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 9]);
+    $new = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(9)]);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])
         ->call('openSubstitute', $line->id)
@@ -586,13 +587,13 @@ it('substitue un produit: nouvelle ligne avec la quantité, ancienne à 0 et sub
     $replacement = $order->lines()->where('product_id', $new->id)->first();
 
     expect($line->fresh())->status->toBe(SupplierOrderLineStatus::Substituted)->quantity->toBe(0)
-        ->and($replacement)->quantity->toBe(10)->unit_cost->toBe(9.0)->status->toBe(SupplierOrderLineStatus::Active)
+        ->and($replacement)->quantity->toBe(10)->unit_cost->toBeMoney(900)->status->toBe(SupplierOrderLineStatus::Active)
         ->substituted_from_line_id->toBe($line->id)
         ->and($line->fresh()->substitutedBy->id)->toBe($replacement->id)
         ->and(InventoryStock::where('product_id', $product->id)->first()->quantity_on_order)->toBe(0)
         ->and(InventoryStock::where('product_id', $new->id)->first()->quantity_on_order)->toBe(10)
         ->and($order->fresh()->status)->toBe(SupplierOrderStatus::Sent)
-        ->and($order->fresh()->load('lines')->total)->toBe(90.0);
+        ->and($order->fresh()->load('lines')->total)->toBeMoney(9000);
 
     Event::assertDispatched(SupplierOrderLineSubstituted::class, fn ($e) => $e->originalLine->is($line) && $e->replacementLine->is($replacement));
 });
@@ -632,7 +633,7 @@ it('ne substitue que ce qui reste à recevoir d\'une ligne partiellement reçue'
 it('réceptionne la ligne de remplacement et clôt la commande', function () {
     [$order, , $line] = productOrderWithLine(3);
     sendOrder($order);
-    $new = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 2]);
+    $new = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(2)]);
     $replacement = $line->fresh()->substituteWith($new);
 
     $order->fresh()->receive([$line->id => ['quantity' => 3, 'unit_cost' => 5], $replacement->id => ['quantity' => 3, 'unit_cost' => 2]]);
@@ -787,10 +788,10 @@ function shippingSupplier(array $attributes = []): Supplier
 
 it('refuse l\'envoi sous le montant prépayé et indique ce qui manque', function () {
     [$order] = productOrderWithLine(10, 5);
-    $order->supplier->update(['prepaid_amount' => 100]);
+    $order->supplier->update(['prepaid_amount' => Money::parse(100)]);
     $order->markPending();
 
-    expect($order->fresh()->missingForPrepaid())->toBe(50.0)
+    expect($order->fresh()->missingForPrepaid())->toBeMoney(5000)
         ->and(fn () => $order->fresh()->send())->toThrow(DomainException::class);
 
     Livewire::test(Show::class, ['order' => $order->fresh()])->call('send');
@@ -799,7 +800,7 @@ it('refuse l\'envoi sous le montant prépayé et indique ce qui manque', functio
 
 it('envoie prépayé quand le total atteint le montant prépayé', function () {
     [$order] = productOrderWithLine(20, 5);
-    $order->supplier->update(['prepaid_amount' => 100]);
+    $order->supplier->update(['prepaid_amount' => Money::parse(100)]);
     $order->markPending();
 
     Livewire::test(Show::class, ['order' => $order->fresh()])->call('send');
@@ -809,7 +810,7 @@ it('envoie prépayé quand le total atteint le montant prépayé', function () {
 
 it('permet d\'envoyer collect sous le montant prépayé avec un fournisseur d\'expédition', function () {
     [$order] = productOrderWithLine(10, 5);
-    $order->supplier->update(['prepaid_amount' => 100]);
+    $order->supplier->update(['prepaid_amount' => Money::parse(100)]);
     $carrier = shippingSupplier();
     $order->markPending();
 
@@ -859,7 +860,7 @@ it('reprend le collect et le transporteur par défaut du fournisseur à la créa
 
 it('impose le collect à un fournisseur collect et ignore le montant prépayé', function () {
     [$order] = productOrderWithLine(1, 1);
-    $order->supplier->update(['collect' => true, 'prepaid_amount' => 0]);
+    $order->supplier->update(['collect' => true, 'prepaid_amount' => Money::parse(0)]);
     $order->markPending();
 
     expect(fn () => $order->fresh()->send())->toThrow(DomainException::class);
@@ -879,7 +880,7 @@ it('ne touche pas au transport d\'une commande envoyée ni de services', functio
 
     $service = SupplierOrder::factory()->service()->create();
     SupplierOrderLine::factory()->create(['supplier_order_id' => $service->id]);
-    $service->supplier->update(['prepaid_amount' => 100000]);
+    $service->supplier->update(['prepaid_amount' => Money::parse(100000)]);
 
     sendOrder($service);
     expect($service->fresh()->status)->toBe(SupplierOrderStatus::Sent);
@@ -973,13 +974,13 @@ it('ne courriel pas un envoi refusé et renvoie le courriel d\'une commande envo
     config(['supplier_orders.email_enabled' => true]);
     Mail::fake();
     [$order] = productOrderWithLine(1, 5);
-    $order->supplier->update(['prepaid_amount' => 1000, 'order_email' => 'commandes@fournisseur.test']);
+    $order->supplier->update(['prepaid_amount' => Money::parse(1000), 'order_email' => 'commandes@fournisseur.test']);
     $order->markPending();
 
     Livewire::test(Show::class, ['order' => $order->fresh()])->call('send');
     Mail::assertNothingSent();
 
-    $order->supplier->update(['prepaid_amount' => 0]);
+    $order->supplier->update(['prepaid_amount' => Money::parse(0)]);
     $order->fresh()->send();
 
     Livewire::test(Show::class, ['order' => $order->fresh()])->call('resendEmail');
@@ -1167,7 +1168,7 @@ it('cherche le produit à ajouter par id, modèle ou modèle fournisseur, sans c
 
 it('choisit le produit trouvé, propose son coût puis l\'ajoute à la commande', function () {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Fauteuil Zéphyr', 'cost' => 42.5]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Fauteuil Zéphyr', 'cost' => Money::parse(42.5)]);
 
     Livewire::test(Show::class, ['order' => $order])
         ->set('productSearch', 'Zéphyr')
@@ -1181,7 +1182,7 @@ it('choisit le produit trouvé, propose son coût puis l\'ajoute à la commande'
         ->assertHasNoErrors()
         ->assertSet('productId', '');
 
-    expect($order->lines()->first())->product_id->toBe($product->id)->quantity->toBe(2)->unit_cost->toBe(42.5);
+    expect($order->lines()->first())->product_id->toBe($product->id)->quantity->toBe(2)->unit_cost->toBeMoney(4250);
 });
 
 it('refuse de choisir un produit d\'un autre fournisseur et permet de changer de produit', function () {
@@ -1212,7 +1213,7 @@ it('cherche aussi par id le produit de substitution', function () {
 
 it('choisit le premier résultat avec Entrée et ramène le focus sur la quantité', function () {
     $order = SupplierOrder::factory()->create();
-    $first = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Chaise A', 'cost' => 12]);
+    $first = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Chaise A', 'cost' => Money::parse(12)]);
     Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Chaise B']);
 
     $component = Livewire::test(Show::class, ['order' => $order])
@@ -1227,7 +1228,7 @@ it('choisit le premier résultat avec Entrée et ramène le focus sur la quantit
 
 it('remet le focus dans la recherche après l\'ajout d\'une ligne', function () {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 3]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(3)]);
 
     $component = Livewire::test(Show::class, ['order' => $order])
         ->call('selectProduct', $product->id)

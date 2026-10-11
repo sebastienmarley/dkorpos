@@ -34,8 +34,8 @@
                         <flux:table.row :key="$invoiceLine->id">
                             <flux:table.cell variant="strong">{{ $invoiceLine->label }}</flux:table.cell>
                             <flux:table.cell align="end">{{ $invoiceLine->quantity }}</flux:table.cell>
-                            <flux:table.cell align="end">{{ number_format($invoiceLine->unit_cost, 2) }} $</flux:table.cell>
-                            <flux:table.cell align="end">{{ number_format($invoiceLine->total, 2) }} $</flux:table.cell>
+                            <flux:table.cell align="end">{{ $invoiceLine->unit_cost->format() }}</flux:table.cell>
+                            <flux:table.cell align="end">{{ $invoiceLine->total->format() }}</flux:table.cell>
                         </flux:table.row>
                     @endforeach
                 </flux:table.rows>
@@ -45,17 +45,17 @@
         <div class="mt-6 max-w-xl rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <dl class="space-y-1 text-sm">
                 <div class="flex justify-between"><dt>{{ __('Facture n°') }}</dt><dd>{{ $invoice->invoice_number }} · {{ $invoice->invoice_date->format('Y-m-d') }}</dd></div>
-                <div class="flex justify-between"><dt>{{ __('Marchandises') }}</dt><dd>{{ number_format($invoice->merchandise_total, 2) }} $</dd></div>
-                <div class="flex justify-between"><dt>{{ __('Transport') }}</dt><dd>{{ number_format($invoice->freight_fee, 2) }} $</dd></div>
-                <div class="flex justify-between"><dt>{{ __('Douanes') }}</dt><dd>{{ number_format($invoice->customs_fee, 2) }} $</dd></div>
-                <div class="flex justify-between"><dt>{{ __('Taxes') }}</dt><dd>{{ number_format($invoice->taxes, 2) }} $</dd></div>
-                <div class="flex justify-between font-medium"><dt>{{ __('Total calculé') }}</dt><dd>{{ number_format($invoice->computed_total, 2) }} $</dd></div>
-                <div class="flex justify-between font-medium"><dt>{{ __('Montant de la facture') }}</dt><dd>{{ number_format($invoice->invoice_total, 2) }} $</dd></div>
+                <div class="flex justify-between"><dt>{{ __('Marchandises') }}</dt><dd>{{ $invoice->merchandise_total->format() }}</dd></div>
+                <div class="flex justify-between"><dt>{{ __('Transport') }}</dt><dd>{{ $invoice->freight_fee->format() }}</dd></div>
+                <div class="flex justify-between"><dt>{{ __('Douanes') }}</dt><dd>{{ $invoice->customs_fee->format() }}</dd></div>
+                <div class="flex justify-between"><dt>{{ __('Taxes') }}</dt><dd>{{ $invoice->taxes->format() }}</dd></div>
+                <div class="flex justify-between font-medium"><dt>{{ __('Total calculé') }}</dt><dd>{{ $invoice->computed_total->format() }}</dd></div>
+                <div class="flex justify-between font-medium"><dt>{{ __('Montant de la facture') }}</dt><dd>{{ $invoice->invoice_total->format() }}</dd></div>
                 <div class="flex justify-between">
                     <dt>{{ __('Écart') }}</dt>
                     <dd>
                         @if ($invoice->hasVariance())
-                            <flux:badge color="red" size="sm">{{ number_format($invoice->variance, 2) }} $</flux:badge>
+                            <flux:badge color="red" size="sm">{{ $invoice->variance->format() }}</flux:badge>
                         @else
                             <flux:badge color="green" size="sm">{{ __('Aucun') }}</flux:badge>
                         @endif
@@ -64,7 +64,7 @@
                 @if ($invoice->discount_due_date)
                     <div class="flex justify-between text-zinc-500">
                         <dt>{{ __('Escompte :percent % avant le :date', ['percent' => $invoice->discount_percent, 'date' => $invoice->discount_due_date->format('Y-m-d')]) }}</dt>
-                        <dd>{{ number_format($invoice->discount_amount, 2) }} $</dd>
+                        <dd>{{ $invoice->discount_amount->format() }}</dd>
                     </div>
                 @endif
             </dl>
@@ -108,7 +108,7 @@
                                         <flux:input wire:model.live.debounce.400ms="unitCosts.{{ $line->id }}" type="number" min="0" step="0.01" class="w-28" />
                                         <flux:error name="unitCosts.{{ $line->id }}" />
                                     </flux:table.cell>
-                                    <flux:table.cell align="end">{{ number_format($line->billable_quantity * (float) ($unitCosts[$line->id] ?? $line->unit_cost), 2) }} $</flux:table.cell>
+                                    <flux:table.cell align="end">{{ (isset($unitCosts[$line->id]) ? (\App\Support\Money::tryParse($unitCosts[$line->id]) ?? \App\Support\Money::zero()) : $line->unit_cost)->times($line->billable_quantity)->format() }}</flux:table.cell>
                                 </flux:table.row>
                             @endforeach
                         </flux:table.rows>
@@ -141,15 +141,15 @@
                 {{-- Comparaison --}}
                 <div class="max-w-xl rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                     <dl class="space-y-1 text-sm">
-                        <div class="flex justify-between"><dt>{{ __('Marchandises (coûts réels)') }}</dt><dd>{{ number_format($totals['merchandise_total'], 2) }} $</dd></div>
-                        <div class="flex justify-between"><dt>{{ __('Transport + douanes + taxes') }}</dt><dd>{{ number_format((float) $freightFee + (float) $customsFee + (float) $taxes, 2) }} $</dd></div>
-                        <div class="flex justify-between font-medium"><dt>{{ __('Total calculé') }}</dt><dd>{{ number_format($totals['computed_total'], 2) }} $</dd></div>
-                        <div class="flex justify-between font-medium"><dt>{{ __('Montant de la facture') }}</dt><dd>{{ number_format((float) $invoiceTotal, 2) }} $</dd></div>
+                        <div class="flex justify-between"><dt>{{ __('Marchandises (coûts réels)') }}</dt><dd>{{ $totals['merchandise_total']->format() }}</dd></div>
+                        <div class="flex justify-between"><dt>{{ __('Transport + douanes + taxes') }}</dt><dd>{{ $totals['computed_total']->minus($totals['merchandise_total'])->format() }}</dd></div>
+                        <div class="flex justify-between font-medium"><dt>{{ __('Total calculé') }}</dt><dd>{{ $totals['computed_total']->format() }}</dd></div>
+                        <div class="flex justify-between font-medium"><dt>{{ __('Montant de la facture') }}</dt><dd>{{ (\App\Support\Money::tryParse($invoiceTotal) ?? \App\Support\Money::zero())->format() }}</dd></div>
                         <div class="flex items-center justify-between">
                             <dt>{{ __('Écart') }}</dt>
                             <dd>
-                                @if (filled($invoiceTotal) && abs($totals['variance']) >= 0.005)
-                                    <flux:badge color="red" size="sm">{{ number_format($totals['variance'], 2) }} $</flux:badge>
+                                @if (filled($invoiceTotal) && ! $totals['variance']->isZero())
+                                    <flux:badge color="red" size="sm">{{ $totals['variance']->format() }}</flux:badge>
                                 @elseif (filled($invoiceTotal))
                                     <flux:badge color="green" size="sm">{{ __('Aucun') }}</flux:badge>
                                 @else
@@ -160,7 +160,7 @@
                         @if ($totals['discount_due_date'])
                             <div class="flex justify-between text-zinc-500">
                                 <dt>{{ __('Escompte :percent % si payé avant le :date', ['percent' => $totals['discount_percent'], 'date' => $totals['discount_due_date']->format('Y-m-d')]) }}</dt>
-                                <dd>{{ number_format($totals['discount_amount'], 2) }} $</dd>
+                                <dd>{{ $totals['discount_amount']->format() }}</dd>
                             </div>
                         @endif
                     </dl>

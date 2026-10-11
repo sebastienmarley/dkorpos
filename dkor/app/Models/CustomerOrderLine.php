@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Enums\CustomerOrderLineStatus;
+use App\Support\Money;
 use Database\Factories\CustomerOrderLineFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
@@ -22,16 +24,16 @@ use Illuminate\Support\Carbon;
  * @property string|null $description
  * @property bool $is_taxable
  * @property bool $is_custom
- * @property float|null $unit_cost Coût soumis par le fournisseur (article sur mesure).
+ * @property Money|null $unit_cost Coût soumis par le fournisseur (article sur mesure).
  * @property string|null $quote_number Numéro de soumission du fournisseur (article sur mesure).
  * @property int|null $supplier_order_line_id
  * @property int|null $customer_order_pickup_id
  * @property int $quantity
  * @property int $quantity_reserved
  * @property int $quantity_on_order
- * @property float $unit_price
+ * @property Money $unit_price
  * @property bool $is_no_charge Pièce remise sans frais (ex. : sous garantie) : prix vendant à 0 $.
- * @property float|null $cancellation_fee
+ * @property Money|null $cancellation_fee
  * @property string|null $note
  * @property CustomerOrderLineStatus $status
  * @property Carbon|null $delivered_at
@@ -47,7 +49,7 @@ use Illuminate\Support\Carbon;
  * @property-read SupplierOrderLine|null $supplierOrderLine
  * @property-read CustomerOrderPickup|null $pickup
  * @property-read Collection<int, DefectiveProduct> $defectiveProducts
- * @property-read float $total
+ * @property-read Money $total
  */
 #[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'is_no_charge', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
 class CustomerOrderLine extends Model
@@ -67,12 +69,12 @@ class CustomerOrderLine extends Model
         'quantity' => 'integer',
         'quantity_reserved' => 'integer',
         'quantity_on_order' => 'integer',
-        'unit_price' => 'float',
+        'unit_price' => MoneyCast::class,
         'is_no_charge' => 'boolean',
         'is_taxable' => 'boolean',
         'is_custom' => 'boolean',
-        'unit_cost' => 'float',
-        'cancellation_fee' => 'float',
+        'unit_cost' => MoneyCast::class,
+        'cancellation_fee' => MoneyCast::class,
         'status' => CustomerOrderLineStatus::class,
         'delivered_at' => 'datetime',
         'returned_at' => 'datetime',
@@ -175,8 +177,8 @@ class CustomerOrderLine extends Model
         return $this->hasMany(DefectiveProduct::class);
     }
 
-    public function getTotalAttribute(): float
+    public function getTotalAttribute(): Money
     {
-        return round($this->quantity * $this->unit_price, 2);
+        return $this->unit_price->times($this->quantity);
     }
 }

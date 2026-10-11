@@ -11,6 +11,7 @@ use App\Models\InventoryMovement;
 use App\Models\InventoryUnit;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Money;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -34,9 +35,9 @@ it('reprend l\'article en stock lors d\'un échange et garde le payé au crédit
         ->status->toBe(CustomerOrderLineStatus::Returned)
         ->returned_at->not->toBeNull()
         ->and($order)
-        ->subtotal->toBe(0.0)
-        ->amount_paid->toBe(114.98)
-        ->balance_due->toBe(-114.98)
+        ->subtotal->toBeMoney(0)
+        ->amount_paid->toBeMoney(11498)
+        ->balance_due->toBeMoney(-11498)
         ->and($order->payments()->count())->toBe(1)
         ->and($line->product->inventoryStock()->sole()->quantity_in_stock)->toBe(1)
         ->and(InventoryUnit::where('product_id', $line->product_id)->whereNull('delivered_at')->count())->toBe(1)
@@ -50,22 +51,22 @@ it('utilise le crédit de l\'échange pour le produit de remplacement', function
     stockedLine($this->order, 1, 1, 150);
 
     expect($this->order->fresh())
-        ->balance_due->toBe(57.48)
+        ->balance_due->toBeMoney(5748)
         ->status->toBe(CustomerOrderStatus::Pending);
 });
 
 it('rembourse un article retourné', function () {
     $line = pickedUpLine($this->order, 1, 100, $this->cash);
 
-    expect($this->order->refundableFor($line, 1))->toBe(114.98);
+    expect($this->order->refundableFor($line, 1))->toBeMoney(11498);
 
-    $this->order->returnLine($line, 1, refund: true, refunds: [['method_id' => $this->cash->id, 'amount' => 114.98]]);
+    $this->order->returnLine($line, 1, refund: true, refunds: [['method_id' => $this->cash->id, 'amount' => Money::parse(114.98)]]);
 
     $order = $this->order->fresh();
 
     expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::Refunded)
-        ->and($order)->amount_paid->toBe(0.0)->balance_due->toBe(0.0)
-        ->and($order->payments()->orderBy('id')->pluck('amount')->all())->toBe([114.98, -114.98])
+        ->and($order)->amount_paid->toBeMoney(0)->balance_due->toBeMoney(0)
+        ->and($order->payments()->orderBy('id')->pluck('amount')->map->cents()->all())->toBe([11498, -11498])
         ->and($order->payments()->orderByDesc('id')->first()->type)->toBe(CustomerPaymentType::Refund)
         ->and($line->product->inventoryStock()->sole()->quantity_in_stock)->toBe(1);
 });
@@ -78,7 +79,7 @@ it('sépare la ligne retournée en partie', function () {
     expect($line->fresh())->quantity->toBe(1)->status->toBe(CustomerOrderLineStatus::PickedUp)
         ->and($this->order->lines()->where('status', CustomerOrderLineStatus::Returned)->sole())
         ->quantity->toBe(1)
-        ->unit_price->toBe(100.0)
+        ->unit_price->toBeMoney(10000)
         ->customer_order_pickup_id->toBe($line->customer_order_pickup_id)
         ->and($this->order->fresh()->status)->toBe(CustomerOrderStatus::PickedUp);
 });
@@ -86,7 +87,7 @@ it('sépare la ligne retournée en partie', function () {
 it('refuse un remboursement supérieur au montant remboursable', function () {
     $line = pickedUpLine($this->order, 1, 100, $this->cash);
 
-    expect(fn () => $this->order->returnLine($line, 1, refund: true, refunds: [['method_id' => $this->cash->id, 'amount' => 200]]))
+    expect(fn () => $this->order->returnLine($line, 1, refund: true, refunds: [['method_id' => $this->cash->id, 'amount' => Money::parse(200)]]))
         ->toThrow(DomainException::class);
 
     expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::PickedUp)
@@ -142,14 +143,14 @@ describe('modal de retour', function () {
             ->set('returnType', 'refund')
             ->call('continueReturn')
             ->assertSet('returnStep', 'refund')
-            ->assertSet('returnRefundable', 114.98)
+            ->assertSet('returnRefundableCents', 11498)
             ->assertSet('returnRefunds.0.amount', '114.98')
             ->call('confirmReturnRefund')
             ->assertHasNoErrors()
             ->assertSet('showReturnModal', false);
 
         expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::Refunded)
-            ->and($this->order->fresh()->balance_due)->toBe(0.0);
+            ->and($this->order->fresh()->balance_due)->toBeMoney(0);
     });
 
     it('refuse d\'ouvrir le retour d\'un article non remis', function () {
@@ -171,24 +172,24 @@ describe('crédit de la commande', function () {
     it('rembourse le crédit sur plusieurs modes', function () {
         $visa = CustomerPaymentMethod::factory()->create(['name' => 'Visa']);
 
-        expect($this->order->credit())->toBe(114.98);
+        expect($this->order->credit())->toBeMoney(11498);
 
         $this->order->refundCredit([
-            ['method_id' => $this->cash->id, 'amount' => 14.98],
-            ['method_id' => $visa->id, 'amount' => 100],
+            ['method_id' => $this->cash->id, 'amount' => Money::parse(14.98)],
+            ['method_id' => $visa->id, 'amount' => Money::parse(100)],
         ]);
 
         $order = $this->order->fresh();
 
-        expect($order)->balance_due->toBe(0.0)->amount_paid->toBe(0.0)
-            ->and($order->payments()->where('type', CustomerPaymentType::Refund)->sum('amount'))->toEqual(-114.98);
+        expect($order)->balance_due->toBeMoney(0)->amount_paid->toBeMoney(0)
+            ->and($order->payments()->where('type', CustomerPaymentType::Refund)->sum('amount'))->toEqual(-11498);
     });
 
     it('refuse un remboursement supérieur au crédit', function () {
-        expect(fn () => $this->order->refundCredit([['method_id' => $this->cash->id, 'amount' => 200]]))
+        expect(fn () => $this->order->refundCredit([['method_id' => $this->cash->id, 'amount' => Money::parse(200)]]))
             ->toThrow(DomainException::class);
 
-        expect($this->order->fresh()->balance_due)->toBe(-114.98);
+        expect($this->order->fresh()->balance_due)->toBeMoney(-11498);
     });
 
     it('porte le crédit au compte du client et solde la commande', function () {
@@ -196,19 +197,19 @@ describe('crédit de la commande', function () {
 
         $order = $this->order->fresh();
 
-        expect($credit)->toBe(114.98)
-            ->and($order->customer->credit_balance)->toBe(114.98)
-            ->and($order->balance_due)->toBe(0.0)
+        expect($credit)->toBeMoney(11498)
+            ->and($order->customer->credit_balance)->toBeMoney(11498)
+            ->and($order->balance_due)->toBeMoney(0)
             ->and($order->payments()->where('type', CustomerPaymentType::CreditTransfer)->sole())
-            ->amount->toBe(-114.98)
+            ->amount->toBeMoney(-11498)
             ->customer_payment_method_id->toBeNull();
     });
 
     it('porte au compte le reste après un remboursement partiel', function () {
-        $this->order->refundCredit([['method_id' => $this->cash->id, 'amount' => 50]]);
+        $this->order->refundCredit([['method_id' => $this->cash->id, 'amount' => Money::parse(50)]]);
 
-        expect($this->order->fresh()->transferCreditToCustomer())->toBe(64.98)
-            ->and($this->order->customer->fresh()->credit_balance)->toBe(64.98);
+        expect($this->order->fresh()->transferCreditToCustomer())->toBeMoney(6498)
+            ->and($this->order->customer->fresh()->credit_balance)->toBeMoney(6498);
     });
 
     it('refuse de porter au compte une commande sans crédit', function () {
@@ -228,7 +229,7 @@ describe('crédit de la commande', function () {
             ->assertSet('showCreditRefundModal', false)
             ->assertDontSeeHtml('wire:click="openCreditRefundModal"');
 
-        expect($this->order->fresh()->balance_due)->toBe(0.0);
+        expect($this->order->fresh()->balance_due)->toBeMoney(0);
     });
 
     it('porte le crédit au compte depuis la commande', function () {
@@ -236,6 +237,6 @@ describe('crédit de la commande', function () {
             ->call('transferCreditToCustomer')
             ->assertSee('Crédit au compte : 114.98 $');
 
-        expect($this->order->customer->fresh()->credit_balance)->toBe(114.98);
+        expect($this->order->customer->fresh()->credit_balance)->toBeMoney(11498);
     });
 });

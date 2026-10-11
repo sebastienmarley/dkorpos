@@ -4,7 +4,9 @@ namespace App\Livewire\Catalog;
 
 use App\Enums\SupplierType;
 use App\Models\Service;
+use App\Models\ServiceSupplier;
 use App\Models\Supplier;
+use App\Support\Money;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -53,14 +55,14 @@ class Services extends Component
         $this->name = $service->name;
         $this->descriptionTemplate = $service->description_template ?? '';
         $this->isInternal = $service->is_internal;
-        $this->sellingPrice = $service->selling_price === null ? '' : number_format($service->selling_price, 2, '.', '');
+        $this->sellingPrice = $service->selling_price?->toDecimal() ?? '';
         $this->isTaxable = $service->is_taxable;
         $this->isActive = $service->is_active;
-        $this->offers = $service->suppliers()->newPivotQuery()->orderBy('id')->get(['supplier_id', 'cost', 'selling_price'])
-            ->map(fn (object $offer): array => [
-                'supplier_id' => (int) $offer->supplier_id,
-                'cost' => number_format((float) $offer->cost, 2, '.', ''),
-                'selling_price' => number_format((float) $offer->selling_price, 2, '.', ''),
+        $this->offers = ServiceSupplier::query()->where('service_id', $service->id)->orderBy('id')->get()
+            ->map(fn (ServiceSupplier $offer): array => [
+                'supplier_id' => $offer->supplier_id,
+                'cost' => $offer->cost->toDecimal(),
+                'selling_price' => $offer->selling_price->toDecimal(),
             ])
             ->all();
         $this->resetValidation();
@@ -108,14 +110,24 @@ class Services extends Component
                 'name' => $this->name,
                 'description_template' => filled($this->descriptionTemplate) ? $this->descriptionTemplate : null,
                 'is_internal' => $this->isInternal,
-                'selling_price' => $this->isInternal ? round((float) $this->sellingPrice, 2) : null,
+                'selling_price' => $this->isInternal ? Money::parse($this->sellingPrice) : null,
                 'is_taxable' => $this->isTaxable,
                 'is_active' => $this->isActive,
             ]);
 
-            $service->suppliers()->sync($this->isInternal ? [] : collect($this->offers)->mapWithKeys(fn (array $offer): array => [
-                (int) $offer['supplier_id'] => ['cost' => round((float) $offer['cost'], 2), 'selling_price' => round((float) $offer['selling_price'], 2)],
-            ])->all());
+            $offers = $this->isInternal ? [] : $this->offers;
+
+            ServiceSupplier::query()
+                ->where('service_id', $service->id)
+                ->whereNotIn('supplier_id', array_map(fn (array $offer): int => (int) $offer['supplier_id'], $offers))
+                ->delete();
+
+            foreach ($offers as $offer) {
+                ServiceSupplier::query()->updateOrCreate(
+                    ['service_id' => $service->id, 'supplier_id' => (int) $offer['supplier_id']],
+                    ['cost' => Money::parse($offer['cost']), 'selling_price' => Money::parse($offer['selling_price'])],
+                );
+            }
         });
 
         Flux::toast(text: $this->editingId ? __('Service mis à jour.') : __('Service créé.'), variant: 'success');

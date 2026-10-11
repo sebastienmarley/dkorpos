@@ -14,6 +14,7 @@ use App\Models\Role;
 use App\Models\Supplier;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
@@ -25,7 +26,7 @@ beforeEach(function () {
 
     $this->order = CustomerOrder::factory()->create();
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'base_multiplier' => 2.5]);
-    $this->part = Part::factory()->create(['supplier_id' => $supplier->id, 'model' => 'PC-12', 'description' => 'Verre de lampe', 'last_cost' => 3]);
+    $this->part = Part::factory()->create(['supplier_id' => $supplier->id, 'model' => 'PC-12', 'description' => 'Verre de lampe', 'last_cost' => Money::parse(3)]);
 });
 
 it('ajoute la pièce choisie dans « Ajouter une pièce » et la commande au fournisseur', function () {
@@ -43,12 +44,12 @@ it('ajoute la pièce choisie dans « Ajouter une pièce » et la commande au fou
         ->status->toBe(CustomerOrderLineStatus::OnOrder)
         ->quantity_on_order->toBe(1)
         ->quantity_reserved->toBe(0)
-        ->unit_price->toBe(7.99)
+        ->unit_price->toBeMoney(799)
         ->and($supplierLine)
         ->part_id->toBe($this->part->id)
         ->product_id->toBeNull()
         ->quantity->toBe(1)
-        ->unit_cost->toBe(3.0)
+        ->unit_cost->toBeMoney(300)
         ->description->toContain('PC-12')
         ->description->toContain('commande client #'.$this->order->id)
         ->and($supplierLine->order)
@@ -79,7 +80,7 @@ it('refuse une pièce dont le fournisseur ne prend pas de commande, sans rien aj
 it('ne prend jamais une pièce en stock', function () {
     $line = $this->order->addPart($this->part);
 
-    expect(fn () => $this->order->updateLine($line, 1, 0, 0, null))->toThrow(DomainException::class);
+    expect(fn () => $this->order->updateLine($line, 1, 0, Money::parse(0), null))->toThrow(DomainException::class);
 
     expect($line->fresh()->quantity_reserved)->toBe(0);
 });
@@ -87,7 +88,7 @@ it('ne prend jamais une pièce en stock', function () {
 it('change la quantité commandée d\'une pièce en brouillon, et sa ligne fournisseur suit', function () {
     $line = $this->order->addPart($this->part);
 
-    $this->order->updateLine($line, 0, 3, 0, null);
+    $this->order->updateLine($line, 0, 3, Money::parse(0), null);
 
     expect($line->fresh()->quantity)->toBe(3)
         ->and($line->fresh()->supplierOrderLine->quantity)->toBe(3);
@@ -106,7 +107,7 @@ it('suit la pièce de la commande à la remise au client, sans mouvement d\'inve
     $line = $this->order->addPart($this->part, 2);
     $supplierLine = $line->supplierOrderLine;
     $supplierOrder = $supplierLine->order;
-    $supplierOrder->updateLine($supplierLine, 2, 4.25);
+    $supplierOrder->updateLine($supplierLine, 2, Money::parse(4.25));
 
     $supplierOrder->send();
 
@@ -118,7 +119,7 @@ it('suit la pièce de la commande à la remise au client, sans mouvement d\'inve
         ->status->toBe(CustomerOrderLineStatus::Received)
         ->quantity_reserved->toBe(2)
         ->quantity_on_order->toBe(0)
-        ->and($this->part->fresh()->last_cost)->toBe(4.25);
+        ->and($this->part->fresh()->last_cost)->toBeMoney(425);
 
     $pickup = $this->order->fresh()->pickUp([$line->id => 2], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => $this->order->fresh()->balance_due]]);
 
@@ -182,11 +183,11 @@ describe('prix de vente', function () {
     it('fige sur la ligne le prix calculé au moment de l\'ajout', function () {
         $line = $this->order->addPart($this->part);
 
-        $this->part->update(['last_cost' => 10]);
+        $this->part->update(['last_cost' => Money::parse(10)]);
         $laterLine = CustomerOrder::factory()->create()->addPart($this->part->fresh());
 
-        expect($line->fresh()->unit_price)->toBe(7.99)
-            ->and($laterLine->unit_price)->toBe(25.0);
+        expect($line->fresh()->unit_price)->toBeMoney(799)
+            ->and($laterLine->unit_price)->toBeMoney(2500);
     });
 
     it('remet une pièce sans frais depuis la commande, et le total en tient compte', function () {
@@ -201,15 +202,15 @@ describe('prix de vente', function () {
 
         expect($line->fresh())
             ->is_no_charge->toBeTrue()
-            ->unit_price->toBe(0.0)
+            ->unit_price->toBeMoney(0)
             ->and($this->order->fresh())
-            ->total->toBe(0.0)
-            ->balance_due->toBe(0.0);
+            ->total->toBeMoney(0)
+            ->balance_due->toBeMoney(0);
     });
 
     it('propose de nouveau le prix calculé quand « sans frais » est retiré', function () {
         $line = $this->order->addPart($this->part);
-        $this->order->updatePartLine($line, 1, 0, true, null);
+        $this->order->updatePartLine($line, 1, Money::parse(0), true, null);
 
         Livewire::test(Show::class, ['order' => $this->order])
             ->call('openLineModal', $line->id)
@@ -222,10 +223,10 @@ describe('prix de vente', function () {
         $line = $this->order->addPart($this->part);
         $line->supplierOrderLine->order->send();
 
-        $this->order->updatePartLine($line->fresh(), 1, 5, false, null);
+        $this->order->updatePartLine($line->fresh(), 1, Money::parse(5), false, null);
 
-        expect($line->fresh()->unit_price)->toBe(5.0)
-            ->and(fn () => $this->order->updatePartLine($line->fresh(), 2, 5, false, null))->toThrow(DomainException::class);
+        expect($line->fresh()->unit_price)->toBeMoney(500)
+            ->and(fn () => $this->order->updatePartLine($line->fresh(), 2, Money::parse(5), false, null))->toThrow(DomainException::class);
     });
 
     it('ne change jamais le prix d\'une pièce remise au client', function () {
@@ -235,10 +236,10 @@ describe('prix de vente', function () {
         $supplierLine->order->fresh()->receive([$supplierLine->id => ['quantity' => 1]]);
         $this->order->fresh()->pickUp([$line->id => 1], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => $this->order->fresh()->balance_due]]);
 
-        expect(fn () => $this->order->fresh()->updatePartLine($line->fresh(), 1, 0, true, null))->toThrow(DomainException::class);
+        expect(fn () => $this->order->fresh()->updatePartLine($line->fresh(), 1, Money::parse(0), true, null))->toThrow(DomainException::class);
 
         expect($line->fresh())
-            ->unit_price->toBe(7.99)
+            ->unit_price->toBeMoney(799)
             ->is_no_charge->toBeFalse();
     });
 });

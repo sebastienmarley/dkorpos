@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Enums\ReceptionStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
+use App\Support\Money;
 use Database\Factories\SupplierInvoiceFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -27,18 +29,18 @@ use Illuminate\Support\Facades\DB;
  * @property string $invoice_number
  * @property Carbon $invoice_date
  * @property string|null $description
- * @property float $merchandise_total
- * @property float $freight_fee
- * @property float $customs_fee
- * @property float $taxes
- * @property float $computed_total
- * @property float $invoice_total
- * @property float $variance
+ * @property Money $merchandise_total
+ * @property Money $freight_fee
+ * @property Money $customs_fee
+ * @property Money $taxes
+ * @property Money $computed_total
+ * @property Money $invoice_total
+ * @property Money $variance
  * @property float $discount_percent
  * @property int|null $discount_days
  * @property bool $discount_next_month
  * @property Carbon|null $discount_due_date
- * @property float $discount_amount
+ * @property Money $discount_amount
  * @property int|null $created_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -59,18 +61,18 @@ class SupplierInvoice extends Model
 
     protected $casts = [
         'invoice_date' => 'date',
-        'merchandise_total' => 'float',
-        'freight_fee' => 'float',
-        'customs_fee' => 'float',
-        'taxes' => 'float',
-        'computed_total' => 'float',
-        'invoice_total' => 'float',
-        'variance' => 'float',
+        'merchandise_total' => MoneyCast::class,
+        'freight_fee' => MoneyCast::class,
+        'customs_fee' => MoneyCast::class,
+        'taxes' => MoneyCast::class,
+        'computed_total' => MoneyCast::class,
+        'invoice_total' => MoneyCast::class,
+        'variance' => MoneyCast::class,
         'discount_percent' => 'float',
         'discount_days' => 'integer',
         'discount_next_month' => 'boolean',
         'discount_due_date' => 'date',
-        'discount_amount' => 'float',
+        'discount_amount' => MoneyCast::class,
     ];
 
     /** @return BelongsTo<Supplier, $this> */
@@ -104,7 +106,7 @@ class SupplierInvoice extends Model
 
     public function hasVariance(): bool
     {
-        return abs($this->variance) >= 0.005;
+        return ! $this->variance->isZero();
     }
 
     /**
@@ -112,13 +114,13 @@ class SupplierInvoice extends Model
      * montant de la facture, et escompte de paiement rapide du fournisseur.
      *
      * @param  \Illuminate\Support\Collection<int, ReceptionLine>|\Illuminate\Support\Collection<int, SupplierOrderLine>  $lines  Lignes à facturer (réception ou service).
-     * @param  array<int, float|int|string>  $unitCosts  Coût réel par id de ligne (sinon le coût actuel).
-     * @return array{merchandise_total: float, computed_total: float, variance: float, discount_percent: float, discount_days: int|null, discount_next_month: bool, discount_due_date: Carbon|null, discount_amount: float}
+     * @param  array<int, Money>  $unitCosts  Coût réel par id de ligne (sinon le coût actuel).
+     * @return array{merchandise_total: Money, computed_total: Money, variance: Money, discount_percent: float, discount_days: int|null, discount_next_month: bool, discount_due_date: Carbon|null, discount_amount: Money}
      */
-    public static function totals(Supplier $supplier, \Illuminate\Support\Collection $lines, array $unitCosts, float $freight, float $customs, float $taxes, float $invoiceTotal, ?Carbon $invoiceDate = null, ?float $merchandise = null): array
+    public static function totals(Supplier $supplier, \Illuminate\Support\Collection $lines, array $unitCosts, Money $freight, Money $customs, Money $taxes, Money $invoiceTotal, ?Carbon $invoiceDate = null, ?Money $merchandise = null): array
     {
-        $merchandise = $merchandise !== null ? round($merchandise, 2) : round($lines->sum(fn (ReceptionLine|SupplierOrderLine $line) => $line->billable_quantity * (float) ($unitCosts[$line->id] ?? $line->unit_cost)), 2);
-        $computed = round($merchandise + $freight + $customs + $taxes, 2);
+        $merchandise ??= Money::sum($lines->map(fn (ReceptionLine|SupplierOrderLine $line): Money => ($unitCosts[$line->id] ?? $line->unit_cost)->times($line->billable_quantity)));
+        $computed = Money::sum([$merchandise, $freight, $customs, $taxes]);
 
         $percent = (float) $supplier->early_payment_discount_percent;
         $days = $supplier->early_payment_discount_days;
@@ -128,12 +130,12 @@ class SupplierInvoice extends Model
         return [
             'merchandise_total' => $merchandise,
             'computed_total' => $computed,
-            'variance' => round($invoiceTotal - $computed, 2),
+            'variance' => $invoiceTotal->minus($computed),
             'discount_percent' => $percent,
             'discount_days' => $days,
             'discount_next_month' => $nextMonth,
             'discount_due_date' => $hasDiscount && $invoiceDate ? static::discountDueDate($invoiceDate, $days, $nextMonth) : null,
-            'discount_amount' => $hasDiscount ? round($invoiceTotal * $percent / 100, 2) : 0.0,
+            'discount_amount' => $hasDiscount ? $invoiceTotal->percent($percent) : Money::zero(),
         ];
     }
 
@@ -184,7 +186,7 @@ class SupplierInvoice extends Model
 
                 $line->update(['unit_cost' => $cost]);
                 $line->orderLine->update(['unit_cost' => $cost]);
-                InventoryUnit::where('reception_line_id', $line->id)->update(['cost' => $cost]);
+                InventoryUnit::where('reception_line_id', $line->id)->update(['cost' => $cost->cents()]);
             }
 
             SupplierOrder::query()
@@ -250,21 +252,29 @@ class SupplierInvoice extends Model
      * @param  array<string, int>  $target  Réception ou commande facturée.
      * @param  \Illuminate\Support\Collection<int, ReceptionLine>|\Illuminate\Support\Collection<int, SupplierOrderLine>  $lines
      * @param  array<string, mixed>  $details
+     *                                         Les montants de $details et de $unitCosts sont en dollars, tels que saisis.
      * @param  array<int, float|int|string>  $unitCosts
      */
     private static function persist(Supplier $supplier, array $target, \Illuminate\Support\Collection $lines, array $details, array $unitCosts, int|string|null $createdBy): SupplierInvoice
     {
         $date = Carbon::parse($details['invoice_date']);
+        $amounts = [
+            'freight_fee' => Money::parse($details['freight_fee'] ?? 0),
+            'customs_fee' => Money::parse($details['customs_fee'] ?? 0),
+            'taxes' => Money::parse($details['taxes'] ?? 0),
+            'invoice_total' => Money::parse($details['invoice_total']),
+        ];
+        $costs = array_map(fn (float|int|string $cost): Money => Money::parse($cost), $unitCosts);
         $totals = static::totals(
             $supplier,
             $lines,
-            $unitCosts,
-            (float) ($details['freight_fee'] ?? 0),
-            (float) ($details['customs_fee'] ?? 0),
-            (float) ($details['taxes'] ?? 0),
-            (float) $details['invoice_total'],
+            $costs,
+            $amounts['freight_fee'],
+            $amounts['customs_fee'],
+            $amounts['taxes'],
+            $amounts['invoice_total'],
             $date,
-            isset($details['merchandise_total']) ? (float) $details['merchandise_total'] : null,
+            isset($details['merchandise_total']) ? Money::parse($details['merchandise_total']) : null,
         );
 
         $invoice = static::create([
@@ -273,10 +283,7 @@ class SupplierInvoice extends Model
             'invoice_number' => $details['invoice_number'],
             'invoice_date' => $date,
             'description' => filled($details['description'] ?? null) ? $details['description'] : null,
-            'freight_fee' => round((float) ($details['freight_fee'] ?? 0), 2),
-            'customs_fee' => round((float) ($details['customs_fee'] ?? 0), 2),
-            'taxes' => round((float) ($details['taxes'] ?? 0), 2),
-            'invoice_total' => round((float) $details['invoice_total'], 2),
+            ...$amounts,
             'created_by' => $createdBy,
             ...$totals,
         ]);
@@ -285,7 +292,7 @@ class SupplierInvoice extends Model
             $invoice->lines()->create([
                 ($line instanceof ReceptionLine ? 'reception_line_id' : 'supplier_order_line_id') => $line->id,
                 'quantity' => $line->billable_quantity,
-                'unit_cost' => round((float) ($unitCosts[$line->id] ?? $line->unit_cost), 2),
+                'unit_cost' => $costs[$line->id] ?? $line->unit_cost,
             ]);
         }
 

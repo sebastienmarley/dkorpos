@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Concerns\HasSearchName;
 use App\Enums\InsurancePlan;
+use App\Support\Money;
 use BackedEnum;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -49,8 +51,8 @@ use Spatie\Permission\Traits\HasRoles;
  * @property bool $has_group_insurance
  * @property InsurancePlan|null $insurance_plan
  * @property bool $is_salaried
- * @property string|null $hourly_rate
- * @property string|null $weekly_salary
+ * @property Money|null $hourly_rate
+ * @property Money|null $weekly_salary
  * @property bool $has_commission
  * @property string|null $commission_rate
  * @property bool $has_bonus
@@ -113,8 +115,8 @@ class User extends Authenticatable
             'has_group_insurance' => 'boolean',
             'insurance_plan' => InsurancePlan::class,
             'is_salaried' => 'boolean',
-            'hourly_rate' => 'decimal:2',
-            'weekly_salary' => 'decimal:2',
+            'hourly_rate' => MoneyCast::class,
+            'weekly_salary' => MoneyCast::class,
             'has_commission' => 'boolean',
             'commission_rate' => 'decimal:2',
             'has_bonus' => 'boolean',

@@ -26,7 +26,7 @@
                                     <span class="text-zinc-500"> · {{ $result->collection }}</span>
                                 @endif
                             </span>
-                            <span class="flex-shrink-0 text-zinc-500">{{ number_format($result->cost ?? 0, 2) }} $</span>
+                            <span class="flex-shrink-0 text-zinc-500">{{ $result->cost?->format() ?? '—' }}</span>
                         </button>
                     @empty
                         <div class="px-3 py-2 text-sm text-zinc-400">{{ __('Aucun résultat dans les listes de prix actives.') }}</div>

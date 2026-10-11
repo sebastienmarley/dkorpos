@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierOrder;
+use App\Support\Money;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -197,7 +198,7 @@ class Show extends Component
     {
         $product = filled($this->productId) ? $this->orderableProducts()->find((int) $this->productId) : null;
 
-        $this->unitCost = $product ? number_format($product->cost, 2, '.', '') : '';
+        $this->unitCost = $product?->cost->toDecimal() ?? '';
     }
 
     public function saveNotes(): void
@@ -243,8 +244,8 @@ class Show extends Component
         $this->validate($rules);
 
         $this->order->addLine($this->order->isProductOrder()
-            ? ['product_id' => $this->productId, 'quantity' => $this->quantity, 'unit_cost' => $this->unitCost]
-            : ['description' => $this->description, 'quantity' => $this->quantity, 'unit_cost' => $this->unitCost]);
+            ? ['product_id' => $this->productId, 'quantity' => $this->quantity, 'unit_cost' => Money::parse($this->unitCost)]
+            : ['description' => $this->description, 'quantity' => $this->quantity, 'unit_cost' => Money::parse($this->unitCost)]);
 
         $this->reset('productId', 'productSearch', 'description', 'unitCost');
         $this->quantity = '1';
@@ -261,7 +262,7 @@ class Show extends Component
 
         $this->editingLineId = $line->id;
         $this->editQuantity = (string) $line->quantity;
-        $this->editUnitCost = number_format($line->unit_cost, 2, '.', '');
+        $this->editUnitCost = $line->unit_cost->toDecimal();
         $this->resetValidation();
     }
 
@@ -283,7 +284,7 @@ class Show extends Component
         $line = $this->order->lines()->findOrFail($this->editingLineId);
 
         $this->runTransition(
-            fn () => $this->order->updateLine($line, (int) $this->editQuantity, (float) $this->editUnitCost),
+            fn () => $this->order->updateLine($line, (int) $this->editQuantity, Money::parse($this->editUnitCost)),
             __('Ligne modifiée.'),
         );
 

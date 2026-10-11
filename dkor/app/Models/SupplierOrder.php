@@ -13,6 +13,7 @@ use App\Enums\SupplierType;
 use App\Events\SupplierOrderLineSubstituted;
 use App\Mail\SupplierOrderLineCancellationRequested;
 use App\Mail\SupplierOrderPlaced;
+use App\Support\Money;
 use Database\Factories\SupplierOrderFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -57,7 +58,7 @@ use Throwable;
  * @property-read Supplier|null $shippingSupplier
  * @property-read User|null $creator
  * @property-read Collection<int, SupplierOrderLine> $lines
- * @property-read float $total
+ * @property-read Money $total
  */
 #[Fillable(['number', 'quote_number', 'type', 'supplier_id', 'status', 'is_collect', 'shipping_supplier_id', 'is_drop_ship', 'drop_ship_name', 'drop_ship_address_civic', 'drop_ship_address_apartment', 'drop_ship_address_street', 'drop_ship_address_city', 'drop_ship_address_province', 'drop_ship_address_country', 'drop_ship_address_postal_code', 'notes', 'sent_at', 'last_emailed_at', 'received_at', 'created_by'])]
 class SupplierOrder extends Model
@@ -152,11 +153,11 @@ class SupplierOrder extends Model
         return $this->hasManyThrough(ReceptionLine::class, SupplierOrderLine::class, 'supplier_order_id', 'supplier_order_line_id');
     }
 
-    public function getTotalAttribute(): float
+    public function getTotalAttribute(): Money
     {
-        return round($this->lines
+        return Money::sum($this->lines
             ->reject(fn (SupplierOrderLine $line) => $line->status->isClosed())
-            ->sum(fn (SupplierOrderLine $line) => $line->total), 2);
+            ->map(fn (SupplierOrderLine $line): Money => $line->total));
     }
 
     /**
@@ -182,9 +183,9 @@ class SupplierOrder extends Model
     /**
      * Montant minimum du fournisseur pour que le transport soit prépayé (0 si aucun minimum).
      */
-    public function prepaidThreshold(): float
+    public function prepaidThreshold(): Money
     {
-        return (float) $this->supplier->prepaid_amount;
+        return $this->supplier->prepaid_amount ?? Money::zero();
     }
 
     /**
@@ -197,12 +198,12 @@ class SupplierOrder extends Model
 
     public function meetsPrepaidThreshold(): bool
     {
-        return $this->total >= $this->prepaidThreshold();
+        return $this->total->greaterThanOrEqual($this->prepaidThreshold());
     }
 
-    public function missingForPrepaid(): float
+    public function missingForPrepaid(): Money
     {
-        return max(0, round($this->prepaidThreshold() - $this->total, 2));
+        return $this->prepaidThreshold()->minus($this->total)->max(Money::zero());
     }
 
     /**
@@ -404,7 +405,7 @@ class SupplierOrder extends Model
                 continue;
             }
 
-            $cost = round($line->unit_cost, 2);
+            $cost = $line->unit_cost;
             $damaged = $line->product_id === null ? 0 : min($receptionLine->quantity_damaged, $quantity);
             $good = $quantity - $damaged;
 
@@ -425,7 +426,7 @@ class SupplierOrder extends Model
             $line->update(['quantity_received' => $line->quantity_received + $quantity]);
 
             if ($line->part_id !== null) {
-                Part::query()->whereKey($line->part_id)->update(['last_cost' => $cost]);
+                Part::query()->whereKey($line->part_id)->update(['last_cost' => $cost->cents()]);
             }
 
             if ($damaged > 0) {
@@ -518,7 +519,7 @@ class SupplierOrder extends Model
      * Ajoute une ligne en brouillon ou après l'envoi. Après l'envoi, la quantité d'un produit passe
      * immédiatement « en commande » dans l'inventaire.
      *
-     * @param  array{product_id?: int|string|null, description?: string|null, quantity: int|string, unit_cost: float|int|string}  $attributes
+     * @param  array{product_id?: int|string|null, part_id?: int|null, description?: string|null, quantity: int|string, unit_cost: Money}  $attributes
      */
     public function addLine(array $attributes): SupplierOrderLine
     {
@@ -542,7 +543,7 @@ class SupplierOrder extends Model
      * pas descendre sous ce qui est déjà reçu et l'inventaire « en commande » suit la différence. La quantité « en
      * commande » de la ligne de commande client liée suit la nouvelle quantité.
      */
-    public function updateLine(SupplierOrderLine $line, int $quantity, float $unitCost): void
+    public function updateLine(SupplierOrderLine $line, int $quantity, Money $unitCost): void
     {
         if (! ($this->status->isEditable() || $this->status->isOpen()) || $line->supplier_order_id !== $this->id) {
             throw new DomainException(__('Les lignes de cette commande ne sont plus modifiables.'));
@@ -567,7 +568,7 @@ class SupplierOrder extends Model
                 );
             }
 
-            $line->update(['quantity' => $quantity, 'unit_cost' => round($unitCost, 2)]);
+            $line->update(['quantity' => $quantity, 'unit_cost' => $unitCost]);
 
             $customerLine = $line->customerOrderLine()->with('order')->first();
             $customerLine?->order->applySupplierQuantity($customerLine, $quantity - $line->quantity_received);
@@ -827,7 +828,7 @@ class SupplierOrder extends Model
 
         if (! $this->meetsPrepaidThreshold()) {
             throw new DomainException(__('Montant minimum prépayé non atteint (:missing $ manquants) : ajoutez des produits ou envoyez la commande collect.', [
-                'missing' => number_format($this->missingForPrepaid(), 2),
+                'missing' => $this->missingForPrepaid()->toDecimal(),
             ]));
         }
     }

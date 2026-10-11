@@ -47,8 +47,8 @@ it('applique les taxes de la province du magasin de l\'usager', function () {
 
     stockedLine($ontarioOrder, 1, 1, 100);
 
-    expect($ontarioOrder->fresh())->subtotal->toBe(100.0)->total->toBe(113.0)->balance_due->toBe(113.0)
-        ->and($ontarioOrder->taxLines->first()->amount)->toBe(13.0);
+    expect($ontarioOrder->fresh())->subtotal->toBeMoney(10000)->total->toBeMoney(11300)->balance_due->toBeMoney(11300)
+        ->and($ontarioOrder->taxLines->first()->amount)->toBeMoney(1300);
 });
 
 it('ne retient que les taxes en vigueur à la création de la commande', function () {
@@ -64,7 +64,7 @@ it('garde les taux de la commande quand une taxe change ensuite', function () {
     $order = createOrderAs(sellerAt($this->quebec));
     stockedLine($order, 1, 1, 100);
 
-    expect($order->fresh()->total)->toBe(114.98);
+    expect($order->fresh()->total)->toBeMoney(11498);
 
     // La TPS passe à 6 % après la création de la commande.
     Tax::query()->where('name', 'TPS')->update(['end_date' => now()->toDateString()]);
@@ -72,7 +72,7 @@ it('garde les taux de la commande quand une taxe change ensuite', function () {
 
     stockedLine($order->fresh(), 1, 1, 100);
 
-    expect($order->fresh())->subtotal->toBe(200.0)->total->toBe(229.95)
+    expect($order->fresh())->subtotal->toBeMoney(20000)->total->toBeMoney(22995)
         ->and($order->fresh()->taxLines->pluck('rate', 'name')->all())->toBe(['TPS' => 5.0, 'TVQ' => 9.975]);
 });
 
@@ -85,8 +85,8 @@ it('calcule une taxe en cascade sur le montant plus les taxes individuelles', fu
     stockedLine($order, 1, 1, 100);
 
     // 5 $ + 10 % de 105 $ (10,50 $) = 115,50 $
-    expect($order->fresh()->total)->toBe(115.5)
-        ->and($order->taxLines->pluck('amount', 'name')->all())->toBe(['Fédérale' => 5.0, 'Provinciale' => 10.5]);
+    expect($order->fresh()->total)->toBeMoney(11550)
+        ->and($order->taxLines->pluck('amount', 'name')->map->cents()->all())->toBe(['Fédérale' => 500, 'Provinciale' => 1050]);
 });
 
 it('copie les numéros de taxe du marchand sur la commande', function () {

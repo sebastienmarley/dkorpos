@@ -1,15 +1,16 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-10 (145 migrations, 51 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-11 (150 migrations, 51 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 145 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
+les 150 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
 
 - **Une boîte vide** est une table d'un autre domaine : elle est détaillée dans sa propre section.
 - **Clés :** `PK` clé primaire, `FK` clé étrangère, `UK` valeur unique.
-- **Notes entre guillemets :** précision d'un décimal (`12,2`), enum PHP casté dans le modèle
+- **Notes entre guillemets :** `cents` pour un montant d'argent (entier en cents, casté en `Money`,
+  [ADR 0008](adr/0008-money-in-cents.md)), précision d'un décimal (`8,4`) pour un taux ou une mesure, enum PHP casté dans le modèle
   (`CustomerOrderStatus`), `nullable`.
 - **Types :** `int`, `string`, `decimal`, `bool`, `text`, `date`, `datetime`, `time`.
 - **Cardinalités :**
@@ -165,7 +166,7 @@ erDiagram
         string address_country "nullable"
         string address_postal_code "nullable"
         string search_name "nullable"
-        decimal credit_balance "12,2"
+        int credit_balance "cents"
         datetime created_at
         datetime updated_at
     }
@@ -175,10 +176,10 @@ erDiagram
         int customer_id FK
         int created_by FK "nullable"
         string status "CustomerOrderStatus"
-        decimal balance_due "12,2"
-        decimal subtotal "12,2"
-        decimal total "12,2"
-        decimal amount_paid "12,2"
+        int balance_due "cents"
+        int subtotal "cents"
+        int total "cents"
+        int amount_paid "cents"
         datetime created_at
         datetime updated_at
     }
@@ -193,9 +194,9 @@ erDiagram
         int supplier_order_line_id FK "nullable"
         string description "nullable"
         int quantity
-        decimal unit_price "10,2"
+        int unit_price "cents"
         bool is_no_charge
-        decimal unit_cost "10,2 · nullable"
+        int unit_cost "cents · nullable"
         string quote_number "nullable"
         bool is_taxable
         bool is_custom
@@ -205,7 +206,7 @@ erDiagram
         datetime returned_at "nullable"
         int quantity_reserved
         int quantity_on_order
-        decimal cancellation_fee "10,2 · nullable"
+        int cancellation_fee "cents · nullable"
         datetime created_at
         datetime updated_at
     }
@@ -215,11 +216,11 @@ erDiagram
         int customer_order_pickup_id FK "nullable"
         int customer_payment_method_id FK "nullable"
         int received_by FK "nullable"
-        decimal amount "12,2"
+        int amount "cents"
         string type "CustomerPaymentType"
-        decimal rounding_adjustment "12,2 · nullable"
-        decimal cash_tendered "12,2 · nullable"
-        decimal change_given "12,2 · nullable"
+        int rounding_adjustment "cents · nullable"
+        int cash_tendered "cents · nullable"
+        int change_given "cents · nullable"
         datetime created_at
         datetime updated_at
     }
@@ -246,7 +247,7 @@ erDiagram
         decimal rate "6,3"
         bool is_compound
         string registration_number "nullable"
-        decimal amount "12,2"
+        int amount "cents"
         datetime created_at
         datetime updated_at
     }
@@ -319,7 +320,7 @@ erDiagram
         decimal base_multiplier "8,4"
         decimal customs_fee "8,4"
         decimal shipping_fee "8,4"
-        decimal prepaid_amount "10,2 · nullable"
+        int prepaid_amount "cents · nullable"
         bool collect
         decimal early_payment_discount_percent "5,2"
         int early_payment_discount_days "nullable"
@@ -361,7 +362,7 @@ erDiagram
         int part_id FK "nullable"
         string description "nullable"
         int quantity
-        decimal unit_cost "10,2"
+        int unit_cost "cents"
         int quantity_received
         string status "SupplierOrderLineStatus"
         string cancellation_reason "nullable"
@@ -390,7 +391,7 @@ erDiagram
         int supplier_order_line_id FK
         int product_id FK "nullable"
         int quantity
-        decimal unit_cost "10,2"
+        int unit_cost "cents"
         int quantity_reversed
         datetime reversed_at "nullable"
         string reversal_reason "nullable"
@@ -406,17 +407,17 @@ erDiagram
         int created_by FK "nullable"
         string invoice_number
         date invoice_date
-        decimal merchandise_total "12,2"
-        decimal freight_fee "12,2"
-        decimal customs_fee "12,2"
-        decimal taxes "12,2"
-        decimal computed_total "12,2"
-        decimal invoice_total "12,2"
-        decimal variance "12,2"
+        int merchandise_total "cents"
+        int freight_fee "cents"
+        int customs_fee "cents"
+        int taxes "cents"
+        int computed_total "cents"
+        int invoice_total "cents"
+        int variance "cents"
         decimal discount_percent "5,2"
         int discount_days "nullable"
         date discount_due_date "nullable"
-        decimal discount_amount "12,2"
+        int discount_amount "cents"
         bool discount_next_month
         string description "nullable"
         datetime created_at
@@ -428,7 +429,7 @@ erDiagram
         int supplier_invoice_id FK
         int reception_line_id FK "nullable"
         int quantity
-        decimal unit_cost "10,2"
+        int unit_cost "cents"
         datetime created_at
         datetime updated_at
     }
@@ -489,7 +490,7 @@ erDiagram
         int id PK
         int reception_line_id FK "nullable"
         int product_id FK
-        decimal cost "10,2"
+        int cost "cents"
         date inserted_at
         date delivered_at "nullable"
         datetime created_at
@@ -556,7 +557,7 @@ erDiagram
         int department_id FK "nullable"
         int supplier_id FK
         string model
-        decimal cost "10,2"
+        int cost "cents"
         text description "nullable"
         bool is_discontinued
         bool is_non_orderable
@@ -567,7 +568,7 @@ erDiagram
         decimal width "8,2 · nullable"
         decimal height "8,2 · nullable"
         decimal weight "8,2 · nullable"
-        decimal imap "10,2 · nullable"
+        int imap "cents · nullable"
         string supplier_clean_model "nullable"
         bool is_taxable
         bool is_custom
@@ -580,7 +581,7 @@ erDiagram
         string model
         string clean_model
         string description
-        decimal last_cost "10,2"
+        int last_cost "cents"
         datetime created_at
         datetime updated_at
     }
@@ -595,7 +596,7 @@ erDiagram
         string name UK
         text description_template "nullable"
         bool is_internal
-        decimal selling_price "10,2 · nullable"
+        int selling_price "cents · nullable"
         bool is_taxable
         bool is_active
         datetime created_at
@@ -605,8 +606,8 @@ erDiagram
         int id PK
         int service_id FK
         int supplier_id FK
-        decimal cost "10,2"
-        decimal selling_price "10,2"
+        int cost "cents"
+        int selling_price "cents"
         datetime created_at
         datetime updated_at
     }
@@ -661,8 +662,8 @@ erDiagram
         int price_list_list_id FK
         string model
         string clean_model
-        decimal cost "10,2 · nullable"
-        decimal imap "10,2 · nullable"
+        int cost "cents · nullable"
+        int imap "cents · nullable"
         string upc "nullable"
         string collection "nullable"
         text description "nullable"
@@ -818,8 +819,8 @@ erDiagram
         bool has_group_insurance
         string insurance_plan "InsurancePlan · nullable"
         bool is_salaried
-        decimal hourly_rate "8,2 · nullable"
-        decimal weekly_salary "8,2 · nullable"
+        int hourly_rate "cents · nullable"
+        int weekly_salary "cents · nullable"
         decimal commission_rate "5,2 · nullable"
         bool has_commission
         bool has_bonus

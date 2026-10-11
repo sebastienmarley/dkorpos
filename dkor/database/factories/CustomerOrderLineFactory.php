@@ -6,6 +6,7 @@ use App\Enums\CustomerOrderLineStatus;
 use App\Models\CustomerOrder;
 use App\Models\CustomerOrderLine;
 use App\Models\Product;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,7 +23,7 @@ class CustomerOrderLineFactory extends Factory
             'customer_order_id' => CustomerOrder::factory(),
             'product_id' => Product::factory(),
             'quantity' => fake()->numberBetween(1, 4),
-            'unit_price' => fake()->randomFloat(2, 10, 2000),
+            'unit_price' => Money::of(fake()->numberBetween(1000, 200000)),
             'note' => null,
             'status' => CustomerOrderLineStatus::InStock,
         ];

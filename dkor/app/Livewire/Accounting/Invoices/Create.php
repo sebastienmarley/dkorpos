@@ -4,6 +4,7 @@ namespace App\Livewire\Accounting\Invoices;
 
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
+use App\Support\Money;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -88,12 +89,12 @@ class Create extends Component
                 $supplier,
                 collect(),
                 [],
-                (float) $this->freightFee,
-                (float) $this->customsFee,
-                (float) $this->taxes,
-                (float) $this->invoiceTotal,
+                Money::tryParse($this->freightFee) ?? Money::zero(),
+                Money::tryParse($this->customsFee) ?? Money::zero(),
+                Money::tryParse($this->taxes) ?? Money::zero(),
+                Money::tryParse($this->invoiceTotal) ?? Money::zero(),
                 Carbon::canBeCreatedFromFormat($this->invoiceDate, 'Y-m-d') ? Carbon::parse($this->invoiceDate) : null,
-                (float) $this->merchandiseTotal,
+                Money::tryParse($this->merchandiseTotal) ?? Money::zero(),
             ) : null,
         ])->layout('layouts.app', ['title' => __('Nouvelle facture')]);
     }

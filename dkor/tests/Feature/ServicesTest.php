@@ -12,10 +12,12 @@ use App\Models\CustomerPaymentMethod;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\Service;
+use App\Models\ServiceSupplier;
 use App\Models\Supplier;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Livewire\Livewire;
 
 /**
@@ -27,7 +29,7 @@ function externalService(float $cost = 60, float $price = 100, array $attributes
 {
     $supplier = Supplier::factory()->create(['type' => SupplierType::Service]);
     $service = Service::factory()->create($attributes);
-    $service->suppliers()->attach($supplier->id, ['cost' => $cost, 'selling_price' => $price]);
+    ServiceSupplier::query()->create(['service_id' => $service->id, 'supplier_id' => $supplier->id, 'cost' => Money::parse($cost), 'selling_price' => Money::parse($price)]);
 
     return [$service, $supplier];
 }
@@ -50,7 +52,7 @@ describe('catalogue de services', function () {
 
         expect(Service::sole())
             ->is_internal->toBeTrue()
-            ->selling_price->toBe(79.95)
+            ->selling_price->toBeMoney(7995)
             ->is_taxable->toBeFalse()
             ->and(Service::sole()->suppliers()->count())->toBe(0);
     });
@@ -71,8 +73,10 @@ describe('catalogue de services', function () {
 
         $service = Service::sole();
 
-        expect($service->pricingFor($installer->id))->toBe(['selling_price' => 100.0, 'cost' => 60.0])
-            ->and($service->pricingFor($carrier->id))->toBe(['selling_price' => 90.0, 'cost' => 45.0]);
+        expect($service->pricingFor($installer->id)['selling_price'])->toBeMoney(10000)
+            ->and($service->pricingFor($installer->id)['cost'])->toBeMoney(6000)
+            ->and($service->pricingFor($carrier->id)['selling_price'])->toBeMoney(9000)
+            ->and($service->pricingFor($carrier->id)['cost'])->toBeMoney(4500);
 
         Livewire::test(Services::class)
             ->call('openEdit', $service->id)
@@ -138,7 +142,7 @@ describe('services dans la commande client', function () {
     });
 
     it('vend un service interne « À faire » au prix du service, puis le complète', function () {
-        $service = Service::factory()->internal(80)->create(['name' => 'Livraison']);
+        $service = Service::factory()->internal(Money::parse(80))->create(['name' => 'Livraison']);
 
         $line = $this->order->addService($service, null, 1, 'Livraison 2e étage');
 
@@ -146,17 +150,17 @@ describe('services dans la commande client', function () {
             ->status->toBe(CustomerOrderLineStatus::ToDo)
             ->supplier_id->toBeNull()
             ->supplier_order_line_id->toBeNull()
-            ->unit_price->toBe(80.0)
+            ->unit_price->toBeMoney(8000)
             ->description->toBe('Livraison 2e étage')
             ->and(SupplierOrder::count())->toBe(0)
-            ->and($this->order->fresh()->subtotal)->toBe(80.0);
+            ->and($this->order->fresh()->subtotal)->toBeMoney(8000);
 
-        expect($this->order->amountRequiredFor([]))->toBe(round($this->order->fresh()->total * 0.3, 2));
+        expect($this->order->amountRequiredFor([]))->toBeMoney($this->order->fresh()->total->percent(30)->cents());
 
         $this->order->completeServiceLine($line);
 
         expect($line->fresh())->status->toBe(CustomerOrderLineStatus::Completed)->delivered_at->not->toBeNull()
-            ->and($this->order->fresh()->amountRequiredFor([]))->toBe($this->order->fresh()->total);
+            ->and($this->order->fresh()->amountRequiredFor([]))->toBeMoney($this->order->fresh()->total->cents());
     });
 
     it('commande un service externe au fournisseur choisi, puis le complète avec la commande de services', function () {
@@ -169,11 +173,11 @@ describe('services dans la commande client', function () {
         expect($line->fresh())
             ->status->toBe(CustomerOrderLineStatus::OnOrder)
             ->quantity_on_order->toBe(2)
-            ->unit_price->toBe(100.0)
+            ->unit_price->toBeMoney(10000)
             ->and($supplierLine)
             ->product_id->toBeNull()
             ->quantity->toBe(2)
-            ->unit_cost->toBe(60.0)
+            ->unit_cost->toBeMoney(6000)
             ->description->toContain('Installation lave-vaisselle')
             ->and($supplierLine->order)
             ->type->toBe(SupplierType::Service)
@@ -198,16 +202,16 @@ describe('services dans la commande client', function () {
     });
 
     it('ne taxe pas les lignes non taxables', function () {
-        $service = Service::factory()->internal(50)->create(['is_taxable' => false]);
+        $service = Service::factory()->internal(Money::parse(50))->create(['is_taxable' => false]);
         $this->order->addService($service, null, 1, 'Frais');
         stockedLine($this->order, 1, 1, 100);
 
         $order = $this->order->fresh();
-        $taxed = $order->taxesFor(100)['total'];
+        $taxed = $order->taxesFor(Money::parse(100))['total'];
 
-        expect($order->subtotal)->toBe(150.0)
-            ->and($order->total)->toBe(round($taxed + 50, 2))
-            ->and($order->taxLines->sum('amount'))->toEqual(round($taxed - 100, 2));
+        expect($order->subtotal)->toBeMoney(15000)
+            ->and($order->total)->toBeMoney($taxed->plus(Money::parse(50))->cents())
+            ->and($order->taxLines->sum(fn ($taxLine) => $taxLine->amount->cents()))->toBe($taxed->minus(Money::parse(100))->cents());
     });
 
     it('fige la taxabilité du produit sur la ligne', function () {
@@ -222,9 +226,9 @@ describe('services dans la commande client', function () {
         [$service, $supplier] = externalService();
         $line = $this->order->addService($service, $supplier->id, 1, 'Installation');
 
-        $this->order->updateServiceLine($line, 3, 120, 'Installation au sous-sol', 'Appeler avant');
+        $this->order->updateServiceLine($line, 3, Money::parse(120), 'Installation au sous-sol', 'Appeler avant');
 
-        expect($line->fresh())->quantity->toBe(3)->unit_price->toBe(120.0)->description->toBe('Installation au sous-sol')->note->toBe('Appeler avant')
+        expect($line->fresh())->quantity->toBe(3)->unit_price->toBeMoney(12000)->description->toBe('Installation au sous-sol')->note->toBe('Appeler avant')
             ->and(SupplierOrderLine::sole()->quantity)->toBe(3);
     });
 
@@ -233,9 +237,9 @@ describe('services dans la commande client', function () {
         $line = $this->order->addService($service, $supplier->id, 1, 'Installation');
         SupplierOrder::sole()->send();
 
-        expect(fn () => $this->order->updateServiceLine($line->fresh(), 2, 100, 'Installation', null))->toThrow(DomainException::class);
+        expect(fn () => $this->order->updateServiceLine($line->fresh(), 2, Money::parse(100), 'Installation', null))->toThrow(DomainException::class);
 
-        $this->order->updateServiceLine($line->fresh(), 1, 100, 'Installation', 'Note ajoutée');
+        $this->order->updateServiceLine($line->fresh(), 1, Money::parse(100), 'Installation', 'Note ajoutée');
 
         expect($line->fresh()->note)->toBe('Note ajoutée');
     });
@@ -259,7 +263,7 @@ describe('services dans la commande client', function () {
     });
 
     it('passe la commande à « Ramassée » quand les produits sont ramassés et les services complétés', function () {
-        $service = Service::factory()->internal(20)->create();
+        $service = Service::factory()->internal(Money::parse(20))->create();
         $serviceLine = $this->order->addService($service, null, 1, 'Assemblage');
         $productLine = stockedLine($this->order, 1, 1, 100);
         $this->order->completeServiceLine($serviceLine);
@@ -293,7 +297,7 @@ describe('services dans la commande client', function () {
     });
 
     it('modifie et complète un service depuis le modal de la ligne', function () {
-        $service = Service::factory()->internal(40)->create();
+        $service = Service::factory()->internal(Money::parse(40))->create();
         $line = $this->order->addService($service, null, 1, 'Assemblage');
 
         Livewire::test(Show::class, ['order' => $this->order])

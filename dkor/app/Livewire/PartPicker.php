@@ -6,6 +6,7 @@ use App\Actions\FindOrCreatePart;
 use App\Enums\SupplierType;
 use App\Models\Part;
 use App\Models\Supplier;
+use App\Support\Money;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -67,7 +68,7 @@ class PartPicker extends Component
     {
         $this->authorize('parts.create');
 
-        $this->lastCost = filled($this->lastCost) ? number_format((float) str_replace(',', '.', $this->lastCost), 2, '.', '') : '0.00';
+        $this->lastCost = filled($this->lastCost) ? (Money::tryParse($this->lastCost)?->toDecimal() ?? $this->lastCost) : '0.00';
 
         $this->validate([
             'supplierId' => ['required', 'exists:suppliers,id'],
@@ -80,7 +81,7 @@ class PartPicker extends Component
             'supplier_id' => $this->supplierId,
             'model' => $this->model,
             'description' => $this->description,
-            'last_cost' => $this->lastCost,
+            'last_cost' => Money::parse($this->lastCost),
         ]);
 
         Flux::toast(

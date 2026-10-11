@@ -15,6 +15,7 @@ use App\Models\Store;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 
@@ -105,7 +106,7 @@ describe('réponse du fournisseur', function () {
         $this->supplierOrder->confirmLineCancellation($this->supplierLine->fresh());
 
         expect($this->line->fresh()->status)->toBe(CustomerOrderLineStatus::Cancelled)
-            ->and($this->order->fresh()->subtotal)->toBe(0.0);
+            ->and($this->order->fresh()->subtotal)->toBeMoney(0);
     });
 
     it('garde la demande d\'annulation si une partie est reçue entre-temps', function () {
@@ -158,19 +159,19 @@ describe('annulation avec frais', function () {
         Mail::fake();
         [$line, $supplierLine, $supplierOrder] = orderedCustomerLine($this->order, 2);
         $supplierOrder->supplier->update(['order_email' => 'commandes@fournisseur.test']);
-        $line->update(['unit_price' => 100]);
+        $line->update(['unit_price' => Money::parse(100)]);
 
         $fee = $this->order->cancelLineWithFee($line);
 
-        expect($fee)->toBe(30.0)
+        expect($fee)->toBeMoney(3000)
             ->and($line->fresh())
             ->status->toBe(CustomerOrderLineStatus::Cancelled)
-            ->cancellation_fee->toBe(30.0)
+            ->cancellation_fee->toBeMoney(3000)
             ->supplier_order_line_id->toBeNull()
             ->and($supplierLine->fresh()->status)->toBe(SupplierOrderLineStatus::CancellationRequested)
             ->and($this->order->fresh())
-            ->subtotal->toBe(30.0)
-            ->total->toBe(34.49);
+            ->subtotal->toBeMoney(3000)
+            ->total->toBeMoney(3449);
 
         Mail::assertSent(SupplierOrderLineCancellationRequested::class);
     });
@@ -203,10 +204,10 @@ describe('annulation avec frais', function () {
 
     it('garde au client la partie déjà reçue et annule le reste avec frais', function () {
         [$line, $supplierLine, $supplierOrder] = orderedCustomerLine($this->order, 3);
-        $line->update(['unit_price' => 100]);
+        $line->update(['unit_price' => Money::parse(100)]);
         $supplierOrder->receive([$supplierLine->id => ['quantity' => 1, 'unit_cost' => 5]]);
 
-        expect($this->order->cancelLineWithFee($line->fresh()))->toBe(30.0);
+        expect($this->order->cancelLineWithFee($line->fresh()))->toBeMoney(3000);
 
         expect($line->fresh())
             ->quantity_reserved->toBe(1)
@@ -215,9 +216,9 @@ describe('annulation avec frais', function () {
             ->status->toBe(CustomerOrderLineStatus::Received)
             ->and($this->order->lines()->where('status', CustomerOrderLineStatus::Cancelled)->sole())
             ->quantity->toBe(2)
-            ->cancellation_fee->toBe(30.0)
+            ->cancellation_fee->toBeMoney(3000)
             ->supplier_order_line_id->toBeNull()
-            ->and($this->order->fresh()->subtotal)->toBe(130.0);
+            ->and($this->order->fresh()->subtotal)->toBeMoney(13000);
     });
 
     it('n\'applique aucuns frais quand le fournisseur confirme l\'annulation', function () {
@@ -227,18 +228,18 @@ describe('annulation avec frais', function () {
         $supplierOrder->fresh()->confirmLineCancellation($supplierLine->fresh());
 
         expect($line->fresh())->status->toBe(CustomerOrderLineStatus::Cancelled)->cancellation_fee->toBeNull()
-            ->and($this->order->fresh()->subtotal)->toBe(0.0);
+            ->and($this->order->fresh()->subtotal)->toBeMoney(0);
     });
 
     it('laisse en crédit le payé moins les frais', function () {
         [$line] = orderedCustomerLine($this->order, 1);
-        $line->update(['unit_price' => 100]);
+        $line->update(['unit_price' => Money::parse(100)]);
         $this->order->recalculateBalance();
-        $this->order->pickUp([], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => 34.49]]);
+        $this->order->pickUp([], [['method_id' => CustomerPaymentMethod::cash()->id, 'amount' => Money::parse(34.49)]]);
 
         $this->order->cancelLineWithFee($line->fresh());
 
-        expect($this->order->fresh()->credit())->toBe(17.24);
+        expect($this->order->fresh()->credit())->toBeMoney(1724);
     });
 
     it('refuse l\'annulation avec frais d\'une ligne qui n\'est pas commandée', function () {
@@ -249,7 +250,7 @@ describe('annulation avec frais', function () {
 
     it('propose l\'annulation avec frais dans le modal de la ligne', function () {
         [$line] = orderedCustomerLine($this->order, 2);
-        $line->update(['unit_price' => 100]);
+        $line->update(['unit_price' => Money::parse(100)]);
 
         Livewire::test(CustomerOrderShow::class, ['order' => $this->order])
             ->call('openLineModal', $line->id)

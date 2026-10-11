@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\ReceptionLine;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierInvoiceLine;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -21,7 +22,7 @@ class SupplierInvoiceLineFactory extends Factory
             'supplier_invoice_id' => SupplierInvoice::factory(),
             'reception_line_id' => ReceptionLine::factory(),
             'quantity' => fake()->numberBetween(1, 10),
-            'unit_cost' => fake()->randomFloat(2, 1, 500),
+            'unit_cost' => Money::of(fake()->numberBetween(100, 50000)),
         ];
     }
 }

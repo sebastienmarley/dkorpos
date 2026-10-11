@@ -15,6 +15,7 @@ use App\Models\Reception;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -29,8 +30,8 @@ beforeEach(function () {
 function sentOrderWithLine(int $quantity): array
 {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 5]);
-    $line = SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => 5]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(5)]);
+    $line = SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => Money::parse(5)]);
     $order->send();
 
     return [$order->fresh(), $product, $line->fresh()];
@@ -143,7 +144,7 @@ describe('ligne liée à un client', function () {
             ->and($reorder->supplierOrderLine)
             ->quantity->toBe(1)
             ->and($reorder->supplierOrderLine->order->id)->not->toBe($this->supplierOrder->id)
-            ->and($this->customerOrder->fresh()->subtotal)->toBe(round(3 * $this->customerLine->unit_price, 2));
+            ->and($this->customerOrder->fresh()->subtotal)->toBeMoney($this->customerLine->unit_price->times(3)->cents());
     });
 
     it('recommande toute la ligne quand tout arrive endommagé', function () {

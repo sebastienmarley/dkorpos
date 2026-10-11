@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\CustomerOrder;
 use App\Models\CustomerOrderTax;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -21,7 +22,7 @@ class CustomerOrderTaxFactory extends Factory
             'name' => 'TPS',
             'rate' => 5,
             'is_compound' => false,
-            'amount' => 0,
+            'amount' => Money::zero(),
         ];
     }
 }

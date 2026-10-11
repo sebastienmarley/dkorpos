@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Concerns\HasSearchName;
+use App\Support\Money;
 use Database\Factories\customerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -18,7 +20,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $phone
  * @property string|null $cellphone
  * @property string|null $email
- * @property float $credit_balance
+ * @property Money $credit_balance
  * @property string|null $address_civic
  * @property string|null $address_apartment
  * @property string|null $address_street
@@ -41,8 +43,12 @@ class customer extends Model
 
     use HasSearchName;
 
+    protected $attributes = [
+        'credit_balance' => 0,
+    ];
+
     protected $casts = [
-        'credit_balance' => 'float',
+        'credit_balance' => MoneyCast::class,
     ];
 
     /**

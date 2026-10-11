@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Models\Part;
 use App\Rules\UniqueCleanProductModel;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Collection;
 
 /**
@@ -34,7 +35,7 @@ class FindOrCreatePart
     }
 
     /**
-     * @param  array{supplier_id: int|string, model: string, description: string, last_cost: float|string}  $attributes
+     * @param  array{supplier_id: int|string, model: string, description: string, last_cost: Money}  $attributes
      */
     public function create(array $attributes): Part
     {

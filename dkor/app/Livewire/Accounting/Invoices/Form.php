@@ -11,6 +11,7 @@ use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
+use App\Support\Money;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -61,7 +62,7 @@ class Form extends Component
         $this->invoiceDate = now()->toDateString();
 
         foreach ($this->lines() as $line) {
-            $this->unitCosts[$line->id] = number_format($line->unit_cost, 2, '.', '');
+            $this->unitCosts[$line->id] = $line->unit_cost->toDecimal();
         }
     }
 
@@ -154,11 +155,11 @@ class Form extends Component
             'totals' => $invoice ? null : SupplierInvoice::totals(
                 $this->supplier(),
                 $lines,
-                array_map('floatval', $this->unitCosts),
-                (float) $this->freightFee,
-                (float) $this->customsFee,
-                (float) $this->taxes,
-                (float) $this->invoiceTotal,
+                array_map(fn (string $cost): Money => Money::tryParse($cost) ?? Money::zero(), $this->unitCosts),
+                Money::tryParse($this->freightFee) ?? Money::zero(),
+                Money::tryParse($this->customsFee) ?? Money::zero(),
+                Money::tryParse($this->taxes) ?? Money::zero(),
+                Money::tryParse($this->invoiceTotal) ?? Money::zero(),
                 Carbon::canBeCreatedFromFormat($this->invoiceDate, 'Y-m-d') ? Carbon::parse($this->invoiceDate) : null,
             ),
         ])->layout('layouts.app', ['title' => __('Facturation :number', ['number' => $document->number])]);

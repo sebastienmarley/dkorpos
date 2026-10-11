@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Service;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -25,8 +26,8 @@ class ServiceFactory extends Factory
         ];
     }
 
-    public function internal(float $price = 50): static
+    public function internal(?Money $price = null): static
     {
-        return $this->state(['is_internal' => true, 'selling_price' => $price]);
+        return $this->state(['is_internal' => true, 'selling_price' => $price ?? Money::of(5000)]);
     }
 }

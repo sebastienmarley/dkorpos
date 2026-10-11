@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
+use App\Support\Money;
 use Database\Factories\PriceListItemFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,8 +18,8 @@ use Illuminate\Support\Carbon;
  * @property int|null $product_id
  * @property string $model
  * @property string $clean_model
- * @property float|null $cost
- * @property float|null $imap
+ * @property Money|null $cost
+ * @property Money|null $imap
  * @property string|null $upc
  * @property string|null $collection
  * @property string|null $description
@@ -39,8 +41,8 @@ class PriceListItem extends Model
     protected function casts(): array
     {
         return [
-            'cost' => 'float',
-            'imap' => 'float',
+            'cost' => MoneyCast::class,
+            'imap' => MoneyCast::class,
             'length' => 'float',
             'width' => 'float',
             'height' => 'float',

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
+use App\Support\Money;
 use Database\Factories\ReceptionLineFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +18,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $product_id
  * @property int $quantity
  * @property int $quantity_damaged Partie de la quantité reçue endommagée (inventaire défectueux).
- * @property float $unit_cost
+ * @property Money $unit_cost
  * @property int $quantity_reversed
  * @property Carbon|null $reversed_at
  * @property int|null $reversed_by
@@ -26,7 +28,7 @@ use Illuminate\Support\Carbon;
  * @property-read Reception $reception
  * @property-read SupplierOrderLine $orderLine
  * @property-read Product|null $product
- * @property-read float $total
+ * @property-read Money $total
  * @property-read int $quantity_net
  * @property-read int $billable_quantity
  * @property-read string $label
@@ -40,7 +42,7 @@ class ReceptionLine extends Model
     protected $casts = [
         'quantity_damaged' => 'integer',
         'quantity' => 'integer',
-        'unit_cost' => 'float',
+        'unit_cost' => MoneyCast::class,
         'quantity_reversed' => 'integer',
         'reversed_at' => 'datetime',
     ];
@@ -79,9 +81,9 @@ class ReceptionLine extends Model
         return $this->orderLine->label;
     }
 
-    public function getTotalAttribute(): float
+    public function getTotalAttribute(): Money
     {
-        return round($this->quantity_net * $this->unit_cost, 2);
+        return $this->unit_cost->times($this->quantity_net);
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
@@ -11,6 +12,7 @@ use App\Enums\InventoryStatus;
 use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
+use App\Support\Money;
 use Database\Factories\CustomerOrderFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -29,10 +31,10 @@ use Illuminate\Support\Str;
  * @property int $customer_id
  * @property int|null $store_id
  * @property CustomerOrderStatus $status
- * @property float $subtotal
- * @property float $total
- * @property float $amount_paid
- * @property float $balance_due
+ * @property Money $subtotal
+ * @property Money $total
+ * @property Money $amount_paid
+ * @property Money $balance_due
  * @property int|null $created_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -53,15 +55,18 @@ class CustomerOrder extends Model
 
     protected $attributes = [
         'status' => 'new',
+        'subtotal' => 0,
+        'total' => 0,
+        'amount_paid' => 0,
         'balance_due' => 0,
     ];
 
     protected $casts = [
         'status' => CustomerOrderStatus::class,
-        'balance_due' => 'float',
-        'subtotal' => 'float',
-        'total' => 'float',
-        'amount_paid' => 'float',
+        'balance_due' => MoneyCast::class,
+        'subtotal' => MoneyCast::class,
+        'total' => MoneyCast::class,
+        'amount_paid' => MoneyCast::class,
     ];
 
     protected static function booted(): void
@@ -178,7 +183,7 @@ class CustomerOrder extends Model
      *
      * @throws DomainException si une quantité doit être commandée et que le produit ne peut pas l'être.
      */
-    public function addProduct(Product $product, int $quantity = 1, ?float $unitPrice = null, ?string $note = null): CustomerOrderLine
+    public function addProduct(Product $product, int $quantity = 1, ?Money $unitPrice = null, ?string $note = null): CustomerOrderLine
     {
         if ($product->is_custom) {
             throw new DomainException(__('Produit sur mesure : saisissez ses spécifications, son coût soumis et son prix.'));
@@ -190,7 +195,7 @@ class CustomerOrder extends Model
 
         return DB::transaction(function () use ($product, $quantity, $unitPrice, $note): CustomerOrderLine {
             $line = $unitPrice !== null
-                ? $this->lines()->make(['product_id' => $product->id, 'unit_price' => round($unitPrice, 2), 'is_taxable' => $product->is_taxable, 'note' => $note])
+                ? $this->lines()->make(['product_id' => $product->id, 'unit_price' => $unitPrice, 'is_taxable' => $product->is_taxable, 'note' => $note])
                 : $this->lines()
                     ->where('product_id', $product->id)
                     ->whereIn('status', [CustomerOrderLineStatus::InStock, CustomerOrderLineStatus::OnOrder])
@@ -255,7 +260,7 @@ class CustomerOrder extends Model
      *
      * @throws DomainException si la ligne n'est pas une pièce, si la quantité ou le prix ne peut plus changer.
      */
-    public function updatePartLine(CustomerOrderLine $line, int $onOrder, float $unitPrice, bool $isNoCharge, ?string $note): void
+    public function updatePartLine(CustomerOrderLine $line, int $onOrder, Money $unitPrice, bool $isNoCharge, ?string $note): void
     {
         DB::transaction(function () use ($line, $onOrder, $unitPrice, $isNoCharge, $note): void {
             $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
@@ -264,7 +269,7 @@ class CustomerOrder extends Model
                 throw new DomainException(__('Cette ligne n\'est pas une pièce.'));
             }
 
-            $unitPrice = $isNoCharge ? 0.0 : round($unitPrice, 2);
+            $unitPrice = $isNoCharge ? Money::zero() : $unitPrice;
 
             if ($onOrder !== $line->quantity_on_order) {
                 if (! $line->status->isEditable()) {
@@ -275,7 +280,7 @@ class CustomerOrder extends Model
                 $line->refresh();
             }
 
-            $changesPrice = $unitPrice !== round($line->unit_price, 2) || $isNoCharge !== $line->is_no_charge;
+            $changesPrice = ! $unitPrice->equals($line->unit_price) || $isNoCharge !== $line->is_no_charge;
 
             if ($changesPrice && ($line->status->isHandedOver() || ! $line->status->isBillable())) {
                 throw new DomainException(__('Cette pièce est remise au client ou annulée : son prix ne change plus.'));
@@ -482,9 +487,9 @@ class CustomerOrder extends Model
     /**
      * Frais d'annulation de cette quantité d'une ligne, selon le taux du magasin de la commande.
      */
-    public function cancellationFeeFor(CustomerOrderLine $line, int $quantity): float
+    public function cancellationFeeFor(CustomerOrderLine $line, int $quantity): Money
     {
-        return round($quantity * $line->unit_price * ($this->store->cancellation_fee_percent ?? 0) / 100, 2);
+        return $line->unit_price->times($quantity)->percent($this->store->cancellation_fee_percent ?? 0);
     }
 
     /**
@@ -493,15 +498,15 @@ class CustomerOrder extends Model
      * plus liée à la commande fournisseur (ce qui arrivera entre en stock disponible). Une demande d'annulation est
      * envoyée au fournisseur si elle ne l'a pas déjà été. La partie déjà en stock ou reçue reste au client.
      *
-     * @return float Frais d'annulation facturés.
+     * @return Money Frais d'annulation facturés.
      *
      * @throws DomainException si la ligne n'est pas commandée ou en demande d'annulation.
      */
-    public function cancelLineWithFee(CustomerOrderLine $line): float
+    public function cancelLineWithFee(CustomerOrderLine $line): Money
     {
         $supplierLine = null;
 
-        $fee = DB::transaction(function () use ($line, &$supplierLine): float {
+        $fee = DB::transaction(function () use ($line, &$supplierLine): Money {
             $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
 
             if (! in_array($line->status, [CustomerOrderLineStatus::Ordered, CustomerOrderLineStatus::CancellationRequested], true) || $line->quantity_on_order < 1) {
@@ -632,14 +637,14 @@ class CustomerOrder extends Model
      *
      * @throws DomainException si la ligne n'est plus modifiable (quantités ou prix changés) ou si le stock est insuffisant.
      */
-    public function updateLine(CustomerOrderLine $line, int $reserved, int $onOrder, float $unitPrice, ?string $note): void
+    public function updateLine(CustomerOrderLine $line, int $reserved, int $onOrder, Money $unitPrice, ?string $note): void
     {
         DB::transaction(function () use ($line, $reserved, $onOrder, $unitPrice, $note): void {
             $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
 
             $changesSale = $reserved !== $line->quantity_reserved
                 || $onOrder !== $line->quantity_on_order
-                || round($unitPrice, 2) !== round($line->unit_price, 2);
+                || ! $unitPrice->equals($line->unit_price);
 
             if ($changesSale) {
                 if (! $line->status->isEditable()) {
@@ -651,7 +656,7 @@ class CustomerOrder extends Model
             }
 
             $line->update([
-                'unit_price' => round($unitPrice, 2),
+                'unit_price' => $unitPrice,
                 'note' => filled($note) ? $note : null,
             ]);
 
@@ -702,9 +707,9 @@ class CustomerOrder extends Model
         $supplierLine = $line->supplierOrderLine()->with('order')->first();
 
         if ($supplierLine !== null) {
-            $unitCost = $line->is_custom ? (float) $line->unit_cost : $supplierLine->unit_cost;
+            $unitCost = $line->is_custom ? ($line->unit_cost ?? Money::zero()) : $supplierLine->unit_cost;
 
-            if ($supplierLine->quantity !== $line->quantity_on_order || round($unitCost, 2) !== round($supplierLine->unit_cost, 2)) {
+            if ($supplierLine->quantity !== $line->quantity_on_order || ! $unitCost->equals($supplierLine->unit_cost)) {
                 $this->guardSupplierLineEditable($supplierLine);
                 $supplierLine->order->updateLine($supplierLine, $line->quantity_on_order, $unitCost);
             }
@@ -742,7 +747,7 @@ class CustomerOrder extends Model
             'product_id' => $product->id,
             'description' => $line->is_custom ? $this->customSpecifications($line) : null,
             'quantity' => $line->quantity_on_order,
-            'unit_cost' => $line->is_custom ? (float) $line->unit_cost : $product->cost,
+            'unit_cost' => $line->is_custom ? ($line->unit_cost ?? Money::zero()) : $product->cost,
         ]);
 
         $line->update(['supplier_order_line_id' => $supplierLine->id]);
@@ -872,22 +877,22 @@ class CustomerOrder extends Model
     {
         $lines = $this->lines()->get();
         $billable = $lines->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable());
-        $taxable = round($billable->filter(fn (CustomerOrderLine $line): bool => $line->is_taxable)->sum(fn (CustomerOrderLine $line): float => $line->total)
-            + $lines->sum(fn (CustomerOrderLine $line): float => (float) $line->cancellation_fee), 2);
-        $exempt = round($billable->reject(fn (CustomerOrderLine $line): bool => $line->is_taxable)->sum(fn (CustomerOrderLine $line): float => $line->total), 2);
+        $taxable = Money::sum($billable->filter(fn (CustomerOrderLine $line): bool => $line->is_taxable)->map(fn (CustomerOrderLine $line): Money => $line->total))
+            ->plus(Money::sum($lines->map(fn (CustomerOrderLine $line): Money => $line->cancellation_fee ?? Money::zero())));
+        $exempt = Money::sum($billable->reject(fn (CustomerOrderLine $line): bool => $line->is_taxable)->map(fn (CustomerOrderLine $line): Money => $line->total));
         $taxes = $this->taxesFor($taxable);
-        $total = round($taxes['total'] + $exempt, 2);
-        $amountPaid = round((float) $this->payments()->sum('amount'), 2);
+        $total = $taxes['total']->plus($exempt);
+        $amountPaid = Money::of((int) $this->payments()->sum('amount'));
 
         foreach ($this->taxLines as $taxLine) {
             $taxLine->update(['amount' => $taxes['amounts'][$taxLine->id]]);
         }
 
         $this->update([
-            'subtotal' => round($taxable + $exempt, 2),
+            'subtotal' => $taxable->plus($exempt),
             'total' => $total,
             'amount_paid' => $amountPaid,
-            'balance_due' => round($total - $amountPaid, 2),
+            'balance_due' => $total->minus($amountPaid),
         ]);
     }
 
@@ -895,23 +900,23 @@ class CustomerOrder extends Model
      * Taxes de la commande sur un montant avant taxes, arrondies au cent chacune. Les taxes individuelles se
      * calculent sur le montant; celles en cascade sur le montant plus les taxes individuelles.
      *
-     * @return array{amounts: array<int, float>, total: float} montant par taxe (clé : id de la ligne de taxe) et montant taxes incluses
+     * @return array{amounts: array<int, Money>, total: Money} montant par taxe (clé : id de la ligne de taxe) et montant taxes incluses
      */
-    public function taxesFor(float $amount): array
+    public function taxesFor(Money $amount): array
     {
         $amounts = [];
-        $individual = 0.0;
+        $individual = Money::zero();
 
         foreach ($this->taxLines->sortBy('is_compound') as $taxLine) {
-            $base = $taxLine->is_compound ? $amount + $individual : $amount;
-            $amounts[$taxLine->id] = round($base * $taxLine->rate / 100, 2);
+            $base = $taxLine->is_compound ? $amount->plus($individual) : $amount;
+            $amounts[$taxLine->id] = $base->percent($taxLine->rate);
 
             if (! $taxLine->is_compound) {
-                $individual += $amounts[$taxLine->id];
+                $individual = $individual->plus($amounts[$taxLine->id]);
             }
         }
 
-        return ['amounts' => $amounts, 'total' => round($amount + array_sum($amounts), 2)];
+        return ['amounts' => $amounts, 'total' => $amount->plus(Money::sum($amounts))];
     }
 
     /**
@@ -921,38 +926,38 @@ class CustomerOrder extends Model
      *
      * @param  array<int, int>  $quantities  quantité à remettre par ligne
      */
-    public function amountRequiredFor(array $quantities): float
+    public function amountRequiredFor(array $quantities): Money
     {
         $required = $this->requiredPaidTotal(
-            fn (CustomerOrderLine $line): float => $line->status->isHandedOver() ? $line->total : ($quantities[$line->id] ?? 0) * $line->unit_price,
+            fn (CustomerOrderLine $line): Money => $line->status->isHandedOver() ? $line->total : $line->unit_price->times($quantities[$line->id] ?? 0),
         );
 
         $this->refresh();
 
-        return max(0.0, min(round($required - $this->amount_paid, 2), $this->balance_due));
+        return $required->minus($this->amount_paid)->min($this->balance_due)->max(Money::zero());
     }
 
     /**
      * Montant remboursable pour le retour de cette quantité : la valeur retournée (taxes incluses), sans que le payé
      * restant passe sous ce qu'exige le reste de la commande (100 % des articles remis, dépôt sur les autres).
      */
-    public function refundableFor(CustomerOrderLine $line, int $quantity): float
+    public function refundableFor(CustomerOrderLine $line, int $quantity): Money
     {
-        $returned = round($quantity * $line->unit_price, 2);
+        $returned = $line->unit_price->times($quantity);
 
         $required = $this->requiredPaidTotal(
-            fn (CustomerOrderLine $other): float => $other->status->isHandedOver()
-                ? $other->total - ($other->id === $line->id ? $returned : 0)
-                : 0,
+            fn (CustomerOrderLine $other): Money => $other->status->isHandedOver()
+                ? $other->total->minus($other->id === $line->id ? $returned : Money::zero())
+                : Money::zero(),
             excludedLine: $line,
             excludedValue: $returned,
         );
 
         $this->refresh();
 
-        $returnedTotal = $line->is_taxable ? $this->taxedTotal($returned, 0) : $returned;
+        $returnedTotal = $line->is_taxable ? $this->taxedTotal($returned, Money::zero()) : $returned;
 
-        return max(0.0, min($returnedTotal, round($this->amount_paid - $required, 2)));
+        return $returnedTotal->min($this->amount_paid->minus($required))->max(Money::zero());
     }
 
     /**
@@ -960,23 +965,23 @@ class CustomerOrder extends Model
      * minimum sur le reste des lignes facturables (celui du magasin pour le sur-mesure), taxes incluses sur les lignes
      * taxables. $excludedValue (de la ligne $excludedLine) est retiré du total facturable (articles en cours de retour).
      *
-     * @param  callable(CustomerOrderLine): float  $handedOverValue
+     * @param  callable(CustomerOrderLine): Money  $handedOverValue
      */
-    private function requiredPaidTotal(callable $handedOverValue, ?CustomerOrderLine $excludedLine = null, float $excludedValue = 0): float
+    private function requiredPaidTotal(callable $handedOverValue, ?CustomerOrderLine $excludedLine = null, ?Money $excludedValue = null): Money
     {
         $lines = $this->lines()->get()->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable());
 
-        $handedOver = ['taxable' => 0.0, 'exempt' => 0.0];
+        $handedOver = ['taxable' => Money::zero(), 'exempt' => Money::zero()];
         $remaining = [];
 
         foreach ($lines as $line) {
             $tax = $line->is_taxable ? 'taxable' : 'exempt';
+            $kind = $line->is_custom ? 'custom' : 'regular';
             $handed = $handedOverValue($line);
-            $excluded = $excludedLine !== null && $line->id === $excludedLine->id ? $excludedValue : 0.0;
+            $excluded = $excludedLine !== null && $line->id === $excludedLine->id ? ($excludedValue ?? Money::zero()) : Money::zero();
 
-            $handedOver[$tax] += $handed;
-            $remaining[$line->is_custom ? 'custom' : 'regular'][$tax] = ($remaining[$line->is_custom ? 'custom' : 'regular'][$tax] ?? 0.0)
-                + $line->total - $excluded - $handed;
+            $handedOver[$tax] = $handedOver[$tax]->plus($handed);
+            $remaining[$kind][$tax] = ($remaining[$kind][$tax] ?? Money::zero())->plus($line->total->minus($excluded)->minus($handed));
         }
 
         $deposits = [
@@ -984,10 +989,12 @@ class CustomerOrder extends Model
             'custom' => $this->store->custom_deposit_percent ?? config('sales.deposit_percent'),
         ];
 
-        $required = $this->taxedTotal(round($handedOver['taxable'], 2), round($handedOver['exempt'], 2));
+        $required = $this->taxedTotal($handedOver['taxable'], $handedOver['exempt']);
 
         foreach ($remaining as $kind => $amounts) {
-            $required += $this->taxedTotal(round($amounts['taxable'] ?? 0.0, 2), round($amounts['exempt'] ?? 0.0, 2)) * $deposits[$kind] / 100;
+            $required = $required->plus(
+                $this->taxedTotal($amounts['taxable'] ?? Money::zero(), $amounts['exempt'] ?? Money::zero())->percent($deposits[$kind]),
+            );
         }
 
         return $required;
@@ -996,9 +1003,9 @@ class CustomerOrder extends Model
     /**
      * Montant taxes incluses d'une partie taxable et d'une partie non taxable.
      */
-    private function taxedTotal(float $taxable, float $exempt): float
+    private function taxedTotal(Money $taxable, Money $exempt): Money
     {
-        return round($this->taxesFor($taxable)['total'] + $exempt, 2);
+        return $this->taxesFor($taxable)['total']->plus($exempt);
     }
 
     /**
@@ -1008,26 +1015,28 @@ class CustomerOrder extends Model
      * (aucun ramassage n'est créé).
      *
      * @param  array<int, int>  $quantities  quantité à remettre par ligne
-     * @param  array<int, array{method_id: int, amount: float, tendered?: float|null}>  $payments  (tendered : comptant reçu)
-     * @param  float  $creditUsed  montant payé avec le crédit au compte du client (déduit de ce crédit)
+     * @param  array<int, array{method_id: int, amount: Money, tendered?: Money|null}>  $payments  (tendered : comptant reçu)
+     * @param  Money|null  $creditUsed  montant payé avec le crédit au compte du client (déduit de ce crédit)
      *
      * @throws DomainException si une quantité n'est pas disponible, si le crédit utilisé dépasse celui du client ou
      *                         si le paiement ne couvre pas le montant exigé.
      */
-    public function pickUp(array $quantities, array $payments, float $creditUsed = 0): ?CustomerOrderPickup
+    public function pickUp(array $quantities, array $payments, ?Money $creditUsed = null): ?CustomerOrderPickup
     {
         $quantities = array_filter($quantities, fn (int $quantity): bool => $quantity > 0);
-        $creditUsed = round($creditUsed, 2);
+        $creditUsed ??= Money::zero();
 
-        if ($creditUsed < 0) {
+        if ($creditUsed->isNegative()) {
             throw new DomainException(__('Le crédit utilisé ne peut pas être négatif.'));
         }
 
-        if ($quantities === [] && round(array_sum(array_column($payments, 'amount')) + $creditUsed, 2) <= 0) {
+        $paid = Money::sum(array_column($payments, 'amount'))->plus($creditUsed);
+
+        if ($quantities === [] && ! $paid->isPositive()) {
             throw new DomainException(__('Choisissez au moins un article à ramasser ou entrez un paiement.'));
         }
 
-        return DB::transaction(function () use ($quantities, $payments, $creditUsed): ?CustomerOrderPickup {
+        return DB::transaction(function () use ($quantities, $payments, $creditUsed, $paid): ?CustomerOrderPickup {
             $lines = $this->lines()->lockForUpdate()->whereKey(array_keys($quantities))->get()->keyBy('id');
 
             foreach ($quantities as $lineId => $quantity) {
@@ -1040,22 +1049,21 @@ class CustomerOrder extends Model
 
             $customer = customer::query()->whereKey($this->customer_id)->lockForUpdate()->firstOrFail();
 
-            if ($creditUsed > $customer->credit_balance) {
-                throw new DomainException(__('Le crédit utilisé dépasse le crédit au compte du client (:credit $).', ['credit' => number_format($customer->credit_balance, 2)]));
+            if ($creditUsed->greaterThan($customer->credit_balance)) {
+                throw new DomainException(__('Le crédit utilisé dépasse le crédit au compte du client (:credit $).', ['credit' => $customer->credit_balance->toDecimal()]));
             }
 
             $required = $this->amountRequiredFor($quantities);
-            $paid = round(array_sum(array_column($payments, 'amount')) + $creditUsed, 2);
 
-            if ($paid < $required) {
+            if ($paid->lessThan($required)) {
                 throw new DomainException(__('Le paiement (:paid $) ne couvre pas le montant exigé (:required $).', [
-                    'paid' => number_format($paid, 2),
-                    'required' => number_format($required, 2),
+                    'paid' => $paid->toDecimal(),
+                    'required' => $required->toDecimal(),
                 ]));
             }
 
-            if ($paid > $this->balance_due) {
-                throw new DomainException(__('Le paiement dépasse le solde de la commande (:balance $).', ['balance' => number_format($this->balance_due, 2)]));
+            if ($paid->greaterThan($this->balance_due)) {
+                throw new DomainException(__('Le paiement dépasse le solde de la commande (:balance $).', ['balance' => $this->balance_due->toDecimal()]));
             }
 
             $pickup = null;
@@ -1070,7 +1078,7 @@ class CustomerOrder extends Model
 
             $this->recordPayments($payments, CustomerPaymentType::Payment, $pickup);
 
-            if ($creditUsed > 0) {
+            if ($creditUsed->isPositive()) {
                 $this->payments()->create([
                     'customer_order_pickup_id' => $pickup?->id,
                     'type' => CustomerPaymentType::CreditUse,
@@ -1078,7 +1086,7 @@ class CustomerOrder extends Model
                     'received_by' => auth()->id(),
                 ]);
 
-                $customer->decrement('credit_balance', $creditUsed);
+                $customer->forceFill(['credit_balance' => $customer->credit_balance->minus($creditUsed)])->save();
             }
 
             $this->recalculateBalance();
@@ -1094,7 +1102,7 @@ class CustomerOrder extends Model
      * reste sur la commande (crédit pour le produit d'échange). Pour un remboursement, elle passe à « Remboursé » et
      * les montants remboursés sont enregistrés en paiements négatifs. Une ligne retournée en partie est séparée.
      *
-     * @param  array<int, array{method_id: int, amount: float}>  $refunds
+     * @param  array<int, array{method_id: int, amount: Money}>  $refunds
      *
      * @throws DomainException si la ligne n'a pas été remise au client, si la quantité est invalide ou si le
      *                         remboursement dépasse le montant remboursable.
@@ -1116,13 +1124,13 @@ class CustomerOrder extends Model
                 throw new DomainException(__('La quantité retournée doit être entre 1 et :max.', ['max' => $line->quantity]));
             }
 
-            $refundable = $refund ? $this->refundableFor($line, $quantity) : 0.0;
-            $refunded = round(array_sum(array_column($refunds, 'amount')), 2);
+            $refundable = $refund ? $this->refundableFor($line, $quantity) : Money::zero();
+            $refunded = Money::sum(array_column($refunds, 'amount'));
 
-            if ($refunded > $refundable) {
+            if ($refunded->greaterThan($refundable)) {
                 throw new DomainException(__('Le remboursement (:refunded $) dépasse le montant remboursable (:refundable $).', [
-                    'refunded' => number_format($refunded, 2),
-                    'refundable' => number_format($refundable, 2),
+                    'refunded' => $refunded->toDecimal(),
+                    'refundable' => $refundable->toDecimal(),
                 ]));
             }
 
@@ -1172,7 +1180,7 @@ class CustomerOrder extends Model
      *
      * @throws DomainException si le produit n'est pas un gabarit sur mesure ou si une information manque.
      */
-    public function addCustomProduct(Product $product, int $quantity, string $specifications, float $unitCost, float $unitPrice, ?string $quoteNumber = null): CustomerOrderLine
+    public function addCustomProduct(Product $product, int $quantity, string $specifications, Money $unitCost, Money $unitPrice, ?string $quoteNumber = null): CustomerOrderLine
     {
         if (! $product->is_custom) {
             throw new DomainException(__('Ce produit n\'est pas un produit sur mesure.'));
@@ -1187,8 +1195,8 @@ class CustomerOrder extends Model
                 'quantity' => $quantity,
                 'quantity_reserved' => 0,
                 'quantity_on_order' => $quantity,
-                'unit_price' => round($unitPrice, 2),
-                'unit_cost' => round($unitCost, 2),
+                'unit_price' => $unitPrice,
+                'unit_cost' => $unitCost,
                 'quote_number' => filled($quoteNumber) ? trim($quoteNumber) : null,
                 'is_taxable' => $product->is_taxable,
                 'is_custom' => true,
@@ -1209,7 +1217,7 @@ class CustomerOrder extends Model
      *
      * @throws DomainException si l'article est déjà commandé ou si une information manque.
      */
-    public function updateCustomLine(CustomerOrderLine $line, int $quantity, string $specifications, float $unitCost, float $unitPrice, ?string $quoteNumber, ?string $note): void
+    public function updateCustomLine(CustomerOrderLine $line, int $quantity, string $specifications, Money $unitCost, Money $unitPrice, ?string $quoteNumber, ?string $note): void
     {
         DB::transaction(function () use ($line, $quantity, $specifications, $unitCost, $unitPrice, $quoteNumber, $note): void {
             $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
@@ -1221,8 +1229,8 @@ class CustomerOrder extends Model
             $quoteNumber = filled($quoteNumber) ? trim($quoteNumber) : null;
             $changesSale = $quantity !== $line->quantity
                 || trim($specifications) !== (string) $line->description
-                || round($unitCost, 2) !== round((float) $line->unit_cost, 2)
-                || round($unitPrice, 2) !== round($line->unit_price, 2)
+                || ! $unitCost->equals($line->unit_cost ?? Money::zero())
+                || ! $unitPrice->equals($line->unit_price)
                 || $quoteNumber !== $line->quote_number;
 
             if ($changesSale) {
@@ -1236,8 +1244,8 @@ class CustomerOrder extends Model
                     'quantity' => $quantity,
                     'quantity_on_order' => $quantity,
                     'description' => Str::limit(trim($specifications), 255, ''),
-                    'unit_cost' => round($unitCost, 2),
-                    'unit_price' => round($unitPrice, 2),
+                    'unit_cost' => $unitCost,
+                    'unit_price' => $unitPrice,
                     'quote_number' => $quoteNumber,
                 ]);
 
@@ -1250,7 +1258,7 @@ class CustomerOrder extends Model
         });
     }
 
-    private function guardCustomSale(int $quantity, string $specifications, float $unitCost, float $unitPrice): void
+    private function guardCustomSale(int $quantity, string $specifications, Money $unitCost, Money $unitPrice): void
     {
         if ($quantity < 1) {
             throw new DomainException(__('La quantité doit être d\'au moins 1.'));
@@ -1260,7 +1268,7 @@ class CustomerOrder extends Model
             throw new DomainException(__('Indiquez les spécifications de l\'article sur mesure.'));
         }
 
-        if ($unitCost < 0 || $unitPrice < 0) {
+        if ($unitCost->isNegative() || $unitPrice->isNegative()) {
             throw new DomainException(__('Le coût soumis et le prix vendant ne peuvent pas être négatifs.'));
         }
     }
@@ -1280,7 +1288,7 @@ class CustomerOrder extends Model
      *
      * @throws DomainException si le service est inactif, si le fournisseur ne l'offre pas ou si la description manque.
      */
-    public function addService(Service $service, ?int $supplierId, int $quantity, string $description, ?float $unitPrice = null): CustomerOrderLine
+    public function addService(Service $service, ?int $supplierId, int $quantity, string $description, ?Money $unitPrice = null): CustomerOrderLine
     {
         if (! $service->is_active) {
             throw new DomainException(__('Ce service n\'est plus offert.'));
@@ -1308,7 +1316,7 @@ class CustomerOrder extends Model
                 'quantity' => $quantity,
                 'quantity_reserved' => 0,
                 'quantity_on_order' => $supplierId === null ? 0 : $quantity,
-                'unit_price' => round($unitPrice ?? $service->pricingFor($supplierId)['selling_price'], 2),
+                'unit_price' => $unitPrice ?? $service->pricingFor($supplierId)['selling_price'],
                 'is_taxable' => $service->is_taxable,
                 'status' => $supplierId === null ? CustomerOrderLineStatus::ToDo : CustomerOrderLineStatus::OnOrder,
             ]);
@@ -1330,7 +1338,7 @@ class CustomerOrder extends Model
      *
      * @throws DomainException si la ligne n'est plus modifiable.
      */
-    public function updateServiceLine(CustomerOrderLine $line, int $quantity, float $unitPrice, string $description, ?string $note): void
+    public function updateServiceLine(CustomerOrderLine $line, int $quantity, Money $unitPrice, string $description, ?string $note): void
     {
         DB::transaction(function () use ($line, $quantity, $unitPrice, $description, $note): void {
             $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
@@ -1340,7 +1348,7 @@ class CustomerOrder extends Model
             }
 
             $changesSale = $quantity !== $line->quantity
-                || round($unitPrice, 2) !== round($line->unit_price, 2)
+                || ! $unitPrice->equals($line->unit_price)
                 || trim($description) !== (string) $line->description;
 
             if ($changesSale) {
@@ -1355,7 +1363,7 @@ class CustomerOrder extends Model
                 $line->update([
                     'quantity' => $quantity,
                     'quantity_on_order' => $line->supplier_id === null ? 0 : $quantity,
-                    'unit_price' => round($unitPrice, 2),
+                    'unit_price' => $unitPrice,
                     'description' => Str::limit(trim($description), 255, ''),
                 ]);
 
@@ -1421,7 +1429,7 @@ class CustomerOrder extends Model
             $supplierLine = $this->supplierDraftFor($line->product->supplier_id, SupplierType::Product)->addLine([
                 'description' => Str::limit(__('Pièce : :part — :model (commande client #:id)', ['part' => trim($part), 'model' => $line->product->model, 'id' => $this->id]), 255, ''),
                 'quantity' => $quantity,
-                'unit_cost' => 0,
+                'unit_cost' => Money::zero(),
             ]);
 
             return DefectiveProduct::create([
@@ -1443,7 +1451,7 @@ class CustomerOrder extends Model
      * Le client reçoit soit un produit de remplacement (nouvelle ligne au même prix, prise en stock ou commandée),
      * soit un remboursement sans frais.
      *
-     * @param  array<int, array{method_id: int, amount: float}>  $refunds
+     * @param  array<int, array{method_id: int, amount: Money}>  $refunds
      *
      * @throws DomainException si l'article n'a pas été remis, si la raison manque ou si le remboursement dépasse le
      *                         montant remboursable.
@@ -1458,13 +1466,13 @@ class CustomerOrder extends Model
             $line = $this->lines()->with('product')->lockForUpdate()->findOrFail($line->id);
             $this->guardDefectiveQuantity($line, $quantity);
 
-            $refundable = $replace ? 0.0 : $this->refundableFor($line, $quantity);
-            $refunded = round(array_sum(array_column($refunds, 'amount')), 2);
+            $refundable = $replace ? Money::zero() : $this->refundableFor($line, $quantity);
+            $refunded = Money::sum(array_column($refunds, 'amount'));
 
-            if ($refunded > $refundable) {
+            if ($refunded->greaterThan($refundable)) {
                 throw new DomainException(__('Le remboursement (:refunded $) dépasse le montant remboursable (:refundable $).', [
-                    'refunded' => number_format($refunded, 2),
-                    'refundable' => number_format($refundable, 2),
+                    'refunded' => $refunded->toDecimal(),
+                    'refundable' => $refundable->toDecimal(),
                 ]));
             }
 
@@ -1506,7 +1514,7 @@ class CustomerOrder extends Model
                 $note = __('Remplacement du produit défectueux (dossier #:id).', ['id' => $defective->id]);
 
                 if ($line->is_custom) {
-                    $replacement = $this->addCustomProduct($line->product, $quantity, (string) $line->description, (float) $line->unit_cost, $line->unit_price, $line->quote_number);
+                    $replacement = $this->addCustomProduct($line->product, $quantity, (string) $line->description, $line->unit_cost ?? Money::zero(), $line->unit_price, $line->quote_number);
                     $replacement->update(['note' => $note]);
                 } else {
                     $this->addProduct($line->product, $quantity, $line->unit_price, $note);
@@ -1536,15 +1544,15 @@ class CustomerOrder extends Model
     /**
      * Crédit de la commande : ce que le client a payé en trop (après un échange, par exemple).
      */
-    public function credit(): float
+    public function credit(): Money
     {
-        return max(0.0, round(-$this->balance_due, 2));
+        return $this->balance_due->negate()->max(Money::zero());
     }
 
     /**
      * Rembourse tout ou partie du crédit de la commande, sur un ou plusieurs modes de paiement.
      *
-     * @param  array<int, array{method_id: int, amount: float}>  $refunds
+     * @param  array<int, array{method_id: int, amount: Money}>  $refunds
      *
      * @throws DomainException si le remboursement est nul ou dépasse le crédit.
      */
@@ -1552,10 +1560,10 @@ class CustomerOrder extends Model
     {
         DB::transaction(function () use ($refunds): void {
             $this->recalculateBalance();
-            $refunded = round(array_sum(array_column($refunds, 'amount')), 2);
+            $refunded = Money::sum(array_column($refunds, 'amount'));
 
-            if ($refunded <= 0 || $refunded > $this->credit()) {
-                throw new DomainException(__('Le remboursement doit être entre 0,01 $ et le crédit de la commande (:credit $).', ['credit' => number_format($this->credit(), 2)]));
+            if (! $refunded->isPositive() || $refunded->greaterThan($this->credit())) {
+                throw new DomainException(__('Le remboursement doit être entre 0,01 $ et le crédit de la commande (:credit $).', ['credit' => $this->credit()->toDecimal()]));
             }
 
             $this->recordPayments($refunds, CustomerPaymentType::Refund);
@@ -1569,23 +1577,24 @@ class CustomerOrder extends Model
      *
      * @throws DomainException si la commande n'a pas de crédit.
      */
-    public function transferCreditToCustomer(): float
+    public function transferCreditToCustomer(): Money
     {
-        return DB::transaction(function (): float {
+        return DB::transaction(function (): Money {
             $this->recalculateBalance();
             $credit = $this->credit();
 
-            if ($credit <= 0) {
+            if (! $credit->isPositive()) {
                 throw new DomainException(__('Cette commande n\'a pas de crédit à porter au compte du client.'));
             }
 
             $this->payments()->create([
                 'type' => CustomerPaymentType::CreditTransfer,
-                'amount' => -$credit,
+                'amount' => $credit->negate(),
                 'received_by' => auth()->id(),
             ]);
 
-            customer::query()->whereKey($this->customer_id)->lockForUpdate()->firstOrFail()->increment('credit_balance', $credit);
+            $customer = customer::query()->whereKey($this->customer_id)->lockForUpdate()->firstOrFail();
+            $customer->forceFill(['credit_balance' => $customer->credit_balance->plus($credit)])->save();
 
             $this->recalculateBalance();
 
@@ -1598,14 +1607,14 @@ class CustomerOrder extends Model
      * comptant, le montant perçu ou remis est arrondi au 5 ¢ près (l'écart est conservé) et, pour un paiement, le
      * montant reçu du client (au moins le montant arrondi) et la monnaie rendue sont enregistrés.
      *
-     * @param  array<int, array{method_id: int, amount: float, tendered?: float|null}>  $payments
+     * @param  array<int, array{method_id: int, amount: Money, tendered?: Money|null}>  $payments
      *
      * @throws DomainException si un mode est invalide ou si le comptant reçu ne couvre pas le montant arrondi.
      */
     private function recordPayments(array $payments, CustomerPaymentType $type, ?CustomerOrderPickup $pickup = null): void
     {
         foreach ($payments as $payment) {
-            if ($payment['amount'] <= 0) {
+            if (! $payment['amount']->isPositive()) {
                 continue;
             }
 
@@ -1615,24 +1624,24 @@ class CustomerOrder extends Model
                 throw new DomainException(__('Mode de paiement invalide.'));
             }
 
-            $amount = round($payment['amount'], 2);
+            $amount = $payment['amount'];
             $cash = [];
 
             if ($method->isCash()) {
                 $rounded = CustomerPaymentMethod::roundCash($amount);
-                $cash = ['rounding_adjustment' => round($rounded - $amount, 2)];
+                $cash = ['rounding_adjustment' => $rounded->minus($amount)];
 
                 if ($type === CustomerPaymentType::Payment) {
-                    $tendered = round($payment['tendered'] ?? $rounded, 2);
+                    $tendered = $payment['tendered'] ?? $rounded;
 
-                    if ($tendered < $rounded) {
+                    if ($tendered->lessThan($rounded)) {
                         throw new DomainException(__('Le comptant reçu (:tendered $) ne couvre pas le montant à percevoir (:rounded $).', [
-                            'tendered' => number_format($tendered, 2),
-                            'rounded' => number_format($rounded, 2),
+                            'tendered' => $tendered->toDecimal(),
+                            'rounded' => $rounded->toDecimal(),
                         ]));
                     }
 
-                    $cash += ['cash_tendered' => $tendered, 'change_given' => round($tendered - $rounded, 2)];
+                    $cash += ['cash_tendered' => $tendered, 'change_given' => $tendered->minus($rounded)];
                 }
             }
 
@@ -1640,7 +1649,7 @@ class CustomerOrder extends Model
                 'customer_order_pickup_id' => $pickup?->id,
                 'customer_payment_method_id' => $method->id,
                 'type' => $type,
-                'amount' => $type === CustomerPaymentType::Payment ? $amount : -$amount,
+                'amount' => $type === CustomerPaymentType::Payment ? $amount : $amount->negate(),
                 'received_by' => auth()->id(),
                 ...$cash,
             ]);

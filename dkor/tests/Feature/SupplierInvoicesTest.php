@@ -17,6 +17,7 @@ use App\Models\SupplierInvoice;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
@@ -37,8 +38,8 @@ function orderToInvoice(?Supplier $supplier = null, array $quantities = [10], fl
 
     foreach ($quantities as $quantity) {
         $lines[] = SupplierOrderLine::factory()
-            ->forProduct(Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => $cost]))
-            ->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => $cost]);
+            ->forProduct(Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse($cost)]))
+            ->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => Money::parse($cost)]);
     }
 
     $order->send();
@@ -106,15 +107,15 @@ it('facture une réception partielle: coûts réels, frais, écart et statut de 
     $invoice = SupplierInvoice::first();
     expect($invoice)
         ->invoice_number->toBe('F-100')
-        ->merchandise_total->toBe(23.0)
-        ->freight_fee->toBe(10.0)->customs_fee->toBe(4.5)->taxes->toBe(3.25)
-        ->computed_total->toBe(40.75)->invoice_total->toBe(40.75)->variance->toBe(0.0)
+        ->merchandise_total->toBeMoney(2300)
+        ->freight_fee->toBeMoney(1000)->customs_fee->toBeMoney(450)->taxes->toBeMoney(325)
+        ->computed_total->toBeMoney(4075)->invoice_total->toBeMoney(4075)->variance->toBeMoney(0)
         ->and($invoice->hasVariance())->toBeFalse()
         ->and($invoice->lines)->toHaveCount(1)
-        ->and($invoice->lines->first())->quantity->toBe(4)->unit_cost->toBe(5.75)
-        ->and($receptionLine->fresh()->unit_cost)->toBe(5.75)
-        ->and($line->fresh()->unit_cost)->toBe(5.75)
-        ->and(InventoryUnit::pluck('cost')->unique()->all())->toBe([5.75])
+        ->and($invoice->lines->first())->quantity->toBe(4)->unit_cost->toBeMoney(575)
+        ->and($receptionLine->fresh()->unit_cost)->toBeMoney(575)
+        ->and($line->fresh()->unit_cost)->toBeMoney(575)
+        ->and(InventoryUnit::pluck('cost')->map->cents()->unique()->all())->toBe([575])
         ->and($order->fresh()->status)->toBe(SupplierOrderStatus::PartiallyReceived);
 });
 
@@ -139,11 +140,15 @@ it('compare le montant saisi au total calculé et enregistre l\'écart', functio
         ->set('taxes', '2')
         ->set('invoiceTotal', '30');
 
-    expect($component->viewData('totals'))->toMatchArray(['merchandise_total' => 20.0, 'computed_total' => 27.0, 'variance' => 3.0]);
+    $totals = $component->viewData('totals');
+
+    expect($totals['merchandise_total'])->toBeMoney(2000)
+        ->and($totals['computed_total'])->toBeMoney(2700)
+        ->and($totals['variance'])->toBeMoney(300);
 
     $component->set('invoiceNumber', 'F-5')->call('save')->assertHasNoErrors();
 
-    expect(SupplierInvoice::first())->variance->toBe(3.0)->and(SupplierInvoice::first()->hasVariance())->toBeTrue();
+    expect(SupplierInvoice::first())->variance->toBeMoney(300)->and(SupplierInvoice::first()->hasVariance())->toBeTrue();
 });
 
 it('calcule l\'escompte de paiement rapide du fournisseur', function () {
@@ -158,7 +163,7 @@ it('calcule l\'escompte de paiement rapide du fournisseur', function () {
         ->call('save');
 
     expect(SupplierInvoice::first())
-        ->discount_percent->toBe(2.0)->discount_days->toBe(15)->discount_amount->toBe(2.0)
+        ->discount_percent->toBe(2.0)->discount_days->toBe(15)->discount_amount->toBeMoney(200)
         ->and(SupplierInvoice::first()->discount_due_date->format('Y-m-d'))->toBe('2026-10-16');
 });
 
@@ -166,7 +171,7 @@ it('sans escompte, aucune échéance d\'escompte', function () {
     [$order, [$line]] = orderToInvoice(quantities: [1]);
     SupplierInvoice::record(receive($order, $line, 1), ['invoice_number' => 'F-1', 'invoice_date' => '2026-10-01', 'invoice_total' => 5]);
 
-    expect(SupplierInvoice::first())->discount_due_date->toBeNull()->discount_amount->toBe(0.0);
+    expect(SupplierInvoice::first())->discount_due_date->toBeNull()->discount_amount->toBeMoney(0);
 });
 
 it('valide la facture et refuse un numéro déjà saisi pour le fournisseur', function () {
@@ -293,7 +298,7 @@ it('facture avec un escompte « 2 % le 10 du mois suivant »', function () {
         ->call('save');
 
     expect(SupplierInvoice::first())
-        ->discount_next_month->toBeTrue()->discount_days->toBe(10)->discount_amount->toBe(2.0)
+        ->discount_next_month->toBeTrue()->discount_days->toBe(10)->discount_amount->toBeMoney(200)
         ->and(SupplierInvoice::first()->discount_due_date->format('Y-m-d'))->toBe('2026-11-10');
 });
 
@@ -321,7 +326,7 @@ it('valide le jour du mois suivant et l\'enregistre avec le fournisseur', functi
 function completedServiceOrder(?Supplier $supplier = null, float $cost = 100.0): SupplierOrder
 {
     $order = SupplierOrder::factory()->service()->create(['supplier_id' => $supplier?->id ?? Supplier::factory()->create(['type' => SupplierType::Service])->id]);
-    SupplierOrderLine::factory()->create(['supplier_order_id' => $order->id, 'quantity' => 2, 'unit_cost' => $cost]);
+    SupplierOrderLine::factory()->create(['supplier_order_id' => $order->id, 'quantity' => 2, 'unit_cost' => Money::parse($cost)]);
     $order->send();
     $order->fresh()->complete();
 
@@ -367,9 +372,9 @@ it('facture une commande de services: coûts réels, frais, écart et statut fac
     $invoice = SupplierInvoice::first();
     expect($invoice)
         ->supplier_order_id->toBe($order->id)->reception_id->toBeNull()
-        ->merchandise_total->toBe(220.0)->computed_total->toBe(258.0)->variance->toBe(0.0)
-        ->and($invoice->lines->first())->supplier_order_line_id->toBe($line->id)->reception_line_id->toBeNull()->quantity->toBe(2)->unit_cost->toBe(110.0)
-        ->and($line->fresh()->unit_cost)->toBe(110.0)
+        ->merchandise_total->toBeMoney(22000)->computed_total->toBeMoney(25800)->variance->toBeMoney(0)
+        ->and($invoice->lines->first())->supplier_order_line_id->toBe($line->id)->reception_line_id->toBeNull()->quantity->toBe(2)->unit_cost->toBeMoney(11000)
+        ->and($line->fresh()->unit_cost)->toBeMoney(11000)
         ->and($order->fresh()->status)->toBe(SupplierOrderStatus::Invoiced);
 
     Livewire::test(Form::class, ['order' => $order->fresh()])
@@ -384,7 +389,7 @@ it('applique l\'escompte du fournisseur à une facture de services', function ()
 
     SupplierInvoice::recordForOrder($order, ['invoice_number' => 'S-2', 'invoice_date' => '2026-10-01', 'invoice_total' => 200]);
 
-    expect(SupplierInvoice::first())->discount_amount->toBe(2.0)
+    expect(SupplierInvoice::first())->discount_amount->toBeMoney(200)
         ->and(SupplierInvoice::first()->discount_due_date->format('Y-m-d'))->toBe('2026-10-16');
 });
 
@@ -435,7 +440,7 @@ it('crée une facture libre rattachée à un fournisseur, sans document', functi
     expect($invoice)
         ->supplier_id->toBe($supplier->id)->reception_id->toBeNull()->supplier_order_id->toBeNull()
         ->description->toBe('Abonnement annuel')
-        ->merchandise_total->toBe(200.0)->computed_total->toBe(241.5)->variance->toBe(0.0)
+        ->merchandise_total->toBeMoney(20000)->computed_total->toBeMoney(24150)->variance->toBeMoney(0)
         ->and($invoice->isStandalone())->toBeTrue()
         ->and($invoice->lines)->toHaveCount(0)
         ->and(InventoryMovement::count())->toBe(0);
@@ -453,11 +458,15 @@ it('compare le montant d\'une facture libre et applique l\'escompte du fournisse
         ->set('taxes', '15')
         ->set('invoiceTotal', '120');
 
-    expect($component->viewData('totals'))->toMatchArray(['computed_total' => 115.0, 'variance' => 5.0, 'discount_amount' => 2.4]);
+    $totals = $component->viewData('totals');
+
+    expect($totals['computed_total'])->toBeMoney(11500)
+        ->and($totals['variance'])->toBeMoney(500)
+        ->and($totals['discount_amount'])->toBeMoney(240);
 
     $component->set('invoiceNumber', 'L-200')->call('save')->assertHasNoErrors();
 
-    expect(SupplierInvoice::first())->variance->toBe(5.0)
+    expect(SupplierInvoice::first())->variance->toBeMoney(500)
         ->and(SupplierInvoice::first()->discount_due_date->format('Y-m-d'))->toBe('2026-11-10');
 });
 

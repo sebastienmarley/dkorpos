@@ -11,6 +11,7 @@ use App\Models\ReceptionLine;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
@@ -30,8 +31,8 @@ function journal(Product $product): array
 function pendingOrder(int $quantity = 10): array
 {
     $order = SupplierOrder::factory()->create();
-    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => 5]);
-    $line = SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => 5]);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(5)]);
+    $line = SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => Money::parse(5)]);
     $order->markPending();
 
     return [$order->fresh(), $product, $line];
@@ -60,9 +61,9 @@ it('consigne les ajouts, changements de quantité, substitution et annulations',
     [$order, $product, $line] = pendingOrder(10);
     $order->send();
     $order = $order->fresh();
-    $added = $order->addLine(['product_id' => ($other = Product::factory()->create(['supplier_id' => $order->supplier_id]))->id, 'quantity' => 4, 'unit_cost' => 3]);
-    $order->updateLine($line->fresh(), 15, 5);
-    $order->updateLine($line->fresh(), 12, 5);
+    $added = $order->addLine(['product_id' => ($other = Product::factory()->create(['supplier_id' => $order->supplier_id]))->id, 'quantity' => 4, 'unit_cost' => Money::parse(3)]);
+    $order->updateLine($line->fresh(), 15, Money::parse(5));
+    $order->updateLine($line->fresh(), 12, Money::parse(5));
     $replacement = $order->substituteLine($line->fresh(), $sub = Product::factory()->create(['supplier_id' => $order->supplier_id]));
     $added->fresh()->requestCancellation();
     $order->confirmLineCancellation($added->fresh());

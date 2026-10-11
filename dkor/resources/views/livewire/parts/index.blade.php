@@ -155,9 +155,9 @@
                                 @endif
                             </flux:table.cell>
 
-                            <flux:table.cell>{{ number_format($part->last_cost, 2) }} $</flux:table.cell>
+                            <flux:table.cell>{{ $part->last_cost->format() }}</flux:table.cell>
 
-                            <flux:table.cell>{{ number_format($part->selling_price, 2) }} $</flux:table.cell>
+                            <flux:table.cell>{{ $part->selling_price->format() }}</flux:table.cell>
                         </flux:table.row>
                     @empty
                         <flux:table.row>

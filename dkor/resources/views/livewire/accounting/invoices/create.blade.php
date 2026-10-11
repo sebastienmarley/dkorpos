@@ -65,15 +65,15 @@
         @if ($totals)
             <div class="max-w-xl rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                 <dl class="space-y-1 text-sm">
-                    <div class="flex justify-between"><dt>{{ __('Montant avant frais et taxes') }}</dt><dd>{{ number_format($totals['merchandise_total'], 2) }} $</dd></div>
-                    <div class="flex justify-between"><dt>{{ __('Transport + douanes + taxes') }}</dt><dd>{{ number_format((float) $freightFee + (float) $customsFee + (float) $taxes, 2) }} $</dd></div>
-                    <div class="flex justify-between font-medium"><dt>{{ __('Total calculé') }}</dt><dd>{{ number_format($totals['computed_total'], 2) }} $</dd></div>
-                    <div class="flex justify-between font-medium"><dt>{{ __('Montant de la facture') }}</dt><dd>{{ number_format((float) $invoiceTotal, 2) }} $</dd></div>
+                    <div class="flex justify-between"><dt>{{ __('Montant avant frais et taxes') }}</dt><dd>{{ $totals['merchandise_total']->format() }}</dd></div>
+                    <div class="flex justify-between"><dt>{{ __('Transport + douanes + taxes') }}</dt><dd>{{ $totals['computed_total']->minus($totals['merchandise_total'])->format() }}</dd></div>
+                    <div class="flex justify-between font-medium"><dt>{{ __('Total calculé') }}</dt><dd>{{ $totals['computed_total']->format() }}</dd></div>
+                    <div class="flex justify-between font-medium"><dt>{{ __('Montant de la facture') }}</dt><dd>{{ (\App\Support\Money::tryParse($invoiceTotal) ?? \App\Support\Money::zero())->format() }}</dd></div>
                     <div class="flex items-center justify-between">
                         <dt>{{ __('Écart') }}</dt>
                         <dd>
-                            @if (filled($invoiceTotal) && abs($totals['variance']) >= 0.005)
-                                <flux:badge color="red" size="sm">{{ number_format($totals['variance'], 2) }} $</flux:badge>
+                            @if (filled($invoiceTotal) && ! $totals['variance']->isZero())
+                                <flux:badge color="red" size="sm">{{ $totals['variance']->format() }}</flux:badge>
                             @elseif (filled($invoiceTotal))
                                 <flux:badge color="green" size="sm">{{ __('Aucun') }}</flux:badge>
                             @else
@@ -84,7 +84,7 @@
                     @if ($totals['discount_due_date'])
                         <div class="flex justify-between text-zinc-500">
                             <dt>{{ __('Escompte :percent % si payé avant le :date', ['percent' => $totals['discount_percent'], 'date' => $totals['discount_due_date']->format('Y-m-d')]) }}</dt>
-                            <dd>{{ number_format($totals['discount_amount'], 2) }} $</dd>
+                            <dd>{{ $totals['discount_amount']->format() }}</dd>
                         </div>
                     @endif
                 </dl>

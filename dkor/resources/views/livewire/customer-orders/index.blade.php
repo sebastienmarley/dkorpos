@@ -52,7 +52,7 @@
                         <flux:table.cell>
                             <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label() }}</flux:badge>
                         </flux:table.cell>
-                        <flux:table.cell align="end">{{ number_format($order->balance_due, 2) }} $</flux:table.cell>
+                        <flux:table.cell align="end">{{ $order->balance_due->format() }}</flux:table.cell>
                         <flux:table.cell>{{ $order->created_at->format('Y-m-d') }}</flux:table.cell>
                     </flux:table.row>
                 @empty
