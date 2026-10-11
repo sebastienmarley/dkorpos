@@ -72,26 +72,6 @@ CREATE INDEX "failed_jobs_connection_queue_failed_at_index" on "failed_jobs"(
   "failed_at"
 );
 CREATE UNIQUE INDEX "failed_jobs_uuid_unique" on "failed_jobs"("uuid");
-CREATE TABLE "customers"(
-  "id" integer primary key autoincrement not null,
-  "firstname" varchar not null,
-  "lastname" varchar not null,
-  "phone" varchar,
-  "cellphone" varchar,
-  "email" varchar,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "address_civic" varchar,
-  "address_apartment" varchar,
-  "address_street" varchar,
-  "address_city" varchar,
-  "address_province" varchar,
-  "address_country" varchar,
-  "address_postal_code" varchar,
-  "search_name" varchar,
-  "credit_balance" numeric not null default '0'
-);
-CREATE UNIQUE INDEX "customers_email_unique" on "customers"("email");
 CREATE TABLE "customer_payment_methods"(
   "id" integer primary key autoincrement not null,
   "name" varchar not null,
@@ -148,39 +128,6 @@ CREATE TABLE "colors"(
   "hex_code" varchar,
   "created_at" datetime,
   "updated_at" datetime
-);
-CREATE TABLE "products"(
-  "id" integer primary key autoincrement not null,
-  "supplier_id" integer not null,
-  "model" varchar not null,
-  "cost" numeric not null,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "department_id" integer,
-  "category_id" integer,
-  "color_id" integer,
-  "description" text,
-  "is_discontinued" tinyint(1) not null default '0',
-  "is_non_orderable" tinyint(1) not null default '0',
-  "supplier_model" varchar,
-  "clean_model" varchar,
-  "collection" varchar,
-  "length" numeric,
-  "width" numeric,
-  "height" numeric,
-  "weight" numeric,
-  "imap" numeric,
-  "supplier_clean_model" varchar,
-  "is_taxable" tinyint(1) not null default '1',
-  "is_custom" tinyint(1) not null default '0',
-  foreign key("supplier_id") references suppliers("id") on delete cascade on update no action,
-  foreign key("department_id") references "departments"("id") on delete set null,
-  foreign key("category_id") references "categories"("id") on delete set null,
-  foreign key("color_id") references "colors"("id") on delete set null
-);
-CREATE UNIQUE INDEX "products_supplier_id_clean_model_unique" on "products"(
-  "supplier_id",
-  "clean_model"
 );
 CREATE TABLE "appointments"(
   "id" integer primary key autoincrement not null,
@@ -341,48 +288,6 @@ CREATE TABLE "currencies"(
   "is_archived" tinyint(1) not null default '0'
 );
 CREATE UNIQUE INDEX "currencies_code_unique" on "currencies"("code");
-CREATE TABLE "suppliers"(
-  "id" integer primary key autoincrement not null,
-  "type" varchar not null default('product'),
-  "name" varchar not null,
-  "phone" varchar,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "email" varchar,
-  "account_number" varchar,
-  "bank_account" varchar,
-  "order_email" varchar,
-  "orderable" tinyint(1) not null default('1'),
-  "is_active" tinyint(1) not null default('1'),
-  "price_multiplier" numeric not null default('1'),
-  "address_civic" varchar,
-  "address_apartment" varchar,
-  "address_street" varchar,
-  "address_city" varchar,
-  "address_province" varchar,
-  "address_country" varchar,
-  "address_postal_code" varchar,
-  "payment_address_civic" varchar,
-  "payment_address_apartment" varchar,
-  "payment_address_street" varchar,
-  "payment_address_city" varchar,
-  "payment_address_province" varchar,
-  "payment_address_country" varchar,
-  "payment_address_postal_code" varchar,
-  "base_multiplier" numeric not null default('2'),
-  "customs_fee" numeric not null default('0'),
-  "shipping_fee" numeric not null default('0'),
-  "currency_id" integer,
-  "prepaid_amount" numeric default('0'),
-  "collect" tinyint(1) not null default('0'),
-  "default_shipping_supplier_id" integer,
-  "early_payment_discount_percent" numeric not null default '0',
-  "early_payment_discount_days" integer,
-  "early_payment_next_month" tinyint(1) not null default '0',
-  "custom_made" tinyint(1) not null default '0',
-  foreign key("currency_id") references currencies("id") on delete set null on update no action,
-  foreign key("default_shipping_supplier_id") references "suppliers"("id") on delete set null
-);
 CREATE TABLE "supplier_orders"(
   "id" integer primary key autoincrement not null,
   "number" varchar,
@@ -435,92 +340,6 @@ CREATE TABLE "receptions"(
   foreign key("received_by") references "users"("id") on delete set null
 );
 CREATE UNIQUE INDEX "receptions_number_unique" on "receptions"("number");
-CREATE TABLE "reception_lines"(
-  "id" integer primary key autoincrement not null,
-  "reception_id" integer not null,
-  "supplier_order_line_id" integer not null,
-  "product_id" integer,
-  "quantity" integer not null,
-  "unit_cost" numeric not null,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "quantity_reversed" integer not null default '0',
-  "reversed_at" datetime,
-  "reversed_by" integer,
-  "reversal_reason" varchar,
-  "quantity_damaged" integer not null default '0',
-  foreign key("product_id") references products("id") on delete set null on update no action,
-  foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete restrict on update no action,
-  foreign key("reception_id") references receptions("id") on delete cascade on update no action,
-  foreign key("reversed_by") references "users"("id") on delete set null
-);
-CREATE TABLE "inventory_units"(
-  "id" integer primary key autoincrement not null,
-  "product_id" integer not null,
-  "cost" numeric not null,
-  "inserted_at" date not null,
-  "delivered_at" date,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "reception_line_id" integer,
-  foreign key("product_id") references products("id") on delete cascade on update no action,
-  foreign key("reception_line_id") references "reception_lines"("id") on delete set null
-);
-CREATE INDEX "inventory_units_product_id_inserted_at_index" on "inventory_units"(
-  "product_id",
-  "inserted_at"
-);
-CREATE TABLE "supplier_invoices"(
-  "id" integer primary key autoincrement not null,
-  "supplier_id" integer not null,
-  "reception_id" integer,
-  "invoice_number" varchar not null,
-  "invoice_date" date not null,
-  "merchandise_total" numeric not null,
-  "freight_fee" numeric not null default('0'),
-  "customs_fee" numeric not null default('0'),
-  "taxes" numeric not null default('0'),
-  "computed_total" numeric not null,
-  "invoice_total" numeric not null,
-  "variance" numeric not null default('0'),
-  "discount_percent" numeric not null default('0'),
-  "discount_days" integer,
-  "discount_due_date" date,
-  "discount_amount" numeric not null default('0'),
-  "created_by" integer,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "discount_next_month" tinyint(1) not null default('0'),
-  "supplier_order_id" integer,
-  "description" varchar,
-  foreign key("created_by") references users("id") on delete set null on update no action,
-  foreign key("reception_id") references receptions("id") on delete restrict on update no action,
-  foreign key("supplier_id") references suppliers("id") on delete restrict on update no action,
-  foreign key("supplier_order_id") references "supplier_orders"("id") on delete restrict
-);
-CREATE UNIQUE INDEX "supplier_invoices_reception_id_unique" on "supplier_invoices"(
-  "reception_id"
-);
-CREATE UNIQUE INDEX "supplier_invoices_supplier_id_invoice_number_unique" on "supplier_invoices"(
-  "supplier_id",
-  "invoice_number"
-);
-CREATE UNIQUE INDEX "supplier_invoices_supplier_order_id_unique" on "supplier_invoices"(
-  "supplier_order_id"
-);
-CREATE TABLE "supplier_invoice_lines"(
-  "id" integer primary key autoincrement not null,
-  "supplier_invoice_id" integer not null,
-  "reception_line_id" integer,
-  "quantity" integer not null,
-  "unit_cost" numeric not null,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "supplier_order_line_id" integer,
-  foreign key("reception_line_id") references reception_lines("id") on delete restrict on update no action,
-  foreign key("supplier_invoice_id") references supplier_invoices("id") on delete cascade on update no action,
-  foreign key("supplier_order_line_id") references "supplier_order_lines"("id") on delete restrict
-);
 CREATE TABLE "stores"(
   "id" integer primary key autoincrement not null,
   "name" varchar not null,
@@ -558,57 +377,6 @@ CREATE TABLE "user_denied_permissions"(
   foreign key("permission_id") references "permissions"("id") on delete cascade,
   primary key("user_id", "permission_id")
 );
-CREATE TABLE "users"(
-  "id" integer primary key autoincrement not null,
-  "email" varchar not null,
-  "email_verified_at" datetime,
-  "password" varchar not null,
-  "remember_token" varchar,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "is_active" tinyint(1) not null default('1'),
-  "firstname" varchar,
-  "lastname" varchar,
-  "username" varchar,
-  "first_day" date,
-  "last_day" date,
-  "personal_email" varchar,
-  "phone" varchar,
-  "cellphone" varchar,
-  "last_modified" datetime,
-  "last_modified_by" integer,
-  "position_id" integer,
-  "address_civic" varchar,
-  "address_apartment" varchar,
-  "address_street" varchar,
-  "address_city" varchar,
-  "address_province" varchar,
-  "address_country" varchar,
-  "address_postal_code" varchar,
-  "is_full_time" tinyint(1) not null default('0'),
-  "has_group_insurance" tinyint(1) not null default('0'),
-  "insurance_plan" varchar,
-  "is_salaried" tinyint(1) not null default('0'),
-  "hourly_rate" numeric,
-  "weekly_salary" numeric,
-  "commission_rate" numeric,
-  "has_commission" tinyint(1) not null default('0'),
-  "has_bonus" tinyint(1) not null default('0'),
-  "weekly_sales_target" integer,
-  "bonus_amount" integer,
-  "bonus_step" integer,
-  "hours_per_day" numeric,
-  "vacation_days_accrued" numeric,
-  "vacation_hours_available" numeric,
-  "vacation_balance_computed_at" datetime,
-  "store_id" integer,
-  "search_name" varchar,
-  foreign key("position_id") references positions("id") on delete set null on update no action,
-  foreign key("last_modified_by") references users("id") on delete set null on update no action,
-  foreign key("store_id") references "stores"("id") on delete set null
-);
-CREATE UNIQUE INDEX "users_email_unique" on "users"("email");
-CREATE UNIQUE INDEX "users_username_unique" on "users"("username");
 CREATE TABLE "payroll_periods"(
   "id" integer primary key autoincrement not null,
   "start_date" date not null,
@@ -646,29 +414,6 @@ CREATE TABLE "price_list_lists"(
   "applied_at" datetime,
   foreign key("price_list_id") references "price_lists"("id") on delete cascade
 );
-CREATE TABLE "price_list_items"(
-  "id" integer primary key autoincrement not null,
-  "price_list_list_id" integer not null,
-  "product_id" integer,
-  "model" varchar not null,
-  "clean_model" varchar not null,
-  "cost" numeric,
-  "imap" numeric,
-  "upc" varchar,
-  "collection" varchar,
-  "description" text,
-  "length" numeric,
-  "width" numeric,
-  "height" numeric,
-  "weight" numeric,
-  "created_at" datetime,
-  "updated_at" datetime,
-  foreign key("price_list_list_id") references "price_list_lists"("id") on delete cascade,
-  foreign key("product_id") references "products"("id") on delete set null
-);
-CREATE INDEX "price_list_items_clean_model_index" on "price_list_items"(
-  "clean_model"
-);
 CREATE TABLE "product_upcs"(
   "id" integer primary key autoincrement not null,
   "product_id" integer not null,
@@ -682,9 +427,6 @@ CREATE UNIQUE INDEX "product_upcs_product_id_upc_unique" on "product_upcs"(
   "upc"
 );
 CREATE INDEX "product_upcs_upc_index" on "product_upcs"("upc");
-CREATE INDEX "products_supplier_clean_model_index" on "products"(
-  "supplier_clean_model"
-);
 CREATE TABLE "customer_order_salesperson"(
   "id" integer primary key autoincrement not null,
   "customer_order_id" integer not null,
@@ -708,46 +450,9 @@ CREATE TABLE "customer_order_pickups"(
   foreign key("customer_order_id") references "customer_orders"("id") on delete cascade,
   foreign key("handled_by") references "users"("id") on delete set null
 );
-CREATE INDEX "customers_search_name_index" on "customers"("search_name");
-CREATE INDEX "users_search_name_index" on "users"("search_name");
-CREATE TABLE "customer_order_payments"(
-  "id" integer primary key autoincrement not null,
-  "customer_order_id" integer not null,
-  "customer_order_pickup_id" integer,
-  "customer_payment_method_id" integer,
-  "amount" numeric not null,
-  "received_by" integer,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "type" varchar not null default 'payment',
-  "rounding_adjustment" numeric,
-  "cash_tendered" numeric,
-  "change_given" numeric,
-  foreign key("received_by") references users("id") on delete set null on update no action,
-  foreign key("customer_payment_method_id") references customer_payment_methods("id") on delete restrict on update no action,
-  foreign key("customer_order_pickup_id") references customer_order_pickups("id") on delete set null on update no action,
-  foreign key("customer_order_id") references customer_orders("id") on delete restrict on update no action
-);
 CREATE UNIQUE INDEX "customer_payment_methods_code_unique" on "customer_payment_methods"(
   "code"
 );
-CREATE TABLE "customer_orders"(
-  "id" integer primary key autoincrement not null,
-  "customer_id" integer not null,
-  "status" varchar not null default('new'),
-  "balance_due" numeric not null default('0'),
-  "created_by" integer,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "subtotal" numeric not null default('0'),
-  "total" numeric not null default('0'),
-  "amount_paid" numeric not null default('0'),
-  "store_id" integer,
-  foreign key("created_by") references users("id") on delete set null on update no action,
-  foreign key("customer_id") references customers("id") on delete restrict on update no action,
-  foreign key("store_id") references "stores"("id") on delete set null
-);
-CREATE INDEX "customer_orders_status_index" on "customer_orders"("status");
 CREATE TABLE "defective_products"(
   "id" integer primary key autoincrement not null,
   "product_id" integer not null,
@@ -827,28 +532,82 @@ CREATE UNIQUE INDEX "store_tax_registrations_store_id_tax_name_unique" on "store
   "store_id",
   "tax_name"
 );
-CREATE TABLE "customer_order_taxes"(
-  "id" integer primary key autoincrement not null,
-  "customer_order_id" integer not null,
-  "tax_id" integer,
-  "name" varchar not null,
-  "rate" numeric not null,
-  "is_compound" tinyint(1) not null default '0',
-  "registration_number" varchar,
-  "amount" numeric not null default '0',
+CREATE TABLE "part_product"(
+  "part_id" integer not null,
+  "product_id" integer not null,
   "created_at" datetime,
   "updated_at" datetime,
-  foreign key("customer_order_id") references "customer_orders"("id") on delete cascade,
-  foreign key("tax_id") references "taxes"("id") on delete set null
+  foreign key("part_id") references "parts"("id") on delete cascade,
+  foreign key("product_id") references "products"("id") on delete cascade,
+  primary key("part_id", "product_id")
+);
+CREATE TABLE "products"(
+  "id" integer primary key autoincrement not null,
+  "supplier_id" integer not null,
+  "model" varchar not null,
+  "cost" integer not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "department_id" integer,
+  "category_id" integer,
+  "color_id" integer,
+  "description" text,
+  "is_discontinued" tinyint(1) not null default('0'),
+  "is_non_orderable" tinyint(1) not null default('0'),
+  "supplier_model" varchar,
+  "clean_model" varchar,
+  "collection" varchar,
+  "length" numeric,
+  "width" numeric,
+  "height" numeric,
+  "weight" numeric,
+  "imap" integer,
+  "supplier_clean_model" varchar,
+  "is_taxable" tinyint(1) not null default('1'),
+  "is_custom" tinyint(1) not null default('0'),
+  foreign key("color_id") references colors("id") on delete set null on update no action,
+  foreign key("category_id") references categories("id") on delete set null on update no action,
+  foreign key("department_id") references departments("id") on delete set null on update no action,
+  foreign key("supplier_id") references suppliers("id") on delete cascade on update no action
+);
+CREATE INDEX "products_supplier_clean_model_index" on "products"(
+  "supplier_clean_model"
+);
+CREATE UNIQUE INDEX "products_supplier_id_clean_model_unique" on "products"(
+  "supplier_id",
+  "clean_model"
+);
+CREATE TABLE "price_list_items"(
+  "id" integer primary key autoincrement not null,
+  "price_list_list_id" integer not null,
+  "product_id" integer,
+  "model" varchar not null,
+  "clean_model" varchar not null,
+  "cost" integer,
+  "imap" integer,
+  "upc" varchar,
+  "collection" varchar,
+  "description" text,
+  "length" numeric,
+  "width" numeric,
+  "height" numeric,
+  "weight" numeric,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("product_id") references products("id") on delete set null on update no action,
+  foreign key("price_list_list_id") references price_list_lists("id") on delete cascade on update no action
+);
+CREATE INDEX "price_list_items_clean_model_index" on "price_list_items"(
+  "clean_model"
 );
 CREATE TABLE "services"(
   "id" integer primary key autoincrement not null,
   "name" varchar not null,
   "description_template" text,
-  "is_internal" tinyint(1) not null default '0',
-  "selling_price" numeric,
-  "is_taxable" tinyint(1) not null default '1',
-  "is_active" tinyint(1) not null default '1',
+  "is_internal" tinyint(1) not null default('0'),
+  "selling_price" integer,
+  "is_taxable" tinyint(1) not null default('1'),
+  "is_active" tinyint(1) not null default('1'),
   "created_at" datetime,
   "updated_at" datetime
 );
@@ -857,12 +616,12 @@ CREATE TABLE "service_supplier"(
   "id" integer primary key autoincrement not null,
   "service_id" integer not null,
   "supplier_id" integer not null,
-  "cost" numeric not null default '0',
-  "selling_price" numeric not null default '0',
+  "cost" integer not null default '0',
+  "selling_price" integer not null default '0',
   "created_at" datetime,
   "updated_at" datetime,
-  foreign key("service_id") references "services"("id") on delete cascade,
-  foreign key("supplier_id") references "suppliers"("id") on delete cascade
+  foreign key("supplier_id") references suppliers("id") on delete cascade on update no action,
+  foreign key("service_id") references services("id") on delete cascade on update no action
 );
 CREATE UNIQUE INDEX "service_supplier_service_id_supplier_id_unique" on "service_supplier"(
   "service_id",
@@ -874,30 +633,194 @@ CREATE TABLE "parts"(
   "model" varchar not null,
   "clean_model" varchar not null,
   "description" varchar not null,
-  "last_cost" numeric not null default '0',
+  "last_cost" integer not null default '0',
   "created_at" datetime,
   "updated_at" datetime,
-  foreign key("supplier_id") references "suppliers"("id") on delete cascade
+  foreign key("supplier_id") references suppliers("id") on delete cascade on update no action
 );
 CREATE UNIQUE INDEX "parts_supplier_id_clean_model_unique" on "parts"(
   "supplier_id",
   "clean_model"
 );
-CREATE TABLE "part_product"(
-  "part_id" integer not null,
-  "product_id" integer not null,
+CREATE TABLE "suppliers"(
+  "id" integer primary key autoincrement not null,
+  "type" varchar not null default('product'),
+  "name" varchar not null,
+  "phone" varchar,
   "created_at" datetime,
   "updated_at" datetime,
-  foreign key("part_id") references "parts"("id") on delete cascade,
-  foreign key("product_id") references "products"("id") on delete cascade,
-  primary key("part_id", "product_id")
+  "email" varchar,
+  "account_number" varchar,
+  "bank_account" varchar,
+  "order_email" varchar,
+  "orderable" tinyint(1) not null default('1'),
+  "is_active" tinyint(1) not null default('1'),
+  "price_multiplier" numeric not null default('1'),
+  "address_civic" varchar,
+  "address_apartment" varchar,
+  "address_street" varchar,
+  "address_city" varchar,
+  "address_province" varchar,
+  "address_country" varchar,
+  "address_postal_code" varchar,
+  "payment_address_civic" varchar,
+  "payment_address_apartment" varchar,
+  "payment_address_street" varchar,
+  "payment_address_city" varchar,
+  "payment_address_province" varchar,
+  "payment_address_country" varchar,
+  "payment_address_postal_code" varchar,
+  "base_multiplier" numeric not null default('2'),
+  "customs_fee" numeric not null default('0'),
+  "shipping_fee" numeric not null default('0'),
+  "currency_id" integer,
+  "prepaid_amount" integer default '0',
+  "collect" tinyint(1) not null default('0'),
+  "default_shipping_supplier_id" integer,
+  "early_payment_discount_percent" numeric not null default('0'),
+  "early_payment_discount_days" integer,
+  "early_payment_next_month" tinyint(1) not null default('0'),
+  "custom_made" tinyint(1) not null default('0'),
+  foreign key("default_shipping_supplier_id") references suppliers("id") on delete set null on update no action,
+  foreign key("currency_id") references currencies("id") on delete set null on update no action
 );
+CREATE TABLE "supplier_order_lines"(
+  "id" integer primary key autoincrement not null,
+  "supplier_order_id" integer not null,
+  "product_id" integer,
+  "description" varchar,
+  "quantity" integer not null,
+  "unit_cost" integer not null,
+  "quantity_received" integer not null default('0'),
+  "created_at" datetime,
+  "updated_at" datetime,
+  "status" varchar not null default('active'),
+  "cancellation_reason" varchar,
+  "cancellation_requested_at" datetime,
+  "cancelled_at" datetime,
+  "substituted_from_line_id" integer,
+  "part_id" integer,
+  "quantity_short" integer not null default '0',
+  "is_overship" tinyint(1) not null default '0',
+  foreign key("part_id") references parts("id") on delete restrict on update no action,
+  foreign key("product_id") references products("id") on delete set null on update no action,
+  foreign key("supplier_order_id") references supplier_orders("id") on delete cascade on update no action,
+  foreign key("substituted_from_line_id") references supplier_order_lines("id") on delete set null on update no action
+);
+CREATE TABLE "reception_lines"(
+  "id" integer primary key autoincrement not null,
+  "reception_id" integer not null,
+  "supplier_order_line_id" integer not null,
+  "product_id" integer,
+  "quantity" integer not null,
+  "unit_cost" integer not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "quantity_reversed" integer not null default('0'),
+  "reversed_at" datetime,
+  "reversed_by" integer,
+  "reversal_reason" varchar,
+  "quantity_damaged" integer not null default('0'),
+  "quantity_short" integer not null default '0',
+  foreign key("reversed_by") references users("id") on delete set null on update no action,
+  foreign key("reception_id") references receptions("id") on delete cascade on update no action,
+  foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete restrict on update no action,
+  foreign key("product_id") references products("id") on delete set null on update no action
+);
+CREATE TABLE "inventory_units"(
+  "id" integer primary key autoincrement not null,
+  "product_id" integer not null,
+  "cost" integer not null,
+  "inserted_at" date not null,
+  "delivered_at" date,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "reception_line_id" integer,
+  foreign key("reception_line_id") references reception_lines("id") on delete set null on update no action,
+  foreign key("product_id") references products("id") on delete cascade on update no action
+);
+CREATE INDEX "inventory_units_product_id_inserted_at_index" on "inventory_units"(
+  "product_id",
+  "inserted_at"
+);
+CREATE TABLE "supplier_invoices"(
+  "id" integer primary key autoincrement not null,
+  "supplier_id" integer not null,
+  "reception_id" integer,
+  "invoice_number" varchar not null,
+  "invoice_date" date not null,
+  "merchandise_total" integer not null,
+  "freight_fee" integer not null default '0',
+  "customs_fee" integer not null default '0',
+  "taxes" integer not null default '0',
+  "computed_total" integer not null,
+  "invoice_total" integer not null,
+  "variance" integer not null default '0',
+  "discount_percent" numeric not null default('0'),
+  "discount_days" integer,
+  "discount_due_date" date,
+  "discount_amount" integer not null default '0',
+  "created_by" integer,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "discount_next_month" tinyint(1) not null default('0'),
+  "supplier_order_id" integer,
+  "description" varchar,
+  "credit_requested" integer not null default '0',
+  "credit_note_number" varchar,
+  "credit_received_at" date,
+  foreign key("supplier_order_id") references supplier_orders("id") on delete restrict on update no action,
+  foreign key("supplier_id") references suppliers("id") on delete restrict on update no action,
+  foreign key("reception_id") references receptions("id") on delete restrict on update no action,
+  foreign key("created_by") references users("id") on delete set null on update no action
+);
+CREATE UNIQUE INDEX "supplier_invoices_reception_id_unique" on "supplier_invoices"(
+  "reception_id"
+);
+CREATE UNIQUE INDEX "supplier_invoices_supplier_id_invoice_number_unique" on "supplier_invoices"(
+  "supplier_id",
+  "invoice_number"
+);
+CREATE UNIQUE INDEX "supplier_invoices_supplier_order_id_unique" on "supplier_invoices"(
+  "supplier_order_id"
+);
+CREATE TABLE "supplier_invoice_lines"(
+  "id" integer primary key autoincrement not null,
+  "supplier_invoice_id" integer not null,
+  "reception_line_id" integer,
+  "quantity" integer not null,
+  "unit_cost" integer not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "supplier_order_line_id" integer,
+  "quantity_short" integer not null default '0',
+  foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete restrict on update no action,
+  foreign key("supplier_invoice_id") references supplier_invoices("id") on delete cascade on update no action,
+  foreign key("reception_line_id") references reception_lines("id") on delete restrict on update no action
+);
+CREATE TABLE "customer_orders"(
+  "id" integer primary key autoincrement not null,
+  "customer_id" integer not null,
+  "status" varchar not null default('new'),
+  "balance_due" integer not null default '0',
+  "created_by" integer,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "subtotal" integer not null default '0',
+  "total" integer not null default '0',
+  "amount_paid" integer not null default '0',
+  "store_id" integer,
+  foreign key("store_id") references stores("id") on delete set null on update no action,
+  foreign key("customer_id") references customers("id") on delete restrict on update no action,
+  foreign key("created_by") references users("id") on delete set null on update no action
+);
+CREATE INDEX "customer_orders_status_index" on "customer_orders"("status");
 CREATE TABLE "customer_order_lines"(
   "id" integer primary key autoincrement not null,
   "customer_order_id" integer not null,
   "product_id" integer,
   "quantity" integer not null,
-  "unit_price" numeric not null,
+  "unit_price" integer not null,
   "note" text,
   "status" varchar not null,
   "delivered_at" datetime,
@@ -908,48 +831,132 @@ CREATE TABLE "customer_order_lines"(
   "quantity_on_order" integer not null default('0'),
   "supplier_order_line_id" integer,
   "customer_order_pickup_id" integer,
-  "cancellation_fee" numeric,
+  "cancellation_fee" integer,
   "service_id" integer,
   "supplier_id" integer,
   "description" varchar,
   "is_taxable" tinyint(1) not null default('1'),
   "is_custom" tinyint(1) not null default('0'),
-  "unit_cost" numeric,
+  "unit_cost" integer,
   "quote_number" varchar,
   "part_id" integer,
-  "is_no_charge" tinyint(1) not null default '0',
-  foreign key("supplier_id") references suppliers("id") on delete restrict on update no action,
-  foreign key("service_id") references services("id") on delete restrict on update no action,
-  foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete set null on update no action,
-  foreign key("customer_order_id") references customer_orders("id") on delete cascade on update no action,
-  foreign key("product_id") references products("id") on delete restrict on update no action,
+  "is_no_charge" tinyint(1) not null default('0'),
+  foreign key("part_id") references parts("id") on delete restrict on update no action,
   foreign key("customer_order_pickup_id") references customer_order_pickups("id") on delete set null on update no action,
-  foreign key("part_id") references "parts"("id") on delete restrict
+  foreign key("product_id") references products("id") on delete restrict on update no action,
+  foreign key("customer_order_id") references customer_orders("id") on delete cascade on update no action,
+  foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete set null on update no action,
+  foreign key("service_id") references services("id") on delete restrict on update no action,
+  foreign key("supplier_id") references suppliers("id") on delete restrict on update no action
 );
 CREATE INDEX "customer_order_lines_status_index" on "customer_order_lines"(
   "status"
 );
-CREATE TABLE "supplier_order_lines"(
+CREATE TABLE "customer_order_payments"(
   "id" integer primary key autoincrement not null,
-  "supplier_order_id" integer not null,
-  "product_id" integer,
-  "description" varchar,
-  "quantity" integer not null,
-  "unit_cost" numeric not null,
-  "quantity_received" integer not null default('0'),
+  "customer_order_id" integer not null,
+  "customer_order_pickup_id" integer,
+  "customer_payment_method_id" integer,
+  "amount" integer not null,
+  "received_by" integer,
   "created_at" datetime,
   "updated_at" datetime,
-  "status" varchar not null default('active'),
-  "cancellation_reason" varchar,
-  "cancellation_requested_at" datetime,
-  "cancelled_at" datetime,
-  "substituted_from_line_id" integer,
-  "part_id" integer,
-  foreign key("substituted_from_line_id") references supplier_order_lines("id") on delete set null on update no action,
-  foreign key("supplier_order_id") references supplier_orders("id") on delete cascade on update no action,
-  foreign key("product_id") references products("id") on delete set null on update no action,
-  foreign key("part_id") references "parts"("id") on delete restrict
+  "type" varchar not null default('payment'),
+  "rounding_adjustment" integer,
+  "cash_tendered" integer,
+  "change_given" integer,
+  foreign key("customer_order_id") references customer_orders("id") on delete restrict on update no action,
+  foreign key("customer_order_pickup_id") references customer_order_pickups("id") on delete set null on update no action,
+  foreign key("customer_payment_method_id") references customer_payment_methods("id") on delete restrict on update no action,
+  foreign key("received_by") references users("id") on delete set null on update no action
 );
+CREATE TABLE "customer_order_taxes"(
+  "id" integer primary key autoincrement not null,
+  "customer_order_id" integer not null,
+  "tax_id" integer,
+  "name" varchar not null,
+  "rate" numeric not null,
+  "is_compound" tinyint(1) not null default('0'),
+  "registration_number" varchar,
+  "amount" integer not null default '0',
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("tax_id") references taxes("id") on delete set null on update no action,
+  foreign key("customer_order_id") references customer_orders("id") on delete cascade on update no action
+);
+CREATE TABLE "customers"(
+  "id" integer primary key autoincrement not null,
+  "firstname" varchar not null,
+  "lastname" varchar not null,
+  "phone" varchar,
+  "cellphone" varchar,
+  "email" varchar,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "address_civic" varchar,
+  "address_apartment" varchar,
+  "address_street" varchar,
+  "address_city" varchar,
+  "address_province" varchar,
+  "address_country" varchar,
+  "address_postal_code" varchar,
+  "search_name" varchar,
+  "credit_balance" integer not null default '0'
+);
+CREATE UNIQUE INDEX "customers_email_unique" on "customers"("email");
+CREATE INDEX "customers_search_name_index" on "customers"("search_name");
+CREATE TABLE "users"(
+  "id" integer primary key autoincrement not null,
+  "email" varchar not null,
+  "email_verified_at" datetime,
+  "password" varchar not null,
+  "remember_token" varchar,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "is_active" tinyint(1) not null default('1'),
+  "firstname" varchar,
+  "lastname" varchar,
+  "username" varchar,
+  "first_day" date,
+  "last_day" date,
+  "personal_email" varchar,
+  "phone" varchar,
+  "cellphone" varchar,
+  "last_modified" datetime,
+  "last_modified_by" integer,
+  "position_id" integer,
+  "address_civic" varchar,
+  "address_apartment" varchar,
+  "address_street" varchar,
+  "address_city" varchar,
+  "address_province" varchar,
+  "address_country" varchar,
+  "address_postal_code" varchar,
+  "is_full_time" tinyint(1) not null default('0'),
+  "has_group_insurance" tinyint(1) not null default('0'),
+  "insurance_plan" varchar,
+  "is_salaried" tinyint(1) not null default('0'),
+  "hourly_rate" integer,
+  "weekly_salary" integer,
+  "commission_rate" numeric,
+  "has_commission" tinyint(1) not null default('0'),
+  "has_bonus" tinyint(1) not null default('0'),
+  "weekly_sales_target" integer,
+  "bonus_amount" integer,
+  "bonus_step" integer,
+  "hours_per_day" numeric,
+  "vacation_days_accrued" numeric,
+  "vacation_hours_available" numeric,
+  "vacation_balance_computed_at" datetime,
+  "store_id" integer,
+  "search_name" varchar,
+  foreign key("store_id") references stores("id") on delete set null on update no action,
+  foreign key("last_modified_by") references users("id") on delete set null on update no action,
+  foreign key("position_id") references positions("id") on delete set null on update no action
+);
+CREATE UNIQUE INDEX "users_email_unique" on "users"("email");
+CREATE INDEX "users_search_name_index" on "users"("search_name");
+CREATE UNIQUE INDEX "users_username_unique" on "users"("username");
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1097,3 +1104,8 @@ INSERT INTO migrations VALUES(143,'2026_10_10_223129_create_part_product_table',
 INSERT INTO migrations VALUES(144,'2026_10_10_225119_add_part_id_to_order_lines',7);
 INSERT INTO migrations VALUES(145,'2026_10_10_231243_add_is_no_charge_to_customer_order_lines_table',8);
 INSERT INTO migrations VALUES(146,'2026_10_11_145758_add_custom_made_to_suppliers_table',9);
+INSERT INTO migrations VALUES(147,'2026_10_11_153519_convert_catalog_amounts_to_cents',10);
+INSERT INTO migrations VALUES(148,'2026_10_11_155355_convert_supplier_amounts_to_cents',10);
+INSERT INTO migrations VALUES(149,'2026_10_11_160341_convert_sales_amounts_to_cents',10);
+INSERT INTO migrations VALUES(150,'2026_10_11_161649_convert_hr_amounts_to_cents',10);
+INSERT INTO migrations VALUES(152,'2026_10_11_201158_add_shipment_discrepancies',11);

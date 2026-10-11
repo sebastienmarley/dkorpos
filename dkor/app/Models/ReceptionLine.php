@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $product_id
  * @property int $quantity
  * @property int $quantity_damaged Partie de la quantité reçue endommagée (inventaire défectueux).
+ * @property int $quantity_short Quantité annoncée (et facturée) par le fournisseur, mais non reçue.
  * @property Money $unit_cost
  * @property int $quantity_reversed
  * @property Carbon|null $reversed_at
@@ -33,7 +34,7 @@ use Illuminate\Support\Carbon;
  * @property-read int $billable_quantity
  * @property-read string $label
  */
-#[Fillable(['reception_id', 'supplier_order_line_id', 'product_id', 'quantity', 'quantity_damaged', 'unit_cost', 'quantity_reversed', 'reversed_at', 'reversed_by', 'reversal_reason'])]
+#[Fillable(['reception_id', 'supplier_order_line_id', 'product_id', 'quantity', 'quantity_damaged', 'quantity_short', 'unit_cost', 'quantity_reversed', 'reversed_at', 'reversed_by', 'reversal_reason'])]
 class ReceptionLine extends Model
 {
     /** @use HasFactory<ReceptionLineFactory> */
@@ -41,6 +42,7 @@ class ReceptionLine extends Model
 
     protected $casts = [
         'quantity_damaged' => 'integer',
+        'quantity_short' => 'integer',
         'quantity' => 'integer',
         'unit_cost' => MoneyCast::class,
         'quantity_reversed' => 'integer',
@@ -71,9 +73,10 @@ class ReceptionLine extends Model
         return $this->quantity - $this->quantity_reversed;
     }
 
+    /** Quantité que le fournisseur facture : ce qui est reçu (après renversements) et les manquants. */
     public function getBillableQuantityAttribute(): int
     {
-        return $this->quantity_net;
+        return $this->quantity_net + $this->quantity_short;
     }
 
     public function getLabelAttribute(): string

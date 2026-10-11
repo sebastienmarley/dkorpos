@@ -16,7 +16,8 @@ use Illuminate\Support\Carbon;
  * @property int $supplier_invoice_id
  * @property int|null $reception_line_id
  * @property int|null $supplier_order_line_id
- * @property int $quantity
+ * @property int $quantity Quantité facturée : reçue et manquante.
+ * @property int $quantity_short Partie facturée mais manquante à la réception (demande de crédit).
  * @property Money $unit_cost
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -26,7 +27,7 @@ use Illuminate\Support\Carbon;
  * @property-read string $label
  * @property-read Money $total
  */
-#[Fillable(['supplier_invoice_id', 'reception_line_id', 'supplier_order_line_id', 'quantity', 'unit_cost'])]
+#[Fillable(['supplier_invoice_id', 'reception_line_id', 'supplier_order_line_id', 'quantity', 'quantity_short', 'unit_cost'])]
 class SupplierInvoiceLine extends Model
 {
     /** @use HasFactory<SupplierInvoiceLineFactory> */
@@ -34,6 +35,7 @@ class SupplierInvoiceLine extends Model
 
     protected $casts = [
         'quantity' => 'integer',
+        'quantity_short' => 'integer',
         'unit_cost' => MoneyCast::class,
     ];
 

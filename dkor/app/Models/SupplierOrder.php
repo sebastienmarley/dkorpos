@@ -389,6 +389,8 @@ class SupplierOrder extends Model
      * qui n'a plus rien à recevoir est retirée de la réception. La partie endommagée compte comme reçue mais entre en
      * inventaire défectueux (sans unité vendable) avec un dossier défectueux; pour un client lié, elle est recommandée.
      * Une pièce de remplacement n'entre pas en inventaire : son dernier coût devient celui de la réception.
+     * La partie manquante (annoncée et facturée par le fournisseur, mais non reçue) est fermée sur la ligne et retirée
+     * de l'inventaire « en commande » : un crédit est demandé; pour un client lié, elle est recommandée.
      * Appelé par Reception::complete dans sa transaction.
      *
      * @param  Collection<int, ReceptionLine>  $receptionLines
@@ -398,8 +400,9 @@ class SupplierOrder extends Model
         foreach ($receptionLines as $receptionLine) {
             $line = $receptionLine->orderLine()->firstOrFail();
             $quantity = min($receptionLine->quantity, $line->quantity_outstanding);
+            $short = min($receptionLine->quantity_short, $line->quantity_outstanding - $quantity);
 
-            if ($quantity <= 0) {
+            if ($quantity + $short <= 0) {
                 $receptionLine->delete();
 
                 continue;
@@ -409,7 +412,7 @@ class SupplierOrder extends Model
             $damaged = $line->product_id === null ? 0 : min($receptionLine->quantity_damaged, $quantity);
             $good = $quantity - $damaged;
 
-            $receptionLine->update(['quantity' => $quantity, 'quantity_damaged' => $damaged, 'unit_cost' => $cost]);
+            $receptionLine->update(['quantity' => $quantity, 'quantity_damaged' => $damaged, 'quantity_short' => $short, 'unit_cost' => $cost]);
 
             for ($i = 0; $line->product_id !== null && $i < $good; $i++) {
                 InventoryUnit::create([
@@ -423,9 +426,11 @@ class SupplierOrder extends Model
             $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $good, InventoryMovementType::Receipt, $receptionLine);
             $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::DefectiveStock, $damaged, InventoryMovementType::ReceiptDamaged, $receptionLine);
 
-            $line->update(['quantity_received' => $line->quantity_received + $quantity]);
+            $this->moveStock($line, InventoryStatus::OnOrder, null, $short, InventoryMovementType::ShortShipped, $receptionLine);
 
-            if ($line->part_id !== null) {
+            $line->update(['quantity_received' => $line->quantity_received + $quantity, 'quantity_short' => $line->quantity_short + $short]);
+
+            if ($line->part_id !== null && $quantity > 0) {
                 Part::query()->whereKey($line->part_id)->update(['last_cost' => $cost->cents()]);
             }
 
@@ -447,6 +452,11 @@ class SupplierOrder extends Model
             if ($damaged > 0) {
                 $customerLine = $line->customerOrderLine()->with('order')->first();
                 $customerLine?->order->applySupplierDamagedReceipt($customerLine, $damaged);
+            }
+
+            if ($short > 0) {
+                $customerLine = $line->customerOrderLine()->with('order')->first();
+                $customerLine?->order->applySupplierShortShipment($customerLine, $short);
             }
         }
 
@@ -539,6 +549,26 @@ class SupplierOrder extends Model
     }
 
     /**
+     * Retire une ligne d'article reçu en trop qui n'a encore rien reçu (réception en cours abandonnée ou ligne retirée
+     * de la réception) : sa quantité sort de l'inventaire « en commande ».
+     *
+     * @throws DomainException si la ligne n'est pas un article reçu en trop ou si elle a déjà été reçue.
+     */
+    public function removeOvershipLine(SupplierOrderLine $line): void
+    {
+        $this->guardLineBelongs($line);
+
+        if (! $line->is_overship || $line->quantity_received > 0) {
+            throw new DomainException(__('Seul un article reçu en trop, pas encore réceptionné, peut être retiré ainsi.'));
+        }
+
+        DB::transaction(function () use ($line): void {
+            $this->moveStock($line, InventoryStatus::OnOrder, null, $line->quantity, InventoryMovementType::OrderLineCancelled);
+            $line->delete();
+        });
+    }
+
+    /**
      * Modifie la quantité et le coût d'une ligne, en brouillon ou après l'envoi. Après l'envoi, la quantité ne peut
      * pas descendre sous ce qui est déjà reçu et l'inventaire « en commande » suit la différence. La quantité « en
      * commande » de la ligne de commande client liée suit la nouvelle quantité.
@@ -553,7 +583,7 @@ class SupplierOrder extends Model
             throw new DomainException(__('Seule une ligne active peut être modifiée.'));
         }
 
-        if ($quantity < max(1, $line->quantity_received)) {
+        if ($quantity < max(1, $line->quantity_received + $line->quantity_short)) {
             throw new DomainException(__('La quantité ne peut pas être inférieure à la quantité déjà reçue.'));
         }
 
@@ -571,7 +601,7 @@ class SupplierOrder extends Model
             $line->update(['quantity' => $quantity, 'unit_cost' => $unitCost]);
 
             $customerLine = $line->customerOrderLine()->with('order')->first();
-            $customerLine?->order->applySupplierQuantity($customerLine, $quantity - $line->quantity_received);
+            $customerLine?->order->applySupplierQuantity($customerLine, $quantity - $line->quantity_received - $line->quantity_short);
 
             if ($this->status->isOpen()) {
                 $this->refreshStatusFromLines();
@@ -753,7 +783,7 @@ class SupplierOrder extends Model
         }
 
         $unbilled = $this->completedReceptionLines()
-            ->whereColumn('reception_lines.quantity', '>', 'reception_lines.quantity_reversed')
+            ->whereRaw('reception_lines.quantity + reception_lines.quantity_short > reception_lines.quantity_reversed')
             ->whereDoesntHave('reception.invoice')
             ->exists();
 

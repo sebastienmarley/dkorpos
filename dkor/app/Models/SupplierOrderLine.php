@@ -22,6 +22,8 @@ use Illuminate\Support\Carbon;
  * @property int $quantity
  * @property Money $unit_cost
  * @property int $quantity_received
+ * @property int $quantity_short Quantité expédiée selon le fournisseur, mais manquante à la réception : fermée, un crédit est demandé.
+ * @property bool $is_overship Article reçu en trop (pas commandé), ajouté à la réception à coût nul.
  * @property SupplierOrderLineStatus $status
  * @property string|null $cancellation_reason
  * @property Carbon|null $cancellation_requested_at
@@ -37,7 +39,7 @@ use Illuminate\Support\Carbon;
  * @property-read int $quantity_outstanding
  * @property-read int $billable_quantity
  */
-#[Fillable(['supplier_order_id', 'product_id', 'part_id', 'description', 'quantity', 'unit_cost', 'quantity_received', 'status', 'cancellation_reason', 'cancellation_requested_at', 'cancelled_at', 'substituted_from_line_id'])]
+#[Fillable(['supplier_order_id', 'product_id', 'part_id', 'description', 'quantity', 'unit_cost', 'quantity_received', 'quantity_short', 'is_overship', 'status', 'cancellation_reason', 'cancellation_requested_at', 'cancelled_at', 'substituted_from_line_id'])]
 class SupplierOrderLine extends Model
 {
     /** @use HasFactory<SupplierOrderLineFactory> */
@@ -45,6 +47,8 @@ class SupplierOrderLine extends Model
 
     protected $attributes = [
         'quantity_received' => 0,
+        'quantity_short' => 0,
+        'is_overship' => false,
         'status' => 'active',
     ];
 
@@ -52,6 +56,8 @@ class SupplierOrderLine extends Model
         'quantity' => 'integer',
         'unit_cost' => MoneyCast::class,
         'quantity_received' => 'integer',
+        'quantity_short' => 'integer',
+        'is_overship' => 'boolean',
         'status' => SupplierOrderLineStatus::class,
         'cancellation_requested_at' => 'datetime',
         'cancelled_at' => 'datetime',
@@ -108,7 +114,7 @@ class SupplierOrderLine extends Model
             return 0;
         }
 
-        return max(0, $this->quantity - $this->quantity_received);
+        return max(0, $this->quantity - $this->quantity_received - $this->quantity_short);
     }
 
     /**
@@ -132,7 +138,7 @@ class SupplierOrderLine extends Model
     /** Quantité à facturer: ce qui est reçu pour un produit ou une pièce, la quantité commandée pour un service. */
     public function getBillableQuantityAttribute(): int
     {
-        return $this->product_id !== null || $this->part_id !== null ? $this->quantity_received : $this->quantity;
+        return $this->product_id !== null || $this->part_id !== null ? $this->quantity_received + $this->quantity_short : $this->quantity;
     }
 
     public function getLabelAttribute(): string

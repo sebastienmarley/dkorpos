@@ -12,6 +12,7 @@ enum InventoryMovementType: string
     case Substitution = 'substitution';
     case Receipt = 'receipt';
     case ReceiptDamaged = 'receipt_damaged';
+    case ShortShipped = 'short_shipped';
     case ReceiptReversal = 'receipt_reversal';
     case Transfer = 'transfer';
     case CustomerReservation = 'customer_reservation';
@@ -31,6 +32,7 @@ enum InventoryMovementType: string
             self::Substitution => __('Substitution'),
             self::Receipt => __('Réception'),
             self::ReceiptDamaged => __('Réception endommagée'),
+            self::ShortShipped => __('Manquant à la réception'),
             self::ReceiptReversal => __('Renversement de réception'),
             self::Transfer => __('Transfert manuel'),
             self::CustomerReservation => __('Réservation client'),
