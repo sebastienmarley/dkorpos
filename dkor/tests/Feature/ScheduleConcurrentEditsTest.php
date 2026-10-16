@@ -14,6 +14,8 @@ use App\Enums\ScheduleStatus;
 use App\Livewire\Schedules\ScheduleEdit;
 use App\Models\Schedule;
 use App\Models\User;
+use App\Models\WeekTemplate;
+use App\Models\WeekTemplateEntry;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
@@ -123,6 +125,24 @@ it('refuse de copier la semaine précédente vers une semaine modifiée par quel
     $component->call('copyPreviousWeek');
 
     expect(Schedule::query()->whereDate('date', '2026-10-06')->exists())->toBeFalse();
+});
+
+it('refuse d\'appliquer une semaine type à une semaine modifiée par quelqu\'un d\'autre', function () {
+    $week = WeekTemplate::factory()->create();
+    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'weekday' => 2]);
+    $schedule = Schedule::factory()->forDate('2026-10-08')->create(['user_id' => $this->employee->id]);
+
+    $component = weekEditor();
+
+    changedByAccountant($schedule, $this->accountant);
+
+    $component->call('applyWeekTemplate', $this->employee->id, $week->id)->assertDispatched('toast-show');
+
+    expect(Schedule::query()->whereDate('date', '2026-10-06')->exists())->toBeFalse();
+
+    $component->call('applyWeekTemplate', $this->employee->id, $week->id);
+
+    expect(Schedule::query()->whereDate('date', '2026-10-06')->exists())->toBeTrue();
 });
 
 it('publie après les propres modifications de l\'usager sans les prendre pour celles d\'un autre', function () {

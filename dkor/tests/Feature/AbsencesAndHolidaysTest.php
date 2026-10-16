@@ -184,11 +184,11 @@ it('ne copie pas les absences de la semaine précédente', function () {
 it('n\'applique pas un quart de semaine type un férié fermé', function () {
     $week = WeekTemplate::factory()->create();
     $shift = ShiftTemplate::factory()->create();
-    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'user_id' => $this->employee->id, 'shift_template_id' => $shift->id, 'weekday' => 2]);
+    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'shift_template_id' => $shift->id, 'weekday' => 2]);
 
     Holiday::factory()->create(['date' => $this->date]);
 
-    Livewire::test(ScheduleEdit::class)->set('weekStart', '2026-10-11')->call('applyWeekTemplate', $week->id);
+    Livewire::test(ScheduleEdit::class)->set('weekStart', '2026-10-11')->call('applyWeekTemplate', $this->employee->id, $week->id);
 
     expect(Schedule::count())->toBe(0);
 });
