@@ -12,13 +12,12 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $week_template_id
- * @property int $user_id
  * @property int $shift_template_id
  * @property int $weekday 0 = dimanche … 6 = samedi (comme la grille des horaires)
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['week_template_id', 'user_id', 'shift_template_id', 'weekday'])]
+#[Fillable(['week_template_id', 'shift_template_id', 'weekday'])]
 class WeekTemplateEntry extends Model
 {
     /** @use HasFactory<WeekTemplateEntryFactory> */
@@ -28,12 +27,6 @@ class WeekTemplateEntry extends Model
     public function weekTemplate(): BelongsTo
     {
         return $this->belongsTo(WeekTemplate::class);
-    }
-
-    /** @return BelongsTo<User, $this> */
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
     }
 
     /** @return BelongsTo<ShiftTemplate, $this> */

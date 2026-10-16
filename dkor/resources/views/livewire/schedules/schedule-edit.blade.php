@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="p-6" wire:poll.30s="checkForChanges">
     {{-- En-tête --}}
     <div class="mb-6 flex items-center justify-between">
         <div>
@@ -23,21 +23,6 @@
                         >
                             {{ __('Copier la semaine précédente') }}
                         </flux:menu.item>
-
-                        <flux:menu.separator />
-
-                        <flux:menu.group :heading="__('Semaines type')">
-                            @forelse ($weekTemplates as $weekTemplate)
-                                <flux:menu.item
-                                    wire:click="applyWeekTemplate({{ $weekTemplate->id }})"
-                                    wire:confirm="{{ __('Appliquer cette semaine type ? Les quarts déjà présents ne sont pas modifiés.') }}"
-                                >
-                                    {{ $weekTemplate->name }}
-                                </flux:menu.item>
-                            @empty
-                                <flux:menu.item disabled>{{ __('Aucune semaine type') }}</flux:menu.item>
-                            @endforelse
-                        </flux:menu.group>
 
                         <flux:menu.separator />
 
@@ -69,6 +54,17 @@
             </flux:button.group>
         </div>
     </div>
+
+    {{-- Semaine modifiée par quelqu'un d'autre --}}
+    @if ($weekChangeNotice)
+        <flux:callout icon="arrow-path" color="sky" class="mb-4">
+            <flux:callout.heading>{{ $weekChangeNotice }}</flux:callout.heading>
+            <flux:callout.text>{{ __('Vérifiez la grille avant de publier, dépublier ou copier la semaine.') }}</flux:callout.text>
+            <x-slot name="actions">
+                <flux:button size="sm" wire:click="refreshWeek">{{ __('Rafraîchir') }}</flux:button>
+            </x-slot>
+        </flux:callout>
+    @endif
 
     {{-- Rendez-vous à couvrir --}}
     @if ($uncoveredAppointments->isNotEmpty())
@@ -137,6 +133,33 @@
                             <div class="flex items-center gap-2">
                                 <flux:avatar :name="$user->fullName()" size="sm" />
                                 <span class="font-medium text-zinc-800 dark:text-zinc-100">{{ $user->fullName() }}</span>
+                                @can('schedule_management.edit')
+                                    <flux:dropdown align="start">
+                                        <flux:button size="xs" variant="ghost" icon="squares-2x2" :label="__('Appliquer une semaine type')" />
+
+                                        <flux:menu>
+                                            <flux:menu.group :heading="__('Appliquer une semaine type')">
+                                                @forelse ($weekTemplates as $weekTemplate)
+                                                    <flux:menu.item
+                                                        wire:click="applyWeekTemplate({{ $user->id }}, {{ $weekTemplate->id }})"
+                                                        wire:confirm="{{ __('Appliquer « :week » à :employee pour cette semaine ? Les quarts déjà présents ne sont pas modifiés.', ['week' => $weekTemplate->name, 'employee' => $user->fullName()]) }}"
+                                                    >
+                                                        {{ $weekTemplate->name }}
+                                                        <span class="ms-1 text-xs text-zinc-400">({{ trans_choice(':count jour|:count jours', $weekTemplate->entries_count) }})</span>
+                                                    </flux:menu.item>
+                                                @empty
+                                                    <flux:menu.item disabled>{{ __('Aucune semaine type') }}</flux:menu.item>
+                                                @endforelse
+                                            </flux:menu.group>
+
+                                            <flux:menu.separator />
+
+                                            <flux:menu.item icon="cog-6-tooth" :href="route('schedules.templates')" wire:navigate>
+                                                {{ __('Gérer les modèles') }}
+                                            </flux:menu.item>
+                                        </flux:menu>
+                                    </flux:dropdown>
+                                @endcan
                             </div>
                         </td>
 

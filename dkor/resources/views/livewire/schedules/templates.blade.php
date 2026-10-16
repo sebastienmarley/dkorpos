@@ -72,7 +72,7 @@
                 <flux:select wire:model.live="selectedWeekTemplateId" class="w-56">
                     <flux:select.option value="">{{ __('Choisir une semaine type…') }}</flux:select.option>
                     @foreach ($weekTemplates as $week)
-                        <flux:select.option value="{{ $week->id }}">{{ $week->name }}</flux:select.option>
+                        <flux:select.option value="{{ $week->id }}">{{ $week->name }} ({{ trans_choice(':count jour|:count jours', $week->entries_count) }})</flux:select.option>
                     @endforeach
                 </flux:select>
 
@@ -102,7 +102,7 @@
 
         @if ($selectedWeekTemplateId === '')
             <flux:callout icon="information-circle" color="zinc">
-                {{ __('Choisissez ou créez une semaine type pour définir le quart de chaque employé, jour par jour.') }}
+                {{ __('Choisissez ou créez une semaine type : un quart type par jour, à appliquer ensuite à un employé à la fois.') }}
             </flux:callout>
         @elseif ($shiftTemplates->isEmpty())
             <flux:callout icon="information-circle" color="zinc">
@@ -113,31 +113,36 @@
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b border-zinc-200 dark:border-zinc-700">
-                            <th class="px-4 py-3 text-left font-medium text-zinc-500">{{ __('Employé') }}</th>
                             @foreach ($weekdayLabels as $label)
                                 <th class="px-2 py-3 text-center font-medium text-zinc-500">{{ $label }}</th>
                             @endforeach
+                            <th class="px-4 py-3 text-right font-medium text-zinc-500">{{ __('Total') }}</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
-                        @foreach ($users as $user)
-                            <tr wire:key="week-user-{{ $selectedWeekTemplateId }}-{{ $user->id }}">
-                                <td class="px-4 py-2 font-medium text-zinc-800 dark:text-zinc-100">{{ $user->fullName() }}</td>
-                                @foreach ($weekdayLabels as $weekday => $label)
-                                    <td class="px-1 py-2">
-                                        <flux:select size="sm" wire:model.live="entries.{{ $user->id }}.{{ $weekday }}" :disabled="! auth()->user()->can('schedule_templates.edit')">
-                                            <flux:select.option value="">—</flux:select.option>
-                                            @foreach ($shiftTemplates as $shift)
-                                                <flux:select.option value="{{ $shift->id }}">{{ $shift->name }}</flux:select.option>
-                                            @endforeach
-                                        </flux:select>
-                                    </td>
-                                @endforeach
-                            </tr>
-                        @endforeach
+                    <tbody>
+                        <tr wire:key="week-{{ $selectedWeekTemplateId }}">
+                            @foreach ($weekdayLabels as $weekday => $label)
+                                <td class="px-1 py-2">
+                                    <flux:select size="sm" wire:model.live="entries.{{ $weekday }}" :disabled="! auth()->user()->can('schedule_templates.edit')">
+                                        <flux:select.option value="">{{ __('Congé') }}</flux:select.option>
+                                        @foreach ($shiftTemplates as $shift)
+                                            <flux:select.option value="{{ $shift->id }}">{{ $shift->summary() }}</flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+                                </td>
+                            @endforeach
+                            <td class="px-4 py-2 text-right">
+                                <flux:badge size="sm" color="zinc" inset="top bottom">
+                                    {{ sprintf('%dh%02d', intdiv($weeklyMinutes, 60), $weeklyMinutes % 60) }}
+                                </flux:badge>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
+            <flux:text class="mt-2 text-xs text-zinc-500">
+                {{ __('Appliquez cette semaine type à un employé depuis la gestion des horaires, dans le menu à côté de son nom.') }}
+            </flux:text>
         @endif
     </section>
 

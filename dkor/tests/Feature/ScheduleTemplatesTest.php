@@ -108,49 +108,45 @@ it('refuse deux semaines type du même nom', function () {
         ->assertHasErrors('weekName');
 });
 
-it('enregistre et retire le quart type d\'une case de semaine type', function () {
+it('enregistre et retire le quart type d\'un jour de semaine type', function () {
     $week = WeekTemplate::factory()->create();
     $shift = ShiftTemplate::factory()->create();
-    $employee = User::factory()->create();
 
     $component = Livewire::test(Templates::class)
         ->set('selectedWeekTemplateId', (string) $week->id)
-        ->set('entries.'.$employee->id.'.1', (string) $shift->id);
+        ->set('entries.1', (string) $shift->id);
 
     $this->assertDatabaseHas('week_template_entries', [
         'week_template_id' => $week->id,
-        'user_id' => $employee->id,
         'weekday' => 1,
         'shift_template_id' => $shift->id,
     ]);
 
-    $component->set('entries.'.$employee->id.'.1', '');
+    $component->set('entries.1', '');
 
     expect(WeekTemplateEntry::count())->toBe(0);
 });
 
-it('remplace le quart type d\'une case sans doublon', function () {
+it('remplace le quart type d\'un jour sans doublon', function () {
     $week = WeekTemplate::factory()->create();
     [$first, $second] = ShiftTemplate::factory()->count(2)->create();
-    $employee = User::factory()->create();
 
     Livewire::test(Templates::class)
         ->set('selectedWeekTemplateId', (string) $week->id)
-        ->set('entries.'.$employee->id.'.2', (string) $first->id)
-        ->set('entries.'.$employee->id.'.2', (string) $second->id);
+        ->set('entries.2', (string) $first->id)
+        ->set('entries.2', (string) $second->id);
 
     expect(WeekTemplateEntry::count())->toBe(1)
         ->and(WeekTemplateEntry::firstOrFail()->shift_template_id)->toBe($second->id);
 });
 
-it('ignore une case pour un employé inactif', function () {
+it('ignore un jour hors de la semaine', function () {
     $week = WeekTemplate::factory()->create();
     $shift = ShiftTemplate::factory()->create();
-    $inactive = User::factory()->create(['is_active' => false]);
 
     Livewire::test(Templates::class)
         ->set('selectedWeekTemplateId', (string) $week->id)
-        ->set('entries.'.$inactive->id.'.1', (string) $shift->id);
+        ->set('entries.7', (string) $shift->id);
 
     expect(WeekTemplateEntry::count())->toBe(0);
 });
@@ -165,33 +161,26 @@ it('supprime une semaine type avec ses cases', function () {
     expect(WeekTemplate::count())->toBe(0)->and(WeekTemplateEntry::count())->toBe(0);
 });
 
-it('enregistre une case quand Livewire envoie le tableau de l\'employé', function () {
+it('affiche le total des heures de la semaine type, pauses déduites', function () {
     $week = WeekTemplate::factory()->create();
-    $shift = ShiftTemplate::factory()->create();
-    $employee = User::factory()->create();
+    $shift = ShiftTemplate::factory()->create(['start_time' => '09:00', 'end_time' => '17:00', 'break_minutes' => 30]);
+    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'shift_template_id' => $shift->id, 'weekday' => 1]);
+    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'shift_template_id' => $shift->id, 'weekday' => 2]);
 
     Livewire::test(Templates::class)
         ->set('selectedWeekTemplateId', (string) $week->id)
-        ->set('entries.'.$employee->id, [3 => (string) $shift->id]);
-
-    $this->assertDatabaseHas('week_template_entries', [
-        'week_template_id' => $week->id,
-        'user_id' => $employee->id,
-        'weekday' => 3,
-        'shift_template_id' => $shift->id,
-    ]);
+        ->assertSee('15h00');
 });
 
-it('enregistre les cases quand Livewire envoie tout le tableau', function () {
+it('enregistre les jours quand Livewire envoie tout le tableau', function () {
     $week = WeekTemplate::factory()->create();
     $shift = ShiftTemplate::factory()->create();
-    $employee = User::factory()->create();
 
     Livewire::test(Templates::class)
         ->set('selectedWeekTemplateId', (string) $week->id)
-        ->set('entries', [$employee->id => [1 => (string) $shift->id, 4 => (string) $shift->id]]);
+        ->set('entries', [1 => (string) $shift->id, 4 => (string) $shift->id]);
 
-    expect(WeekTemplateEntry::where('user_id', $employee->id)->pluck('weekday')->sort()->values()->all())->toBe([1, 4]);
+    expect(WeekTemplateEntry::where('week_template_id', $week->id)->pluck('weekday')->sort()->values()->all())->toBe([1, 4]);
 });
 
 // ── Quart type dans la fenêtre d'un quart ──────────────────────────────────
@@ -296,12 +285,12 @@ it('applique une semaine type sur les bons jours en brouillon', function () {
     $week = WeekTemplate::factory()->create();
     $shift = ShiftTemplate::factory()->create(['start_time' => '08:00', 'end_time' => '16:00', 'break_minutes' => 30]);
 
-    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'user_id' => $employee->id, 'shift_template_id' => $shift->id, 'weekday' => 1]);
-    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'user_id' => $employee->id, 'shift_template_id' => $shift->id, 'weekday' => 6]);
+    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'shift_template_id' => $shift->id, 'weekday' => 1]);
+    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'shift_template_id' => $shift->id, 'weekday' => 6]);
 
     Livewire::test(ScheduleEdit::class)
         ->set('weekStart', nextWeekStart())
-        ->call('applyWeekTemplate', $week->id);
+        ->call('applyWeekTemplate', $employee->id, $week->id);
 
     $start = Carbon::parse(nextWeekStart());
 
@@ -321,9 +310,30 @@ it('n\'écrase pas un quart existant en appliquant une semaine type', function (
     $date = Carbon::parse(nextWeekStart())->addDay()->toDateString();
 
     Schedule::factory()->forDate($date)->create(['user_id' => $employee->id, 'end_time' => '12:00']);
-    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'user_id' => $employee->id, 'shift_template_id' => $shift->id, 'weekday' => 1]);
+    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'shift_template_id' => $shift->id, 'weekday' => 1]);
 
-    Livewire::test(ScheduleEdit::class)->set('weekStart', nextWeekStart())->call('applyWeekTemplate', $week->id);
+    Livewire::test(ScheduleEdit::class)->set('weekStart', nextWeekStart())->call('applyWeekTemplate', $employee->id, $week->id);
 
     expect(Schedule::count())->toBe(1)->and(Schedule::firstOrFail()->end_time)->toBe('12:00');
+});
+
+it('n\'applique la semaine type qu\'à l\'employé choisi', function () {
+    [$chosen, $other] = User::factory()->count(2)->create();
+    $week = WeekTemplate::factory()->create();
+    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'weekday' => 2]);
+
+    Livewire::test(ScheduleEdit::class)->set('weekStart', nextWeekStart())->call('applyWeekTemplate', $chosen->id, $week->id);
+
+    expect(Schedule::where('user_id', $chosen->id)->count())->toBe(1)
+        ->and(Schedule::where('user_id', $other->id)->count())->toBe(0);
+});
+
+it('n\'applique pas une semaine type à un employé inactif', function () {
+    $inactive = User::factory()->create(['is_active' => false]);
+    $week = WeekTemplate::factory()->create();
+    WeekTemplateEntry::factory()->create(['week_template_id' => $week->id, 'weekday' => 2]);
+
+    Livewire::test(ScheduleEdit::class)->set('weekStart', nextWeekStart())->call('applyWeekTemplate', $inactive->id, $week->id);
+
+    expect(Schedule::count())->toBe(0);
 });

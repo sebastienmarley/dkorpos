@@ -693,7 +693,8 @@ erDiagram
 
 - Les quarts (`schedules`) et rendez-vous (`appointments`) appartiennent à un employé et sont
   supprimés avec lui (`cascade`). En pratique, un employé est désactivé plutôt que supprimé.
-- Semaine type : `week_templates` → `week_template_entries` (employé × quart type).
+- Semaine type : `week_templates` → `week_template_entries` (au plus un quart type par jour de la semaine), appliquée
+  à un employé à la fois depuis la gestion des horaires.
 - `holidays` : jours fériés, sans lien.
 - `payroll_periods` : périodes de paie verrouillées, avec l'auteur du verrouillage.
 
@@ -703,7 +704,6 @@ erDiagram
     users |o--o{ schedules : "created_by · null"
     users ||--o{ schedules : "user_id · cascade"
     shift_templates ||--o{ week_template_entries : "shift_template_id · cascade"
-    users ||--o{ week_template_entries : "user_id · cascade"
     week_templates ||--o{ week_template_entries : "week_template_id · cascade"
     users |o--o{ appointments : "last_updated_by · null"
     users |o--o{ appointments : "created_by · null"
@@ -743,7 +743,6 @@ erDiagram
     week_template_entries {
         int id PK
         int shift_template_id FK
-        int user_id FK
         int week_template_id FK
         int weekday
         datetime created_at
