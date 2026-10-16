@@ -3,6 +3,7 @@
 namespace App\Livewire\Schedules;
 
 use App\Actions\FillWeekSchedules;
+use App\Actions\ReassignAppointment;
 use App\Enums\ScheduleStatus;
 use App\Enums\ScheduleType;
 use App\Models\Appointment;
@@ -13,6 +14,8 @@ use App\Models\ShiftTemplate;
 use App\Models\User;
 use App\Models\WeekTemplate;
 use App\Models\WeekTemplateEntry;
+use App\Support\AppointmentBooking;
+use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -53,6 +56,19 @@ class ScheduleEdit extends Component
 
     /** Dernier jour d'une absence de plusieurs jours (optionnel). */
     public string $untilDate = '';
+
+    public bool $showReassignModal = false;
+
+    public ?int $reassigningAppointmentId = null;
+
+    /** Horodatage updated_at du rendez-vous à l'ouverture, pour détecter une modification concurrente. */
+    public int $reassignVersion = 0;
+
+    public ?int $reassignUserId = null;
+
+    public string $reassignDate = '';
+
+    public int $reassignStartMinute = AppointmentBooking::DAY_START_MINUTE;
 
     public function mount(): void
     {
@@ -203,6 +219,22 @@ class ScheduleEdit extends Component
     public function publishWeek(): void
     {
         $this->authorize('schedule_management.publish');
+
+        $start = Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY);
+
+        $uncoveredCount = AppointmentBooking::uncoveredAppointments($start->toDateString(), $start->copy()->addDays(6)->toDateString())
+            ->filter(fn (array $row): bool => $row['coverage']->blocksPublication())
+            ->count();
+
+        if ($uncoveredCount > 0) {
+            Flux::toast(
+                text: trans_choice(':count rendez-vous n\'est couvert par aucun quart. Ajoutez un quart ou réassignez-le avant de publier.|:count rendez-vous ne sont couverts par aucun quart. Ajoutez un quart ou réassignez-les avant de publier.', $uncoveredCount),
+                heading: __('Publication refusée'),
+                variant: 'danger',
+            );
+
+            return;
+        }
 
         $this->activeWeekSchedules()
             ->where('status', ScheduleStatus::Draft->value)
@@ -401,7 +433,10 @@ class ScheduleEdit extends Component
                 ]);
             }
 
-            $window = $data['status'] === ScheduleStatus::Draft->value || $data['type'] !== ScheduleType::Work->value || ! $data['start_time'] || ! $data['end_time']
+            // Un quart en brouillon peut couvrir des rendez-vous à venir, mais un quart publié qui en contient ne se dépublie pas.
+            $isUnpublishing = $existing && $existing->status !== ScheduleStatus::Draft && $data['status'] === ScheduleStatus::Draft->value;
+
+            $window = $isUnpublishing || $data['type'] !== ScheduleType::Work->value || ! $data['start_time'] || ! $data['end_time']
                 ? null
                 : [$this->minutesOf($data['start_time']), $this->minutesOf($data['end_time'])];
 
@@ -484,6 +519,78 @@ class ScheduleEdit extends Component
         return true;
     }
 
+    /** Ouvre la réassignation d'un rendez-vous à venir (autre employé, autre jour ou autre heure). */
+    public function openReassign(int $appointmentId): void
+    {
+        $this->authorize('appointments.edit');
+
+        $appointment = Appointment::query()->find($appointmentId);
+
+        if (! $appointment) {
+            Flux::toast(text: __('Ce rendez-vous a été supprimé par un autre usager.'), heading: __('Réassignation impossible'), variant: 'danger');
+
+            return;
+        }
+
+        $this->closeModal();
+
+        $this->reassigningAppointmentId = $appointment->id;
+        $this->reassignVersion = $appointment->updated_at?->getTimestamp() ?? 0;
+        $this->reassignUserId = $appointment->user_id;
+        $this->reassignDate = $appointment->date;
+        $this->reassignStartMinute = $appointment->start_minute;
+        $this->resetValidation();
+
+        $this->showReassignModal = true;
+    }
+
+    public function reassign(): void
+    {
+        $this->authorize('appointments.edit');
+
+        $this->validate([
+            'reassignUserId' => ['required', 'integer', Rule::exists('users', 'id')->where('is_active', true)],
+            'reassignDate' => ['required', 'date_format:Y-m-d'],
+            'reassignStartMinute' => ['required', 'integer', 'min:'.AppointmentBooking::DAY_START_MINUTE, 'max:'.(AppointmentBooking::DAY_END_MINUTE - AppointmentBooking::SLOT_MINUTES)],
+        ]);
+
+        $appointment = Appointment::query()->find($this->reassigningAppointmentId);
+
+        if (! $appointment) {
+            $this->addError('reassignUserId', __('Ce rendez-vous a été supprimé par un autre usager.'));
+
+            return;
+        }
+
+        try {
+            $appointment = app(ReassignAppointment::class)->handle($appointment, (int) $this->reassignUserId, $this->reassignDate, $this->reassignStartMinute, $this->reassignVersion);
+        } catch (DomainException $exception) {
+            $this->addError('reassignUserId', $exception->getMessage());
+
+            return;
+        }
+
+        Flux::toast(
+            text: __('Rendez-vous réassigné à :name, le :date à :time.', [
+                'name' => $appointment->user?->fullName(),
+                'date' => Carbon::parse($appointment->date)->translatedFormat('l d F'),
+                'time' => AppointmentBooking::formatMinute($appointment->start_minute),
+            ]),
+            heading: __('Rendez-vous réassigné'),
+            variant: 'success',
+        );
+
+        $this->closeReassignModal();
+    }
+
+    public function closeReassignModal(): void
+    {
+        $this->showReassignModal = false;
+        $this->resetValidation();
+        $this->reset(['reassigningAppointmentId', 'reassignVersion', 'reassignUserId', 'reassignDate']);
+        $this->reassignStartMinute = AppointmentBooking::DAY_START_MINUTE;
+    }
+
     private function conflictMessage(int $count): string
     {
         return trans_choice(
@@ -520,6 +627,51 @@ class ScheduleEdit extends Component
         $this->resetValidation();
         $this->reset(['editingUserId', 'editingScheduleId', 'editingVersion', 'editingDate', 'startTime', 'endTime', 'breakMinutes', 'status', 'notes', 'shiftTemplateId', 'untilDate']);
         $this->scheduleType = ScheduleType::Work->value;
+    }
+
+    /**
+     * Données de la fenêtre de réassignation : le rendez-vous, et pour chaque employé actif son quart à la date choisie.
+     *
+     * @return array{reassigningAppointment: Appointment|null, reassignCandidates: array<int, array{id: int, label: string}>, reassignTimeSlots: array<int, string>}
+     */
+    private function reassignViewData(): array
+    {
+        $appointment = $this->showReassignModal && $this->reassigningAppointmentId
+            ? Appointment::query()->with(['user', 'customer'])->find($this->reassigningAppointmentId)
+            : null;
+
+        if (! $appointment || ! Carbon::hasFormat($this->reassignDate, 'Y-m-d')) {
+            return ['reassigningAppointment' => $appointment, 'reassignCandidates' => [], 'reassignTimeSlots' => []];
+        }
+
+        $shifts = Schedule::query()
+            ->whereDate('date', $this->reassignDate)
+            ->get()
+            ->keyBy('user_id');
+
+        $candidates = User::query()->where('is_active', true)->orderBy('id')->get()
+            ->map(function (User $user) use ($shifts): array {
+                $shift = $shifts->get($user->id);
+
+                $detail = match (true) {
+                    ! $shift => __('aucun quart'),
+                    $shift->type->isAbsence() => $shift->type->label(),
+                    ! $shift->start_time || ! $shift->end_time => $shift->type->label(),
+                    default => substr($shift->start_time, 0, 5).'–'.substr($shift->end_time, 0, 5)
+                        .($shift->status === ScheduleStatus::Draft ? ' ('.__('non publié').')' : ''),
+                };
+
+                return ['id' => $user->id, 'label' => $user->fullName().' — '.$detail];
+            })
+            ->values()
+            ->all();
+
+        $timeSlots = [];
+        for ($minute = AppointmentBooking::DAY_START_MINUTE; $minute < AppointmentBooking::DAY_END_MINUTE; $minute += AppointmentBooking::SLOT_MINUTES) {
+            $timeSlots[$minute] = AppointmentBooking::formatMinute($minute);
+        }
+
+        return ['reassigningAppointment' => $appointment, 'reassignCandidates' => $candidates, 'reassignTimeSlots' => $timeSlots];
     }
 
     public function render(): View
@@ -561,6 +713,17 @@ class ScheduleEdit extends Component
             ->get()
             ->keyBy('date');
 
+        $weekAppointments = Appointment::query()
+            ->whereIn('user_id', $userIds)
+            ->where('date', '>=', $start->toDateString())
+            ->where('date', '<', $start->copy()->addDays(7)->toDateString())
+            ->with('customer')
+            ->orderBy('start_minute')
+            ->get()
+            ->groupBy(fn (Appointment $appointment): string => $appointment->user_id.'|'.$appointment->date);
+
+        $uncoveredAppointments = AppointmentBooking::uncoveredAppointments($start->toDateString(), $start->copy()->addDays(6)->toDateString());
+
         return view('livewire.schedules.schedule-edit', [
             'holidays' => $holidays,
             'scheduleTypes' => ScheduleType::cases(),
@@ -574,6 +737,13 @@ class ScheduleEdit extends Component
             'startDate' => $start,
             'endDate' => $start->copy()->addDays(6),
             'isCurrentWeek' => $start->isSameDay(Carbon::now()->startOfWeek(Carbon::SUNDAY)),
+            'weekAppointments' => $weekAppointments,
+            'uncoveredAppointments' => $uncoveredAppointments,
+            'uncoveredCoverage' => $uncoveredAppointments->mapWithKeys(fn (array $row): array => [$row['appointment']->id => $row['coverage']]),
+            'editingAppointments' => $this->showModal && $this->editingUserId
+                ? $weekAppointments->get($this->editingUserId.'|'.$this->editingDate, collect())
+                : collect(),
+            ...$this->reassignViewData(),
         ])->layout('layouts.app', ['title' => __('Gestion des horaires')]);
     }
 }

@@ -217,7 +217,8 @@
                         </flux:sidebar.item>
                     @endcan
                     @can('schedule_management.view')
-                        <flux:sidebar.item icon="table-cells" :href="route('schedules.schedule-edit')" :current="request()->routeIs('schedules.schedule-edit')" wire:navigate>
+                        @php $appointmentsToCover = \App\Support\AppointmentBooking::uncoveredCount(); @endphp
+                        <flux:sidebar.item icon="table-cells" :href="route('schedules.schedule-edit')" :current="request()->routeIs('schedules.schedule-edit')" :badge="$appointmentsToCover > 0 ? $appointmentsToCover : null" badge:color="amber" wire:navigate>
                             {{ __('Gestion des horaires') }}
                         </flux:sidebar.item>
                     @endcan

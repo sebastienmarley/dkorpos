@@ -70,6 +70,40 @@
         </div>
     </div>
 
+    {{-- Rendez-vous à couvrir --}}
+    @if ($uncoveredAppointments->isNotEmpty())
+        <flux:callout icon="exclamation-triangle" color="amber" class="mb-4">
+            <flux:callout.heading>
+                {{ trans_choice(':count rendez-vous à couvrir cette semaine|:count rendez-vous à couvrir cette semaine', $uncoveredAppointments->count()) }}
+            </flux:callout.heading>
+            <flux:callout.text>
+                {{ __('Ajoutez ou ajustez le quart de l\'employé, ou réassignez le rendez-vous. Une semaine qui laisse un rendez-vous sans quart ne peut pas être publiée.') }}
+            </flux:callout.text>
+            <ul class="mt-2 divide-y divide-amber-200/60 text-sm dark:divide-amber-800/60">
+                @foreach ($uncoveredAppointments as $row)
+                    @php $appointment = $row['appointment']; @endphp
+                    <li class="flex flex-wrap items-center justify-between gap-2 py-1.5">
+                        <div>
+                            <span class="font-medium">{{ $appointment->user?->fullName() }}</span>
+                            · {{ ucfirst(\Carbon\Carbon::parse($appointment->date)->translatedFormat('l d F')) }}
+                            · {{ \App\Support\AppointmentBooking::formatMinute($appointment->start_minute) }}–{{ \App\Support\AppointmentBooking::formatMinute($appointment->endMinute()) }}
+                            · {{ $appointment->title }}
+                            @if ($appointment->customer)
+                                ({{ $appointment->customer->firstname }} {{ $appointment->customer->lastname }})
+                            @endif
+                            <flux:badge size="sm" color="amber" inset="top bottom" class="ms-1">{{ $row['coverage']->label() }}</flux:badge>
+                        </div>
+                        @can('appointments.edit')
+                            <flux:button size="xs" variant="ghost" icon="arrows-right-left" wire:click="openReassign({{ $appointment->id }})">
+                                {{ __('Réassigner') }}
+                            </flux:button>
+                        @endcan
+                    </li>
+                @endforeach
+            </ul>
+        </flux:callout>
+    @endif
+
     {{-- Tableau --}}
     <div class="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <table class="w-full text-sm">
@@ -111,6 +145,8 @@
                                 $dateKey = $day->toDateString();
                                 $schedule = $schedules->get($user->id)?->get($dateKey);
                                 $isToday = $day->isToday();
+                                $cellAppointments = $weekAppointments->get($user->id.'|'.$dateKey, collect());
+                                $needsShift = $cellAppointments->contains(fn ($appointment) => $uncoveredCoverage->has($appointment->id));
                             @endphp
                             <td
                                 class="px-2 py-2 text-center"
@@ -118,6 +154,7 @@
                                 <button
                                     @can('schedule_management.edit') wire:click="openCell({{ $user->id }}, '{{ $dateKey }}')" @else disabled @endcan
                                     class="w-full min-w-20 rounded-lg border px-2 py-1.5 text-xs transition
+                                        @if ($needsShift) ring-2 ring-amber-400 dark:ring-amber-500 @endif
                                         @if ($schedule?->type->isAbsence())
                                             {{ match ($schedule->type) {
                                                 \App\Enums\ScheduleType::Sick => 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300',
@@ -156,9 +193,23 @@
                                         @elseif ($schedule->status === \App\Enums\ScheduleStatus::Closed)
                                             <div class="mt-0.5 text-[10px] font-medium text-zinc-500">🔒 {{ __('Fermée') }}</div>
                                         @endif
+                                    @elseif ($needsShift)
+                                        <div class="font-medium text-amber-700 dark:text-amber-300">{{ __('Quart requis') }}</div>
                                     @else
                                         <span>+</span>
                                     @endif
+                                    @foreach ($cellAppointments as $appointment)
+                                        <div
+                                            @class([
+                                                'mt-0.5 truncate text-[10px]',
+                                                'font-semibold text-amber-700 dark:text-amber-300' => $uncoveredCoverage->has($appointment->id),
+                                                'text-zinc-500 dark:text-zinc-400' => ! $uncoveredCoverage->has($appointment->id),
+                                            ])
+                                            title="{{ $appointment->title }}"
+                                        >
+                                            {{ __('Rdv') }} {{ \App\Support\AppointmentBooking::formatMinute($appointment->start_minute) }}–{{ \App\Support\AppointmentBooking::formatMinute($appointment->endMinute()) }}
+                                        </div>
+                                    @endforeach
                                 </button>
                             </td>
                         @endforeach
@@ -209,6 +260,31 @@
                     · {{ $editingSchedule->updated_at?->translatedFormat('d M Y H:i') }}
                 @endif
             </flux:text>
+        @endif
+
+        @if ($editingAppointments->isNotEmpty())
+            <div class="mb-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                <flux:text class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Rendez-vous ce jour-là') }}</flux:text>
+                <ul class="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+                    @foreach ($editingAppointments as $appointment)
+                        <li class="flex items-center justify-between gap-2 py-1">
+                            <div class="min-w-0">
+                                <span @class(['font-medium', 'text-amber-700 dark:text-amber-300' => $uncoveredCoverage->has($appointment->id)])>
+                                    {{ \App\Support\AppointmentBooking::formatMinute($appointment->start_minute) }}–{{ \App\Support\AppointmentBooking::formatMinute($appointment->endMinute()) }}
+                                </span>
+                                <span class="truncate text-zinc-500">· {{ $appointment->title }}</span>
+                            </div>
+                            @can('appointments.edit')
+                                @if ($appointment->date >= now()->toDateString())
+                                    <flux:button size="xs" variant="ghost" icon="arrows-right-left" wire:click="openReassign({{ $appointment->id }})">
+                                        {{ __('Réassigner') }}
+                                    </flux:button>
+                                @endif
+                            @endcan
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
         @endif
 
         <form wire:submit="save" class="space-y-4">
@@ -315,5 +391,70 @@
                 </div>
             </div>
         </form>
+    </flux:modal>
+
+    {{-- Réassignation d'un rendez-vous --}}
+    <flux:modal wire:model="showReassignModal" class="w-full max-w-md" x-on:close="$wire.closeReassignModal()">
+        @if ($reassigningAppointment)
+            <flux:heading class="mb-1">{{ __('Réassigner le rendez-vous') }}</flux:heading>
+            <flux:text class="mb-4 text-zinc-500">
+                {{ $reassigningAppointment->title }}
+                @if ($reassigningAppointment->customer)
+                    · {{ $reassigningAppointment->customer->firstname }} {{ $reassigningAppointment->customer->lastname }}
+                @endif
+                <br>
+                {{ __('Actuellement : :name, :date, :start–:end', [
+                    'name' => $reassigningAppointment->user?->fullName(),
+                    'date' => \Carbon\Carbon::parse($reassigningAppointment->date)->translatedFormat('l d F'),
+                    'start' => \App\Support\AppointmentBooking::formatMinute($reassigningAppointment->start_minute),
+                    'end' => \App\Support\AppointmentBooking::formatMinute($reassigningAppointment->endMinute()),
+                ]) }}
+            </flux:text>
+
+            <form wire:submit="reassign" class="space-y-4">
+                @error('reassignUserId')
+                    <flux:callout variant="danger" icon="exclamation-triangle">
+                        <flux:callout.text>{{ $message }}</flux:callout.text>
+                    </flux:callout>
+                @enderror
+
+                <div class="grid grid-cols-2 gap-4">
+                    <flux:field>
+                        <flux:label>{{ __('Date') }}</flux:label>
+                        <flux:input wire:model.live="reassignDate" type="date" :min="now()->toDateString()" />
+                        <flux:error name="reassignDate" />
+                    </flux:field>
+
+                    <flux:field>
+                        <flux:label>{{ __('Heure') }}</flux:label>
+                        <flux:select wire:model="reassignStartMinute">
+                            @foreach ($reassignTimeSlots as $minute => $label)
+                                <flux:select.option value="{{ $minute }}">{{ $label }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="reassignStartMinute" />
+                    </flux:field>
+                </div>
+
+                <flux:field>
+                    <flux:label>{{ __('Employé') }}</flux:label>
+                    <flux:select wire:model="reassignUserId">
+                        @foreach ($reassignCandidates as $candidate)
+                            <flux:select.option value="{{ $candidate['id'] }}">{{ $candidate['label'] }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:description>{{ __('Le quart de chaque employé à la date choisie est indiqué. La durée du rendez-vous ne change pas.') }}</flux:description>
+                </flux:field>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <flux:button type="button" variant="ghost" wire:click="closeReassignModal">
+                        {{ __('Annuler') }}
+                    </flux:button>
+                    <flux:button type="submit" variant="primary">
+                        {{ __('Réassigner') }}
+                    </flux:button>
+                </div>
+            </form>
+        @endif
     </flux:modal>
 </div>

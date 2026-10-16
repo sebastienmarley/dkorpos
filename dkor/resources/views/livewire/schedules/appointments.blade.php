@@ -41,6 +41,14 @@
         <flux:callout icon="information-circle" color="zinc" class="mb-4">
             {{ __('Cette semaine est passée. Les rendez-vous sont en lecture seule.') }}
         </flux:callout>
+    @elseif ($reachesBeyondHorizon)
+        <flux:callout icon="information-circle" color="zinc" class="mb-4">
+            {{ __('Après le :date, un rendez-vous se prend seulement pendant un quart publié de l\'employé.', ['date' => $horizonEnd->translatedFormat('d F')]) }}
+        </flux:callout>
+    @elseif ($allowsUnscheduledThisWeek)
+        <flux:callout icon="information-circle" color="amber" class="mb-4">
+            {{ __('Un rendez-vous pris un jour sans quart publié est marqué « Quart à confirmer » et signalé au gestionnaire de l\'horaire.') }}
+        </flux:callout>
     @endif
 
     @assets
@@ -256,6 +264,9 @@
                                                 {{ sprintf('%02d:%02d', intdiv($appointment->start_minute, 60), $appointment->start_minute % 60) }}
                                                 – {{ sprintf('%02d:%02d', intdiv($appointment->endMinute(), 60), $appointment->endMinute() % 60) }}
                                             </div>
+                                            @if (in_array($appointment->id, $unconfirmedIds, true))
+                                                <div class="mt-0.5 truncate text-[10px] font-semibold text-amber-700 dark:text-amber-300">⚠ {{ __('Quart à confirmer') }}</div>
+                                            @endif
                                             @if ($isClickable)
                                                 <div
                                                     x-on:pointerdown.stop="start($event, 'resize')"

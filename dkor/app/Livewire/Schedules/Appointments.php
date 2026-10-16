@@ -9,6 +9,7 @@ use App\Models\customer;
 use App\Models\Holiday;
 use App\Models\Schedule;
 use App\Models\User;
+use App\Support\AppointmentBooking;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,11 +25,11 @@ class Appointments extends Component
     use SearchesCustomers;
 
     /** Taille d'une case de la grille, en minutes (15 ou 30). */
-    public const SLOT_MINUTES = 30;
+    public const SLOT_MINUTES = AppointmentBooking::SLOT_MINUTES;
 
-    public const DAY_START_MINUTE = 8 * 60;
+    public const DAY_START_MINUTE = AppointmentBooking::DAY_START_MINUTE;
 
-    public const DAY_END_MINUTE = 19 * 60;
+    public const DAY_END_MINUTE = AppointmentBooking::DAY_END_MINUTE;
 
     public string $weekStart;
 
@@ -318,135 +319,31 @@ class Appointments extends Component
         return Appointment::query()->where('user_id', $this->selectedUserId);
     }
 
-    /**
-     * Une case est réservable si elle est dans la grille, dans le futur et, pour la semaine
-     * en cours, à l'intérieur de l'horaire de l'employé.
-     */
     private function canBookAt(string $date, int $startMinute): bool
     {
-        if ($startMinute < self::DAY_START_MINUTE || $startMinute >= self::DAY_END_MINUTE) {
-            return false;
-        }
-
-        if (Carbon::parse($date)->startOfDay()->addMinutes($startMinute)->lt(Carbon::now())) {
-            return false;
-        }
-
-        if ($this->isInCurrentWeek($date) && ! $this->employeeWorksAt($date, $startMinute)) {
-            return false;
-        }
-
-        return $this->blockReasonFor($date) === null;
+        return $this->selectedUserId !== null && AppointmentBooking::canBookAt($this->selectedUserId, $date, $startMinute);
     }
 
-    /**
-     * Motif pour lequel l'employé sélectionné ne prend pas de rendez-vous ce jour-là :
-     * une absence (maladie, vacances…) ou un férié fermé sans quart de travail publié.
-     */
-    private function blockReasonFor(string $date): ?string
-    {
-        $absence = Schedule::query()
-            ->where('user_id', $this->selectedUserId)
-            ->whereDate('date', $date)
-            ->where('type', '!=', ScheduleType::Work->value)
-            ->first();
-
-        if ($absence) {
-            return $absence->type->label();
-        }
-
-        $closedHoliday = Holiday::query()->whereDate('date', $date)->where('is_closed', true)->first();
-
-        if (! $closedHoliday) {
-            return null;
-        }
-
-        $worksThatDay = Schedule::query()
-            ->bookable()
-            ->where('user_id', $this->selectedUserId)
-            ->whereDate('date', $date)
-            ->where('type', ScheduleType::Work->value)
-            ->exists();
-
-        return $worksThatDay ? null : $closedHoliday->name;
-    }
-
-    /**
-     * Plage de travail de l'employé sélectionné pour une date, en minutes depuis minuit.
-     *
-     * @return array{0: int, 1: int}|null
-     */
-    private function workingWindow(string $date): ?array
-    {
-        $schedule = Schedule::query()
-            ->bookable()
-            ->where('type', ScheduleType::Work->value)
-            ->where('user_id', $this->selectedUserId)
-            ->where('date', $date)
-            ->first();
-
-        if (! $schedule || ! $schedule->start_time || ! $schedule->end_time) {
-            return null;
-        }
-
-        return [
-            $this->minutesOf($schedule->start_time),
-            $this->minutesOf($schedule->end_time),
-        ];
-    }
-
-    private function employeeWorksAt(string $date, int $startMinute): bool
-    {
-        $window = $this->workingWindow($date);
-
-        return $window !== null && $startMinute >= $window[0] && $startMinute < $window[1];
-    }
-
-    private function isInCurrentWeek(string $date): bool
-    {
-        return Carbon::parse($date)->startOfWeek(Carbon::SUNDAY)->isSameDay(Carbon::now()->startOfWeek(Carbon::SUNDAY));
-    }
-
-    private function minutesOf(string $time): int
-    {
-        $parsed = Carbon::parse($time);
-
-        return $parsed->hour * 60 + $parsed->minute;
-    }
-
-    /**
-     * Durée maximale réservable depuis $startMinute : limitée par la fin de journée,
-     * la fin de l'horaire (semaine en cours) et le prochain rendez-vous de l'employé.
-     */
     private function maxDurationMinutes(string $date, int $startMinute, ?int $ignoreAppointmentId = null): int
     {
-        $limit = self::DAY_END_MINUTE;
+        return $this->selectedUserId !== null && Carbon::hasFormat($date, 'Y-m-d')
+            ? AppointmentBooking::maxDurationMinutes($this->selectedUserId, $date, $startMinute, $ignoreAppointmentId)
+            : 0;
+    }
 
-        if ($this->isInCurrentWeek($date)) {
-            $window = $this->workingWindow($date);
-            $limit = min($limit, $window[1] ?? $startMinute);
-        }
+    private function workShiftOf(?Schedule $schedule): ?Schedule
+    {
+        return $schedule?->type === ScheduleType::Work ? $schedule : null;
+    }
 
-        $others = $this->employeeAppointments()
-            ->where('date', $date)
-            ->when($ignoreAppointmentId, fn ($q) => $q->where('id', '!=', $ignoreAppointmentId));
+    /**
+     * @return array{0: int, 1: int}|null
+     */
+    private function workShiftWindow(?Schedule $schedule): ?array
+    {
+        $workShift = $this->workShiftOf($schedule);
 
-        $isStartTaken = (clone $others)
-            ->where('start_minute', '<=', $startMinute)
-            ->whereRaw('start_minute + duration_minutes > ?', [$startMinute])
-            ->exists();
-
-        if ($isStartTaken) {
-            return 0;
-        }
-
-        $nextStart = (clone $others)->where('start_minute', '>', $startMinute)->min('start_minute');
-
-        if ($nextStart !== null) {
-            $limit = min($limit, (int) $nextStart);
-        }
-
-        return max(0, $limit - $startMinute);
+        return $workShift ? AppointmentBooking::windowOf($workShift) : null;
     }
 
     private function snapToSlot(int $minute): int
@@ -515,6 +412,9 @@ class Appointments extends Component
             ->get()
             ->keyBy('date');
 
+        $currentWeekEnd = Carbon::now()->startOfWeek(Carbon::SUNDAY)->addDays(6)->endOfDay();
+        $horizonEnd = AppointmentBooking::unscheduledHorizonEnd();
+
         // Étiquette affichée sous chaque jour particulier, et blocage éventuel des rendez-vous.
         $dayNotes = [];
         foreach ($days as $day) {
@@ -527,6 +427,10 @@ class Appointments extends Component
                 $dayNotes[$dateKey] = ['label' => $absence->type->label(), 'blocked' => true];
             } elseif ($holiday) {
                 $dayNotes[$dateKey] = ['label' => $holiday->name, 'blocked' => $holiday->is_closed && ! $worksThatDay];
+            } elseif (! $worksThatDay && $day->gt($currentWeekEnd)) {
+                $dayNotes[$dateKey] = AppointmentBooking::allowsUnscheduledBooking($dateKey)
+                    ? ['label' => __('Sans quart publié'), 'blocked' => false]
+                    : ['label' => __('Aucun quart publié'), 'blocked' => true];
             }
         }
 
@@ -536,17 +440,23 @@ class Appointments extends Component
         foreach ($days as $day) {
             $dateKey = $day->toDateString();
             $isBlockedDay = $dayNotes[$dateKey]['blocked'] ?? false;
-            $schedule = $schedules->get($dateKey);
-            $window = $schedule && $schedule->start_time && $schedule->end_time
-                ? [$this->minutesOf($schedule->start_time), $this->minutesOf($schedule->end_time)]
-                : null;
+            $window = $this->workShiftWindow($schedules->get($dateKey));
+            $allowsUnscheduled = AppointmentBooking::allowsUnscheduledBooking($dateKey);
 
             foreach ($timeSlots as $slot) {
                 $inFuture = $day->copy()->startOfDay()->addMinutes($slot)->gte($now);
-                $inWindow = ! $isCurrentWeek || ($window !== null && $slot >= $window[0] && $slot < $window[1]);
+                $inWindow = $window !== null ? $slot >= $window[0] && $slot < $window[1] : $allowsUnscheduled;
                 $openSlots[$dateKey][$slot] = $inFuture && $inWindow && ! $isBlockedDay;
             }
         }
+
+        // Rendez-vous à venir pris sans quart publié qui les couvre : le gestionnaire de l'horaire les voit à couvrir.
+        $today = Carbon::today()->toDateString();
+        $unconfirmedIds = $appointments->flatten()
+            ->filter(fn (Appointment $appointment): bool => $appointment->date >= $today
+                && AppointmentBooking::coverageOf($appointment, $this->workShiftOf($schedules->get($appointment->date))) !== null)
+            ->pluck('id')
+            ->all();
 
         $gridData = [
             'open' => collect($openSlots)->map(fn ($slots) => array_keys(array_filter($slots)))->all(),
@@ -584,6 +494,10 @@ class Appointments extends Component
             'endDate' => $start->copy()->addDays(6),
             'isCurrentWeek' => $isCurrentWeek,
             'isPastWeek' => $isPastWeek,
+            'unconfirmedIds' => $unconfirmedIds,
+            'horizonEnd' => $horizonEnd,
+            'reachesBeyondHorizon' => $start->copy()->addDays(6)->gt($horizonEnd),
+            'allowsUnscheduledThisWeek' => $days->contains(fn (Carbon $day): bool => AppointmentBooking::allowsUnscheduledBooking($day->toDateString())),
         ])->layout('layouts.app', ['title' => __('Rendez-vous')]);
     }
 }
