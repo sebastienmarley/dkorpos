@@ -74,6 +74,8 @@ dataset('actions interdites', [
     'holidays.create' => [fn () => Livewire::test(Holidays::class)->call('openCreate')],
     'holidays.delete' => [fn () => Livewire::test(Holidays::class)->call('delete', 1)],
     'appointments.delete' => [fn () => Livewire::test(Appointments::class)->call('deleteAppointment')],
+    'appointments.edit (réassignation depuis l\'horaire)' => [fn () => Livewire::test(ScheduleEdit::class)->call('openReassign', 1)],
+    'appointments.edit (réassigner)' => [fn () => Livewire::test(ScheduleEdit::class)->call('reassign')],
 ]);
 
 it('refuse l\'action sans la permission', function (Closure $action) {
