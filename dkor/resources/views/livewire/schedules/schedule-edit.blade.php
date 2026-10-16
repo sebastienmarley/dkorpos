@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="p-6" wire:poll.30s="checkForChanges">
     {{-- En-tête --}}
     <div class="mb-6 flex items-center justify-between">
         <div>
@@ -69,6 +69,17 @@
             </flux:button.group>
         </div>
     </div>
+
+    {{-- Semaine modifiée par quelqu'un d'autre --}}
+    @if ($weekChangeNotice)
+        <flux:callout icon="arrow-path" color="sky" class="mb-4">
+            <flux:callout.heading>{{ $weekChangeNotice }}</flux:callout.heading>
+            <flux:callout.text>{{ __('Vérifiez la grille avant de publier, dépublier ou copier la semaine.') }}</flux:callout.text>
+            <x-slot name="actions">
+                <flux:button size="sm" wire:click="refreshWeek">{{ __('Rafraîchir') }}</flux:button>
+            </x-slot>
+        </flux:callout>
+    @endif
 
     {{-- Rendez-vous à couvrir --}}
     @if ($uncoveredAppointments->isNotEmpty())

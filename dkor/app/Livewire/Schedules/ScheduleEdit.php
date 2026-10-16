@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class ScheduleEdit extends Component
@@ -70,24 +71,55 @@ class ScheduleEdit extends Component
 
     public int $reassignStartMinute = AppointmentBooking::DAY_START_MINUTE;
 
+    /** Nombre de quarts de la semaine affichée à la dernière synchronisation, pour détecter les modifications des autres. */
+    #[Locked]
+    public int $weekShiftCount = 0;
+
+    /** Horodatage de la dernière modification d'un quart de la semaine affichée, à la dernière synchronisation. */
+    #[Locked]
+    public int $weekLatestUpdate = 0;
+
     public function mount(): void
     {
         $this->weekStart = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+        $this->syncWeekSnapshot();
     }
 
     public function previousWeek(): void
     {
         $this->weekStart = Carbon::parse($this->weekStart)->subWeek()->toDateString();
+        $this->syncWeekSnapshot();
     }
 
     public function nextWeek(): void
     {
         $this->weekStart = Carbon::parse($this->weekStart)->addWeek()->toDateString();
+        $this->syncWeekSnapshot();
     }
 
     public function goToCurrentWeek(): void
     {
         $this->weekStart = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+        $this->syncWeekSnapshot();
+    }
+
+    public function updatedWeekStart(): void
+    {
+        $this->syncWeekSnapshot();
+    }
+
+    /** Appelée périodiquement : ne redessine la page que si quelqu'un d'autre a modifié la semaine affichée. */
+    public function checkForChanges(): void
+    {
+        if ($this->isWeekSnapshotCurrent()) {
+            $this->skipRender();
+        }
+    }
+
+    /** L'usager a pris connaissance des modifications : la grille affichée devient la référence. */
+    public function refreshWeek(): void
+    {
+        $this->syncWeekSnapshot();
     }
 
     public function openCell(int $userId, string $date): void
@@ -159,7 +191,18 @@ class ScheduleEdit extends Component
                 'notes' => $schedule->notes,
             ]);
 
-        $this->reportFill(app(FillWeekSchedules::class)->handle($planned), __('Copie de la semaine précédente'));
+        $result = DB::transaction(function () use ($planned): ?array {
+            $this->lockActiveEmployees();
+
+            return $this->refuseIfWeekChanged() ? null : app(FillWeekSchedules::class)->handle($planned);
+        });
+
+        if ($result === null) {
+            return;
+        }
+
+        $this->syncWeekSnapshot();
+        $this->reportFill($result, __('Copie de la semaine précédente'));
     }
 
     /** Applique une semaine type à la semaine affichée, en brouillon. */
@@ -182,8 +225,12 @@ class ScheduleEdit extends Component
             ]);
 
         $weekTemplate = WeekTemplate::query()->find($weekTemplateId);
+        $weekWasCurrent = $this->isWeekSnapshotCurrent();
 
-        $this->reportFill(app(FillWeekSchedules::class)->handle($planned), __('Semaine type « :name »', ['name' => $weekTemplate ? $weekTemplate->name : '']));
+        $result = app(FillWeekSchedules::class)->handle($planned);
+        $this->syncAfterOwnWrite($weekWasCurrent);
+
+        $this->reportFill($result, __('Semaine type « :name »', ['name' => $weekTemplate ? $weekTemplate->name : '']));
     }
 
     /**
@@ -220,6 +267,17 @@ class ScheduleEdit extends Component
     {
         $this->authorize('schedule_management.publish');
 
+        DB::transaction(function (): void {
+            $this->lockActiveEmployees();
+
+            if (! $this->refuseIfWeekChanged()) {
+                $this->publishCurrentWeek();
+            }
+        });
+    }
+
+    private function publishCurrentWeek(): void
+    {
         $start = Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY);
 
         $uncoveredCount = AppointmentBooking::uncoveredAppointments($start->toDateString(), $start->copy()->addDays(6)->toDateString())
@@ -239,12 +297,25 @@ class ScheduleEdit extends Component
         $this->activeWeekSchedules()
             ->where('status', ScheduleStatus::Draft->value)
             ->update(['status' => ScheduleStatus::Published, 'last_updated_by' => auth()->user()?->id]);
+
+        $this->syncWeekSnapshot();
     }
 
     public function unpublishWeek(): void
     {
         $this->authorize('schedule_management.publish');
 
+        DB::transaction(function (): void {
+            $this->lockActiveEmployees();
+
+            if (! $this->refuseIfWeekChanged()) {
+                $this->unpublishCurrentWeek();
+            }
+        });
+    }
+
+    private function unpublishCurrentWeek(): void
+    {
         $publishedIds = $this->activeWeekSchedules()
             ->where('status', ScheduleStatus::Published->value)
             ->pluck('id');
@@ -274,44 +345,63 @@ class ScheduleEdit extends Component
         Schedule::query()
             ->whereIn('id', $publishedIds)
             ->update(['status' => ScheduleStatus::Draft, 'last_updated_by' => auth()->user()?->id]);
+
+        $this->syncWeekSnapshot();
     }
 
     public function deleteSchedule(): void
     {
         $this->authorize('schedule_management.edit');
 
-        if (PayrollPeriod::isDateLocked($this->editingDate)) {
-            $this->addError('editingDate', __('Cette journée fait partie d\'une période de paie verrouillée.'));
+        $weekWasCurrent = $this->isWeekSnapshotCurrent();
 
-            return;
-        }
+        $error = DB::transaction(function (): ?string {
+            User::query()->whereKey($this->editingUserId)->lockForUpdate()->first();
 
-        $schedule = Schedule::query()
-            ->where('user_id', $this->editingUserId)
-            ->whereDate('date', $this->editingDate)
-            ->first();
+            if (PayrollPeriod::isDateLocked($this->editingDate)) {
+                return $this->lockedPeriodMessage();
+            }
 
-        if ($schedule) {
+            $schedule = Schedule::query()
+                ->where('user_id', $this->editingUserId)
+                ->whereDate('date', $this->editingDate)
+                ->first();
+
+            $staleError = $this->staleShiftError($schedule);
+
+            if ($staleError !== null) {
+                return $staleError;
+            }
+
+            if (! $schedule) {
+                return null;
+            }
+
             if (! in_array($schedule->status, ScheduleStatus::editableValues())) {
-                $this->addError('editingDate', __('Ce quart ne peut pas être supprimé (statut : :status).', [
+                return __('Ce quart ne peut pas être supprimé (statut : :status).', [
                     'status' => $schedule->status->label(),
-                ]));
-
-                return;
+                ]);
             }
 
             $conflicts = Appointment::countOutsideWindow((int) $this->editingUserId, $this->editingDate, null);
 
             if ($conflicts > 0) {
-                $this->addError('editingDate', $this->conflictMessage($conflicts));
-
-                return;
+                return $this->conflictMessage($conflicts);
             }
 
             $schedule->delete();
+
+            return null;
+        });
+
+        if ($error !== null) {
+            $this->addError('editingDate', $error);
+
+            return;
         }
 
         $this->closeModal();
+        $this->syncAfterOwnWrite($weekWasCurrent);
     }
 
     public function save(): void
@@ -386,6 +476,7 @@ class ScheduleEdit extends Component
         ];
 
         $isRange = $isAbsence && filled($this->untilDate) && $this->untilDate > $this->editingDate;
+        $weekWasCurrent = $this->isWeekSnapshotCurrent();
 
         $error = $isRange ? $this->writeAbsenceRange($data, $employee) : $this->writeSchedule($data);
 
@@ -396,6 +487,7 @@ class ScheduleEdit extends Component
         }
 
         $this->closeModal();
+        $this->syncAfterOwnWrite($weekWasCurrent);
     }
 
     /**
@@ -410,21 +502,20 @@ class ScheduleEdit extends Component
         return DB::transaction(function () use ($data): ?string {
             User::query()->whereKey($this->editingUserId)->lockForUpdate()->first();
 
+            // La période de paie a pu être verrouillée depuis la vérification faite avant la transaction.
+            if (PayrollPeriod::isDateLocked($this->editingDate)) {
+                return $this->lockedPeriodMessage();
+            }
+
             $existing = Schedule::query()
                 ->where('user_id', $this->editingUserId)
                 ->whereDate('date', $this->editingDate)
                 ->first();
 
-            if ($this->editingScheduleId !== null && ! $existing) {
-                return __('Ce quart a été supprimé par un autre usager.');
-            }
+            $staleError = $this->staleShiftError($existing);
 
-            if ($existing && ($existing->id !== $this->editingScheduleId || $existing->updated_at?->getTimestamp() !== $this->editingVersion)) {
-                $editor = $existing->lastUpdatedBy?->fullName();
-
-                return $editor
-                    ? __('Ce quart a été modifié entre-temps par :name. Fermez et rouvrez la fenêtre pour voir les changements.', ['name' => $editor])
-                    : __('Ce quart a été modifié entre-temps. Fermez et rouvrez la fenêtre pour voir les changements.');
+            if ($staleError !== null) {
+                return $staleError;
             }
 
             if ($existing && ! in_array($existing->status, ScheduleStatus::editableValues())) {
@@ -591,6 +682,121 @@ class ScheduleEdit extends Component
         $this->reassignStartMinute = AppointmentBooking::DAY_START_MINUTE;
     }
 
+    /**
+     * Refus si le quart de la case a été créé, modifié ou supprimé par quelqu'un d'autre depuis l'ouverture de la fenêtre.
+     */
+    private function staleShiftError(?Schedule $existing): ?string
+    {
+        if ($this->editingScheduleId !== null && ! $existing) {
+            return __('Ce quart a été supprimé par un autre usager.');
+        }
+
+        if (! $existing || ($existing->id === $this->editingScheduleId && $existing->updated_at?->getTimestamp() === $this->editingVersion)) {
+            return null;
+        }
+
+        $editor = $existing->lastUpdatedBy?->fullName();
+        $time = $existing->updated_at?->format('H:i');
+
+        return $editor
+            ? __('Ce quart a été modifié entre-temps par :name à :time. Fermez et rouvrez la fenêtre pour voir les changements.', ['name' => $editor, 'time' => $time])
+            : __('Ce quart a été modifié entre-temps à :time. Fermez et rouvrez la fenêtre pour voir les changements.', ['time' => $time]);
+    }
+
+    private function lockedPeriodMessage(): string
+    {
+        return __('Cette journée fait partie d\'une période de paie verrouillée.');
+    }
+
+    /**
+     * Nombre de quarts de la semaine affichée et horodatage de la dernière modification.
+     *
+     * @return array{count: int, latest: int}
+     */
+    private function weekSnapshot(): array
+    {
+        $latest = $this->activeWeekSchedules()->max('updated_at');
+
+        return [
+            'count' => $this->activeWeekSchedules()->count(),
+            'latest' => $latest ? Carbon::parse($latest)->getTimestamp() : 0,
+        ];
+    }
+
+    private function syncWeekSnapshot(): void
+    {
+        ['count' => $this->weekShiftCount, 'latest' => $this->weekLatestUpdate] = $this->weekSnapshot();
+    }
+
+    private function isWeekSnapshotCurrent(): bool
+    {
+        return $this->weekSnapshot() === ['count' => $this->weekShiftCount, 'latest' => $this->weekLatestUpdate];
+    }
+
+    /**
+     * Après une écriture de l'usager : la grille redevient la référence, sauf si la semaine avait déjà été modifiée
+     * par quelqu'un d'autre (l'avis reste alors affiché).
+     */
+    private function syncAfterOwnWrite(bool $weekWasCurrent): void
+    {
+        if ($weekWasCurrent) {
+            $this->syncWeekSnapshot();
+        }
+    }
+
+    /** Avis à afficher si la semaine a été modifiée par quelqu'un d'autre depuis la dernière synchronisation. */
+    private function weekChangeNotice(): ?string
+    {
+        if ($this->isWeekSnapshotCurrent()) {
+            return null;
+        }
+
+        $latest = $this->activeWeekSchedules()
+            ->where('updated_at', '>', Carbon::createFromTimestamp($this->weekLatestUpdate, config('app.timezone')))
+            ->with('lastUpdatedBy')
+            ->latest('updated_at')
+            ->first();
+
+        if (! $latest) {
+            return __('Un quart de cette semaine a été supprimé par un autre usager.');
+        }
+
+        $editor = $latest->lastUpdatedBy?->fullName();
+        $time = $latest->updated_at?->format('H:i');
+
+        return $editor
+            ? __('L\'horaire de cette semaine a été modifié par :name à :time.', ['name' => $editor, 'time' => $time])
+            : __('L\'horaire de cette semaine a été modifié à :time.', ['time' => $time]);
+    }
+
+    /**
+     * Refuse une action sur toute la semaine si quelqu'un d'autre l'a modifiée depuis son affichage, puis rafraîchit la grille.
+     */
+    private function refuseIfWeekChanged(): bool
+    {
+        $notice = $this->weekChangeNotice();
+
+        if ($notice === null) {
+            return false;
+        }
+
+        Flux::toast(
+            text: $notice.' '.__('La grille a été rafraîchie : vérifiez-la, puis recommencez.'),
+            heading: __('Action refusée'),
+            variant: 'danger',
+        );
+
+        $this->syncWeekSnapshot();
+
+        return true;
+    }
+
+    /** Sérialise les actions sur toute la semaine avec les écritures quart par quart (verrou par employé). */
+    private function lockActiveEmployees(): void
+    {
+        User::query()->where('is_active', true)->orderBy('id')->lockForUpdate()->get();
+    }
+
     private function conflictMessage(int $count): string
     {
         return trans_choice(
@@ -738,6 +944,7 @@ class ScheduleEdit extends Component
             'endDate' => $start->copy()->addDays(6),
             'isCurrentWeek' => $start->isSameDay(Carbon::now()->startOfWeek(Carbon::SUNDAY)),
             'weekAppointments' => $weekAppointments,
+            'weekChangeNotice' => $this->weekChangeNotice(),
             'uncoveredAppointments' => $uncoveredAppointments,
             'uncoveredCoverage' => $uncoveredAppointments->mapWithKeys(fn (array $row): array => [$row['appointment']->id => $row['coverage']]),
             'editingAppointments' => $this->showModal && $this->editingUserId
