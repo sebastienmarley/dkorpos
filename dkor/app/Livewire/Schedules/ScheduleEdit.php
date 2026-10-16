@@ -13,7 +13,6 @@ use App\Models\Schedule;
 use App\Models\ShiftTemplate;
 use App\Models\User;
 use App\Models\WeekTemplate;
-use App\Models\WeekTemplateEntry;
 use App\Support\AppointmentBooking;
 use DomainException;
 use Flux\Flux;
@@ -205,32 +204,32 @@ class ScheduleEdit extends Component
         $this->reportFill($result, __('Copie de la semaine précédente'));
     }
 
-    /** Applique une semaine type à la semaine affichée, en brouillon. */
-    public function applyWeekTemplate(int $weekTemplateId): void
+    /** Applique une semaine type à un employé, sur la semaine affichée, en brouillon. */
+    public function applyWeekTemplate(int $userId, int $weekTemplateId): void
     {
         $this->authorize('schedule_management.edit');
 
-        $start = Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY);
-
-        $planned = WeekTemplateEntry::query()
-            ->where('week_template_id', $weekTemplateId)
-            ->with('shiftTemplate')
-            ->get()
-            ->map(fn (WeekTemplateEntry $entry) => [
-                'user_id' => $entry->user_id,
-                'date' => $start->copy()->addDays($entry->weekday)->toDateString(),
-                'start_time' => $entry->shiftTemplate->start_time,
-                'end_time' => $entry->shiftTemplate->end_time,
-                'break_minutes' => $entry->shiftTemplate->break_minutes,
-            ]);
-
         $weekTemplate = WeekTemplate::query()->find($weekTemplateId);
-        $weekWasCurrent = $this->isWeekSnapshotCurrent();
+        $employee = User::query()->find($userId);
 
-        $result = app(FillWeekSchedules::class)->handle($planned);
-        $this->syncAfterOwnWrite($weekWasCurrent);
+        if (! $weekTemplate || ! $employee) {
+            return;
+        }
 
-        $this->reportFill($result, __('Semaine type « :name »', ['name' => $weekTemplate ? $weekTemplate->name : '']));
+        $planned = $weekTemplate->plannedShiftsFor($employee, Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY));
+
+        $result = DB::transaction(function () use ($planned): ?array {
+            $this->lockActiveEmployees();
+
+            return $this->refuseIfWeekChanged() ? null : app(FillWeekSchedules::class)->handle($planned);
+        });
+
+        if ($result === null) {
+            return;
+        }
+
+        $this->syncWeekSnapshot();
+        $this->reportFill($result, __('Semaine type « :name » — :employee', ['name' => $weekTemplate->name, 'employee' => $employee->fullName()]));
     }
 
     /**
@@ -934,7 +933,7 @@ class ScheduleEdit extends Component
             'holidays' => $holidays,
             'scheduleTypes' => ScheduleType::cases(),
             'shiftTemplates' => ShiftTemplate::query()->orderBy('name')->get(),
-            'weekTemplates' => WeekTemplate::query()->orderBy('name')->get(),
+            'weekTemplates' => WeekTemplate::query()->withCount('entries')->orderBy('name')->get(),
             'editingSchedule' => $editingSchedule,
             'users' => $users,
             'days' => $days,

@@ -168,23 +168,6 @@ CREATE TABLE "week_templates"(
   "updated_at" datetime
 );
 CREATE UNIQUE INDEX "week_templates_name_unique" on "week_templates"("name");
-CREATE TABLE "week_template_entries"(
-  "id" integer primary key autoincrement not null,
-  "week_template_id" integer not null,
-  "user_id" integer not null,
-  "shift_template_id" integer not null,
-  "weekday" integer not null,
-  "created_at" datetime,
-  "updated_at" datetime,
-  foreign key("week_template_id") references "week_templates"("id") on delete cascade,
-  foreign key("user_id") references "users"("id") on delete cascade,
-  foreign key("shift_template_id") references "shift_templates"("id") on delete cascade
-);
-CREATE UNIQUE INDEX "week_template_entries_week_template_id_user_id_weekday_unique" on "week_template_entries"(
-  "week_template_id",
-  "user_id",
-  "weekday"
-);
 CREATE TABLE "holidays"(
   "id" integer primary key autoincrement not null,
   "date" date not null,
@@ -957,6 +940,20 @@ CREATE TABLE "users"(
 CREATE UNIQUE INDEX "users_email_unique" on "users"("email");
 CREATE INDEX "users_search_name_index" on "users"("search_name");
 CREATE UNIQUE INDEX "users_username_unique" on "users"("username");
+CREATE TABLE "week_template_entries"(
+  "id" integer primary key autoincrement not null,
+  "week_template_id" integer not null,
+  "shift_template_id" integer not null,
+  "weekday" integer not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("shift_template_id") references shift_templates("id") on delete cascade on update no action,
+  foreign key("week_template_id") references week_templates("id") on delete cascade on update no action
+);
+CREATE UNIQUE INDEX "week_template_entries_week_template_id_weekday_unique" on "week_template_entries"(
+  "week_template_id",
+  "weekday"
+);
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1109,3 +1106,4 @@ INSERT INTO migrations VALUES(148,'2026_10_11_155355_convert_supplier_amounts_to
 INSERT INTO migrations VALUES(149,'2026_10_11_160341_convert_sales_amounts_to_cents',10);
 INSERT INTO migrations VALUES(150,'2026_10_11_161649_convert_hr_amounts_to_cents',10);
 INSERT INTO migrations VALUES(152,'2026_10_11_201158_add_shipment_discrepancies',11);
+INSERT INTO migrations VALUES(153,'2026_10_16_011132_remove_user_from_week_template_entries_table',12);

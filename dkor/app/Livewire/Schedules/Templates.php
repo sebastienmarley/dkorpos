@@ -3,7 +3,6 @@
 namespace App\Livewire\Schedules;
 
 use App\Models\ShiftTemplate;
-use App\Models\User;
 use App\Models\WeekTemplate;
 use App\Models\WeekTemplateEntry;
 use Flux\Flux;
@@ -34,7 +33,7 @@ class Templates extends Component
 
     public string $selectedWeekTemplateId = '';
 
-    /** @var array<int|string, array<int|string, string>> Quart type choisi par employé puis par jour (0 = dimanche). */
+    /** @var array<int|string, string> Quart type choisi pour chaque jour (0 = dimanche), ou '' pour un jour de congé. */
     public array $entries = [];
 
     // ── Quarts type ────────────────────────────────────────────────────────
@@ -167,63 +166,30 @@ class Templates extends Component
     }
 
     /**
-     * Enregistre aussitôt le quart type choisi pour un employé et un jour.
+     * Enregistre aussitôt le quart type choisi pour un jour.
      *
-     * Selon l'état côté navigateur, Livewire fournit la case modifiée (clé « employé.jour »),
-     * le tableau d'un employé (clé « employé ») ou tout le tableau (sans clé).
+     * Selon l'état côté navigateur, Livewire fournit la case modifiée (clé « jour ») ou tout le tableau (sans clé).
      */
     public function updatedEntries(mixed $value, ?string $key = null): void
     {
         $this->authorize('schedule_templates.edit');
 
-        $segments = $key === null || $key === '' ? [] : explode('.', $key);
-
-        if (count($segments) === 2) {
-            $this->saveEntry((int) $segments[0], (int) $segments[1], (string) ($value ?? ''));
+        if ($key !== null && $key !== '') {
+            $this->saveEntry((int) $key, (string) ($value ?? ''));
 
             return;
         }
 
-        foreach ($this->entriesByCell($value, $segments) as [$userId, $weekday, $shiftId]) {
-            $this->saveEntry($userId, $weekday, $shiftId);
+        foreach (is_array($value) ? $value : [] as $weekday => $shiftId) {
+            $this->saveEntry((int) $weekday, (string) ($shiftId ?? ''));
         }
     }
 
-    /**
-     * @param  array<int, string>  $segments  Chemin déjà connu : [] (tout le tableau) ou [employé].
-     * @return list<array{0: int, 1: int, 2: string}>
-     */
-    private function entriesByCell(mixed $value, array $segments): array
-    {
-        if (! is_array($value)) {
-            return [];
-        }
-
-        $cells = [];
-
-        if ($segments === []) {
-            foreach ($value as $userId => $byWeekday) {
-                foreach (is_array($byWeekday) ? $byWeekday : [] as $weekday => $shiftId) {
-                    $cells[] = [(int) $userId, (int) $weekday, (string) ($shiftId ?? '')];
-                }
-            }
-
-            return $cells;
-        }
-
-        foreach ($value as $weekday => $shiftId) {
-            $cells[] = [(int) $segments[0], (int) $weekday, (string) ($shiftId ?? '')];
-        }
-
-        return $cells;
-    }
-
-    private function saveEntry(int $userId, int $weekday, string $value): void
+    private function saveEntry(int $weekday, string $value): void
     {
         $week = $this->selectedWeekTemplate();
-        $employee = User::query()->where('is_active', true)->find($userId);
 
-        if (! $week || ! $employee || $weekday < 0 || $weekday > 6) {
+        if (! $week || $weekday < 0 || $weekday > 6) {
             $this->loadEntries();
 
             return;
@@ -233,13 +199,12 @@ class Templates extends Component
 
         if ($shift) {
             WeekTemplateEntry::query()->updateOrCreate(
-                ['week_template_id' => $week->id, 'user_id' => $userId, 'weekday' => $weekday],
+                ['week_template_id' => $week->id, 'weekday' => $weekday],
                 ['shift_template_id' => $shift->id],
             );
         } else {
             WeekTemplateEntry::query()
                 ->where('week_template_id', $week->id)
-                ->where('user_id', $userId)
                 ->where('weekday', $weekday)
                 ->delete();
         }
@@ -265,7 +230,7 @@ class Templates extends Component
         }
 
         foreach ($week->entries()->get() as $entry) {
-            $this->entries[$entry->user_id][$entry->weekday] = (string) $entry->shift_template_id;
+            $this->entries[$entry->weekday] = (string) $entry->shift_template_id;
         }
     }
 
@@ -275,11 +240,19 @@ class Templates extends Component
             fn (int $weekday) => [$weekday => ucfirst(Carbon::now()->startOfWeek(Carbon::SUNDAY)->addDays($weekday)->translatedFormat('D'))]
         );
 
+        $shiftTemplates = ShiftTemplate::query()->withCount('entries')->orderBy('name')->get();
+
+        // Heures payées de la semaine type sélectionnée, pauses déduites.
+        $weeklyMinutes = collect($this->entries)
+            ->map(fn (string $shiftId) => $shiftTemplates->firstWhere('id', (int) $shiftId))
+            ->filter()
+            ->sum(fn (ShiftTemplate $shift): int => max(0, (int) Carbon::parse($shift->start_time)->diffInMinutes(Carbon::parse($shift->end_time)) - $shift->break_minutes));
+
         return view('livewire.schedules.templates', [
-            'shiftTemplates' => ShiftTemplate::query()->withCount('entries')->orderBy('name')->get(),
-            'weekTemplates' => WeekTemplate::query()->orderBy('name')->get(),
-            'users' => User::query()->where('is_active', true)->orderBy('id')->get(),
+            'shiftTemplates' => $shiftTemplates,
+            'weekTemplates' => WeekTemplate::query()->withCount('entries')->orderBy('name')->get(),
             'weekdayLabels' => $weekdayLabels,
+            'weeklyMinutes' => $weeklyMinutes,
         ])->layout('layouts.app', ['title' => __('Modèles d\'horaire')]);
     }
 }
