@@ -166,6 +166,17 @@
                     </flux:field>
 
                     <flux:field>
+                        <flux:label>{{ __('Style') }}</flux:label>
+                        <flux:select wire:model="styleId">
+                            <flux:select.option value="">{{ __('Aucun') }}</flux:select.option>
+                            @foreach ($this->getStyles() as $style)
+                                <flux:select.option :value="$style->id">{{ $style->name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="styleId" />
+                    </flux:field>
+
+                    <flux:field>
                         <flux:label>{{ __('Collection') }}</flux:label>
                         <flux:input wire:model="collection" type="text" />
                         <flux:error name="collection" />

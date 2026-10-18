@@ -17,7 +17,7 @@ class CategoryFactory extends Factory
     public function definition(): array
     {
         return [
-            'department_id' => fake()->optional()->randomElement(Department::pluck('id')->toArray()) ?? Department::factory(),
+            'department_id' => Department::factory(),
             'name' => fake()->words(2, true),
         ];
     }

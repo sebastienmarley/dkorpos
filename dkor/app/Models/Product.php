@@ -14,14 +14,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
  * @property int $supplier_id
- * @property int|null $department_id
  * @property int|null $category_id
  * @property int|null $color_id
+ * @property int|null $style_id
  * @property string $model
  * @property string $clean_model
  * @property string|null $supplier_model
@@ -44,9 +45,10 @@ use Illuminate\Support\Carbon;
  * @property-read Department|null $department
  * @property-read Category|null $category
  * @property-read Color|null $color
+ * @property-read Style|null $style
  * @property-read Money $selling_price
  */
-#[Fillable(['supplier_id', 'department_id', 'category_id', 'color_id', 'model', 'clean_model', 'supplier_model', 'collection', 'cost', 'imap', 'description', 'length', 'width', 'height', 'weight', 'is_discontinued', 'is_non_orderable', 'is_taxable', 'is_custom'])]
+#[Fillable(['supplier_id', 'category_id', 'color_id', 'style_id', 'model', 'clean_model', 'supplier_model', 'collection', 'cost', 'imap', 'description', 'length', 'width', 'height', 'weight', 'is_discontinued', 'is_non_orderable', 'is_taxable', 'is_custom'])]
 class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
@@ -99,10 +101,14 @@ class Product extends Model
         return $this->belongsTo(Supplier::class);
     }
 
-    /** @return BelongsTo<Department, $this> */
-    public function department(): BelongsTo
+    /**
+     * Département déduit de la catégorie du produit.
+     *
+     * @return HasOneThrough<Department, Category, $this>
+     */
+    public function department(): HasOneThrough
     {
-        return $this->belongsTo(Department::class);
+        return $this->hasOneThrough(Department::class, Category::class, 'id', 'id', 'category_id', 'department_id');
     }
 
     /** @return BelongsTo<Category, $this> */
@@ -115,6 +121,12 @@ class Product extends Model
     public function color(): BelongsTo
     {
         return $this->belongsTo(Color::class);
+    }
+
+    /** @return BelongsTo<Style, $this> */
+    public function style(): BelongsTo
+    {
+        return $this->belongsTo(Style::class);
     }
 
     /** @return HasMany<InventoryUnit, $this> */

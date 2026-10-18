@@ -3,9 +3,9 @@
 use App\Livewire\Accounting\Currencies;
 use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
-use App\Livewire\Catalog\Categories;
 use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
+use App\Livewire\Catalog\Styles;
 use App\Livewire\CustomerForm;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
@@ -64,9 +64,10 @@ dataset('actions interdites', [
     'parts.create (création)' => [fn () => Livewire::test(PartPicker::class)->call('create')],
     'parts.edit' => [fn () => Livewire::test(PartShow::class, ['part' => Part::factory()->create()])->call('save')],
     'parts.edit (lier un produit)' => [fn () => Livewire::test(PartShow::class, ['part' => Part::factory()->create()])->call('attachProduct', 1)],
-    'departments.create' => [fn () => Livewire::test(Departments::class)->call('openCreate')],
-    'categories.create' => [fn () => Livewire::test(Categories::class)->call('openCreate')],
+    'departments.create' => [fn () => Livewire::test(Departments::class)->call('openCreateDepartment')],
+    'categories.create' => [fn () => Livewire::test(Departments::class)->call('openCreateCategory')],
     'colors.create' => [fn () => Livewire::test(Colors::class)->call('openCreate')],
+    'styles.create' => [fn () => Livewire::test(Styles::class)->call('openCreate')],
     'schedule_management.publish' => [fn () => Livewire::test(ScheduleEdit::class)->call('publishWeek')],
     'schedule_management.edit' => [fn () => Livewire::test(ScheduleEdit::class)->call('copyPreviousWeek')],
     'schedule_templates.create' => [fn () => Livewire::test(Templates::class)->call('openCreateShift')],
@@ -123,7 +124,7 @@ it('masque les boutons d\'ajout sans la permission', function () {
     $this->actingAs($user);
 
     $this->get(route('customers.index'))->assertOk()->assertDontSee('Ajouter un client');
-    $this->get(route('catalog.colors'))->assertOk()->assertDontSee('Ajouter');
+    $this->get(route('catalog.classification'))->assertOk()->assertDontSee('wire:click="openCreate"', false);
 });
 
 it('affiche les boutons d\'ajout avec la permission', function () {

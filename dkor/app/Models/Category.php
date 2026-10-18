@@ -12,11 +12,11 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
- * @property int|null $department_id
+ * @property int $department_id
  * @property string $name
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property-read Department|null $department
+ * @property-read Department $department
  */
 #[Fillable(['department_id', 'name'])]
 class Category extends Model
