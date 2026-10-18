@@ -1167,6 +1167,87 @@ CREATE UNIQUE INDEX "inventory_count_lines_inventory_count_id_product_id_status_
   "product_id",
   "status"
 );
+CREATE TABLE "inventory_zones"(
+  "id" integer primary key autoincrement not null,
+  "name" varchar not null,
+  "sort_order" integer not null default '0',
+  "is_active" tinyint(1) not null default '1',
+  "created_at" datetime,
+  "updated_at" datetime
+);
+CREATE UNIQUE INDEX "inventory_zones_name_unique" on "inventory_zones"("name");
+CREATE TABLE "inventory_count_sheets"(
+  "id" integer primary key autoincrement not null,
+  "inventory_count_id" integer not null,
+  "status" varchar not null,
+  "inventory_zone_id" integer,
+  "pass" varchar not null,
+  "assigned_to" integer,
+  "state" varchar not null default 'todo',
+  "started_at" datetime,
+  "finished_at" datetime,
+  "reconciled_at" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("inventory_count_id") references "inventory_counts"("id") on delete cascade,
+  foreign key("inventory_zone_id") references "inventory_zones"("id") on delete restrict,
+  foreign key("assigned_to") references "users"("id") on delete set null
+);
+CREATE INDEX "inventory_count_sheets_inventory_count_id_status_inventory_zone_id_index" on "inventory_count_sheets"(
+  "inventory_count_id",
+  "status",
+  "inventory_zone_id"
+);
+CREATE INDEX "inventory_count_sheets_assigned_to_index" on "inventory_count_sheets"(
+  "assigned_to"
+);
+CREATE TABLE "inventory_count_sheet_lines"(
+  "id" integer primary key autoincrement not null,
+  "inventory_count_sheet_id" integer not null,
+  "product_id" integer not null,
+  "quantity" integer not null default '0',
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("inventory_count_sheet_id") references "inventory_count_sheets"("id") on delete cascade,
+  foreign key("product_id") references "products"("id") on delete restrict
+);
+CREATE UNIQUE INDEX "inventory_count_sheet_lines_inventory_count_sheet_id_product_id_unique" on "inventory_count_sheet_lines"(
+  "inventory_count_sheet_id",
+  "product_id"
+);
+CREATE TABLE "inventory_count_scans"(
+  "id" integer primary key autoincrement not null,
+  "inventory_count_sheet_id" integer not null,
+  "code" varchar,
+  "product_id" integer,
+  "quantity" integer not null,
+  "user_id" integer,
+  "undone_at" datetime,
+  "created_at" datetime not null default CURRENT_TIMESTAMP,
+  foreign key("inventory_count_sheet_id") references "inventory_count_sheets"("id") on delete cascade,
+  foreign key("product_id") references "products"("id") on delete set null,
+  foreign key("user_id") references "users"("id") on delete set null
+);
+CREATE TABLE "inventory_count_results"(
+  "id" integer primary key autoincrement not null,
+  "inventory_count_id" integer not null,
+  "status" varchar not null,
+  "inventory_zone_id" integer,
+  "product_id" integer not null,
+  "quantity" integer not null,
+  "source" varchar not null,
+  "reconciled_by" integer,
+  "created_at" datetime not null default CURRENT_TIMESTAMP,
+  foreign key("inventory_count_id") references "inventory_counts"("id") on delete cascade,
+  foreign key("inventory_zone_id") references "inventory_zones"("id") on delete restrict,
+  foreign key("product_id") references "products"("id") on delete restrict,
+  foreign key("reconciled_by") references "users"("id") on delete set null
+);
+CREATE INDEX "inventory_count_results_inventory_count_id_status_inventory_zone_id_index" on "inventory_count_results"(
+  "inventory_count_id",
+  "status",
+  "inventory_zone_id"
+);
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1335,3 +1416,8 @@ INSERT INTO migrations VALUES(172,'2026_10_18_152043_create_ledger_entry_lines_t
 INSERT INTO migrations VALUES(173,'2026_10_18_152044_create_inventory_adjustments_table',21);
 INSERT INTO migrations VALUES(176,'2026_10_18_185833_create_inventory_counts_table',22);
 INSERT INTO migrations VALUES(177,'2026_10_18_185834_create_inventory_count_lines_table',22);
+INSERT INTO migrations VALUES(188,'2026_10_18_195713_create_inventory_zones_table',23);
+INSERT INTO migrations VALUES(189,'2026_10_18_195714_create_inventory_count_sheets_table',23);
+INSERT INTO migrations VALUES(190,'2026_10_18_195715_create_inventory_count_sheet_lines_table',23);
+INSERT INTO migrations VALUES(191,'2026_10_18_195716_create_inventory_count_scans_table',23);
+INSERT INTO migrations VALUES(192,'2026_10_18_195717_create_inventory_count_results_table',23);

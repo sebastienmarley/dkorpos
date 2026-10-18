@@ -20,8 +20,9 @@ use Illuminate\Support\Str;
  * l'inventaire annuel », Pertes d'inventaire / Stock, au coût FIFO); un surplus, une correction de comptage (Stock /
  * Écart d'inventaire, au coût du produit).
  *
- * Refusée tant que le stock n'est pas gelé, qu'une ligne n'est ni comptée ni conservée, ou qu'une ligne « Stock client »
- * a un écart : ce stock appartient à une commande, qu'il faut corriger d'abord.
+ * Refusée tant que le stock n'est pas gelé, qu'une portée des feuilles de compte n'est pas réconciliée, qu'une ligne
+ * n'est ni comptée ni conservée, ou qu'une ligne « Stock client » a un écart : ce stock appartient à une commande, qu'il
+ * faut corriger d'abord.
  */
 class AnnualInventoryFinalUpdate
 {
@@ -43,7 +44,19 @@ class AnnualInventoryFinalUpdate
                 throw new DomainException(__('Gelez et comptez le stock (après la fermeture) avant de finaliser.'));
             }
 
+            $unreconciled = $count->unreconciledScopeLabels();
+
+            if ($unreconciled !== []) {
+                throw new DomainException(__('Portées à réconcilier avant de finaliser : :scopes.', ['scopes' => implode(', ', $unreconciled)]));
+            }
+
             $count->syncLines(InventoryCount::countedStatuses());
+
+            foreach (InventoryCount::countedStatuses() as $status) {
+                if ($count->hasSheetsFor($status)) {
+                    $count->applyResults($status, $user);
+                }
+            }
 
             $lines = $count->lines()->with('product.inventoryStock')->get();
 

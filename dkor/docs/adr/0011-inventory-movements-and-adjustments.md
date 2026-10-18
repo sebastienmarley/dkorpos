@@ -225,6 +225,25 @@ ajustement ne se modifie ni ne se supprime : une erreur se corrige par l'ajustem
   ne se modifie plus; l'abandon ne passe aucun ajustement et laisse en stock les perdus remis.
 - **Rapport** : la page de la prise (totaux par type de compte, pertes et corrections) et un export CSV.
 
+#### Comptes doubles, zones et douchette
+
+- **Lecteur** : une douchette (USB ou Bluetooth), qui tape le code et Entrée comme un clavier, sur la page
+  mobile « Mes comptes ». Aucune dépendance ajoutée; la lecture par caméra reste hors périmètre. Le code est
+  cherché dans `product_upcs`; un code inconnu est consigné sans produit, et un superviseur (ou qui modifie les
+  produits) l'associe à un produit, comme dans la commande client.
+- **Feuilles de compte** (`InventoryCountSheet`) : une portée (Défectueux, Démonstrateur et Stock client en
+  entier; le Stock par **zone permanente**, `inventory_zones`), une passe A, B ou recompte, et un compteur
+  attribué par le superviseur. Deux passes d'une même portée ne vont jamais à la même personne. Une feuille du
+  stock attend le gel. Chaque lecture ajoute 1, ou la quantité saisie pour une boîte; la dernière lecture
+  s'annule, une quantité se corrige, et tout est consigné (`inventory_count_scans`).
+- **Réconciliation** : un produit dont A et B concordent est retenu. Les produits en désaccord sont recomptés
+  par un troisième compteur, sur une feuille limitée à ces produits. Le recompte est retenu s'il concorde avec
+  A ou B; sinon, seulement si le superviseur le retient. Les quantités retenues (`inventory_count_results`)
+  alimentent les lignes de la prise (la somme des zones pour le stock) une fois toutes les portées de l'état
+  réconciliées; ces lignes ne se saisissent plus à la main (« Conservée » reste possible).
+- Sans feuilles, une prise se compte à la main comme avant. Avec des feuilles, la finalisation est refusée tant
+  qu'une portée n'est pas réconciliée, et l'export CSV donne le détail par zone.
+
 ### Les permissions
 
 - `inventory.adjust` (« Ajuster — inventaire ») : nouvelle permission, déclarée dans `config/access.php`, dans
@@ -232,6 +251,8 @@ ajustement ne se modifie ni ne se supprime : une erreur se corrige par l'ajustem
 - `inventory.move` : inchangée, mais limitée aux transferts entre états physiques.
 - `inventory.count` : voir les prises d'inventaire et saisir les comptes, dans les accès gestion (directeurs)
   et entrepôt. Démarrer, geler, abandonner et finaliser demandent `inventory.adjust`.
+- `inventory.supervise` : gérer les zones, préparer et attribuer les feuilles, créer les recomptes, réconcilier
+  et associer les codes inconnus, dans l'accès gestion (directeurs).
 - `ledger.view` (consulter le grand livre) et `ledger.edit` (code et nom des comptes) : dans l'accès
   comptabilité.
 

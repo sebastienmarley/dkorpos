@@ -127,6 +127,15 @@
                     <flux:sidebar.item icon="clipboard-document-check" :href="route('inventory.counts')" :current="request()->routeIs('inventory.counts*')" wire:navigate>
                         {{ __('Prises d\'inventaire') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="qr-code" :href="route('inventory.my-counts')" :current="request()->routeIs('inventory.my-counts')" wire:navigate>
+                        {{ __('Mes comptes') }}
+                    </flux:sidebar.item>
+                @endcan
+
+                @can('inventory.supervise')
+                    <flux:sidebar.item icon="map" :href="route('inventory.zones')" :current="request()->routeIs('inventory.zones')" wire:navigate>
+                        {{ __('Zones d\'inventaire') }}
+                    </flux:sidebar.item>
                 @endcan
 
                 @canany(['products.view', 'parts.view', 'services.view', 'departments.view', 'categories.view', 'colors.view', 'styles.view', 'price_lists.view', 'labels.view'])

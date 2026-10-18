@@ -48,6 +48,7 @@ $managementAccess = [
     'services.edit',
     'parts.edit',
     'inventory.count',
+    'inventory.supervise',
 ];
 
 $warehouseAccess = [
@@ -146,6 +147,7 @@ return [
         'inventory.view' => ['Voir — journal d\'inventaire', 'Accéder à la page : journal d\'inventaire.'],
         'inventory.move' => ['Déplacer — inventaire', 'Déplacer des quantités entre états d\'inventaire (démo, défectueux, perdu…).'],
         'inventory.count' => ['Compter — prise d\'inventaire', 'Accéder aux prises d\'inventaire et saisir les quantités comptées (démarrer, geler et finaliser demandent « Ajuster — inventaire »).'],
+        'inventory.supervise' => ['Superviser — prise d\'inventaire', 'Gérer les zones, attribuer les feuilles de compte, créer les recomptes et réconcilier les comptes d\'une prise d\'inventaire.'],
         'inventory.adjust' => ['Ajuster — inventaire', 'Ajuster l\'inventaire (perte, vol, usage magasin, correction de comptage, stock initial), avec son écriture au grand livre.'],
         'services.view' => ['Voir — services', 'Accéder à la page : services.'],
         'services.create' => ['Créer — services', 'Créer dans : services.'],
