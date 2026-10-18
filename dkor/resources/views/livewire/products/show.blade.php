@@ -21,9 +21,7 @@
         </div>
 
         <div class="flex flex-shrink-0 items-center gap-3">
-            <flux:button icon="printer" :href="route('products.label', $product)" target="_blank">
-                {{ __('Imprimer l\'étiquette') }}
-            </flux:button>
+            <x-label-button :product="$product" />
 
             {{-- Prix de vente calculé --}}
             <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-5 py-3 text-right dark:border-zinc-700 dark:bg-zinc-800">

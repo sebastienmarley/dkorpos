@@ -56,6 +56,7 @@
                 <flux:table.column>{{ __('Classification') }}</flux:table.column>
                 <flux:table.column>{{ __('Coût') }}</flux:table.column>
                 <flux:table.column>{{ __('Prix de vente') }}</flux:table.column>
+                <flux:table.column />
             </flux:table.columns>
 
             <flux:table.rows>
@@ -84,10 +85,14 @@
                         <flux:table.cell>{{ $product->cost->format() }}</flux:table.cell>
 
                         <flux:table.cell>{{ $product->selling_price->format() }}</flux:table.cell>
+
+                        <flux:table.cell class="text-right">
+                            <x-label-button :product="$product" :label="false" variant="ghost" size="sm" />
+                        </flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="5" class="py-12 text-center">
+                        <flux:table.cell colspan="6" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="cube" class="h-8 w-8 text-zinc-300" />
                                 @if (filled($search) || filled($supplierId) || filled($departmentId))

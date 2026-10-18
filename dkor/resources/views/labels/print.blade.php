@@ -67,7 +67,6 @@
             justify-content: center;
             gap: 0.04in;
             font-size: 13pt;
-            text-align: center;
         }
 
         .label-details > div,
@@ -180,7 +179,10 @@
     @endforeach
 
     <script>
-        window.addEventListener('load', () => window.print());
+        // Dans un cadre, c'est la page parente qui lance l'impression (et attend la fin pour confirmer).
+        if (window.self === window.top) {
+            window.addEventListener('load', () => window.print());
+        }
     </script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\LabelPrintController;
 use App\Http\Controllers\ProductLabelController;
 use App\Livewire\Accounting\Currencies;
 use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
@@ -20,6 +21,7 @@ use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
 use App\Livewire\CustomerOrders\Show as CustomerOrderShow;
 use App\Livewire\Customers\Index as CustomersIndex;
 use App\Livewire\Inventory\Movements as InventoryMovements;
+use App\Livewire\Labels\Index as LabelsIndex;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
 use App\Livewire\Orders\Show as SupplierOrderShow;
 use App\Livewire\Parts\Index as PartsIndex;
@@ -76,6 +78,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('products', ProductsIndex::class)->middleware('can:products.view')->name('products.index');
     Route::get('products/{product}', ProductShow::class)->middleware('can:products.view')->name('products.show');
     Route::get('products/{product}/label', ProductLabelController::class)->middleware('can:products.view')->name('products.label');
+    Route::get('labels', LabelsIndex::class)->middleware('can:labels.view')->name('labels.index');
+    Route::get('labels/print', LabelPrintController::class)->middleware('can:labels.print')->name('labels.print');
 
     Route::get('parts', PartsIndex::class)->middleware('can:parts.view')->name('parts.index');
     Route::get('parts/{part}', PartShow::class)->middleware('can:parts.view')->name('parts.show');
