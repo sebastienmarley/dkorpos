@@ -71,6 +71,20 @@ Nous retenons l'**option C**.
   (`pay_on_delivery`, `pay_on_delivery_authorized_by`).
 - **La ligne n'est séparée qu'à sa remise au client**, comme pour un ramassage. Planifier une livraison ne change
   ni le statut des lignes, ni celui de la commande, ni l'inventaire.
+- **Une livraison active ne prévoit jamais plus que ce qui reste à remettre au client.** Chaque changement d'une
+  ligne après la planification appelle `CustomerOrder::syncDeliveries()`, dans sa transaction : annulation
+  (`cancelLineWithFee()`, `applySupplierCancellation()`), retrait (`removeLine()`), réduction (`adjustLine()`,
+  donc `updateLine()` et `updatePartLine()`, `updateCustomLine()`, `applySupplierQuantity()`) et remplacement
+  (`applySupplierSubstitution()`, `reorderFromSupplier()`) :
+  - la quantité prévue d'une ligne est ramenée à sa quantité, ou à 0 si la ligne est annulée, retirée ou n'est plus
+    à remettre. On réduit d'abord la livraison la plus tardive : les planifiées avant celles en route ;
+  - une **substitution** retire la ligne de la livraison, même si elle garde son identifiant : c'est un autre
+    produit, à planifier de nouveau ;
+  - un article **endommagé ou manquant** à la réception est recommandé sur une nouvelle ligne, du même produit. La
+    quantité prévue y est reportée, dans la même livraison ;
+  - une livraison qui n'a plus d'articles est annulée (« Plus aucun article à livrer ») et sa place se libère ;
+  - les livreurs sont avisés après la transaction : « Livraison modifiée » avec le détail, ou « Livraison
+    annulée ». Le paiement à la livraison déjà autorisé ne change pas.
 
 **Propre à la livraison (#12) :**
 
@@ -110,6 +124,7 @@ Nous retenons l'**option C**.
 **Protections mises en place**
 
 - Une quantité ne peut pas être prévue deux fois, ni être ramassée en magasin pendant qu'une livraison la prévoit.
+- Une livraison ne garde pas une ligne annulée, retirée ou réduite : elle suit la commande, ou elle est annulée.
 - Une demi-journée complète ou commencée est refusée. La ligne du magasin est verrouillée pendant la planification.
 - Seule une livraison planifiée (pas en route) peut être annulée ou reportée. Si la nouvelle demi-journée est
   refusée, le report est annulé en entier et la livraison d'origine reste planifiée.
@@ -120,7 +135,6 @@ Nous retenons l'**option C**.
 
 - Remettre les articles au client depuis le menu du livreur : une méthode commune avec `pickUp()`, qui
   séparerait les lignes et encaisserait le paiement à la livraison.
-- Que faire d'une livraison quand une de ses lignes est annulée, retournée ou réduite après la planification ?
 
 ## Références
 

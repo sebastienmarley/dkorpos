@@ -767,7 +767,7 @@ class CustomerOrder extends Model
             $latestFirst = $planned->sortByDesc(fn (CustomerOrderDeliveryLine $plannedLine): string => implode('|', [
                 $plannedLine->delivery->status === DeliveryStatus::Scheduled ? 1 : 0,
                 $plannedLine->delivery->scheduled_date?->toDateString() ?? '',
-                $plannedLine->delivery->period?->value ?? '',
+                $plannedLine->delivery->period->value ?? '',
                 str_pad((string) $plannedLine->delivery->id, 10, '0', STR_PAD_LEFT),
             ]));
 
