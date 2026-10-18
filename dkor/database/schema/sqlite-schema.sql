@@ -114,14 +114,6 @@ CREATE TABLE "departments"(
   "updated_at" datetime
 );
 CREATE UNIQUE INDEX "departments_name_unique" on "departments"("name");
-CREATE TABLE "categories"(
-  "id" integer primary key autoincrement not null,
-  "department_id" integer,
-  "name" varchar not null,
-  "created_at" datetime,
-  "updated_at" datetime,
-  foreign key("department_id") references "departments"("id") on delete set null
-);
 CREATE TABLE "colors"(
   "id" integer primary key autoincrement not null,
   "name" varchar not null,
@@ -524,42 +516,6 @@ CREATE TABLE "part_product"(
   foreign key("product_id") references "products"("id") on delete cascade,
   primary key("part_id", "product_id")
 );
-CREATE TABLE "products"(
-  "id" integer primary key autoincrement not null,
-  "supplier_id" integer not null,
-  "model" varchar not null,
-  "cost" integer not null,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "department_id" integer,
-  "category_id" integer,
-  "color_id" integer,
-  "description" text,
-  "is_discontinued" tinyint(1) not null default('0'),
-  "is_non_orderable" tinyint(1) not null default('0'),
-  "supplier_model" varchar,
-  "clean_model" varchar,
-  "collection" varchar,
-  "length" numeric,
-  "width" numeric,
-  "height" numeric,
-  "weight" numeric,
-  "imap" integer,
-  "supplier_clean_model" varchar,
-  "is_taxable" tinyint(1) not null default('1'),
-  "is_custom" tinyint(1) not null default('0'),
-  foreign key("color_id") references colors("id") on delete set null on update no action,
-  foreign key("category_id") references categories("id") on delete set null on update no action,
-  foreign key("department_id") references departments("id") on delete set null on update no action,
-  foreign key("supplier_id") references suppliers("id") on delete cascade on update no action
-);
-CREATE INDEX "products_supplier_clean_model_index" on "products"(
-  "supplier_clean_model"
-);
-CREATE UNIQUE INDEX "products_supplier_id_clean_model_unique" on "products"(
-  "supplier_id",
-  "clean_model"
-);
 CREATE TABLE "price_list_items"(
   "id" integer primary key autoincrement not null,
   "price_list_list_id" integer not null,
@@ -954,6 +910,90 @@ CREATE UNIQUE INDEX "week_template_entries_week_template_id_weekday_unique" on "
   "week_template_id",
   "weekday"
 );
+CREATE TABLE "categories"(
+  "id" integer primary key autoincrement not null,
+  "department_id" integer not null,
+  "name" varchar not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("department_id") references "departments"("id") on delete restrict
+);
+CREATE TABLE "styles"(
+  "id" integer primary key autoincrement not null,
+  "name" varchar not null,
+  "created_at" datetime,
+  "updated_at" datetime
+);
+CREATE UNIQUE INDEX "styles_name_unique" on "styles"("name");
+CREATE TABLE "products"(
+  "id" integer primary key autoincrement not null,
+  "supplier_id" integer not null,
+  "model" varchar not null,
+  "cost" integer not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "category_id" integer,
+  "color_id" integer,
+  "description" text,
+  "is_discontinued" tinyint(1) not null default('0'),
+  "is_non_orderable" tinyint(1) not null default('0'),
+  "supplier_model" varchar,
+  "clean_model" varchar,
+  "collection" varchar,
+  "length" numeric,
+  "width" numeric,
+  "height" numeric,
+  "weight" numeric,
+  "imap" integer,
+  "supplier_clean_model" varchar,
+  "is_taxable" tinyint(1) not null default('1'),
+  "is_custom" tinyint(1) not null default('0'),
+  "style_id" integer,
+  "displayed_price" integer,
+  foreign key("color_id") references colors("id") on delete set null on update no action,
+  foreign key("category_id") references categories("id") on delete set null on update no action,
+  foreign key("supplier_id") references suppliers("id") on delete cascade on update no action,
+  foreign key("style_id") references "styles"("id") on delete set null
+);
+CREATE INDEX "products_supplier_clean_model_index" on "products"(
+  "supplier_clean_model"
+);
+CREATE UNIQUE INDEX "products_supplier_id_clean_model_unique" on "products"(
+  "supplier_id",
+  "clean_model"
+);
+CREATE TABLE "label_requests"(
+  "id" integer primary key autoincrement not null,
+  "product_id" integer not null,
+  "quantity" integer not null,
+  "reason" varchar not null,
+  "requested_by" integer,
+  "printed_at" datetime,
+  "printed_by" integer,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("product_id") references "products"("id") on delete cascade,
+  foreign key("requested_by") references "users"("id") on delete set null,
+  foreign key("printed_by") references "users"("id") on delete set null
+);
+CREATE INDEX "label_requests_printed_at_index" on "label_requests"(
+  "printed_at"
+);
+CREATE TABLE "notifications"(
+  "id" varchar not null,
+  "type" varchar not null,
+  "notifiable_type" varchar not null,
+  "notifiable_id" integer not null,
+  "data" text not null,
+  "read_at" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  primary key("id")
+);
+CREATE INDEX "notifications_notifiable_type_notifiable_id_index" on "notifications"(
+  "notifiable_type",
+  "notifiable_id"
+);
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1107,3 +1147,8 @@ INSERT INTO migrations VALUES(149,'2026_10_11_160341_convert_sales_amounts_to_ce
 INSERT INTO migrations VALUES(150,'2026_10_11_161649_convert_hr_amounts_to_cents',10);
 INSERT INTO migrations VALUES(152,'2026_10_11_201158_add_shipment_discrepancies',11);
 INSERT INTO migrations VALUES(153,'2026_10_16_011132_remove_user_from_week_template_entries_table',12);
+INSERT INTO migrations VALUES(154,'2026_10_17_235450_enforce_department_category_hierarchy',13);
+INSERT INTO migrations VALUES(156,'2026_10_18_002006_create_styles_table',14);
+INSERT INTO migrations VALUES(157,'2026_10_18_011628_create_label_requests_table',15);
+INSERT INTO migrations VALUES(158,'2026_10_18_013558_add_displayed_price_to_products_table',16);
+INSERT INTO migrations VALUES(159,'2026_10_18_020022_create_notifications_table',17);

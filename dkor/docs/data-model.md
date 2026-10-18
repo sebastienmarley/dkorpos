@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-11 (151 migrations, 51 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-17 (157 migrations, 54 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 151 migrations. Les conventions (montants, statuts, règles de suppression, données de référence)
+les 157 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -86,13 +86,14 @@ erDiagram
     customer_order_lines |o--o{ defective_products : ""
     supplier_order_lines |o--o{ defective_products : ""
     colors |o--o{ products : ""
+    styles |o--o{ products : ""
     categories |o--o{ products : ""
-    departments |o--o{ products : ""
     suppliers ||--o{ products : ""
     services ||--o{ service_supplier : ""
     suppliers ||--o{ service_supplier : ""
     products ||--o{ product_upcs : ""
-    departments |o--o{ categories : ""
+    departments ||--o{ categories : ""
+    products ||--o{ label_requests : ""
     suppliers ||--o{ price_lists : ""
     price_lists ||--o{ price_list_lists : ""
     products |o--o{ price_list_items : ""
@@ -307,6 +308,7 @@ erDiagram
         string bank_account "nullable"
         string order_email "nullable"
         bool orderable
+        bool custom_made
         bool is_active
         decimal price_multiplier "8,4"
         string address_civic "nullable"
@@ -530,9 +532,17 @@ erDiagram
 
 ## Catalogue, services et listes de prix
 
-- Un produit appartient à un fournisseur (`cascade`) et se classe par département, catégorie et
-  couleur. `is_taxable` indique s'il est assujetti aux taxes de vente; `is_custom` en fait un gabarit
-  de produit sur mesure.
+- Un produit appartient à un fournisseur (`cascade`). Il se classe par catégorie, couleur et style.
+  `is_taxable` indique s'il est assujetti aux taxes de vente; `is_custom` en fait un gabarit de produit
+  sur mesure.
+- **Classification :** hiérarchie stricte département → catégorie. Toute catégorie appartient à un
+  département (`restrict`), et son nom est unique dans ce département (validé par l'application). Le
+  produit ne référence que sa catégorie : son département en est déduit (`Product::department()`,
+  `hasOneThrough`).
+- **Étiquettes de prix** ([ADR 0009](adr/0009-price-labels.md)) : `products.displayed_price` est le prix
+  imprimé sur l'étiquette du démonstrateur. `label_requests` est la file d'impression : une demande par
+  produit et par raison (`LabelReason` : manuelle, changement de prix, nouveau démo) tant que
+  `printed_at` est vide. Les demandes imprimées restent pour l'historique.
 - Une pièce de remplacement (`parts`) est commandée pour un client et n'est pas inventoriée. Elle est
   unique chez son fournisseur par son modèle nettoyé (`supplier_id`, `clean_model`), la même
   normalisation que les produits. `part_product` la relie aux produits qu'elle répare (ex. : les verres
@@ -549,13 +559,16 @@ erDiagram
 ```mermaid
 erDiagram
     colors |o--o{ products : "color_id · null"
+    styles |o--o{ products : "style_id · null"
     categories |o--o{ products : "category_id · null"
-    departments |o--o{ products : "department_id · null"
     suppliers ||--o{ products : "supplier_id · cascade"
     services ||--o{ service_supplier : "service_id · cascade"
     suppliers ||--o{ service_supplier : "supplier_id · cascade"
     products ||--o{ product_upcs : "product_id · cascade"
-    departments |o--o{ categories : "department_id · null"
+    departments ||--o{ categories : "department_id · restrict"
+    products ||--o{ label_requests : "product_id · cascade"
+    users |o--o{ label_requests : "requested_by · null"
+    users |o--o{ label_requests : "printed_by · null"
     suppliers ||--o{ price_lists : "supplier_id · cascade"
     price_lists ||--o{ price_list_lists : "price_list_id · cascade"
     products |o--o{ price_list_items : "product_id · null"
@@ -566,11 +579,12 @@ erDiagram
     products {
         int id PK
         int color_id FK "nullable"
+        int style_id FK "nullable"
         int category_id FK "nullable"
-        int department_id FK "nullable"
         int supplier_id FK
         string model
         int cost "cents"
+        int displayed_price "cents · nullable"
         text description "nullable"
         bool is_discontinued
         bool is_non_orderable
@@ -639,7 +653,7 @@ erDiagram
     }
     categories {
         int id PK
-        int department_id FK "nullable"
+        int department_id FK
         string name
         datetime created_at
         datetime updated_at
@@ -648,6 +662,23 @@ erDiagram
         int id PK
         string name
         string hex_code "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    styles {
+        int id PK
+        string name UK
+        datetime created_at
+        datetime updated_at
+    }
+    label_requests {
+        int id PK
+        int product_id FK
+        int quantity
+        string reason "LabelReason"
+        int requested_by FK "nullable"
+        datetime printed_at "nullable"
+        int printed_by FK "nullable"
         datetime created_at
         datetime updated_at
     }
@@ -789,6 +820,10 @@ erDiagram
   elles n'ont pas de clé étrangère vers `users`, donc ce lien n'est pas dessiné.
 - `user_denied_permissions` : permissions retirées à la pièce à un usager. Elles priment sur celles
   de son rôle et sur ses permissions directes.
+- `notifications` : notifications de Laravel (canal `database`) affichées par la cloche. Elle est
+  **polymorphe** (`notifiable_type`, `notifiable_id`) et n'a pas de clé étrangère vers `users`, donc
+  ce lien n'est pas dessiné. `data` (JSON) contient `title`, `body`, `url` et `icon`; `type` identifie
+  le rappel (ex. `labels-to-print`).
 
 ```mermaid
 erDiagram
@@ -888,6 +923,16 @@ erDiagram
     user_denied_permissions {
         int permission_id FK
         int user_id FK
+    }
+    notifications {
+        string id PK "uuid"
+        string type
+        string notifiable_type
+        int notifiable_id
+        text data "JSON"
+        datetime read_at "nullable"
+        datetime created_at
+        datetime updated_at
     }
 ```
 
