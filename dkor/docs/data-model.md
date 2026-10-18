@@ -31,6 +31,7 @@ sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 - [Livraisons](#livraisons)
 - [Fournisseurs, réceptions et factures](#fournisseurs-réceptions-et-factures)
 - [Inventaire](#inventaire)
+- [Grand livre](#grand-livre)
 - [Catalogue, services et listes de prix](#catalogue-services-et-listes-de-prix)
 - [Horaires, rendez-vous et paie](#horaires-rendez-vous-et-paie)
 - [Usagers et accès](#usagers-et-accès)
@@ -86,6 +87,9 @@ erDiagram
     products ||--o{ inventory_movements : ""
     reception_lines |o--o{ inventory_units : ""
     products ||--o{ inventory_units : ""
+    products ||--o{ inventory_adjustments : ""
+    ledger_entries ||--o{ ledger_entry_lines : ""
+    ledger_accounts ||--o{ ledger_entry_lines : ""
     reception_lines |o--o{ defective_products : ""
     products ||--o{ defective_products : ""
     customer_orders |o--o{ defective_products : ""
@@ -555,6 +559,9 @@ erDiagram
   unités consignent leur valeur (`inventory_movements.value`, en cents).
 - `defective_products` : dossier d'un produit défectueux, rapporté par un client ou reçu endommagé
   du fournisseur.
+- `inventory_adjustments` : entrée ou sortie d'inventaire sans document d'achat ni de vente (perte, vol,
+  usage magasin, correction de comptage, stock initial), immuable. Son mouvement (`inventory_movements`) et
+  son écriture (`ledger_entries`) la référencent par leur référence polymorphe.
 
 ```mermaid
 erDiagram
@@ -563,6 +570,8 @@ erDiagram
     users |o--o{ inventory_movements : "user_id · null"
     reception_lines |o--o{ inventory_units : "reception_line_id · null"
     products ||--o{ inventory_units : "product_id · cascade"
+    products ||--o{ inventory_adjustments : "product_id · restrict"
+    users |o--o{ inventory_adjustments : "user_id · null"
     inventory_movements |o--o{ inventory_units : "exit_movement_id · null"
     reception_lines |o--o{ defective_products : "reception_line_id · null"
     products ||--o{ defective_products : "product_id · restrict"
@@ -610,6 +619,17 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
+    inventory_adjustments {
+        int id PK
+        int product_id FK
+        int user_id FK "nullable"
+        string reason "InventoryAdjustmentReason"
+        string status "InventoryStatus"
+        bool is_entry
+        int quantity
+        string note
+        datetime created_at
+    }
     defective_products {
         int id PK
         int reception_line_id FK "nullable"
@@ -626,6 +646,48 @@ erDiagram
         string photo_path "nullable"
         datetime created_at
         datetime updated_at
+    }
+```
+
+## Grand livre
+
+- `ledger_accounts` : comptes du grand livre. Les comptes système (`system_key` : stock, pertes,
+  fournitures, écart d'inventaire, solde d'ouverture) sont créés par `ReferenceDataSeeder`; le comptable en
+  change le code et le nom.
+- `ledger_entries` : écritures équilibrées et immuables, liées à leur document source par une référence
+  **polymorphe** (`reference_type`, `reference_id`), sans clé étrangère.
+- `ledger_entry_lines` : un débit ou un crédit en cents par ligne. Seuls les ajustements d'inventaire passent
+  des écritures pour l'instant ([ADR 0011](adr/0011-inventory-movements-and-adjustments.md)).
+
+```mermaid
+erDiagram
+    ledger_entries ||--o{ ledger_entry_lines : "ledger_entry_id · cascade"
+    ledger_accounts ||--o{ ledger_entry_lines : "ledger_account_id · restrict"
+    users |o--o{ ledger_entries : "user_id · null"
+    ledger_accounts {
+        int id PK
+        string code UK
+        string name
+        string type "LedgerAccountType"
+        string system_key UK "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    ledger_entries {
+        int id PK
+        int user_id FK "nullable"
+        date posted_on
+        string description
+        string reference_type "nullable"
+        int reference_id "nullable"
+        datetime created_at
+    }
+    ledger_entry_lines {
+        int id PK
+        int ledger_entry_id FK
+        int ledger_account_id FK
+        int debit "cents"
+        int credit "cents"
     }
 ```
 

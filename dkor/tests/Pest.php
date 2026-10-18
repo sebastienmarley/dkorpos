@@ -8,6 +8,9 @@ use App\Models\InventoryMovement;
 use App\Models\InventoryStock;
 use App\Models\InventoryUnit;
 use App\Models\Product;
+use App\Models\Reception;
+use App\Models\ReceptionLine;
+use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -120,4 +123,17 @@ function expectInventoryIntegrity(Product $product): void
     expect($stock->quantity_reserved + $stock->quantity_in_delivery)->toBe($reserved, 'I4 : réservé ≠ commandes clients')
         ->and($stock->quantity_on_order)->toBe($outstanding, 'I5 : en commande ≠ commandes fournisseurs')
         ->and($stock->quantity_customer_order)->toBe(0, 'I6 : « en commande client » non utilisé');
+}
+
+/**
+ * Commande fournisseur envoyée puis reçue au coût donné (en dollars).
+ */
+function receiveProduct(Product $product, int $quantity, float $cost): ReceptionLine
+{
+    $order = SupplierOrder::factory()->create(['supplier_id' => $product->supplier_id]);
+    $line = SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => Money::parse($cost)]);
+    $order->markPending();
+    $order->fresh()->send();
+
+    return Reception::record($order->supplier, [$line->id => ['quantity' => $quantity]])->lines()->sole();
 }

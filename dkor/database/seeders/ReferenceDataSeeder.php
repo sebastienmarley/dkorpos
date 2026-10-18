@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\CustomerPaymentMethod;
+use App\Models\LedgerAccount;
 use App\Models\Service;
 use Illuminate\Database\Seeder;
 
@@ -10,7 +11,8 @@ class ReferenceDataSeeder extends Seeder
 {
     /**
      * Données dont l'application a besoin pour fonctionner : permissions, rôles par défaut (config/access.php)
-     * mode de paiement « Comptant » et service « Frais d'expédition ». Sans effet sur ce qui existe déjà; utilisé aussi par les tests.
+     * mode de paiement « Comptant », service « Frais d'expédition » et comptes système du grand livre. Sans effet
+     * sur ce qui existe déjà; utilisé aussi par les tests.
      */
     public function run(): void
     {
@@ -18,5 +20,6 @@ class ReferenceDataSeeder extends Seeder
 
         CustomerPaymentMethod::cash();
         Service::shippingFee();
+        LedgerAccount::ensureSystemAccounts();
     }
 }

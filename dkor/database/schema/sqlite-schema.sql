@@ -1074,6 +1074,60 @@ CREATE INDEX "inventory_units_product_id_inserted_at_index" on "inventory_units"
 CREATE INDEX "inventory_units_exit_movement_id_index" on "inventory_units"(
   "exit_movement_id"
 );
+CREATE TABLE "ledger_accounts"(
+  "id" integer primary key autoincrement not null,
+  "code" varchar not null,
+  "name" varchar not null,
+  "type" varchar not null,
+  "system_key" varchar,
+  "created_at" datetime,
+  "updated_at" datetime
+);
+CREATE UNIQUE INDEX "ledger_accounts_code_unique" on "ledger_accounts"("code");
+CREATE UNIQUE INDEX "ledger_accounts_system_key_unique" on "ledger_accounts"(
+  "system_key"
+);
+CREATE TABLE "ledger_entries"(
+  "id" integer primary key autoincrement not null,
+  "posted_on" date not null,
+  "description" varchar not null,
+  "reference_type" varchar,
+  "reference_id" integer,
+  "user_id" integer,
+  "created_at" datetime not null default CURRENT_TIMESTAMP,
+  foreign key("user_id") references "users"("id") on delete set null
+);
+CREATE INDEX "ledger_entries_reference_type_reference_id_index" on "ledger_entries"(
+  "reference_type",
+  "reference_id"
+);
+CREATE INDEX "ledger_entries_posted_on_index" on "ledger_entries"("posted_on");
+CREATE TABLE "ledger_entry_lines"(
+  "id" integer primary key autoincrement not null,
+  "ledger_entry_id" integer not null,
+  "ledger_account_id" integer not null,
+  "debit" integer not null default '0',
+  "credit" integer not null default '0',
+  foreign key("ledger_entry_id") references "ledger_entries"("id") on delete cascade,
+  foreign key("ledger_account_id") references "ledger_accounts"("id") on delete restrict
+);
+CREATE TABLE "inventory_adjustments"(
+  "id" integer primary key autoincrement not null,
+  "product_id" integer not null,
+  "reason" varchar not null,
+  "status" varchar not null,
+  "is_entry" tinyint(1) not null,
+  "quantity" integer not null,
+  "note" varchar not null,
+  "user_id" integer,
+  "created_at" datetime not null default CURRENT_TIMESTAMP,
+  foreign key("product_id") references "products"("id") on delete restrict,
+  foreign key("user_id") references "users"("id") on delete set null
+);
+CREATE INDEX "inventory_adjustments_product_id_created_at_index" on "inventory_adjustments"(
+  "product_id",
+  "created_at"
+);
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1236,3 +1290,7 @@ INSERT INTO migrations VALUES(160,'2026_10_18_125336_create_delivery_trucks_tabl
 INSERT INTO migrations VALUES(161,'2026_10_18_125337_create_customer_order_deliveries_table',18);
 INSERT INTO migrations VALUES(162,'2026_10_18_133416_add_shipping_to_customer_order_deliveries',19);
 INSERT INTO migrations VALUES(165,'2026_10_18_150648_add_exit_movement_and_value_to_inventory_tables',20);
+INSERT INTO migrations VALUES(170,'2026_10_18_152040_create_ledger_accounts_table',21);
+INSERT INTO migrations VALUES(171,'2026_10_18_152042_create_ledger_entries_table',21);
+INSERT INTO migrations VALUES(172,'2026_10_18_152043_create_ledger_entry_lines_table',21);
+INSERT INTO migrations VALUES(173,'2026_10_18_152044_create_inventory_adjustments_table',21);

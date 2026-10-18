@@ -159,8 +159,9 @@ s'en charge, pour que la règle soit écrite une seule fois.
 ### Les ajustements
 
 Un ajustement corrige l'inventaire sans document d'achat ni de vente. Table `inventory_adjustments` :
-produit, motif, sens (entrée ou sortie), état touché, quantité, valeur, note obligatoire, usager, mouvement et
-écriture. Un ajustement ne se modifie ni ne se supprime : une erreur se corrige par l'ajustement inverse.
+produit, motif, sens (entrée ou sortie), état touché, quantité, note obligatoire et usager. Son mouvement et
+son écriture le référencent (référence polymorphe) : la valeur se lit sur le mouvement, sans être recopiée. Un
+ajustement ne se modifie ni ne se supprime : une erreur se corrige par l'ajustement inverse.
 
 | Motif (`InventoryAdjustmentReason`) | Sens | États permis | Compte débité / crédité |
 |---|---|---|---|
@@ -173,9 +174,10 @@ produit, motif, sens (entrée ou sortie), état touché, quantité, valeur, note
 
 - Le service `App\Actions\AdjustInventory` fait l'ajustement dans une transaction : il vérifie la permission
   et le motif, enregistre le mouvement (`record()`, qui ferme ou crée les unités et en donne la valeur), puis
-  passe l'écriture du même montant.
+  passe l'écriture du même montant. Une valeur nulle (unités sans coût) ne passe pas d'écriture.
 - Le composant `App\Livewire\Inventory\Adjustments` (« InventoryAdjustment » dans l'issue) offre le
-  formulaire et la liste des ajustements. Il est protégé par `inventory.adjust`.
+  formulaire et la liste des ajustements (page Ajustements d'inventaire, `inventory/adjustments`). Il est
+  protégé par `inventory.adjust`.
 - Les erreurs de réception, les écarts à la réception et le perdu/retrouvé restent hors périmètre (#52) :
   la facturation, les réceptions et les transferts s'en chargent déjà.
 
@@ -183,9 +185,10 @@ produit, motif, sens (entrée ou sortie), état touché, quantité, valeur, note
 
 - `ledger_accounts` : code (unique), nom, type (`LedgerAccountType` : actif, passif, capitaux propres,
   produit, charge) et une clé système (`system_key`) pour les comptes dont l'application a besoin.
-  `ReferenceDataSeeder` crée les comptes système ([ADR 0007](0007-reference-data-seeders.md)) : Stock,
-  Pertes d'inventaire, Fournitures du magasin, Écart d'inventaire, Solde d'ouverture. Le comptable peut
-  changer leur code et leur nom, pas leur clé.
+  `ReferenceDataSeeder` crée les comptes système ([ADR 0007](0007-reference-data-seeders.md)) : Stock (1300),
+  Solde d'ouverture (3900), Pertes d'inventaire (5110), Écart d'inventaire (5120) et Fournitures du magasin
+  (5400). Le comptable peut changer leur code et leur nom dans la page Grand livre (`accounting/ledger`), pas
+  leur clé.
 - `ledger_entries` : date, description, référence polymorphe (l'ajustement), usager.
   `ledger_entry_lines` : compte, débit, crédit (cents). Une écriture est **équilibrée** et ne se modifie ni ne
   se supprime : une correction passe une écriture inverse.
@@ -208,7 +211,8 @@ Elle fera l'objet de sa propre issue. Ce qui est décidé ici :
 - `inventory.adjust` (« Ajuster — inventaire ») : nouvelle permission, déclarée dans `config/access.php`, dans
   aucun accès par défaut. Seul le rôle qui a toutes les permissions (propriétaire) l'a au départ.
 - `inventory.move` : inchangée, mais limitée aux transferts entre états physiques.
-- La consultation du grand livre aura sa permission (`ledger.view`), avec l'accès comptabilité.
+- `ledger.view` (consulter le grand livre) et `ledger.edit` (code et nom des comptes) : dans l'accès
+  comptabilité.
 
 ### Les invariants
 

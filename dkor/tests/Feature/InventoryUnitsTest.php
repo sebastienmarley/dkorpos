@@ -11,7 +11,6 @@ use App\Models\InventoryStock;
 use App\Models\InventoryUnit;
 use App\Models\Product;
 use App\Models\Reception;
-use App\Models\ReceptionLine;
 use App\Models\Supplier;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
@@ -27,19 +26,6 @@ beforeEach(function () {
         'cost' => Money::parse(9),
     ]);
 });
-
-/**
- * Commande fournisseur envoyée puis reçue au coût donné (en dollars).
- */
-function receiveProduct(Product $product, int $quantity, float $cost): ReceptionLine
-{
-    $order = SupplierOrder::factory()->create(['supplier_id' => $product->supplier_id]);
-    $line = SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => $quantity, 'unit_cost' => Money::parse($cost)]);
-    $order->markPending();
-    $order->fresh()->send();
-
-    return Reception::record($order->supplier, [$line->id => ['quantity' => $quantity]])->lines()->sole();
-}
 
 /**
  * Commande client qui réserve puis ramasse la quantité donnée du produit, entièrement payée.

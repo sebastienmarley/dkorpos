@@ -93,6 +93,8 @@ $accountingAccess = [
     'invoices.create',
     'invoices.edit',
     'invoices.delete',
+    'ledger.view',
+    'ledger.edit',
 ];
 
 return [
@@ -141,6 +143,7 @@ return [
         'receptions.reverse' => ['Renverser — réceptions', 'Renverser une réception de produits non encore facturée (erreur de réception).'],
         'inventory.view' => ['Voir — journal d\'inventaire', 'Accéder à la page : journal d\'inventaire.'],
         'inventory.move' => ['Déplacer — inventaire', 'Déplacer des quantités entre états d\'inventaire (démo, défectueux, perdu…).'],
+        'inventory.adjust' => ['Ajuster — inventaire', 'Ajuster l\'inventaire (perte, vol, usage magasin, correction de comptage, stock initial), avec son écriture au grand livre.'],
         'services.view' => ['Voir — services', 'Accéder à la page : services.'],
         'services.create' => ['Créer — services', 'Créer dans : services.'],
         'services.edit' => ['Modifier — services', 'Modifier dans : services (fournisseurs et prix).'],
@@ -166,6 +169,8 @@ return [
         'taxes.create' => ['Créer — taxes', 'Créer dans : taxes.'],
         'taxes.edit' => ['Expirer — taxes', 'Faire expirer une taxe (le taux d\'une taxe sauvegardée ne se modifie pas).'],
         'currencies.view' => ['Voir — devises', 'Accéder à la page : devises.'],
+        'ledger.view' => ['Voir — grand livre', 'Accéder à la page : grand livre (écritures et comptes).'],
+        'ledger.edit' => ['Modifier — grand livre', 'Modifier le code et le nom des comptes du grand livre.'],
         'currencies.create' => ['Créer — devises', 'Créer dans : devises.'],
         'currencies.edit' => ['Modifier — devises', 'Modifier dans : devises.'],
         'invoices.view' => ['Voir — facturation fournisseurs', 'Accéder à la page : facturation fournisseurs.'],

@@ -7,6 +7,7 @@ use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
 use App\Livewire\Accounting\Invoices\Index as InvoicesIndex;
 use App\Livewire\Accounting\Invoices\Show as InvoiceShow;
+use App\Livewire\Accounting\Ledger;
 use App\Livewire\Accounting\PaymentMethods;
 use App\Livewire\Accounting\Payroll;
 use App\Livewire\Accounting\Taxes;
@@ -21,6 +22,7 @@ use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
 use App\Livewire\CustomerOrders\Show as CustomerOrderShow;
 use App\Livewire\Customers\Index as CustomersIndex;
 use App\Livewire\Deliveries\Index as DeliveriesIndex;
+use App\Livewire\Inventory\Adjustments as InventoryAdjustments;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Labels\Index as LabelsIndex;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
@@ -77,6 +79,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('receptions/{reception}', ReceptionShow::class)->middleware('can:receptions.view')->name('receptions.show');
 
     Route::get('inventory/movements', InventoryMovements::class)->middleware('can:inventory.view')->name('inventory.movements');
+    Route::get('inventory/adjustments', InventoryAdjustments::class)->middleware('can:inventory.adjust')->name('inventory.adjustments');
 
     Route::get('products', ProductsIndex::class)->middleware('can:products.view')->name('products.index');
     Route::get('products/{product}', ProductShow::class)->middleware('can:products.view')->name('products.show');
@@ -101,6 +104,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('accounting/payment-methods', PaymentMethods::class)->middleware('can:payment_methods.view')->name('accounting.payment-methods');
     Route::get('accounting/taxes', Taxes::class)->middleware('can:taxes.view')->name('accounting.taxes');
     Route::get('accounting/currencies', Currencies::class)->middleware('can:currencies.view')->name('accounting.currencies');
+    Route::get('accounting/ledger', Ledger::class)->middleware('can:ledger.view')->name('accounting.ledger');
 
     Route::get('stores', StoresIndex::class)->middleware('can:stores.view')->name('stores.index');
     Route::get('stores/{store}', StoreShow::class)->middleware('can:stores.view')->name('stores.show');
