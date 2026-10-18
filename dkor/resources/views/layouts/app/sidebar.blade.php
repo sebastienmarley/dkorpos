@@ -87,6 +87,12 @@
                     </flux:sidebar.item>
                 @endcan
 
+                @can('deliveries.view')
+                    <flux:sidebar.item icon="map-pin" :href="route('deliveries.index')" :current="request()->routeIs('deliveries.*')" wire:navigate>
+                        {{ __('Livraisons') }}
+                    </flux:sidebar.item>
+                @endcan
+
                 @can('suppliers.view')
                     <flux:sidebar.item icon="building-storefront" :href="route('suppliers.index')" :current="request()->routeIs('suppliers.*')" wire:navigate>
                         {{ __('Fournisseurs') }}

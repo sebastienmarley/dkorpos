@@ -7,6 +7,7 @@ use App\Livewire\Catalog\Colors;
 use App\Livewire\Catalog\Departments;
 use App\Livewire\Catalog\Styles;
 use App\Livewire\CustomerForm;
+use App\Livewire\CustomerOrders\Deliveries;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
 use App\Livewire\Orders\Show as SupplierOrderShow;
@@ -22,6 +23,7 @@ use App\Livewire\Schedules\Templates;
 use App\Livewire\SupplierForm;
 use App\Livewire\Suppliers\Show as SupplierShow;
 use App\Models\Currency;
+use App\Models\CustomerOrder;
 use App\Models\Part;
 use App\Models\Product;
 use App\Models\Reception;
@@ -77,6 +79,8 @@ dataset('actions interdites', [
     'appointments.delete' => [fn () => Livewire::test(Appointments::class)->call('deleteAppointment')],
     'appointments.edit (réassignation depuis l\'horaire)' => [fn () => Livewire::test(ScheduleEdit::class)->call('openReassign', 1)],
     'appointments.edit (réassigner)' => [fn () => Livewire::test(ScheduleEdit::class)->call('reassign')],
+    'customer_orders.edit (livraison)' => [fn () => Livewire::test(Deliveries::class, ['order' => CustomerOrder::factory()->create()])->call('open')],
+    'customer_orders.edit (annuler une livraison)' => [fn () => Livewire::test(Deliveries::class, ['order' => CustomerOrder::factory()->create()])->call('cancelDelivery', 1)],
 ]);
 
 it('refuse l\'action sans la permission', function (Closure $action) {

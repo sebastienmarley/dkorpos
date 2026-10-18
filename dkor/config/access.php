@@ -33,6 +33,7 @@ $pageAccess = [
     'appointments.create',
     'appointments.edit',
     'appointments.delete',
+    'deliveries.view',
 ];
 
 $managementAccess = [
@@ -40,6 +41,7 @@ $managementAccess = [
     'labels.print',
     'customer_orders.assign_salespeople',
     'customer_orders.return_custom',
+    'customer_orders.deliver_unpaid',
     'services.view',
     'services.create',
     'services.edit',
@@ -54,6 +56,7 @@ $warehouseAccess = [
     'receptions.reverse',
     'schedules.view',
     'appointments.view',
+    'deliveries.view',
 ];
 
 $accountingAccess = [
@@ -114,6 +117,8 @@ return [
         'customer_orders.create' => ['Créer — commandes clients', 'Créer dans : commandes clients.'],
         'customer_orders.edit' => ['Modifier — commandes clients', 'Modifier dans : commandes clients (client, produits).'],
         'customer_orders.return_custom' => ['Autoriser un retour sur mesure — commandes clients', 'Reprendre en retour (échange ou remboursement) un article fabriqué sur mesure.'],
+        'customer_orders.deliver_unpaid' => ['Autoriser le paiement à la livraison — commandes clients', 'Planifier une livraison dont le solde exigé sera perçu à la livraison.'],
+        'deliveries.view' => ['Voir — livraisons', 'Accéder à la page : livraisons (places par demi-journée et livraisons planifiées).'],
         'customer_orders.assign_salespeople' => ['Gérer les vendeurs — commandes clients', 'Modifier les vendeurs et la répartition de la vente dans : commandes clients.'],
         'suppliers.view' => ['Voir — fournisseurs', 'Accéder à la page : fournisseurs.'],
         'suppliers.create' => ['Créer — fournisseurs', 'Créer dans : fournisseurs.'],

@@ -51,6 +51,13 @@ class customer extends Model
         'credit_balance' => MoneyCast::class,
     ];
 
+    /** Adresse assez complète pour une livraison : numéro civique, rue, ville, province, pays et code postal. */
+    public function hasCompleteAddress(): bool
+    {
+        return collect(['address_civic', 'address_street', 'address_city', 'address_province', 'address_country', 'address_postal_code'])
+            ->every(fn (string $field): bool => filled($this->{$field}));
+    }
+
     /**
      * Clients dont le nom contient chacun des mots cherchés (peu importe l'ordre, la casse et les accents), ou dont
      * le courriel, le téléphone ou le cellulaire contient le texte cherché.

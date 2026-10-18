@@ -319,3 +319,51 @@ it('sème les taxes de départ sans doublon', function () {
     expect(Tax::count())->toBe(3)
         ->and(Tax::activeOn('2026-01-01')->where('province', 'ON')->sole())->name->toBe('TVH')->rate->toBe('13.000');
 });
+
+it('ajoute et modifie un camion de livraison du magasin', function () {
+    $store = Store::factory()->create();
+    $this->actingAs(User::factory()->withRole('owner')->create());
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->call('openTruckModal')
+        ->set('truckName', 'Cube 16 pi')
+        ->set('truckCapacity', '4')
+        ->call('saveTruck')
+        ->assertHasNoErrors();
+
+    $truck = $store->deliveryTrucks()->sole();
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->call('openTruckModal', $truck->id)
+        ->assertSet('truckName', 'Cube 16 pi')
+        ->set('truckIsActive', false)
+        ->call('saveTruck');
+
+    expect($truck->fresh())
+        ->capacity_per_period->toBe(4)
+        ->is_active->toBeFalse();
+});
+
+it('exige un nom unique dans le magasin et une capacité d\'au moins une livraison', function () {
+    $store = Store::factory()->create();
+    $store->deliveryTrucks()->create(['name' => 'Camion 1', 'capacity_per_period' => 2]);
+    $this->actingAs(User::factory()->withRole('owner')->create());
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->call('openTruckModal')
+        ->set('truckName', 'Camion 1')
+        ->set('truckCapacity', '0')
+        ->call('saveTruck')
+        ->assertHasErrors(['truckName' => 'unique', 'truckCapacity' => 'min']);
+});
+
+it('refuse de gérer les camions sans la permission de modifier le magasin', function () {
+    $store = Store::factory()->create();
+    $user = User::factory()->withRole('manager')->create();
+    $user->givePermissionTo('stores.view');
+    $this->actingAs($user);
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->call('openTruckModal')
+        ->assertForbidden();
+});

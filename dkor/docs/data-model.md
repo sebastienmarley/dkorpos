@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-17 (157 migrations, 54 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-18 (159 migrations, 57 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 157 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
+les 159 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -28,6 +28,7 @@ sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 - [Vue d'ensemble](#vue-densemble)
 - [Clients et ventes](#clients-et-ventes)
+- [Livraisons](#livraisons)
 - [Fournisseurs, réceptions et factures](#fournisseurs-réceptions-et-factures)
 - [Inventaire](#inventaire)
 - [Catalogue, services et listes de prix](#catalogue-services-et-listes-de-prix)
@@ -58,6 +59,11 @@ erDiagram
     customer_orders ||--o{ customer_order_pickups : ""
     customer_orders ||--o{ customer_order_salesperson : ""
     customer_orders ||--o{ customer_order_taxes : ""
+    customer_orders ||--o{ customer_order_deliveries : ""
+    stores |o--o{ customer_order_deliveries : ""
+    customer_order_deliveries ||--o{ customer_order_delivery_lines : ""
+    customer_order_lines ||--o{ customer_order_delivery_lines : ""
+    stores ||--o{ delivery_trucks : ""
     taxes |o--o{ customer_order_taxes : ""
     stores ||--o{ store_tax_registrations : ""
     currencies |o--o{ suppliers : ""
@@ -249,6 +255,89 @@ erDiagram
         bool is_compound
         string registration_number "nullable"
         int amount "cents"
+        datetime created_at
+        datetime updated_at
+    }
+```
+
+## Livraisons
+
+- Une livraison (`customer_order_deliveries`) remet des articles d'une commande sans ramassage : par nos camions
+  (`method` = `internal`, à une date et une demi-journée, `period` AM ou PM) ou par expédition (`shipping`,
+  issue #86). Elle suit la commande (`cascade`), comme les ramassages ([ADR 0010](adr/0010-customer-order-deliveries.md)).
+- L'adresse confirmée avec le client est copiée sur la livraison (`address_*`) avec l'auteur et le moment de la
+  vérification; corriger la fiche du client ne change pas une livraison prévue.
+- `customer_order_delivery_lines` : quantité prévue par ligne de commande (unique par livraison et ligne). La
+  ligne n'est séparée qu'à sa remise au client. Les livraisons actives (`scheduled`, `in_transit`) réservent ces
+  quantités : elles ne se ramassent pas et ne peuvent pas être prévues deux fois.
+- `pay_on_delivery` : le solde exigé sera perçu à la livraison, autorisé par un directeur
+  (`pay_on_delivery_authorized_by`).
+- Un report annule la livraison (`cancelled_at`, `cancelled_by`, `cancellation_reason`) et en crée une autre qui
+  la référence (`rescheduled_from_id`).
+- `delivery_trucks` : camions d'un magasin (`cascade`), avec le nombre de livraisons qu'ils font par
+  demi-journée (`capacity_per_period`). La capacité d'une demi-journée compte les camions actifs qui ont un
+  livreur à l'horaire.
+
+```mermaid
+erDiagram
+    customer_orders ||--o{ customer_order_deliveries : "customer_order_id · cascade"
+    stores |o--o{ customer_order_deliveries : "store_id · null"
+    customer_order_deliveries |o--o{ customer_order_deliveries : "rescheduled_from_id · null"
+    users |o--o{ customer_order_deliveries : "address_verified_by · null"
+    users |o--o{ customer_order_deliveries : "pay_on_delivery_authorized_by · null"
+    users |o--o{ customer_order_deliveries : "requested_by · null"
+    users |o--o{ customer_order_deliveries : "cancelled_by · null"
+    customer_order_deliveries ||--o{ customer_order_delivery_lines : "customer_order_delivery_id · cascade"
+    customer_order_lines ||--o{ customer_order_delivery_lines : "customer_order_line_id · cascade"
+    stores ||--o{ delivery_trucks : "store_id · cascade"
+    customer_orders {
+    }
+    customer_order_lines {
+    }
+    stores {
+    }
+    customer_order_deliveries {
+        int id PK
+        int customer_order_id FK
+        int store_id FK "nullable"
+        int rescheduled_from_id FK "nullable"
+        string method "DeliveryMethod"
+        string status "DeliveryStatus"
+        date scheduled_date "nullable"
+        string period "DeliveryPeriod · nullable"
+        string address_civic
+        string address_apartment "nullable"
+        string address_street
+        string address_city
+        string address_province
+        string address_country
+        string address_postal_code
+        int address_verified_by FK "nullable"
+        datetime address_verified_at
+        bool pay_on_delivery
+        int pay_on_delivery_authorized_by FK "nullable"
+        text notes "nullable"
+        int requested_by FK "nullable"
+        datetime cancelled_at "nullable"
+        int cancelled_by FK "nullable"
+        string cancellation_reason "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    customer_order_delivery_lines {
+        int id PK
+        int customer_order_delivery_id FK
+        int customer_order_line_id FK
+        int quantity
+        datetime created_at
+        datetime updated_at
+    }
+    delivery_trucks {
+        int id PK
+        int store_id FK
+        string name "UK avec store_id"
+        int capacity_per_period
+        bool is_active
         datetime created_at
         datetime updated_at
     }

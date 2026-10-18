@@ -49,6 +49,7 @@ use Illuminate\Support\Carbon;
  * @property-read SupplierOrderLine|null $supplierOrderLine
  * @property-read CustomerOrderPickup|null $pickup
  * @property-read Collection<int, DefectiveProduct> $defectiveProducts
+ * @property-read Collection<int, CustomerOrderDeliveryLine> $deliveryLines
  * @property-read Money $total
  */
 #[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'is_no_charge', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
@@ -169,6 +170,12 @@ class CustomerOrderLine extends Model
     public function pickup(): BelongsTo
     {
         return $this->belongsTo(CustomerOrderPickup::class, 'customer_order_pickup_id');
+    }
+
+    /** @return HasMany<CustomerOrderDeliveryLine, $this> */
+    public function deliveryLines(): HasMany
+    {
+        return $this->hasMany(CustomerOrderDeliveryLine::class);
     }
 
     /** @return HasMany<DefectiveProduct, $this> */

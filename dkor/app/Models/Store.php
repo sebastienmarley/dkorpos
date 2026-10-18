@@ -72,6 +72,12 @@ class Store extends Model
         'is_active' => 'boolean',
     ];
 
+    /** @return HasMany<DeliveryTruck, $this> */
+    public function deliveryTrucks(): HasMany
+    {
+        return $this->hasMany(DeliveryTruck::class);
+    }
+
     /** @return HasMany<StoreTaxRegistration, $this> */
     public function taxRegistrations(): HasMany
     {
