@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\QueuePriceChangeLabels;
 use App\Enums\InventoryStatus;
 use Database\Factories\InventoryStockFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -43,6 +44,15 @@ class InventoryStock extends Model
         'quantity_defective_shipped' => 'integer',
         'quantity_lost' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        static::saved(function (InventoryStock $stock): void {
+            if ($stock->wasChanged('quantity_in_demo') || ($stock->wasRecentlyCreated && $stock->quantity_in_demo > 0)) {
+                app(QueuePriceChangeLabels::class)->forProducts([$stock->product_id]);
+            }
+        });
+    }
 
     /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo

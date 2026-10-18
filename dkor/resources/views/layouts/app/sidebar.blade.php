@@ -64,6 +64,9 @@
                 <div class="in-data-flux-sidebar-collapsed-desktop:hidden min-w-0 flex-1">
                     <x-app-logo :sidebar="true" href="{{ route('home') }}" wire:navigate />
                 </div>
+                <div class="in-data-flux-sidebar-collapsed-desktop:hidden">
+                    <livewire:notifications-bell />
+                </div>
                 <flux:sidebar.collapse />
             </flux:sidebar.header>
 
@@ -108,8 +111,8 @@
                     </flux:sidebar.item>
                 @endcan
 
-                @canany(['products.view', 'parts.view', 'services.view', 'departments.view', 'categories.view', 'colors.view', 'styles.view', 'price_lists.view'])
-                <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('parts.*') || request()->routeIs('catalog.*')">
+                @canany(['products.view', 'parts.view', 'services.view', 'departments.view', 'categories.view', 'colors.view', 'styles.view', 'price_lists.view', 'labels.view'])
+                <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('parts.*') || request()->routeIs('catalog.*') || request()->routeIs('labels.*')">
                     @can('products.view')
                         <flux:sidebar.item icon="cube" :href="route('products.index')" :current="request()->routeIs('products.*')" wire:navigate>
                             {{ __('Produits') }}
@@ -130,6 +133,12 @@
                             {{ __('Classification') }}
                         </flux:sidebar.item>
                     @endcanany
+                    @can('labels.view')
+                        @php $pendingLabels = (int) \App\Models\LabelRequest::query()->pending()->sum('quantity'); @endphp
+                        <flux:sidebar.item icon="printer" :href="route('labels.index')" :current="request()->routeIs('labels.*')" :badge="$pendingLabels > 0 ? $pendingLabels : null" badge:color="amber" wire:navigate>
+                            {{ __('Étiquettes') }}
+                        </flux:sidebar.item>
+                    @endcan
                     @can('price_lists.view')
                         <flux:sidebar.item icon="currency-dollar" :href="route('catalog.price-lists')" :current="request()->routeIs('catalog.price-lists*')" wire:navigate>
                             {{ __('Listes de prix') }}
@@ -243,6 +252,8 @@
             <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="right" />
 
             <flux:spacer />
+
+            <livewire:notifications-bell />
 
             <flux:dropdown position="top" align="end">
                 <flux:profile

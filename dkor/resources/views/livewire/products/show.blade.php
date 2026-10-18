@@ -20,12 +20,16 @@
             </div>
         </div>
 
-        {{-- Prix de vente calculé --}}
-        <div class="flex-shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 px-5 py-3 text-right dark:border-zinc-700 dark:bg-zinc-800">
-            <flux:text class="text-xs text-zinc-400">{{ __('Prix de vente') }}</flux:text>
-            <div class="mt-0.5 text-2xl font-semibold text-zinc-900 dark:text-white">
-                @php $sp = $this->getSellingPrice(); @endphp
-                {{ $sp->cents() % 100 === 0 ? number_format(intdiv($sp->cents(), 100)).' $' : $sp->format() }}
+        <div class="flex flex-shrink-0 items-center gap-3">
+            <x-label-button :product="$product" />
+
+            {{-- Prix de vente calculé --}}
+            <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-5 py-3 text-right dark:border-zinc-700 dark:bg-zinc-800">
+                <flux:text class="text-xs text-zinc-400">{{ __('Prix de vente') }}</flux:text>
+                <div class="mt-0.5 text-2xl font-semibold text-zinc-900 dark:text-white">
+                    @php $sp = $this->getSellingPrice(); @endphp
+                    {{ $sp->cents() % 100 === 0 ? number_format(intdiv($sp->cents(), 100)).' $' : $sp->format() }}
+                </div>
             </div>
         </div>
     </div>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\QueuePriceChangeLabels;
 use App\Casts\MoneyCast;
 use App\Enums\SupplierType;
 use App\Support\Money;
@@ -103,6 +104,12 @@ class Supplier extends Model
 
             if (! $supplier->is_active) {
                 $supplier->orderable = false;
+            }
+        });
+
+        static::saved(function (Supplier $supplier): void {
+            if ($supplier->wasChanged('price_multiplier')) {
+                app(QueuePriceChangeLabels::class)->forSupplier($supplier->id);
             }
         });
     }

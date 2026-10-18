@@ -24,6 +24,7 @@ $pageAccess = [
     'services.view',
     'products.view',
     'products.create',
+    'labels.create',
     'parts.view',
     'parts.create',
     'inventory.view',
@@ -35,6 +36,8 @@ $pageAccess = [
 ];
 
 $managementAccess = [
+    'labels.view',
+    'labels.print',
     'customer_orders.assign_salespeople',
     'customer_orders.return_custom',
     'services.view',
@@ -145,6 +148,9 @@ return [
         'styles.view' => ['Voir — styles', 'Accéder à la page : styles.'],
         'styles.create' => ['Créer — styles', 'Créer dans : styles.'],
         'styles.edit' => ['Modifier — styles', 'Modifier dans : styles.'],
+        'labels.view' => ['Voir — étiquettes', 'Accéder à la page : étiquettes à imprimer.'],
+        'labels.create' => ['Demander — étiquettes', 'Ajouter des étiquettes de prix à la file d\'impression.'],
+        'labels.print' => ['Imprimer — étiquettes', 'Imprimer les étiquettes de la file et les marquer comme imprimées.'],
         'payment_methods.view' => ['Voir — modes de paiement', 'Accéder à la page : modes de paiement.'],
         'payment_methods.create' => ['Créer — modes de paiement', 'Créer dans : modes de paiement.'],
         'payment_methods.edit' => ['Modifier — modes de paiement', 'Modifier et désactiver dans : modes de paiement.'],
