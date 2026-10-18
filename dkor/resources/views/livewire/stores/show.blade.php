@@ -21,7 +21,7 @@
     {{-- Onglets --}}
     <div x-data="{ tab: @entangle('activeTab') }">
         <div class="flex border-b border-zinc-200 dark:border-zinc-700">
-            @foreach (['identification' => __('Identification'), 'accounting' => __('Comptabilité'), 'hours' => __('Heures d\'ouverture'), 'delivery' => __('Livraison'), 'parameters' => __('Paramètres')] as $key => $label)
+            @foreach (['identification' => __('Identification'), 'accounting' => __('Comptabilité'), 'hours' => __('Heures d\'ouverture'), 'delivery' => __('Livraison'), 'shipping' => __('Expédition'), 'parameters' => __('Paramètres')] as $key => $label)
                 <button
                     type="button"
                     @click="tab = '{{ $key }}'"
@@ -270,6 +270,37 @@
                     </flux:table>
                 </div>
             </div>
+        </div>
+
+        {{-- Expédition --}}
+        <div x-show="tab === 'shipping'" x-cloak>
+            <form wire:submit="saveShippingLimits" class="mt-6 max-w-2xl space-y-4">
+                <flux:text class="text-zinc-500">
+                    {{ __('Taille d\'un article qui peut être expédié par un fournisseur d\'expédition. Un article plus grand, plus lourd ou sans dimensions est signalé à la demande d\'expédition, sans la bloquer. Laissez vide pour ne pas vérifier.') }}
+                </flux:text>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <flux:field>
+                        <flux:label>{{ __('Plus grande dimension maximale') }}</flux:label>
+                        <flux:input wire:model="shippingMaxLength" inputmode="decimal" />
+                        <flux:description>{{ __('Longueur, largeur ou hauteur, dans l\'unité des fiches produits.') }}</flux:description>
+                        <flux:error name="shippingMaxLength" />
+                    </flux:field>
+
+                    <flux:field>
+                        <flux:label>{{ __('Poids maximal') }}</flux:label>
+                        <flux:input wire:model="shippingMaxWeight" inputmode="decimal" />
+                        <flux:description>{{ __('Dans l\'unité des fiches produits.') }}</flux:description>
+                        <flux:error name="shippingMaxWeight" />
+                    </flux:field>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                    @can('stores.edit')
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                    @endcan
+                </div>
+            </form>
         </div>
 
         {{-- Paramètres --}}

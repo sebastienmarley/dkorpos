@@ -51,6 +51,18 @@ class Create extends Component
 
             if ($line) {
                 $this->quantities[$id] ??= (string) $line->quantity_outstanding;
+
+                if ($key === $lineId && ($shipment = $line->activeShipment()) !== null) {
+                    Flux::toast(
+                        heading: __('Article pour expédition'),
+                        text: __(':label est attendu pour l\'expédition de la commande #:order (:customer).', [
+                            'label' => $line->label,
+                            'order' => $shipment->customer_order_id,
+                            'customer' => $shipment->order->customer->firstname.' '.$shipment->order->customer->lastname,
+                        ]),
+                        variant: 'warning',
+                    );
+                }
             } else {
                 unset($this->selected[$id], $this->quantities[$id]);
             }

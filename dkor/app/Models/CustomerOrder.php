@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
-use App\Actions\NotifyDeliveryDrivers;
 use App\Actions\NotifyDeliveryItemsReceived;
+use App\Actions\NotifyDeliveryTeam;
+use App\Actions\NotifyShipmentReady;
 use App\Casts\MoneyCast;
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
 use App\Enums\DefectiveResolution;
+use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryStatus;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
@@ -811,13 +813,19 @@ class CustomerOrder extends Model
                 ]);
             }
 
-            DB::afterCommit(fn () => app(NotifyDeliveryDrivers::class)->handle(
+            DB::afterCommit(fn () => app(NotifyDeliveryTeam::class)->handle(
                 $delivery,
-                $isEmpty
-                    ? __('Livraison annulée : :slot', ['slot' => $delivery->slotLabel()])
-                    : __('Livraison modifiée : :slot', ['slot' => $delivery->slotLabel()]),
+                match (true) {
+                    $delivery->method === DeliveryMethod::Shipping => $isEmpty ? __('Expédition annulée') : __('Expédition modifiée'),
+                    $isEmpty => __('Livraison annulée : :slot', ['slot' => $delivery->slotLabel()]),
+                    default => __('Livraison modifiée : :slot', ['slot' => $delivery->slotLabel()]),
+                },
                 $isEmpty ? __('Plus aucun article à livrer (:changes)', ['changes' => implode(', ', $changes)]) : implode(', ', $changes),
             ));
+
+            if (! $isEmpty && $delivery->method === DeliveryMethod::Shipping) {
+                DB::afterCommit(fn () => app(NotifyShipmentReady::class)->handle($delivery->fresh()));
+            }
         }
     }
 
@@ -1083,6 +1091,101 @@ class CustomerOrder extends Model
         }
 
         return $this->amountRequiredFor($total);
+    }
+
+    /**
+     * Montant à encaisser avant de demander une expédition : les articles expédiés (et ceux des autres livraisons
+     * actives) et les frais d'expédition pas encore remis comptent à 100 %, le dépôt sur le reste, moins le payé.
+     *
+     * @param  array<int, int>  $quantities  quantité à expédier par ligne
+     */
+    public function amountRequiredForShipment(array $quantities): Money
+    {
+        foreach ($this->shippingFeeLines() as $feeLine) {
+            $quantities[$feeLine->id] = ($quantities[$feeLine->id] ?? 0) + $feeLine->quantity;
+        }
+
+        return $this->amountRequiredForDelivery($quantities);
+    }
+
+    /**
+     * Lignes de frais d'expédition (service géré par l'application) facturables et pas encore complétées.
+     *
+     * @return Collection<int, CustomerOrderLine>
+     */
+    public function shippingFeeLines(): Collection
+    {
+        return $this->lines()
+            ->whereHas('service', fn (Builder $query) => $query->where('code', Service::SHIPPING_FEE))
+            ->get()
+            ->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable() && ! $line->status->isHandedOver())
+            ->values();
+    }
+
+    /**
+     * Ajoute les frais d'expédition à la commande, au prix fixe du service.
+     *
+     * @throws DomainException si la commande en a déjà.
+     */
+    public function addShippingFee(): CustomerOrderLine
+    {
+        if ($this->shippingFeeLines()->isNotEmpty()) {
+            throw new DomainException(__('Les frais d\'expédition sont déjà sur la commande.'));
+        }
+
+        $service = Service::shippingFee();
+
+        return $this->addService($service, null, 1, $service->name);
+    }
+
+    /**
+     * Valide les quantités d'une nouvelle livraison ou expédition : au moins un article, et pas plus que ce qui reste à
+     * remettre au client (deliverableQuantities()).
+     *
+     * @param  array<int, int>  $quantities  quantité par ligne
+     * @return array<int, int> les quantités positives
+     *
+     * @throws DomainException
+     */
+    public function guardDeliverableQuantities(array $quantities): array
+    {
+        $quantities = array_filter($quantities, fn (int $quantity): bool => $quantity > 0);
+
+        if ($quantities === []) {
+            throw new DomainException(__('Choisissez au moins un article à livrer.'));
+        }
+
+        $deliverable = $this->deliverableQuantities();
+
+        foreach ($quantities as $lineId => $quantity) {
+            if ($quantity > ($deliverable[$lineId] ?? 0)) {
+                throw new DomainException(__('La quantité à livrer dépasse ce qui reste à remettre au client.'));
+            }
+        }
+
+        return $quantities;
+    }
+
+    /**
+     * Adresse de la fiche du client, vérifiée avec lui maintenant par l'usager courant, à copier sur une livraison.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws DomainException si l'adresse est incomplète.
+     */
+    public function verifiedDeliveryAddress(): array
+    {
+        $customer = $this->customer()->firstOrFail();
+
+        if (! $customer->hasCompleteAddress()) {
+            throw new DomainException(__('L\'adresse du client est incomplète : corrigez sa fiche avant de planifier la livraison.'));
+        }
+
+        return [
+            ...$customer->only(CustomerOrderDelivery::ADDRESS_FIELDS),
+            'address_verified_by' => auth()->id(),
+            'address_verified_at' => now(),
+        ];
     }
 
     /**

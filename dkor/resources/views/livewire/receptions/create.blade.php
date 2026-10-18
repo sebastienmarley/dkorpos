@@ -58,6 +58,9 @@
                                             @if ($line->status === \App\Enums\SupplierOrderLineStatus::CancellationRequested)
                                                 <flux:badge :color="$line->status->color()" size="sm" class="ms-2">{{ $line->status->label() }}</flux:badge>
                                             @endif
+                                            @if ($shipment = $line->activeShipment())
+                                                <flux:badge color="amber" size="sm" icon="paper-airplane" class="ms-2">{{ __('Pour expédition — commande #:order', ['order' => $shipment->customer_order_id]) }}</flux:badge>
+                                            @endif
                                         </flux:table.cell>
                                         <flux:table.cell align="end">{{ $line->quantity_outstanding }} / {{ $line->quantity }}</flux:table.cell>
                                         <flux:table.cell align="end">

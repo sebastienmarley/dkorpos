@@ -71,6 +71,11 @@ class Show extends Component
 
     public bool $isActive = true;
 
+    // Expédition
+    public string $shippingMaxLength = '';
+
+    public string $shippingMaxWeight = '';
+
     // Livraison
     public bool $showTruckModal = false;
 
@@ -205,6 +210,30 @@ class Show extends Component
         Flux::toast(text: __('Paramètres sauvegardés.'), variant: 'success');
     }
 
+    /**
+     * Limites d'un article expédiable : au-delà, la demande d'expédition l'indique (sans la bloquer). Vide : aucune
+     * limite.
+     */
+    public function saveShippingLimits(): void
+    {
+        $this->authorize('stores.edit');
+
+        $this->shippingMaxLength = str_replace(',', '.', $this->shippingMaxLength);
+        $this->shippingMaxWeight = str_replace(',', '.', $this->shippingMaxWeight);
+
+        $this->validate([
+            'shippingMaxLength' => ['nullable', 'numeric', 'gt:0', 'max:999999'],
+            'shippingMaxWeight' => ['nullable', 'numeric', 'gt:0', 'max:999999'],
+        ]);
+
+        $this->store->fill([
+            'shipping_max_length' => filled($this->shippingMaxLength) ? round((float) $this->shippingMaxLength, 2) : null,
+            'shipping_max_weight' => filled($this->shippingMaxWeight) ? round((float) $this->shippingMaxWeight, 2) : null,
+        ])->save();
+
+        Flux::toast(text: __('Limites d\'expédition sauvegardées.'), variant: 'success');
+    }
+
     public function openTruckModal(?int $truckId = null): void
     {
         $this->authorize('stores.edit');
@@ -335,6 +364,8 @@ class Show extends Component
         $this->warehouseStoreId = (string) ($this->store->warehouse_store_id ?? '');
         $this->shippingWarehouseId = (string) ($this->store->shipping_warehouse_id ?? '');
         $this->isActive = $this->store->is_active;
+        $this->shippingMaxLength = $this->store->shipping_max_length === null ? '' : rtrim(rtrim(number_format($this->store->shipping_max_length, 2, '.', ''), '0'), '.');
+        $this->shippingMaxWeight = $this->store->shipping_max_weight === null ? '' : rtrim(rtrim(number_format($this->store->shipping_max_weight, 2, '.', ''), '0'), '.');
     }
 
     public function render(): View

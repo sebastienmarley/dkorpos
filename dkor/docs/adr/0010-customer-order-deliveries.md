@@ -1,8 +1,8 @@
-# ADR 0010 — Livraisons des commandes clients : une notion commune, planifiée par demi-journée
+# ADR 0010 — Livraisons des commandes clients : une notion commune, par camion ou par expédition
 
 - **Statut :** Accepté
 - **Date :** 2026-10-18
-- **Issue liée :** #12 (lien avec #86)
+- **Issues liées :** #12 (livraison), #86 (expédition)
 
 ## Contexte
 
@@ -54,7 +54,7 @@ l'adresse confirmée (copiée), le paiement à la livraison et l'historique (rep
 
 Nous retenons l'**option C**.
 
-**Commun aux deux méthodes (réutilisable par la #86) :**
+**Commun aux deux méthodes :**
 
 - `CustomerOrderDelivery` et `CustomerOrderDeliveryLine`, avec les enums `DeliveryMethod` et `DeliveryStatus`
   (planifiée, en route, livrée, annulée). Une livraison **active** est planifiée ou en route.
@@ -69,6 +69,12 @@ Nous retenons l'**option C**.
   articles de toutes les livraisons actives. S'il reste un montant à payer, on demande de régler la facture.
   Seule la permission `customer_orders.deliver_unpaid` (Directeur) peut choisir le paiement à la livraison
   (`pay_on_delivery`, `pay_on_delivery_authorized_by`).
+- **La validation et l'adresse sont partagées** : `CustomerOrder::guardDeliverableQuantities()` et
+  `verifiedDeliveryAddress()` servent aux deux Actions (`ScheduleDelivery`, `RequestShipment`). Le composant
+  `CustomerOrders/Deliveries` mène les deux parcours (adresse → articles → solde), puis la demi-journée ou la
+  confirmation de l'expédition.
+- **Les avis vont à l'équipe de la méthode** (`NotifyDeliveryTeam`) : les livreurs du magasin pour nos camions, les
+  usagers qui ont `shipments.manage` pour une expédition.
 - **La ligne n'est séparée qu'à sa remise au client**, comme pour un ramassage. Planifier une livraison ne change
   ni le statut des lignes, ni celui de la commande, ni l'inventaire.
 - **Une livraison active ne prévoit jamais plus que ce qui reste à remettre au client.** Chaque changement d'une
@@ -83,8 +89,9 @@ Nous retenons l'**option C**.
   - un article **endommagé ou manquant** à la réception est recommandé sur une nouvelle ligne, du même produit. La
     quantité prévue y est reportée, dans la même livraison ;
   - une livraison qui n'a plus d'articles est annulée (« Plus aucun article à livrer ») et sa place se libère ;
-  - les livreurs sont avisés après la transaction : « Livraison modifiée » avec le détail, ou « Livraison
-    annulée ». Le paiement à la livraison déjà autorisé ne change pas.
+  - l'équipe est avisée après la transaction : « Livraison modifiée » avec le détail, ou « Livraison
+    annulée » (« Expédition modifiée » ou « Expédition annulée »). Le paiement à la livraison déjà autorisé ne
+    change pas. Une expédition réduite dont tout le reste est en main devient « à faire ».
 
 **Propre à la livraison (#12) :**
 
@@ -107,12 +114,38 @@ Nous retenons l'**option C**.
   reportée ou annulée. Ils sont aussi avisés quand un article à livrer est reçu avant la date planifiée
   (`NotifyDeliveryItemsReceived`, appelée par `applySupplierReceipt()`).
 
+**Propre à l'expédition (#86) :**
+
+- Une expédition est une livraison `method = shipping`, sans date ni demi-journée. Son statut planifié s'affiche
+  « À expédier » (`DeliveryStatus::labelFor()`). Le transporteur, l'envoi et la fermeture se font plus tard dans le
+  menu d'expédition : les coûts varient d'un transporteur à l'autre, et c'est le commis d'entrepôt qui compare
+  les soumissions.
+- **Un article expédié doit être payé à 100 %** : il n'y a pas de paiement à la livraison, puisque personne ne peut
+  encaisser chez le client. `amountRequiredForShipment()` applique la règle du ramassage aux articles expédiés et
+  aux frais d'expédition, qui comptent donc à 100 %, avec le dépôt sur le reste.
+- **Frais d'expédition** : un service interne à prix fixe, géré par l'application (`services.code` =
+  `shipping_fee`). `ReferenceDataSeeder` le crée, et il ne peut ni passer externe ni être archivé (`isSystem()`).
+  Son prix se règle dans la page Services. Le modal propose de l'ajouter à la commande avant de calculer le
+  paiement exigé.
+- **Dimensions** : l'onglet **Expédition** de la fiche du magasin fixe la plus grande dimension et le poids maximum
+  d'un article expédiable (`stores.shipping_max_length`, `shipping_max_weight`, dans l'unité des fiches produits).
+  Un article plus grand, plus lourd ou sans dimensions est signalé (`Product::shippingWarningFor()`), sans bloquer
+  la demande.
+- **À la réception**, une ligne fournisseur attendue pour une expédition l'indique : un avis au moment de la cocher
+  dans la nouvelle réception, et un badge dans la réception (`SupplierOrderLine::activeShipment()`).
+- **Un seul avis « Nouvelle expédition à faire »**, quand tous les articles sont en main (`ready_at`,
+  `NotifyShipmentReady`) : dès la demande si tout est en stock, sinon à la réception du dernier article commandé.
+  Il va aux commis d'entrepôt et aux directeurs (`shipments.manage`) et mène à la liste des expéditions de la page
+  Livraisons. Un commis peut expédier ce qui est déjà en stock sans attendre l'avis.
+- Une même commande peut être livrée, expédiée et ramassée pour des articles différents : les quantités sont
+  réservées quelle que soit la méthode.
+
 ## Conséquences
 
 **Positives**
 
-- La #86 réutilise la vérification d'adresse, les articles, la règle de paiement et les statuts. Elle n'ajoute
-  que sa méthode et ses colonnes d'expédition.
+- La #86 réutilise la vérification d'adresse, les articles, la règle de paiement, les statuts et la
+  synchronisation des lignes. Elle n'ajoute que sa propre exigence de paiement, les frais et l'avis à l'entrepôt.
 - Une livraison peut être planifiée avant la réception des articles, ce que le papier permettait déjà.
 
 **Négatives / limitations**
@@ -120,6 +153,9 @@ Nous retenons l'**option C**.
 - La remise au client à la livraison (passage à « Livré », sortie d'inventaire) reste à faire avec le menu du
   livreur, hors périmètre de la #12.
 - La capacité compte des livraisons, sans tenir compte de leur durée, de leur distance ni du volume des articles.
+- Les frais d'expédition sont ajoutés à la commande dès l'étape des articles, pour pouvoir les encaisser. Si
+  l'employé abandonne la demande, ils restent sur la commande jusqu'à ce qu'il les retire.
+- Les limites de dimensions n'ont pas d'unité propre : elles suivent celle des fiches produits.
 
 **Protections mises en place**
 
@@ -128,17 +164,23 @@ Nous retenons l'**option C**.
 - Une demi-journée complète ou commencée est refusée. La ligne du magasin est verrouillée pendant la planification.
 - Seule une livraison planifiée (pas en route) peut être annulée ou reportée. Si la nouvelle demi-journée est
   refusée, le report est annulé en entier et la livraison d'origine reste planifiée.
-- `customer_orders.edit` pour planifier, reporter ou annuler, `customer_orders.deliver_unpaid` pour le paiement à
-  la livraison, `stores.edit` pour les camions.
+- Une expédition ne se reporte pas, et le paiement à la livraison y est refusé, même pour un directeur.
+- L'avis « Nouvelle expédition à faire » ne part qu'une fois (`ready_at`).
+- `customer_orders.edit` pour planifier, reporter, demander une expédition ou annuler,
+  `customer_orders.deliver_unpaid` pour le paiement à la livraison, `stores.edit` pour les camions et les limites
+  d'expédition, `shipments.manage` pour les avis d'expédition.
 
 ## Questions ouvertes
 
-- Remettre les articles au client depuis le menu du livreur : une méthode commune avec `pickUp()`, qui
-  séparerait les lignes et encaisserait le paiement à la livraison.
+- Remettre les articles au client depuis le menu du livreur, ou les expédier depuis le menu d'expédition : une
+  méthode commune avec `pickUp()`, qui séparerait les lignes, compléterait les frais d'expédition et encaisserait
+  le paiement à la livraison.
 
 ## Références
 
 - `database/migrations/2026_10_18_125336_create_delivery_trucks_table.php`
 - `database/migrations/2026_10_18_125337_create_customer_order_deliveries_table.php`
+- `database/migrations/2026_10_18_133416_add_shipping_to_customer_order_deliveries.php`
+- `app/Actions/RequestShipment.php`, `app/Actions/NotifyShipmentReady.php`, `app/Actions/NotifyDeliveryTeam.php`
 - `app/Actions/ScheduleDelivery.php`, `app/Actions/CancelDelivery.php`, `app/Support/DeliveryBooking.php`
 - `app/Livewire/CustomerOrders/Deliveries.php`, `app/Livewire/Deliveries/Index.php`

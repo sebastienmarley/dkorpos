@@ -342,6 +342,8 @@ CREATE TABLE "stores"(
   "cancellation_fee_percent" numeric not null default '0',
   "province" varchar not null default 'QC',
   "custom_deposit_percent" numeric not null default '50',
+  "shipping_max_length" numeric,
+  "shipping_max_weight" numeric,
   foreign key("warehouse_store_id") references stores("id") on delete set null on update no action,
   foreign key("shipping_warehouse_id") references "stores"("id") on delete set null
 );
@@ -549,6 +551,8 @@ CREATE TABLE "services"(
   "is_active" tinyint(1) not null default('1'),
   "created_at" datetime,
   "updated_at" datetime
+  ,
+  "code" varchar
 );
 CREATE UNIQUE INDEX "services_name_unique" on "services"("name");
 CREATE TABLE "service_supplier"(
@@ -1035,6 +1039,7 @@ CREATE TABLE "customer_order_deliveries"(
   "cancellation_reason" varchar,
   "created_at" datetime,
   "updated_at" datetime,
+  "ready_at" datetime,
   foreign key("customer_order_id") references "customer_orders"("id") on delete cascade,
   foreign key("store_id") references "stores"("id") on delete set null,
   foreign key("rescheduled_from_id") references "customer_order_deliveries"("id") on delete set null,
@@ -1062,6 +1067,7 @@ CREATE UNIQUE INDEX "delivery_line_unique" on "customer_order_delivery_lines"(
   "customer_order_delivery_id",
   "customer_order_line_id"
 );
+CREATE UNIQUE INDEX "services_code_unique" on "services"("code");
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1222,3 +1228,4 @@ INSERT INTO migrations VALUES(158,'2026_10_18_013558_add_displayed_price_to_prod
 INSERT INTO migrations VALUES(159,'2026_10_18_020022_create_notifications_table',17);
 INSERT INTO migrations VALUES(160,'2026_10_18_125336_create_delivery_trucks_table',18);
 INSERT INTO migrations VALUES(161,'2026_10_18_125337_create_customer_order_deliveries_table',18);
+INSERT INTO migrations VALUES(162,'2026_10_18_133416_add_shipping_to_customer_order_deliveries',19);

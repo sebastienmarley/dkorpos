@@ -2,18 +2,19 @@
 
 namespace App\Actions;
 
+use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryStatus;
 use App\Models\CustomerOrderDelivery;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Annule une livraison planifiée : ses articles redeviennent disponibles (ramassage ou autre livraison) et sa place
- * dans la demi-journée se libère. Les livreurs sont avisés.
+ * Annule une livraison planifiée ou une expédition à faire : ses articles redeviennent disponibles (ramassage ou autre
+ * livraison) et sa place dans la demi-journée se libère. Les livreurs (ou les responsables des expéditions) sont avisés.
  */
 class CancelDelivery
 {
-    public function __construct(private NotifyDeliveryDrivers $notifyDrivers) {}
+    public function __construct(private NotifyDeliveryTeam $notifyTeam) {}
 
     /**
      * @throws DomainException si la livraison n'est plus planifiée (en route, livrée ou déjà annulée).
@@ -35,6 +36,10 @@ class CancelDelivery
             ]);
         });
 
-        $this->notifyDrivers->handle($delivery, __('Livraison annulée : :slot', ['slot' => $delivery->slotLabel()]), $reason);
+        $title = $delivery->method === DeliveryMethod::Shipping
+            ? __('Expédition annulée')
+            : __('Livraison annulée : :slot', ['slot' => $delivery->slotLabel()]);
+
+        $this->notifyTeam->handle($delivery, $title, $reason);
     }
 }

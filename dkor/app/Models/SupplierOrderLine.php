@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\Casts\MoneyCast;
+use App\Enums\DeliveryMethod;
 use App\Enums\SupplierOrderLineStatus;
 use App\Support\Money;
 use Database\Factories\SupplierOrderLineFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -101,6 +103,19 @@ class SupplierOrderLine extends Model
     public function customerOrderLine(): HasOne
     {
         return $this->hasOne(CustomerOrderLine::class);
+    }
+
+    /**
+     * Expédition active (issue #86) qui attend l'article de cette ligne pour un client, s'il y a lieu.
+     */
+    public function activeShipment(): ?CustomerOrderDelivery
+    {
+        return CustomerOrderDelivery::query()
+            ->active()
+            ->where('method', DeliveryMethod::Shipping)
+            ->whereHas('lines.line', fn (Builder $query) => $query->where('supplier_order_line_id', $this->id))
+            ->with('order.customer')
+            ->first();
     }
 
     public function getTotalAttribute(): Money

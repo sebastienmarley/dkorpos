@@ -3,7 +3,9 @@
 namespace App\Livewire\CustomerOrders;
 
 use App\Actions\CancelDelivery;
+use App\Actions\RequestShipment;
 use App\Actions\ScheduleDelivery;
+use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryPeriod;
 use App\Enums\DeliveryStatus;
 use App\Models\customer;
@@ -22,8 +24,9 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
- * Livraisons d'une commande client : planifier (adresse vérifiée, articles, paiement, demi-journée), reporter et
- * annuler. Intégré à la page de la commande.
+ * Livraisons et expéditions d'une commande client. Les deux méthodes partagent la vérification de l'adresse, le choix
+ * des articles et l'exigence de paiement; une livraison se planifie ensuite à une demi-journée (reporter, annuler),
+ * une expédition se demande (frais d'expédition proposés, payée à 100 %). Intégré à la page de la commande.
  */
 class Deliveries extends Component
 {
@@ -34,7 +37,13 @@ class Deliveries extends Component
 
     public bool $showModal = false;
 
-    /** Étape du modal : address, items, payment ou slot. */
+    /** Méthode en cours (valeur de DeliveryMethod) : livraison par nos camions ou expédition. */
+    public string $method = 'internal';
+
+    /** Ajouter les frais d'expédition à la commande avant de calculer le paiement exigé. */
+    public bool $addShippingFee = true;
+
+    /** Étape du modal : address, items, payment, slot (livraison) ou confirm (expédition). */
     public string $step = 'address';
 
     /** La fiche du client est ouverte pour corriger son adresse : la vérification reprend à sa sauvegarde. */
@@ -65,12 +74,14 @@ class Deliveries extends Component
     }
 
     #[On('open-delivery-modal')]
-    public function open(): void
+    public function open(string $method = 'internal'): void
     {
         $this->authorize('customer_orders.edit');
 
         $this->reset(['reschedulingId', 'quantities', 'requiredCents', 'payOnDelivery', 'date', 'period', 'notes', 'isEditingAddress']);
         $this->resetErrorBag();
+        $this->method = (DeliveryMethod::tryFrom($method) ?? DeliveryMethod::Internal)->value;
+        $this->addShippingFee = $this->order->shippingFeeLines()->isEmpty();
         $this->available = $this->order->deliverableQuantities();
 
         if ($this->available === []) {
@@ -150,10 +161,79 @@ class Deliveries extends Component
             return;
         }
 
-        $required = $this->order->amountRequiredForDelivery(array_filter($quantities));
+        if ($this->isShipping() && $this->addShippingFee && $this->order->shippingFeeLines()->isEmpty()) {
+            try {
+                $this->order->addShippingFee();
+            } catch (DomainException $exception) {
+                $this->addError('addShippingFee', $exception->getMessage());
+
+                return;
+            }
+
+            $this->addShippingFee = false;
+            $this->dispatch('order-lines-changed');
+        }
+
+        $required = $this->isShipping()
+            ? $this->order->amountRequiredForShipment(array_filter($quantities))
+            : $this->order->amountRequiredForDelivery(array_filter($quantities));
         $this->requiredCents = $required->cents();
         $this->payOnDelivery = false;
-        $this->step = $required->isPositive() ? 'payment' : 'slot';
+        $this->step = match (true) {
+            $required->isPositive() => 'payment',
+            $this->isShipping() => 'confirm',
+            default => 'slot',
+        };
+    }
+
+    public function isShipping(): bool
+    {
+        return $this->method === DeliveryMethod::Shipping->value;
+    }
+
+    /**
+     * Avertissements des articles qui dépassent les limites d'expédition du magasin, par ligne.
+     *
+     * @return array<int, string>
+     */
+    public function getShippingWarnings(): array
+    {
+        $store = $this->order->store;
+
+        if (! $this->isShipping() || $store === null) {
+            return [];
+        }
+
+        return $this->getDeliverableLines()
+            ->mapWithKeys(fn (CustomerOrderLine $line): array => [$line->id => $line->product?->shippingWarningFor($store)])
+            ->filter()
+            ->all();
+    }
+
+    /** Demande l'expédition des articles choisis, une fois le paiement exigé encaissé. */
+    public function requestShipment(RequestShipment $requestShipment): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $this->validate(['notes' => ['nullable', 'string', 'max:1000']]);
+
+        try {
+            $shipment = $requestShipment->handle($this->order, array_filter($this->quantitiesAsIntegers()), $this->notes);
+        } catch (DomainException $exception) {
+            $this->addError('shipment', $exception->getMessage());
+
+            return;
+        }
+
+        $this->showModal = false;
+        $this->dispatch('deliveries-updated');
+
+        Flux::toast(
+            text: $shipment->ready_at === null
+                ? __('Expédition demandée : elle sera à faire dès que tous les articles seront reçus.')
+                : __('Expédition demandée : l\'entrepôt est avisé.'),
+            variant: 'success',
+        );
     }
 
     /** Le client règle la facture : le modal de ramassage permet d'encaisser le paiement. */
@@ -169,6 +249,12 @@ class Deliveries extends Component
     public function choosePayOnDelivery(): void
     {
         $this->authorize('customer_orders.deliver_unpaid');
+
+        if ($this->isShipping()) {
+            $this->addError('payment', __('Une expédition doit être payée à 100 % : personne ne peut encaisser chez le client.'));
+
+            return;
+        }
 
         $this->payOnDelivery = true;
         $this->step = 'slot';
@@ -236,7 +322,7 @@ class Deliveries extends Component
 
         $delivery = $this->order->deliveries()->findOrFail($deliveryId);
 
-        if ($delivery->status !== DeliveryStatus::Scheduled) {
+        if ($delivery->status !== DeliveryStatus::Scheduled || $delivery->method !== DeliveryMethod::Internal) {
             Flux::toast(text: __('Seule une livraison planifiée peut être reportée.'), variant: 'danger');
 
             return;
@@ -244,6 +330,7 @@ class Deliveries extends Component
 
         $this->reset(['quantities', 'requiredCents', 'payOnDelivery', 'date', 'period', 'notes', 'isEditingAddress']);
         $this->resetErrorBag();
+        $this->method = DeliveryMethod::Internal->value;
         $this->reschedulingId = $delivery->id;
         $this->step = 'slot';
         $this->showModal = true;
@@ -329,6 +416,7 @@ class Deliveries extends Component
             'customer' => $this->customer(),
             'deliveries' => $this->getDeliveries(),
             'rescheduling' => $this->reschedulingId === null ? null : $this->order->deliveries()->find($this->reschedulingId),
+            'shippingWarnings' => $this->step === 'items' ? $this->getShippingWarnings() : [],
         ]);
     }
 }

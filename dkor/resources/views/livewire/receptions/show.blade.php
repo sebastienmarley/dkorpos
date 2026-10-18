@@ -74,6 +74,9 @@
                         </flux:table.cell>
                         <flux:table.cell variant="strong">
                             {{ $line->orderLine->label }}
+                            @if ($shipment = $line->orderLine->activeShipment())
+                                <flux:badge color="amber" size="sm" icon="paper-airplane" class="ms-1">{{ __('Pour expédition — commande #:order', ['order' => $shipment->customer_order_id]) }}</flux:badge>
+                            @endif
                             @if ($line->orderLine->is_overship)
                                 <flux:badge color="purple" size="sm" class="ms-1">{{ __('Reçu en trop') }}</flux:badge>
                             @endif

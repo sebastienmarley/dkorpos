@@ -40,6 +40,7 @@ use Illuminate\Support\Carbon;
  * @property bool $pay_on_delivery Le solde exigé sera perçu à la livraison (autorisé par un directeur).
  * @property int|null $pay_on_delivery_authorized_by
  * @property string|null $notes
+ * @property Carbon|null $ready_at Moment où tous les articles sont en main (avis de nouvelle expédition envoyé).
  * @property int|null $requested_by
  * @property Carbon|null $cancelled_at
  * @property int|null $cancelled_by
@@ -56,7 +57,7 @@ use Illuminate\Support\Carbon;
     'customer_order_id', 'store_id', 'rescheduled_from_id', 'method', 'status', 'scheduled_date', 'period',
     'address_civic', 'address_apartment', 'address_street', 'address_city', 'address_province', 'address_country',
     'address_postal_code', 'address_verified_by', 'address_verified_at', 'pay_on_delivery',
-    'pay_on_delivery_authorized_by', 'notes', 'requested_by', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
+    'pay_on_delivery_authorized_by', 'notes', 'ready_at', 'requested_by', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
 ])]
 class CustomerOrderDelivery extends Model
 {
@@ -81,6 +82,7 @@ class CustomerOrderDelivery extends Model
         'address_verified_at' => 'datetime',
         'pay_on_delivery' => 'boolean',
         'cancelled_at' => 'datetime',
+        'ready_at' => 'datetime',
     ];
 
     /** @return BelongsTo<CustomerOrder, $this> */
@@ -131,6 +133,26 @@ class CustomerOrderDelivery extends Model
         $civic = $this->address_apartment ? $this->address_civic.'-'.$this->address_apartment : $this->address_civic;
 
         return trim($civic.' '.$this->address_street).', '.$this->address_city.' '.$this->address_province.' '.$this->address_postal_code;
+    }
+
+    /** Tous les articles prévus sont en main : la quantité réservée au client couvre chaque ligne. */
+    public function hasAllItemsInHand(): bool
+    {
+        return $this->lines()->with('line')->get()->every(
+            fn (CustomerOrderDeliveryLine $deliveryLine): bool => $deliveryLine->line->status->isPickable() && $deliveryLine->line->quantity_reserved >= $deliveryLine->quantity,
+        );
+    }
+
+    /** Statut affiché selon la méthode : une expédition planifiée est « À expédier ». */
+    public function statusLabel(): string
+    {
+        return $this->status->labelFor($this->method);
+    }
+
+    /** Titre de la livraison : sa date et sa demi-journée, ou « Expédition ». */
+    public function title(): string
+    {
+        return $this->method === DeliveryMethod::Shipping ? $this->method->label() : $this->slotLabel();
     }
 
     /** Date et demi-journée planifiées (ex. : mar 21 oct 2026 AM). */

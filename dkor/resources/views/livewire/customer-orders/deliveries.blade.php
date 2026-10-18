@@ -12,8 +12,15 @@
                         <div class="min-w-0 space-y-1">
                             <div class="flex flex-wrap items-center gap-2">
                                 <flux:icon.truck class="h-4 w-4 text-zinc-400" />
-                                <span class="font-medium text-zinc-900 dark:text-white">{{ $delivery->slotLabel() }}</span>
-                                <flux:badge size="sm" :color="$delivery->status->color()">{{ $delivery->status->label() }}</flux:badge>
+                                <span class="font-medium text-zinc-900 dark:text-white">{{ $delivery->title() }}</span>
+                                <flux:badge size="sm" :color="$delivery->status->color()">{{ $delivery->statusLabel() }}</flux:badge>
+                                @if ($delivery->method === \App\Enums\DeliveryMethod::Shipping && $delivery->status->isActive())
+                                    @if ($delivery->ready_at)
+                                        <flux:badge size="sm" color="green" icon="check">{{ __('Tous les articles en main') }}</flux:badge>
+                                    @else
+                                        <flux:badge size="sm" color="zinc" icon="clock">{{ __('En attente des articles') }}</flux:badge>
+                                    @endif
+                                @endif
                                 @if ($delivery->pay_on_delivery)
                                     <flux:badge size="sm" color="amber" icon="banknotes">{{ __('Paiement à la livraison') }}</flux:badge>
                                 @endif
@@ -33,13 +40,15 @@
                         @can('customer_orders.edit')
                             @if ($delivery->status === \App\Enums\DeliveryStatus::Scheduled)
                                 <div class="flex gap-2">
-                                    <flux:button size="sm" icon="calendar" wire:click="openReschedule({{ $delivery->id }})">{{ __('Reporter') }}</flux:button>
+                                    @if ($delivery->method === \App\Enums\DeliveryMethod::Internal)
+                                        <flux:button size="sm" icon="calendar" wire:click="openReschedule({{ $delivery->id }})">{{ __('Reporter') }}</flux:button>
+                                    @endif
                                     <flux:button
                                         size="sm"
                                         variant="danger"
                                         icon="x-mark"
                                         wire:click="cancelDelivery({{ $delivery->id }})"
-                                        wire:confirm="{{ __('Annuler la livraison du :slot ? Les livreurs seront avisés.', ['slot' => $delivery->slotLabel()]) }}"
+                                        wire:confirm="{{ $delivery->method === \App\Enums\DeliveryMethod::Shipping ? __('Annuler l\'expédition ? L\'entrepôt sera avisé.') : __('Annuler la livraison du :slot ? Les livreurs seront avisés.', ['slot' => $delivery->slotLabel()]) }}"
                                     >
                                         {{ __('Annuler') }}
                                     </flux:button>
@@ -54,7 +63,7 @@
 
     @can('customer_orders.edit')
         <flux:modal wire:model="showModal" class="w-full max-w-2xl">
-            <flux:heading class="mb-1">{{ $rescheduling ? __('Reporter la livraison') : __('Livraison') }}</flux:heading>
+            <flux:heading class="mb-1">{{ match (true) { (bool) $rescheduling => __('Reporter la livraison'), $this->isShipping() => __('Expédition'), default => __('Livraison') } }}</flux:heading>
 
             @if ($step === 'address')
                 <flux:text class="text-zinc-500">{{ __('Vérifiez l\'adresse de livraison avec le client.') }}</flux:text>
@@ -109,6 +118,11 @@
                                         · <span class="text-amber-600 dark:text-amber-400">{{ __(':count encore en commande', ['count' => $line->quantity_on_order]) }}</span>
                                     @endif
                                 </div>
+                                @if ($warning = ($shippingWarnings[$line->id] ?? null))
+                                    <div class="mt-1 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                                        <flux:icon.exclamation-triangle class="h-3.5 w-3.5" /> {{ $warning }}
+                                    </div>
+                                @endif
                             </div>
                             <div class="w-24">
                                 <flux:input wire:model="quantities.{{ $line->id }}" type="number" min="0" :max="$available[$line->id] ?? 0" size="sm" />
@@ -119,6 +133,18 @@
 
                     <flux:error name="quantities" />
 
+                    @if ($this->isShipping())
+                        @if ($order->shippingFeeLines()->isEmpty())
+                            <flux:field>
+                                <flux:checkbox wire:model="addShippingFee" :label="__('Ajouter les frais d\'expédition (:price)', ['price' => \App\Models\Service::shippingFee()->selling_price?->format() ?? '0,00 $'])" />
+                                <flux:description>{{ __('Ajoutés à la commande en continuant; ils doivent être payés avec les articles expédiés.') }}</flux:description>
+                                <flux:error name="addShippingFee" />
+                            </flux:field>
+                        @else
+                            <flux:text class="text-sm text-zinc-500">{{ __('Les frais d\'expédition sont déjà sur la commande.') }}</flux:text>
+                        @endif
+                    @endif
+
                     <div class="flex justify-end gap-3 pt-2">
                         <flux:button type="button" variant="ghost" icon="arrow-left" wire:click="$set('step', 'address')">{{ __('Retour') }}</flux:button>
                         <flux:button type="submit" variant="primary">{{ __('Continuer') }}</flux:button>
@@ -126,19 +152,58 @@
                 </form>
             @elseif ($step === 'payment')
                 <flux:callout icon="banknotes" color="amber" class="mt-4">
-                    <flux:callout.heading>{{ __('Réglez la facture avant la livraison') }}</flux:callout.heading>
-                    <flux:callout.text>
-                        {{ __('Les articles livrés doivent être payés à 100 % et le dépôt couvert sur le reste : :amount $ à payer.', ['amount' => $this->requiredAmount()->toDecimal()]) }}
-                    </flux:callout.text>
+                    @if ($this->isShipping())
+                        <flux:callout.heading>{{ __('Réglez la facture avant l\'expédition') }}</flux:callout.heading>
+                        <flux:callout.text>
+                            {{ __('Un article expédié doit être payé à 100 %, comme les frais d\'expédition, et le dépôt couvert sur le reste : :amount $ à payer.', ['amount' => $this->requiredAmount()->toDecimal()]) }}
+                        </flux:callout.text>
+                    @else
+                        <flux:callout.heading>{{ __('Réglez la facture avant la livraison') }}</flux:callout.heading>
+                        <flux:callout.text>
+                            {{ __('Les articles livrés doivent être payés à 100 % et le dépôt couvert sur le reste : :amount $ à payer.', ['amount' => $this->requiredAmount()->toDecimal()]) }}
+                        </flux:callout.text>
+                    @endif
                 </flux:callout>
+
+                <flux:error name="payment" />
 
                 <div class="mt-6 flex flex-wrap justify-end gap-3">
                     <flux:button type="button" variant="ghost" icon="arrow-left" wire:click="backToItems">{{ __('Retour') }}</flux:button>
-                    @can('customer_orders.deliver_unpaid')
-                        <flux:button type="button" icon="truck" wire:click="choosePayOnDelivery">{{ __('Paiement à la livraison') }}</flux:button>
-                    @endcan
+                    @if (! $this->isShipping())
+                        @can('customer_orders.deliver_unpaid')
+                            <flux:button type="button" icon="truck" wire:click="choosePayOnDelivery">{{ __('Paiement à la livraison') }}</flux:button>
+                        @endcan
+                    @endif
                     <flux:button type="button" variant="primary" icon="banknotes" wire:click="settleInvoice">{{ __('Encaisser un paiement') }}</flux:button>
                 </div>
+            @elseif ($step === 'confirm')
+                <flux:text class="text-zinc-500">{{ __('L\'expédition sera à faire dès que tous les articles seront en main. Le transporteur se choisit dans le menu d\'expédition.') }}</flux:text>
+
+                <form wire:submit="requestShipment" class="mt-6 space-y-4">
+                    <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800">
+                        <div class="font-medium text-zinc-900 dark:text-white">{{ $customer->firstname }} {{ $customer->lastname }}</div>
+                        <div class="text-zinc-600 dark:text-zinc-300">
+                            {{ trim(($customer->address_civic ?? '').($customer->address_apartment ? '-'.$customer->address_apartment : '').' '.($customer->address_street ?? '')) }},
+                            {{ trim(($customer->address_city ?? '').' '.($customer->address_province ?? '').' '.($customer->address_postal_code ?? '')) }}
+                        </div>
+                        <div class="mt-2 text-zinc-500">
+                            {{ $this->getDeliverableLines()->filter(fn ($line) => (int) ($quantities[$line->id] ?? 0) > 0)->map(fn ($line) => (int) $quantities[$line->id].' × '.$line->label)->join(', ') }}
+                        </div>
+                    </div>
+
+                    <flux:field>
+                        <flux:label>{{ __('Note pour l\'entrepôt') }}</flux:label>
+                        <flux:textarea wire:model="notes" rows="2" :placeholder="__('Emballage fragile, assurance…')" />
+                        <flux:error name="notes" />
+                    </flux:field>
+
+                    <flux:error name="shipment" />
+
+                    <div class="flex justify-end gap-3 pt-2">
+                        <flux:button type="button" variant="ghost" icon="arrow-left" wire:click="backToItems">{{ __('Retour') }}</flux:button>
+                        <flux:button type="submit" variant="primary" icon="paper-airplane">{{ __('Demander l\'expédition') }}</flux:button>
+                    </div>
+                </form>
             @else
                 @if ($rescheduling)
                     <flux:text class="text-zinc-500">

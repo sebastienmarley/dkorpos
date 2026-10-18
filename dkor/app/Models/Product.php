@@ -96,6 +96,31 @@ class Product extends Model
         });
     }
 
+    /**
+     * Avertissement si ce produit dépasse les limites d'expédition du magasin (plus grande dimension, poids) ou si ses
+     * dimensions sont inconnues; null s'il peut être expédié ou si le magasin n'a pas de limites.
+     */
+    public function shippingWarningFor(Store $store): ?string
+    {
+        $dimensions = array_filter([$this->length, $this->width, $this->height], fn (?float $value): bool => $value !== null && $value > 0);
+        $checksLength = $store->shipping_max_length !== null;
+        $checksWeight = $store->shipping_max_weight !== null;
+
+        if (($checksLength && $dimensions === []) || ($checksWeight && ! $this->weight)) {
+            return __('Dimensions inconnues : vérifiez que l\'article peut être expédié.');
+        }
+
+        if ($checksLength && max($dimensions) > $store->shipping_max_length) {
+            return __('Trop grand pour l\'expédition (:size, maximum :max).', ['size' => max($dimensions), 'max' => $store->shipping_max_length]);
+        }
+
+        if ($checksWeight && $this->weight > $store->shipping_max_weight) {
+            return __('Trop lourd pour l\'expédition (:weight, maximum :max).', ['weight' => $this->weight, 'max' => $store->shipping_max_weight]);
+        }
+
+        return null;
+    }
+
     public function isInPriceList(): bool
     {
         return PriceListItem::query()

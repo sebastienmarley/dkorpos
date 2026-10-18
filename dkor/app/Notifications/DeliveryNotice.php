@@ -2,11 +2,13 @@
 
 namespace App\Notifications;
 
+use App\Enums\DeliveryMethod;
 use App\Models\CustomerOrderDelivery;
 use Illuminate\Notifications\Notification;
 
 /**
- * Avis aux livreurs sur une livraison de leur magasin : planifiée, reportée, annulée ou articles reçus avant la date.
+ * Avis sur une livraison (aux livreurs) ou une expédition (aux responsables des expéditions) : planifiée, reportée,
+ * modifiée, annulée, articles reçus ou expédition prête.
  */
 class DeliveryNotice extends Notification
 {
@@ -37,7 +39,9 @@ class DeliveryNotice extends Notification
         return [
             'title' => $this->title,
             'body' => $this->body,
-            'url' => route('deliveries.index', ['date' => $this->delivery->scheduled_date?->toDateString()]),
+            'url' => $this->delivery->method === DeliveryMethod::Shipping
+                ? route('deliveries.index').'#expeditions'
+                : route('deliveries.index', ['date' => $this->delivery->scheduled_date?->toDateString()]),
             'icon' => 'truck',
         ];
     }

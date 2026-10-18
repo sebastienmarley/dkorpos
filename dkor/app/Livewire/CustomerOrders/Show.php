@@ -1124,6 +1124,7 @@ class Show extends Component
     }
 
     #[On('supplier-line-cancellation-requested')]
+    #[On('order-lines-changed')]
     public function onSupplierLineCancellationRequested(): void
     {
         $this->order->refresh();

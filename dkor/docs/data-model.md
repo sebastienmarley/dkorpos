@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-18 (159 migrations, 57 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-18 (160 migrations, 57 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 159 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
+les 160 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -270,6 +270,9 @@ erDiagram
 - `customer_order_delivery_lines` : quantité prévue par ligne de commande (unique par livraison et ligne). La
   ligne n'est séparée qu'à sa remise au client. Les livraisons actives (`scheduled`, `in_transit`) réservent ces
   quantités : elles ne se ramassent pas et ne peuvent pas être prévues deux fois.
+- Une expédition (`shipping`) n'a ni date ni demi-journée; elle doit être payée à 100 % (pas de
+  `pay_on_delivery`). `ready_at` note le moment où tous ses articles sont en main et l'avis « Nouvelle expédition à
+  faire » envoyé, une seule fois.
 - `pay_on_delivery` : le solde exigé sera perçu à la livraison, autorisé par un directeur
   (`pay_on_delivery_authorized_by`).
 - Un report annule la livraison (`cancelled_at`, `cancelled_by`, `cancellation_reason`) et en crée une autre qui
@@ -317,6 +320,7 @@ erDiagram
         bool pay_on_delivery
         int pay_on_delivery_authorized_by FK "nullable"
         text notes "nullable"
+        datetime ready_at "nullable"
         int requested_by FK "nullable"
         datetime cancelled_at "nullable"
         int cancelled_by FK "nullable"
@@ -639,7 +643,8 @@ erDiagram
   `last_cost` × le multiplicateur du fournisseur, avec l'arrondi des produits (0 $ si elle ne coûte rien).
 - Un service (`services`) est **interne** (`is_internal`, rendu par le magasin au `selling_price` du
   service) ou **externe** : offert par un ou plusieurs fournisseurs de service ou d'expédition, chacun
-  avec son coût et son prix vendant (`service_supplier`, une offre par paire). `description_template`
+  avec son coût et son prix vendant (`service_supplier`, une offre par paire). `code` identifie un service géré par
+  l'application, qui reste interne et actif (`shipping_fee` : frais d'expédition, créé par `ReferenceDataSeeder`). `description_template`
   propose la description de la vente; `{produit}` y est remplacé par le produit visé.
 - Hiérarchie des listes de prix : `price_lists` (par fournisseur) → `price_list_lists` (une liste
   nommée avec son escompte, remplie par import CSV) → `price_list_items` (une ligne importée, liée au
@@ -709,6 +714,7 @@ erDiagram
     }
     services {
         int id PK
+        string code UK "nullable"
         string name UK
         text description_template "nullable"
         bool is_internal
@@ -1029,6 +1035,8 @@ erDiagram
 
 - Un magasin peut renvoyer à un entrepôt (`warehouse_store_id`) et à un entrepôt d'expédition
   (`shipping_warehouse_id`), qui sont eux-mêmes des magasins.
+- `shipping_max_length` et `shipping_max_weight` : plus grande dimension et poids maximum d'un article expédiable
+  (dans l'unité des fiches produits); au-delà, la demande d'expédition le signale.
 - `taxes` : taux en vigueur par province et par période (`start_date`, `end_date`); une taxe en
   cascade (`is_compound`) se calcule sur le montant plus les taxes individuelles. La province du
   magasin (`province`) détermine les taxes copiées sur ses commandes (`customer_order_taxes`).
@@ -1066,6 +1074,8 @@ erDiagram
         int sick_days_part_time "nullable"
         decimal cancellation_fee_percent "5,2"
         decimal custom_deposit_percent "5,2"
+        decimal shipping_max_length "8,2 · nullable"
+        decimal shipping_max_weight "8,2 · nullable"
         datetime created_at
         datetime updated_at
     }

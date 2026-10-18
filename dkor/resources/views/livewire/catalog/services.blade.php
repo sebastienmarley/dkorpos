@@ -31,6 +31,9 @@
                             @unless ($service->is_active)
                                 <flux:badge size="sm" class="ms-2">{{ __('Inactif') }}</flux:badge>
                             @endunless
+                            @if ($service->isSystem())
+                                <flux:badge size="sm" color="zinc" icon="lock-closed" class="ms-2">{{ __('Géré par l\'application') }}</flux:badge>
+                            @endif
                             @if ($service->description_template)
                                 <div class="max-w-md truncate text-xs font-normal text-zinc-400">{{ $service->description_template }}</div>
                             @endif
@@ -91,10 +94,13 @@
             </flux:field>
 
             <div class="flex flex-wrap gap-6">
-                <flux:checkbox wire:model.live="isInternal" :label="__('Service interne (rendu par le magasin)')" />
+                <flux:checkbox wire:model.live="isInternal" :label="__('Service interne (rendu par le magasin)')" :disabled="$this->isEditingSystemService()" />
                 <flux:checkbox wire:model="isTaxable" :label="__('Taxable (TPS/TVQ)')" />
-                <flux:checkbox wire:model="isActive" :label="__('Actif')" />
+                <flux:checkbox wire:model="isActive" :label="__('Actif')" :disabled="$this->isEditingSystemService()" />
             </div>
+            @if ($this->isEditingSystemService())
+                <flux:text class="text-sm text-zinc-500">{{ __('Service géré par l\'application : il reste interne et actif. Son prix est proposé à chaque expédition.') }}</flux:text>
+            @endif
 
             @if ($isInternal)
                 <flux:field class="max-w-xs">

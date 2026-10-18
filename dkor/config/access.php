@@ -42,6 +42,7 @@ $managementAccess = [
     'customer_orders.assign_salespeople',
     'customer_orders.return_custom',
     'customer_orders.deliver_unpaid',
+    'shipments.manage',
     'services.view',
     'services.create',
     'services.edit',
@@ -57,6 +58,7 @@ $warehouseAccess = [
     'schedules.view',
     'appointments.view',
     'deliveries.view',
+    'shipments.manage',
 ];
 
 $accountingAccess = [
@@ -118,6 +120,7 @@ return [
         'customer_orders.edit' => ['Modifier — commandes clients', 'Modifier dans : commandes clients (client, produits).'],
         'customer_orders.return_custom' => ['Autoriser un retour sur mesure — commandes clients', 'Reprendre en retour (échange ou remboursement) un article fabriqué sur mesure.'],
         'customer_orders.deliver_unpaid' => ['Autoriser le paiement à la livraison — commandes clients', 'Planifier une livraison dont le solde exigé sera perçu à la livraison.'],
+        'shipments.manage' => ['Gérer les expéditions', 'Recevoir l\'avis des nouvelles expéditions à faire (tous les articles en main) et des expéditions modifiées ou annulées.'],
         'deliveries.view' => ['Voir — livraisons', 'Accéder à la page : livraisons (places par demi-journée et livraisons planifiées).'],
         'customer_orders.assign_salespeople' => ['Gérer les vendeurs — commandes clients', 'Modifier les vendeurs et la répartition de la vente dans : commandes clients.'],
         'suppliers.view' => ['Voir — fournisseurs', 'Accéder à la page : fournisseurs.'],

@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  */
 class ScheduleDelivery
 {
-    public function __construct(private NotifyDeliveryDrivers $notifyDrivers) {}
+    public function __construct(private NotifyDeliveryTeam $notifyTeam) {}
 
     /**
      * @param  array<int, int>  $quantities  quantité à livrer par ligne
@@ -39,12 +39,6 @@ class ScheduleDelivery
         ?string $notes = null,
         ?CustomerOrderDelivery $replacing = null,
     ): CustomerOrderDelivery {
-        $quantities = array_filter($quantities, fn (int $quantity): bool => $quantity > 0);
-
-        if ($quantities === []) {
-            throw new DomainException(__('Choisissez au moins un article à livrer.'));
-        }
-
         if ($order->store_id === null) {
             throw new DomainException(__('La commande n\'est liée à aucun magasin : impossible de planifier ses camions.'));
         }
@@ -60,13 +54,7 @@ class ScheduleDelivery
                 $this->cancelReplaced($order, $replacing, $date, $period);
             }
 
-            $deliverable = $order->deliverableQuantities();
-
-            foreach ($quantities as $lineId => $quantity) {
-                if ($quantity > ($deliverable[$lineId] ?? 0)) {
-                    throw new DomainException(__('La quantité à livrer dépasse ce qui reste à remettre au client.'));
-                }
-            }
+            $quantities = $order->guardDeliverableQuantities($quantities);
 
             if (DeliveryBooking::hasStarted($date, $period)) {
                 throw new DomainException(__('Cette demi-journée est déjà commencée.'));
@@ -109,7 +97,7 @@ class ScheduleDelivery
             return $delivery;
         });
 
-        $this->notifyDrivers->handle(
+        $this->notifyTeam->handle(
             $delivery,
             $replacing === null
                 ? __('Livraison planifiée : :slot', ['slot' => $delivery->slotLabel()])
@@ -142,24 +130,14 @@ class ScheduleDelivery
      */
     private function address(CustomerOrder $order, ?CustomerOrderDelivery $replacing): array
     {
-        if ($replacing !== null) {
-            return [
-                ...$replacing->only(CustomerOrderDelivery::ADDRESS_FIELDS),
-                'address_verified_by' => $replacing->address_verified_by,
-                'address_verified_at' => $replacing->address_verified_at,
-            ];
-        }
-
-        $customer = $order->customer()->firstOrFail();
-
-        if (! $customer->hasCompleteAddress()) {
-            throw new DomainException(__('L\'adresse du client est incomplète : corrigez sa fiche avant de planifier la livraison.'));
+        if ($replacing === null) {
+            return $order->verifiedDeliveryAddress();
         }
 
         return [
-            ...$customer->only(CustomerOrderDelivery::ADDRESS_FIELDS),
-            'address_verified_by' => auth()->id(),
-            'address_verified_at' => now(),
+            ...$replacing->only(CustomerOrderDelivery::ADDRESS_FIELDS),
+            'address_verified_by' => $replacing->address_verified_by,
+            'address_verified_at' => $replacing->address_verified_at,
         ];
     }
 }

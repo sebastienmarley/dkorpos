@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * fournisseurs, chacun avec son coût et son prix vendant.
  *
  * @property int $id
+ * @property string|null $code Service géré par l'application (ex. : frais d'expédition), qui ne s'archive pas.
  * @property string $name
  * @property string|null $description_template
  * @property bool $is_internal
@@ -27,11 +28,14 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read Collection<int, Supplier> $suppliers
  */
-#[Fillable(['name', 'description_template', 'is_internal', 'selling_price', 'is_taxable', 'is_active'])]
+#[Fillable(['code', 'name', 'description_template', 'is_internal', 'selling_price', 'is_taxable', 'is_active'])]
 class Service extends Model
 {
     /** @use HasFactory<ServiceFactory> */
     use HasFactory;
+
+    /** Frais d'expédition : service interne à prix fixe, proposé à chaque expédition (issue #86). */
+    public const string SHIPPING_FEE = 'shipping_fee';
 
     protected $attributes = [
         'is_internal' => false,
@@ -45,6 +49,23 @@ class Service extends Model
         'is_taxable' => 'boolean',
         'is_active' => 'boolean',
     ];
+
+    /**
+     * Frais d'expédition (créé par ReferenceDataSeeder; recréé au besoin). Son prix se règle dans la page Services.
+     */
+    public static function shippingFee(): self
+    {
+        return static::query()->firstOrCreate(
+            ['code' => self::SHIPPING_FEE],
+            ['name' => __('Frais d\'expédition'), 'is_internal' => true, 'selling_price' => Money::zero(), 'is_taxable' => true, 'is_active' => true],
+        );
+    }
+
+    /** Un service géré par l'application reste interne et actif : il ne s'archive pas. */
+    public function isSystem(): bool
+    {
+        return $this->code !== null;
+    }
 
     /**
      * Fournisseurs qui offrent ce service (pivot : cost, selling_price).

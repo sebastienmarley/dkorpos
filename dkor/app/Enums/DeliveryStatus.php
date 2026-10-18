@@ -19,6 +19,16 @@ enum DeliveryStatus: string
         };
     }
 
+    /** Libellé selon la méthode : une expédition planifiée est « À expédier », en route « Expédiée ». */
+    public function labelFor(DeliveryMethod $method): string
+    {
+        return match (true) {
+            $method === DeliveryMethod::Shipping && $this === self::Scheduled => __('À expédier'),
+            $method === DeliveryMethod::Shipping && $this === self::InTransit => __('Expédiée'),
+            default => $this->label(),
+        };
+    }
+
     public function color(): string
     {
         return match ($this) {
