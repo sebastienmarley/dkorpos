@@ -346,9 +346,15 @@ describe('lignes modifiées après la planification', function () {
         return [$line->fresh(), $delivery];
     }
 
-    function lastDriverNotice(User $driver): array
+    /**
+     * Avis reçu par le livreur dont le titre commence ainsi.
+     *
+     * @return array<string, mixed>|null
+     */
+    function driverNotice(User $driver, string $title): ?array
     {
-        return $driver->notifications()->where('type', DeliveryNotice::Type)->latest('id')->first()->data;
+        return $driver->notifications()->where('type', DeliveryNotice::Type)->pluck('data')
+            ->first(fn (array $data): bool => str_starts_with($data['title'], $title));
     }
 
     it('réduit la quantité prévue quand la ligne est réduite et avise les livreurs', function () {
@@ -359,8 +365,7 @@ describe('lignes modifiées après la planification', function () {
 
         expect($delivery->fresh()->status)->toBe(DeliveryStatus::Scheduled)
             ->and($delivery->lines()->sole()->quantity)->toBe(1)
-            ->and(lastDriverNotice($this->driver))
-            ->title->toContain('Livraison modifiée')
+            ->and(driverNotice($this->driver, 'Livraison modifiée'))
             ->body->toContain('1 × '.$line->label.' retiré(s)');
     });
 
@@ -375,7 +380,7 @@ describe('lignes modifiées après la planification', function () {
             ->cancellation_reason->toBe('Plus aucun article à livrer')
             ->cancelled_by->toBe($this->user->id)
             ->and(DeliveryBooking::bookedCount($this->order->store_id, DELIVERY_DATE, DeliveryPeriod::Am))->toBe(0)
-            ->and(lastDriverNotice($this->driver)['title'])->toContain('Livraison annulée');
+            ->and(driverNotice($this->driver, 'Livraison annulée'))->not->toBeNull();
     });
 
     it('réduit d\'abord les livraisons planifiées, puis celles en route', function () {
@@ -422,7 +427,7 @@ describe('lignes modifiées après la planification', function () {
 
         expect($reorder->status)->toBe(CustomerOrderLineStatus::OnOrder)
             ->and($delivery->lines()->pluck('quantity', 'customer_order_line_id')->all())->toBe([$line->id => 1, $reorder->id => 1])
-            ->and(lastDriverNotice($this->driver)['body'])->toContain('recommandé(s) au fournisseur');
+            ->and(driverNotice($this->driver, 'Livraison modifiée')['body'])->toContain('1 × '.$line->label.' recommandé(s) au fournisseur');
     });
 
     it('retire de la livraison une ligne remplacée par un substitut du fournisseur', function () {
