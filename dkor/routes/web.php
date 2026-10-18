@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ProductLabelController;
 use App\Livewire\Accounting\Currencies;
 use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
@@ -74,6 +75,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('products', ProductsIndex::class)->middleware('can:products.view')->name('products.index');
     Route::get('products/{product}', ProductShow::class)->middleware('can:products.view')->name('products.show');
+    Route::get('products/{product}/label', ProductLabelController::class)->middleware('can:products.view')->name('products.label');
 
     Route::get('parts', PartsIndex::class)->middleware('can:parts.view')->name('parts.index');
     Route::get('parts/{part}', PartShow::class)->middleware('can:parts.view')->name('parts.show');
