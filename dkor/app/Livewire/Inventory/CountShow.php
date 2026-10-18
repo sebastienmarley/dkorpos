@@ -6,6 +6,7 @@ use App\Actions\AnnualInventoryFinalUpdate;
 use App\Enums\InventoryStatus;
 use App\Models\InventoryCount;
 use App\Models\InventoryCountLine;
+use App\Models\InventoryCountResult;
 use App\Models\Product;
 use App\Support\Money;
 use DomainException;
@@ -114,8 +115,11 @@ class CountShow extends Component
         $types = InventoryCount::countTypes();
         $filename = 'inventaire_'.$this->count->counted_on->toDateString().'.csv';
         $money = fn (?Money $value): string => $value === null ? '' : str_replace('.', ',', $value->toDecimal());
+        $zoneDetails = $this->count->results()->with('zone')->whereNotNull('inventory_zone_id')->get()
+            ->groupBy(fn (InventoryCountResult $result): string => $result->product_id.'-'.$result->status->value)
+            ->map(fn ($results): string => $results->map(fn (InventoryCountResult $result): string => $result->zone?->name.' : '.$result->quantity)->implode(' ; '));
 
-        return response()->streamDownload(function () use ($lines, $types, $money): void {
+        return response()->streamDownload(function () use ($lines, $types, $money, $zoneDetails): void {
             $output = fopen('php://output', 'w');
 
             if ($output === false) {
@@ -124,7 +128,7 @@ class CountShow extends Component
 
             fwrite($output, "\u{FEFF}");
             fputcsv($output, [
-                __('Type de compte'), __('Produit'), __('Attendu'), __('Compté'), __('Écart'), __('Valeur de l\'écart ($)'), __('Note'),
+                __('Type de compte'), __('Produit'), __('Attendu'), __('Compté'), __('Écart'), __('Valeur de l\'écart ($)'), __('Note'), __('Détail par zone'),
             ], ';', '"', '');
 
             foreach ($lines as $line) {
@@ -136,6 +140,7 @@ class CountShow extends Component
                     $line->difference(),
                     $money($line->differenceValue()),
                     $line->note,
+                    $zoneDetails->get($line->product_id.'-'.$line->status->value, ''),
                 ], ';', '"', '');
             }
 
@@ -238,6 +243,7 @@ class CountShow extends Component
 
         return view('livewire.inventory.count-show', [
             'types' => InventoryCount::countTypes(),
+            'sheetStatuses' => $this->count->sheets()->distinct()->pluck('status')->map(fn (InventoryStatus $status): string => $status->value)->all(),
             'typeLines' => $byType->get($this->type, collect()),
             'totals' => $totals,
             'losses' => Money::sum($values->filter->isNegative())->negate(),

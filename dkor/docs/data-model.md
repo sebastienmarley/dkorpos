@@ -90,6 +90,11 @@ erDiagram
     products ||--o{ inventory_adjustments : ""
     inventory_counts ||--o{ inventory_count_lines : ""
     products ||--o{ inventory_count_lines : ""
+    inventory_counts ||--o{ inventory_count_sheets : ""
+    inventory_zones |o--o{ inventory_count_sheets : ""
+    inventory_count_sheets ||--o{ inventory_count_sheet_lines : ""
+    inventory_count_sheets ||--o{ inventory_count_scans : ""
+    inventory_counts ||--o{ inventory_count_results : ""
     ledger_entries ||--o{ ledger_entry_lines : ""
     ledger_accounts ||--o{ ledger_entry_lines : ""
     reception_lines |o--o{ defective_products : ""
@@ -568,6 +573,14 @@ erDiagram
   marque le gel du stock (compté après la fermeture) jusqu'à la finalisation ou l'abandon.
 - `inventory_count_lines` : un produit dans un type de compte (Stock, Stock client, Défectueux, Démonstrateur),
   la quantité comptée ou « conservée », l'attendu figé à la finalisation et l'ajustement créé pour l'écart.
+- `inventory_zones` : zones permanentes de l'entrepôt, où le stock se compte zone par zone.
+- `inventory_count_sheets` : feuilles de compte d'une prise. Une portée (état compté, et zone pour le stock), une
+  passe (A, B ou recompte), le compteur attribué, l'avancement et la réconciliation de la portée.
+- `inventory_count_sheet_lines` : quantité comptée d'un produit sur une feuille.
+- `inventory_count_scans` : journal des lectures à la douchette (code lu, quantité, produit vide pour un code
+  inconnu, annulation).
+- `inventory_count_results` : quantités retenues d'une portée réconciliée, avec leur provenance (A = B,
+  recompte, superviseur). Elles alimentent `inventory_count_lines`.
 
 ```mermaid
 erDiagram
@@ -582,6 +595,16 @@ erDiagram
     inventory_adjustments |o--o{ inventory_count_lines : "inventory_adjustment_id · null"
     users |o--o{ inventory_counts : "started_by, finalized_by · null"
     users |o--o{ inventory_count_lines : "counted_by · null"
+    inventory_counts ||--o{ inventory_count_sheets : "inventory_count_id · cascade"
+    inventory_zones |o--o{ inventory_count_sheets : "inventory_zone_id · restrict"
+    users |o--o{ inventory_count_sheets : "assigned_to · null"
+    inventory_count_sheets ||--o{ inventory_count_sheet_lines : "inventory_count_sheet_id · cascade"
+    products ||--o{ inventory_count_sheet_lines : "product_id · restrict"
+    inventory_count_sheets ||--o{ inventory_count_scans : "inventory_count_sheet_id · cascade"
+    products |o--o{ inventory_count_scans : "product_id · null"
+    inventory_counts ||--o{ inventory_count_results : "inventory_count_id · cascade"
+    inventory_zones |o--o{ inventory_count_results : "inventory_zone_id · restrict"
+    products ||--o{ inventory_count_results : "product_id · restrict"
     users |o--o{ inventory_adjustments : "user_id · null"
     inventory_movements |o--o{ inventory_units : "exit_movement_id · null"
     reception_lines |o--o{ defective_products : "reception_line_id · null"
@@ -667,6 +690,57 @@ erDiagram
         datetime counted_at "nullable"
         datetime created_at
         datetime updated_at
+    }
+    inventory_zones {
+        int id PK
+        string name UK
+        int sort_order
+        bool is_active
+        datetime created_at
+        datetime updated_at
+    }
+    inventory_count_sheets {
+        int id PK
+        int inventory_count_id FK
+        int inventory_zone_id FK "nullable"
+        int assigned_to FK "nullable"
+        string status "InventoryStatus"
+        string pass "InventoryCountPass"
+        string state "InventoryCountSheetState"
+        datetime started_at "nullable"
+        datetime finished_at "nullable"
+        datetime reconciled_at "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    inventory_count_sheet_lines {
+        int id PK
+        int inventory_count_sheet_id FK
+        int product_id FK
+        int quantity
+        datetime created_at
+        datetime updated_at
+    }
+    inventory_count_scans {
+        int id PK
+        int inventory_count_sheet_id FK
+        int product_id FK "nullable"
+        int user_id FK "nullable"
+        string code "nullable"
+        int quantity
+        datetime undone_at "nullable"
+        datetime created_at
+    }
+    inventory_count_results {
+        int id PK
+        int inventory_count_id FK
+        int inventory_zone_id FK "nullable"
+        int product_id FK
+        int reconciled_by FK "nullable"
+        string status "InventoryStatus"
+        int quantity
+        string source "InventoryCountResultSource"
+        datetime created_at
     }
     defective_products {
         int id PK

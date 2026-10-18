@@ -24,8 +24,11 @@ use App\Livewire\Customers\Index as CustomersIndex;
 use App\Livewire\Deliveries\Index as DeliveriesIndex;
 use App\Livewire\Inventory\Adjustments as InventoryAdjustments;
 use App\Livewire\Inventory\Counts as InventoryCounts;
+use App\Livewire\Inventory\CountSheets as InventoryCountSheets;
 use App\Livewire\Inventory\CountShow as InventoryCountShow;
 use App\Livewire\Inventory\Movements as InventoryMovements;
+use App\Livewire\Inventory\MyCountSheets;
+use App\Livewire\Inventory\Zones as InventoryZones;
 use App\Livewire\Labels\Index as LabelsIndex;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
 use App\Livewire\Orders\Show as SupplierOrderShow;
@@ -84,6 +87,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('inventory/adjustments', InventoryAdjustments::class)->middleware('can:inventory.adjust')->name('inventory.adjustments');
     Route::get('inventory/counts', InventoryCounts::class)->middleware('can:inventory.count')->name('inventory.counts');
     Route::get('inventory/counts/{count}', InventoryCountShow::class)->middleware('can:inventory.count')->name('inventory.counts.show');
+    Route::get('inventory/counts/{count}/sheets', InventoryCountSheets::class)->middleware('can:inventory.supervise')->name('inventory.counts.sheets');
+    Route::get('inventory/my-counts', MyCountSheets::class)->middleware('can:inventory.count')->name('inventory.my-counts');
+    Route::get('inventory/zones', InventoryZones::class)->middleware('can:inventory.supervise')->name('inventory.zones');
 
     Route::get('products', ProductsIndex::class)->middleware('can:products.view')->name('products.index');
     Route::get('products/{product}', ProductShow::class)->middleware('can:products.view')->name('products.show');

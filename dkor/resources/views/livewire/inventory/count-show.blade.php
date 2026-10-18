@@ -17,6 +17,9 @@
 
         <div class="flex flex-wrap gap-2">
             <flux:button icon="arrow-down-tray" wire:click="export">{{ __('Exporter (CSV)') }}</flux:button>
+            @can('inventory.supervise')
+                <flux:button icon="document-duplicate" :href="route('inventory.counts.sheets', $count)" wire:navigate>{{ __('Feuilles de compte') }}</flux:button>
+            @endcan
             @if ($count->isInProgress())
                 @can('inventory.adjust')
                     @unless ($count->stock_frozen_at)
@@ -87,7 +90,10 @@
                         <flux:table.cell variant="strong">{{ $line->product->display_name }}</flux:table.cell>
                         <flux:table.cell align="end">{{ $line->expected() }}</flux:table.cell>
                         <flux:table.cell align="end">
-                            @if ($count->isInProgress() && ! $line->is_kept)
+                            @if (in_array($line->status->value, $sheetStatuses, true) && ! $line->is_kept)
+                                {{ $line->counted_quantity ?? '—' }}
+                                <flux:text class="text-xs text-zinc-400">{{ __('feuilles de compte') }}</flux:text>
+                            @elseif ($count->isInProgress() && ! $line->is_kept)
                                 <div class="ms-auto w-24">
                                     <flux:input size="sm" type="number" min="0" step="1" wire:model.blur="quantities.{{ $line->id }}" />
                                 </div>
