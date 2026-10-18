@@ -47,6 +47,7 @@ $managementAccess = [
     'services.create',
     'services.edit',
     'parts.edit',
+    'inventory.count',
 ];
 
 $warehouseAccess = [
@@ -59,6 +60,7 @@ $warehouseAccess = [
     'appointments.view',
     'deliveries.view',
     'shipments.manage',
+    'inventory.count',
 ];
 
 $accountingAccess = [
@@ -143,6 +145,7 @@ return [
         'receptions.reverse' => ['Renverser — réceptions', 'Renverser une réception de produits non encore facturée (erreur de réception).'],
         'inventory.view' => ['Voir — journal d\'inventaire', 'Accéder à la page : journal d\'inventaire.'],
         'inventory.move' => ['Déplacer — inventaire', 'Déplacer des quantités entre états d\'inventaire (démo, défectueux, perdu…).'],
+        'inventory.count' => ['Compter — prise d\'inventaire', 'Accéder aux prises d\'inventaire et saisir les quantités comptées (démarrer, geler et finaliser demandent « Ajuster — inventaire »).'],
         'inventory.adjust' => ['Ajuster — inventaire', 'Ajuster l\'inventaire (perte, vol, usage magasin, correction de comptage, stock initial), avec son écriture au grand livre.'],
         'services.view' => ['Voir — services', 'Accéder à la page : services.'],
         'services.create' => ['Créer — services', 'Créer dans : services.'],

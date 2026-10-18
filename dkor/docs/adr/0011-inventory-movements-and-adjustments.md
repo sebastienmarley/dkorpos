@@ -197,20 +197,41 @@ ajustement ne se modifie ni ne se supprime : une erreur se corrige par l'ajustem
 - Au départ, seuls les ajustements passent des écritures. Les réceptions, les ventes (coût des marchandises
   vendues) et les crédits fournisseurs suivront : voir les questions ouvertes.
 
-### La prise d'inventaire annuelle
+### La prise d'inventaire annuelle (#88)
 
-Elle fera l'objet de sa propre issue. Ce qui est décidé ici :
-
-- Une **prise d'inventaire** (`inventory_counts`) fige la date du comptage. Ses lignes donnent, par produit
-  et par état physique, la quantité attendue (lue du journal à cette date) et la quantité comptée.
-- La **finalisation** (`AnnualInventoryFinalUpdate`) crée un ajustement « Correction de comptage » par
-  écart accepté, dans une seule transaction, avec ses écritures. Une prise finalisée ne change plus.
+- Une **prise d'inventaire** (`InventoryCount`) a une date de comptage, qui date ses écritures. Une seule
+  prise est en cours à la fois.
+- **Quatre types de compte**, un par état physique : Stock (`InStock`), Stock client (`ReservedCustomer`),
+  Défectueux (`DefectiveStock`) et Démonstrateur (`InDemo`). Une ligne par produit et par type
+  (`inventory_count_lines`), créée au démarrage pour tout ce qui a une quantité, ou ajoutée pour un produit
+  trouvé.
+- **« Perdu » est vide pendant la prise.** Au démarrage, puis au gel du stock, les perdus non retrouvés
+  reviennent « En stock » (type de mouvement `CountLostReturned`, référencé à la prise). Ce qui manque encore
+  au comptage devient une perte à la finalisation.
+- **Gel hybride.** Démo, défectueux et stock client se comptent pendant les heures d'ouverture, sans gel : leur
+  attendu est la quantité au moment de la finalisation, et l'équipe des ventes note les variances sur les lignes.
+  Le stock se compte après la fermeture : « Geler le stock » (`stock_frozen_at`) fait refuser par `record()` tout
+  mouvement qui touche « En stock » ou « Perdu », jusqu'à la finalisation ou l'abandon. Une ligne de stock ne se
+  compte qu'une fois le stock gelé.
+- **La finalisation** (`App\Actions\AnnualInventoryFinalUpdate`, permission `inventory.adjust`), dans une seule
+  transaction : elle fige l'attendu de chaque ligne et crée un ajustement par écart, daté du jour du comptage.
+  - Un **manque** est une perte : motif `AnnualCountLoss` (« Perte à l'inventaire annuel », Pertes
+    d'inventaire / Stock, au coût FIFO), réservé à la finalisation.
+  - Un **surplus** est une correction de comptage (`CountCorrection`, Stock / Écart d'inventaire, au coût du
+    produit).
+  - Elle est refusée sans gel, avec une ligne ni comptée ni conservée, ou avec un écart dans le stock client :
+    ce stock appartient à une commande, qu'il faut corriger d'abord (I4).
+- Une ligne « conservée sans comptage » garde son attendu, sans ajustement. Une prise finalisée ou abandonnée
+  ne se modifie plus; l'abandon ne passe aucun ajustement et laisse en stock les perdus remis.
+- **Rapport** : la page de la prise (totaux par type de compte, pertes et corrections) et un export CSV.
 
 ### Les permissions
 
 - `inventory.adjust` (« Ajuster — inventaire ») : nouvelle permission, déclarée dans `config/access.php`, dans
   aucun accès par défaut. Seul le rôle qui a toutes les permissions (propriétaire) l'a au départ.
 - `inventory.move` : inchangée, mais limitée aux transferts entre états physiques.
+- `inventory.count` : voir les prises d'inventaire et saisir les comptes, dans les accès gestion (directeurs)
+  et entrepôt. Démarrer, geler, abandonner et finaliser demandent `inventory.adjust`.
 - `ledger.view` (consulter le grand livre) et `ledger.edit` (code et nom des comptes) : dans l'accès
   comptabilité.
 
@@ -280,8 +301,6 @@ Pour chaque produit, en tout temps :
 - **La livraison (#12)** : remise au client (« En livraison » → extérieur, unités fermées en FIFO), départ
   (« Réservé client » → « En livraison ») et retour au magasin. La session des livraisons s'en charge, en
   respectant I3 et I4.
-- **Le comptage pendant les opérations** : figer le magasin pendant la prise d'inventaire, ou calculer
-  l'attendu à la date du comptage et laisser les ventes continuer.
 - **Le mode de transaction SQLite** : `IMMEDIATE` sérialiserait les écritures dès le début de la transaction
   ([ADR 0006](0006-database.md)).
 

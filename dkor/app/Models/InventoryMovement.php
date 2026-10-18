@@ -117,6 +117,12 @@ class InventoryMovement extends Model
         $productId = $product instanceof Product ? $product->id : $product;
 
         return DB::transaction(function () use ($productId, $from, $to, $quantity, $type, $reference, $note, $userId, $unitCost): InventoryMovement {
+            $frozen = [InventoryStatus::InStock, InventoryStatus::Lost];
+
+            if ((in_array($from, $frozen, true) || in_array($to, $frozen, true)) && InventoryCount::stockIsFrozen()) {
+                throw new DomainException(__('Le stock est gelé pour la prise d\'inventaire en cours : finalisez-la ou abandonnez-la avant de le déplacer.'));
+            }
+
             $stock = InventoryStock::query()->lockForUpdate()->firstOrCreate(['product_id' => $productId]);
 
             if ($from !== null) {

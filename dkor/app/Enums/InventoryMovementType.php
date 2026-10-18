@@ -21,6 +21,7 @@ enum InventoryMovementType: string
     case CustomerReturn = 'customer_return';
     case CustomerDefectiveReturn = 'customer_defective_return';
     case Adjustment = 'adjustment';
+    case CountLostReturned = 'count_lost_returned';
 
     public function label(): string
     {
@@ -42,6 +43,7 @@ enum InventoryMovementType: string
             self::CustomerReturn => __('Retour client'),
             self::CustomerDefectiveReturn => __('Retour client défectueux'),
             self::Adjustment => __('Ajustement'),
+            self::CountLostReturned => __('Perdu remis en stock (inventaire)'),
         };
     }
 }

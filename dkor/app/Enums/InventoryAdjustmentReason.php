@@ -16,6 +16,7 @@ enum InventoryAdjustmentReason: string
     case StoreUse = 'store_use';
     case CountCorrection = 'count_correction';
     case OpeningBalance = 'opening_balance';
+    case AnnualCountLoss = 'annual_count_loss';
 
     public function label(): string
     {
@@ -26,6 +27,7 @@ enum InventoryAdjustmentReason: string
             self::StoreUse => __('Usage magasin'),
             self::CountCorrection => __('Correction de comptage'),
             self::OpeningBalance => __('Stock initial'),
+            self::AnnualCountLoss => __('Perte à l\'inventaire annuel'),
         };
     }
 
@@ -39,6 +41,12 @@ enum InventoryAdjustmentReason: string
         return $this !== self::OpeningBalance;
     }
 
+    /** Les pertes de l'inventaire annuel viennent seulement de la finalisation d'une prise (AnnualInventoryFinalUpdate). */
+    public function isManual(): bool
+    {
+        return $this !== self::AnnualCountLoss;
+    }
+
     /** @return list<InventoryStatus> */
     public function statuses(): array
     {
@@ -48,6 +56,7 @@ enum InventoryAdjustmentReason: string
             self::LostWriteOff => [InventoryStatus::Lost],
             self::StoreUse, self::OpeningBalance => [InventoryStatus::InStock, InventoryStatus::InDemo],
             self::CountCorrection => [InventoryStatus::InStock, InventoryStatus::InDemo, InventoryStatus::DefectiveStock, InventoryStatus::Lost],
+            self::AnnualCountLoss => [InventoryStatus::InStock, InventoryStatus::InDemo, InventoryStatus::DefectiveStock],
         };
     }
 
@@ -55,7 +64,7 @@ enum InventoryAdjustmentReason: string
     public function accountKey(): string
     {
         return match ($this) {
-            self::Breakage, self::Theft, self::LostWriteOff => LedgerAccount::INVENTORY_SHRINKAGE,
+            self::Breakage, self::Theft, self::LostWriteOff, self::AnnualCountLoss => LedgerAccount::INVENTORY_SHRINKAGE,
             self::StoreUse => LedgerAccount::STORE_SUPPLIES,
             self::CountCorrection => LedgerAccount::INVENTORY_COUNT_VARIANCE,
             self::OpeningBalance => LedgerAccount::OPENING_BALANCE,

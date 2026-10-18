@@ -11,6 +11,7 @@ use App\Models\LedgerAccount;
 use App\Models\LedgerEntry;
 use App\Models\Product;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use DomainException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -29,11 +30,12 @@ class AdjustInventory
 {
     /**
      * @param  bool  $isEntry  Vrai pour une entrée en inventaire, faux pour une sortie.
+     * @param  CarbonInterface|null  $postedOn  Date de l'écriture (par défaut aujourd'hui; date de comptage pour une prise d'inventaire).
      *
      * @throws AuthorizationException sans la permission inventory.adjust.
      * @throws DomainException si le motif ne permet pas ce sens ou cet état, ou si la quantité est insuffisante.
      */
-    public function handle(User $user, Product $product, InventoryAdjustmentReason $reason, InventoryStatus $status, bool $isEntry, int $quantity, string $note): InventoryAdjustment
+    public function handle(User $user, Product $product, InventoryAdjustmentReason $reason, InventoryStatus $status, bool $isEntry, int $quantity, string $note, ?CarbonInterface $postedOn = null): InventoryAdjustment
     {
         Gate::forUser($user)->authorize('inventory.adjust');
 
@@ -55,7 +57,7 @@ class AdjustInventory
             throw new DomainException(__('Expliquez l\'ajustement dans la note.'));
         }
 
-        return DB::transaction(function () use ($user, $product, $reason, $status, $isEntry, $quantity, $note): InventoryAdjustment {
+        return DB::transaction(function () use ($user, $product, $reason, $status, $isEntry, $quantity, $note, $postedOn): InventoryAdjustment {
             $adjustment = InventoryAdjustment::create([
                 'product_id' => $product->id,
                 'reason' => $reason,
@@ -89,7 +91,8 @@ class AdjustInventory
                         ? [[...$stock, 'debit' => $value], [...$counterpart, 'credit' => $value]]
                         : [[...$counterpart, 'debit' => $value], [...$stock, 'credit' => $value]],
                     $adjustment,
-                    userId: $user->id,
+                    $postedOn,
+                    $user->id,
                 );
             }
 

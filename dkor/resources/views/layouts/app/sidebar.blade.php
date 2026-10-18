@@ -123,6 +123,12 @@
                     </flux:sidebar.item>
                 @endcan
 
+                @can('inventory.count')
+                    <flux:sidebar.item icon="clipboard-document-check" :href="route('inventory.counts')" :current="request()->routeIs('inventory.counts*')" wire:navigate>
+                        {{ __('Prises d\'inventaire') }}
+                    </flux:sidebar.item>
+                @endcan
+
                 @canany(['products.view', 'parts.view', 'services.view', 'departments.view', 'categories.view', 'colors.view', 'styles.view', 'price_lists.view', 'labels.view'])
                 <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('parts.*') || request()->routeIs('catalog.*') || request()->routeIs('labels.*')">
                     @can('products.view')

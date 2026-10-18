@@ -1128,6 +1128,45 @@ CREATE INDEX "inventory_adjustments_product_id_created_at_index" on "inventory_a
   "product_id",
   "created_at"
 );
+CREATE TABLE "inventory_counts"(
+  "id" integer primary key autoincrement not null,
+  "counted_on" date not null,
+  "status" varchar not null default 'in_progress',
+  "stock_frozen_at" datetime,
+  "started_by" integer,
+  "finalized_at" datetime,
+  "finalized_by" integer,
+  "abandoned_at" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("started_by") references "users"("id") on delete set null,
+  foreign key("finalized_by") references "users"("id") on delete set null
+);
+CREATE INDEX "inventory_counts_status_index" on "inventory_counts"("status");
+CREATE TABLE "inventory_count_lines"(
+  "id" integer primary key autoincrement not null,
+  "inventory_count_id" integer not null,
+  "product_id" integer not null,
+  "status" varchar not null,
+  "counted_quantity" integer,
+  "is_kept" tinyint(1) not null default '0',
+  "expected_quantity" integer,
+  "note" varchar,
+  "counted_by" integer,
+  "counted_at" datetime,
+  "inventory_adjustment_id" integer,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("inventory_count_id") references "inventory_counts"("id") on delete cascade,
+  foreign key("product_id") references "products"("id") on delete restrict,
+  foreign key("counted_by") references "users"("id") on delete set null,
+  foreign key("inventory_adjustment_id") references "inventory_adjustments"("id") on delete set null
+);
+CREATE UNIQUE INDEX "inventory_count_lines_inventory_count_id_product_id_status_unique" on "inventory_count_lines"(
+  "inventory_count_id",
+  "product_id",
+  "status"
+);
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1294,3 +1333,5 @@ INSERT INTO migrations VALUES(170,'2026_10_18_152040_create_ledger_accounts_tabl
 INSERT INTO migrations VALUES(171,'2026_10_18_152042_create_ledger_entries_table',21);
 INSERT INTO migrations VALUES(172,'2026_10_18_152043_create_ledger_entry_lines_table',21);
 INSERT INTO migrations VALUES(173,'2026_10_18_152044_create_inventory_adjustments_table',21);
+INSERT INTO migrations VALUES(176,'2026_10_18_185833_create_inventory_counts_table',22);
+INSERT INTO migrations VALUES(177,'2026_10_18_185834_create_inventory_count_lines_table',22);
