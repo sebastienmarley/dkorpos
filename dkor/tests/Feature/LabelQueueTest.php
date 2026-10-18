@@ -58,7 +58,7 @@ describe('modale d\'ajout', function () {
             ->assertHasNoErrors()
             ->assertDispatched('label-queued');
 
-        expect(LabelRequest::pending()->sole())
+        expect(LabelRequest::pending()->where('reason', LabelReason::Manual)->sole())
             ->product_id->toBe($product->id)
             ->quantity->toBe(2)
             ->requested_by->toBe($this->user->id);

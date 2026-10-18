@@ -28,7 +28,7 @@
     <div class="mb-6 flex items-center justify-between">
         <div>
             <flux:heading level="1" size="xl">{{ __('Étiquettes à imprimer') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('File des étiquettes de prix en attente') }}</flux:text>
+            <flux:text class="mt-1 text-zinc-500">{{ __('Les démonstrateurs dont le prix a changé s\'ajoutent automatiquement à la file.') }}</flux:text>
         </div>
 
         @can('labels.print')
@@ -60,7 +60,13 @@
                                 <flux:link :href="route('products.show', $request->product)" wire:navigate>{{ $request->product->model }}</flux:link>
                             </flux:table.cell>
                             <flux:table.cell>{{ $request->product->supplier->name }}</flux:table.cell>
-                            <flux:table.cell>{{ $request->product->selling_price->format() }}</flux:table.cell>
+                            <flux:table.cell>
+                                @if ($request->reason === \App\Enums\LabelReason::PriceChange && $request->product->displayed_price)
+                                    <span class="text-zinc-400 line-through">{{ $request->product->displayed_price->format() }}</span>
+                                    →
+                                @endif
+                                <span class="font-medium">{{ $request->product->selling_price->format() }}</span>
+                            </flux:table.cell>
                             <flux:table.cell>
                                 <flux:badge size="sm" :color="$request->reason->color()">{{ $request->reason->label() }}</flux:badge>
                             </flux:table.cell>

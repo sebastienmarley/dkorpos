@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\QueuePriceChangeLabels;
 use App\Casts\MoneyCast;
 use App\Rules\UniqueCleanProductModel;
 use App\Support\Money;
@@ -46,9 +47,10 @@ use Illuminate\Support\Carbon;
  * @property-read Category|null $category
  * @property-read Color|null $color
  * @property-read Style|null $style
+ * @property Money|null $displayed_price
  * @property-read Money $selling_price
  */
-#[Fillable(['supplier_id', 'category_id', 'color_id', 'style_id', 'model', 'clean_model', 'supplier_model', 'collection', 'cost', 'imap', 'description', 'length', 'width', 'height', 'weight', 'is_discontinued', 'is_non_orderable', 'is_taxable', 'is_custom'])]
+#[Fillable(['supplier_id', 'category_id', 'color_id', 'style_id', 'model', 'clean_model', 'supplier_model', 'collection', 'cost', 'displayed_price', 'imap', 'description', 'length', 'width', 'height', 'weight', 'is_discontinued', 'is_non_orderable', 'is_taxable', 'is_custom'])]
 class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
@@ -61,6 +63,7 @@ class Product extends Model
 
     protected $casts = [
         'cost' => MoneyCast::class,
+        'displayed_price' => MoneyCast::class,
         'imap' => MoneyCast::class,
         'length' => 'float',
         'width' => 'float',
@@ -83,6 +86,12 @@ class Product extends Model
                 $product->supplier_clean_model = filled($product->supplier_model)
                     ? UniqueCleanProductModel::clean($product->supplier_model)
                     : null;
+            }
+        });
+
+        static::saved(function (Product $product): void {
+            if ($product->wasChanged(['cost', 'supplier_id', 'displayed_price'])) {
+                app(QueuePriceChangeLabels::class)->forProducts([$product->id]);
             }
         });
     }
@@ -145,6 +154,12 @@ class Product extends Model
     public function parts(): BelongsToMany
     {
         return $this->belongsToMany(Part::class)->withTimestamps();
+    }
+
+    /** @return HasMany<LabelRequest, $this> */
+    public function labelRequests(): HasMany
+    {
+        return $this->hasMany(LabelRequest::class);
     }
 
     /** @return HasOne<InventoryStock, $this> */

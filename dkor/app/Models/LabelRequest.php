@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Étiquette de prix en attente d'impression (ou déjà imprimée, pour l'historique).
@@ -52,16 +53,27 @@ class LabelRequest extends Model
     }
 
     /**
-     * Marque comme imprimées les demandes encore en attente parmi celles données.
+     * Marque comme imprimées les demandes encore en attente parmi celles données et retient sur chaque produit
+     * le prix maintenant affiché sur son étiquette.
      *
      * @param  array<int, int>  $ids
      */
     public static function markPrinted(array $ids, ?User $printer = null): int
     {
-        return self::query()->pending()->whereKey($ids)->update([
-            'printed_at' => now(),
-            'printed_by' => $printer?->id,
-        ]);
+        return DB::transaction(function () use ($ids, $printer): int {
+            $requests = self::query()->pending()->whereKey($ids)->with('product.supplier')->get();
+
+            self::query()->whereKey($requests->modelKeys())->update([
+                'printed_at' => now(),
+                'printed_by' => $printer?->id,
+            ]);
+
+            $requests->pluck('product')->unique('id')->each(function (Product $product): void {
+                $product->update(['displayed_price' => $product->selling_price]);
+            });
+
+            return $requests->count();
+        });
     }
 
     /** @param  Builder<self>  $query */
