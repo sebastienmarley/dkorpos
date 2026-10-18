@@ -64,6 +64,9 @@
                 <div class="in-data-flux-sidebar-collapsed-desktop:hidden min-w-0 flex-1">
                     <x-app-logo :sidebar="true" href="{{ route('home') }}" wire:navigate />
                 </div>
+                <div class="in-data-flux-sidebar-collapsed-desktop:hidden">
+                    <livewire:notifications-bell />
+                </div>
                 <flux:sidebar.collapse />
             </flux:sidebar.header>
 
@@ -249,6 +252,8 @@
             <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="right" />
 
             <flux:spacer />
+
+            <livewire:notifications-bell />
 
             <flux:dropdown position="top" align="end">
                 <flux:profile

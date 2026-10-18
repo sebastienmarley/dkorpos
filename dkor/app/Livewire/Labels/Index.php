@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Labels;
 
+use App\Actions\NotifyLabelsToPrint;
 use App\Models\LabelRequest;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -58,6 +59,8 @@ class Index extends Component
 
         LabelRequest::query()->pending()->whereKey($requestId)->delete();
         $this->selected = array_values(array_diff($this->selected, [$requestId]));
+
+        app(NotifyLabelsToPrint::class)->clearIfQueueEmpty();
     }
 
     /**
@@ -91,6 +94,7 @@ class Index extends Component
         $this->authorize('labels.print');
 
         $count = LabelRequest::markPrinted($this->printing, auth()->user());
+        app(NotifyLabelsToPrint::class)->clearIfQueueEmpty();
 
         $this->selected = array_values(array_diff($this->selected, $this->printing));
         $this->reset(['printing', 'showConfirmModal']);
