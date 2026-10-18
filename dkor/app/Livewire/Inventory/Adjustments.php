@@ -92,7 +92,7 @@ class Adjustments extends Component
 
         $this->validate([
             'adjustProductId' => ['required', 'integer', 'exists:products,id'],
-            'reason' => ['required', Rule::enum(InventoryAdjustmentReason::class)],
+            'reason' => ['required', Rule::in(collect(InventoryAdjustmentReason::cases())->filter->isManual()->map->value->all())],
             'direction' => ['required', Rule::in(['entry', 'exit'])],
             'status' => ['required', Rule::enum(InventoryStatus::class)],
             'quantity' => ['required', 'integer', 'min:1', 'max:99999'],
@@ -143,7 +143,7 @@ class Adjustments extends Component
                 ->with(['product', 'user', 'movement', 'ledgerEntry'])
                 ->latest('id')
                 ->paginate(15),
-            'reasons' => InventoryAdjustmentReason::cases(),
+            'reasons' => collect(InventoryAdjustmentReason::cases())->filter->isManual()->values(),
             'selectedReason' => $reason,
             'reasonStatuses' => $reason->statuses(),
             'selectedProduct' => $this->adjustProductId ? Product::with('inventoryStock')->find($this->adjustProductId) : null,

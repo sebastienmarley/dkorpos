@@ -23,6 +23,8 @@ use App\Livewire\CustomerOrders\Show as CustomerOrderShow;
 use App\Livewire\Customers\Index as CustomersIndex;
 use App\Livewire\Deliveries\Index as DeliveriesIndex;
 use App\Livewire\Inventory\Adjustments as InventoryAdjustments;
+use App\Livewire\Inventory\Counts as InventoryCounts;
+use App\Livewire\Inventory\CountShow as InventoryCountShow;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Labels\Index as LabelsIndex;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
@@ -80,6 +82,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('inventory/movements', InventoryMovements::class)->middleware('can:inventory.view')->name('inventory.movements');
     Route::get('inventory/adjustments', InventoryAdjustments::class)->middleware('can:inventory.adjust')->name('inventory.adjustments');
+    Route::get('inventory/counts', InventoryCounts::class)->middleware('can:inventory.count')->name('inventory.counts');
+    Route::get('inventory/counts/{count}', InventoryCountShow::class)->middleware('can:inventory.count')->name('inventory.counts.show');
 
     Route::get('products', ProductsIndex::class)->middleware('can:products.view')->name('products.index');
     Route::get('products/{product}', ProductShow::class)->middleware('can:products.view')->name('products.show');

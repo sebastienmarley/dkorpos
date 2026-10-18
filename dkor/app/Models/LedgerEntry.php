@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Money;
+use Carbon\CarbonInterface;
 use Database\Factories\LedgerEntryFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -56,7 +57,7 @@ class LedgerEntry extends Model
      *
      * @throws DomainException si l'écriture est vide, déséquilibrée ou si une ligne est invalide.
      */
-    public static function post(string $description, array $lines, ?Model $reference = null, ?Carbon $postedOn = null, int|string|null $userId = null): self
+    public static function post(string $description, array $lines, ?Model $reference = null, ?CarbonInterface $postedOn = null, int|string|null $userId = null): self
     {
         if (count($lines) < 2) {
             throw new DomainException(__('Une écriture a au moins deux lignes.'));

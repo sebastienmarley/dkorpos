@@ -88,6 +88,8 @@ erDiagram
     reception_lines |o--o{ inventory_units : ""
     products ||--o{ inventory_units : ""
     products ||--o{ inventory_adjustments : ""
+    inventory_counts ||--o{ inventory_count_lines : ""
+    products ||--o{ inventory_count_lines : ""
     ledger_entries ||--o{ ledger_entry_lines : ""
     ledger_accounts ||--o{ ledger_entry_lines : ""
     reception_lines |o--o{ defective_products : ""
@@ -562,6 +564,10 @@ erDiagram
 - `inventory_adjustments` : entrée ou sortie d'inventaire sans document d'achat ni de vente (perte, vol,
   usage magasin, correction de comptage, stock initial), immuable. Son mouvement (`inventory_movements`) et
   son écriture (`ledger_entries`) la référencent par leur référence polymorphe.
+- `inventory_counts` : prise d'inventaire annuelle. Sa date de comptage date les écritures; `stock_frozen_at`
+  marque le gel du stock (compté après la fermeture) jusqu'à la finalisation ou l'abandon.
+- `inventory_count_lines` : un produit dans un type de compte (Stock, Stock client, Défectueux, Démonstrateur),
+  la quantité comptée ou « conservée », l'attendu figé à la finalisation et l'ajustement créé pour l'écart.
 
 ```mermaid
 erDiagram
@@ -571,6 +577,11 @@ erDiagram
     reception_lines |o--o{ inventory_units : "reception_line_id · null"
     products ||--o{ inventory_units : "product_id · cascade"
     products ||--o{ inventory_adjustments : "product_id · restrict"
+    inventory_counts ||--o{ inventory_count_lines : "inventory_count_id · cascade"
+    products ||--o{ inventory_count_lines : "product_id · restrict"
+    inventory_adjustments |o--o{ inventory_count_lines : "inventory_adjustment_id · null"
+    users |o--o{ inventory_counts : "started_by, finalized_by · null"
+    users |o--o{ inventory_count_lines : "counted_by · null"
     users |o--o{ inventory_adjustments : "user_id · null"
     inventory_movements |o--o{ inventory_units : "exit_movement_id · null"
     reception_lines |o--o{ defective_products : "reception_line_id · null"
@@ -629,6 +640,33 @@ erDiagram
         int quantity
         string note
         datetime created_at
+    }
+    inventory_counts {
+        int id PK
+        int started_by FK "nullable"
+        int finalized_by FK "nullable"
+        date counted_on
+        string status "InventoryCountStatus"
+        datetime stock_frozen_at "nullable"
+        datetime finalized_at "nullable"
+        datetime abandoned_at "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    inventory_count_lines {
+        int id PK
+        int inventory_count_id FK
+        int product_id FK
+        int counted_by FK "nullable"
+        int inventory_adjustment_id FK "nullable"
+        string status "InventoryStatus"
+        int counted_quantity "nullable"
+        bool is_kept
+        int expected_quantity "nullable"
+        string note "nullable"
+        datetime counted_at "nullable"
+        datetime created_at
+        datetime updated_at
     }
     defective_products {
         int id PK

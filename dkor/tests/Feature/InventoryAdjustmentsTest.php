@@ -168,7 +168,12 @@ it('enregistre un ajustement depuis la page et garde le sens permis par le motif
         ->set('quantity', '5')
         ->set('note', 'Disparu')
         ->call('adjust')
-        ->assertHasErrors('quantity');
+        ->assertHasErrors('quantity')
+        ->set('reason', InventoryAdjustmentReason::AnnualCountLoss->value)
+        ->set('quantity', '1')
+        ->call('adjust')
+        ->assertHasErrors('reason')
+        ->assertDontSee(InventoryAdjustmentReason::AnnualCountLoss->label());
 
     expect(InventoryAdjustment::count())->toBe(1);
 });

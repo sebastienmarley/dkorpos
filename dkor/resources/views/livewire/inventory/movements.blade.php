@@ -82,6 +82,8 @@
                                 <flux:link :href="route('supplier-orders.show', $movement->reference->order)" wire:navigate>{{ $movement->reference->order->number }}</flux:link>
                             @elseif ($movement->reference instanceof \App\Models\ReceptionLine)
                                 <flux:link :href="route('receptions.show', $movement->reference->reception)" wire:navigate>{{ $movement->reference->reception->number }}</flux:link>
+                            @elseif ($movement->reference instanceof \App\Models\InventoryCount)
+                                <flux:link :href="route('inventory.counts.show', $movement->reference)" wire:navigate>{{ __('Prise d\'inventaire du :date', ['date' => $movement->reference->counted_on->format('Y-m-d')]) }}</flux:link>
                             @elseif ($movement->reference instanceof \App\Models\InventoryAdjustment)
                                 {{ __('Ajustement — :reason', ['reason' => $movement->reference->reason->label()]) }}
                             @elseif ($movement->reference instanceof \App\Models\CustomerOrder)
