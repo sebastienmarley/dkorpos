@@ -108,7 +108,7 @@
                     </flux:sidebar.item>
                 @endcan
 
-                @canany(['products.view', 'parts.view', 'services.view', 'departments.view', 'categories.view', 'colors.view', 'price_lists.view'])
+                @canany(['products.view', 'parts.view', 'services.view', 'departments.view', 'categories.view', 'colors.view', 'styles.view', 'price_lists.view'])
                 <flux:sidebar.group :heading="__('Catalogue')" expandable :expanded="request()->routeIs('products.*') || request()->routeIs('parts.*') || request()->routeIs('catalog.*')">
                     @can('products.view')
                         <flux:sidebar.item icon="cube" :href="route('products.index')" :current="request()->routeIs('products.*')" wire:navigate>
@@ -125,21 +125,11 @@
                             {{ __('Services') }}
                         </flux:sidebar.item>
                     @endcan
-                    @can('departments.view')
-                        <flux:sidebar.item icon="tag" :href="route('catalog.departments')" :current="request()->routeIs('catalog.departments')" wire:navigate>
-                            {{ __('Départements') }}
+                    @canany(['departments.view', 'categories.view', 'colors.view', 'styles.view'])
+                        <flux:sidebar.item icon="tag" :href="route('catalog.classification')" :current="request()->routeIs('catalog.classification')" wire:navigate>
+                            {{ __('Classification') }}
                         </flux:sidebar.item>
-                    @endcan
-                    @can('categories.view')
-                        <flux:sidebar.item icon="squares-2x2" :href="route('catalog.categories')" :current="request()->routeIs('catalog.categories')" wire:navigate>
-                            {{ __('Catégories') }}
-                        </flux:sidebar.item>
-                    @endcan
-                    @can('colors.view')
-                        <flux:sidebar.item icon="swatch" :href="route('catalog.colors')" :current="request()->routeIs('catalog.colors')" wire:navigate>
-                            {{ __('Couleurs') }}
-                        </flux:sidebar.item>
-                    @endcan
+                    @endcanany
                     @can('price_lists.view')
                         <flux:sidebar.item icon="currency-dollar" :href="route('catalog.price-lists')" :current="request()->routeIs('catalog.price-lists*')" wire:navigate>
                             {{ __('Listes de prix') }}

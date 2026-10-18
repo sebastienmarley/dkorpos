@@ -1,12 +1,9 @@
-<div class="p-6">
-    <div class="mb-6 flex items-center justify-between">
-        <div>
-            <flux:heading level="1" size="xl">{{ __('Couleurs') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Gestion des couleurs produits') }}</flux:text>
-        </div>
+<div>
+    <div class="mb-4 flex items-center justify-between gap-3">
+        <flux:text class="text-zinc-500">{{ __('Couleurs offertes pour les produits.') }}</flux:text>
         @can('colors.create')
             <flux:button variant="primary" icon="plus" wire:click="openCreate">
-                {{ __('Ajouter') }}
+                {{ __('Nouvelle couleur') }}
             </flux:button>
         @endcan
     </div>

@@ -66,6 +66,6 @@ class Colors extends Component
     {
         return view('livewire.catalog.colors', [
             'colors' => Color::withCount('products')->orderBy('name')->get(),
-        ])->layout('layouts.app', ['title' => __('Couleurs')]);
+        ]);
     }
 }

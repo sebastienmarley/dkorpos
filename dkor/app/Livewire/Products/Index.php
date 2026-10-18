@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Products;
 
+use App\Models\Category;
+use App\Models\Department;
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Contracts\View\View;
@@ -19,6 +21,10 @@ class Index extends Component
 
     public string $supplierId = '';
 
+    public string $departmentId = '';
+
+    public string $categoryId = '';
+
     public function updatedSearch(): void
     {
         $this->resetPage();
@@ -29,10 +35,21 @@ class Index extends Component
         $this->resetPage();
     }
 
+    public function updatedDepartmentId(): void
+    {
+        $this->categoryId = '';
+        $this->resetPage();
+    }
+
+    public function updatedCategoryId(): void
+    {
+        $this->resetPage();
+    }
+
     /** @return LengthAwarePaginator<int, Product> */
     public function getProducts(): LengthAwarePaginator
     {
-        return Product::with('supplier')
+        return Product::with(['supplier', 'category.department'])
             ->when(filled($this->search), function ($query) {
                 $query->where(function ($q) {
                     $q->where('model', 'like', '%'.$this->search.'%')
@@ -41,6 +58,8 @@ class Index extends Component
                 });
             })
             ->when(filled($this->supplierId), fn ($q) => $q->where('supplier_id', $this->supplierId))
+            ->when(filled($this->departmentId), fn ($q) => $q->whereRelation('category', 'department_id', $this->departmentId))
+            ->when(filled($this->categoryId), fn ($q) => $q->where('category_id', $this->categoryId))
             ->orderBy('model')
             ->paginate(10);
     }
@@ -49,6 +68,18 @@ class Index extends Component
     public function getSuppliers(): Collection
     {
         return Supplier::orderBy('name')->get();
+    }
+
+    /** @return Collection<int, Department> */
+    public function getDepartments(): Collection
+    {
+        return Department::orderBy('name')->get();
+    }
+
+    /** @return Collection<int, Category> */
+    public function getCategories(): Collection
+    {
+        return Category::where('department_id', $this->departmentId)->orderBy('name')->get();
     }
 
     #[On('product-saved')]

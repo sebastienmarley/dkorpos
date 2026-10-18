@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Color;
 use App\Models\Department;
 use App\Models\Product;
+use App\Models\Style;
 use App\Models\Supplier;
 use App\Rules\UniqueCleanProductModel;
 use App\Support\Money;
@@ -14,6 +15,7 @@ use Closure;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 use Livewire\Component;
 
@@ -49,6 +51,8 @@ class Show extends Component
     // Description
     public string $colorId = '';
 
+    public string $styleId = '';
+
     public string $imap = '';
 
     public string $newUpc = '';
@@ -76,6 +80,16 @@ class Show extends Component
         $this->cleanModel = UniqueCleanProductModel::clean($value);
     }
 
+    /**
+     * Le département ne sert qu'à filtrer les catégories : on retire une catégorie qui n'y appartient plus.
+     */
+    public function updatedDepartmentId(): void
+    {
+        if (filled($this->categoryId) && ! $this->getCategories()->contains('id', (int) $this->categoryId)) {
+            $this->categoryId = '';
+        }
+    }
+
     public function saveGeneral(): void
     {
         $this->authorize('products.edit');
@@ -100,7 +114,10 @@ class Show extends Component
                 },
             ],
             'departmentId' => ['nullable', 'exists:departments,id'],
-            'categoryId' => ['nullable', 'exists:categories,id'],
+            'categoryId' => [
+                'nullable',
+                Rule::exists('categories', 'id')->when(filled($this->departmentId), fn ($rule) => $rule->where('department_id', $this->departmentId)),
+            ],
             'isDiscontinued' => ['boolean'],
             'isNonOrderable' => ['boolean'],
             'isTaxable' => ['boolean'],
@@ -113,7 +130,6 @@ class Show extends Component
             'model' => $this->model,
             'clean_model' => $this->cleanModel,
             'supplier_model' => $this->supplierModel,
-            'department_id' => filled($this->departmentId) ? $this->departmentId : null,
             'category_id' => filled($this->categoryId) ? $this->categoryId : null,
             'is_discontinued' => $this->isDiscontinued,
             'is_non_orderable' => $this->isNonOrderable,
@@ -132,6 +148,7 @@ class Show extends Component
 
         $this->validate([
             'colorId' => ['nullable', 'exists:colors,id'],
+            'styleId' => ['nullable', 'exists:styles,id'],
             'imap' => ['nullable', 'numeric', 'min:0'],
             'collection' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -143,6 +160,7 @@ class Show extends Component
 
         $this->product->fill([
             'color_id' => filled($this->colorId) ? $this->colorId : null,
+            'style_id' => filled($this->styleId) ? $this->styleId : null,
             'imap' => filled($this->imap) ? Money::parse($this->imap) : null,
             'collection' => filled($this->collection) ? $this->collection : null,
             'description' => filled($this->description) ? $this->description : null,
@@ -214,6 +232,12 @@ class Show extends Component
         return Color::orderBy('name')->get();
     }
 
+    /** @return Collection<int, Style> */
+    public function getStyles(): Collection
+    {
+        return Style::orderBy('name')->get();
+    }
+
     private function normalizeCost(string $value): string
     {
         return Money::tryParse($value)?->toDecimal() ?? $value;
@@ -225,7 +249,7 @@ class Show extends Component
         $this->model = $this->product->model;
         $this->cleanModel = $this->product->clean_model;
         $this->supplierModel = $this->product->supplier_model ?? '';
-        $this->departmentId = (string) ($this->product->department_id ?? '');
+        $this->departmentId = (string) ($this->product->category->department_id ?? '');
         $this->categoryId = (string) ($this->product->category_id ?? '');
         $this->isDiscontinued = $this->product->is_discontinued;
         $this->isNonOrderable = $this->product->is_non_orderable;
@@ -233,6 +257,7 @@ class Show extends Component
         $this->isCustom = $this->product->is_custom;
         $this->cost = $this->product->cost->toDecimal();
         $this->colorId = (string) ($this->product->color_id ?? '');
+        $this->styleId = (string) ($this->product->style_id ?? '');
         $this->imap = $this->product->imap?->toDecimal() ?? '';
         $this->collection = $this->product->collection ?? '';
         $this->description = $this->product->description ?? '';

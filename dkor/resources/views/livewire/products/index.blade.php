@@ -14,8 +14,8 @@
     </div>
 
     {{-- Filtres --}}
-    <div class="mb-4 flex gap-3">
-        <div class="flex-1">
+    <div class="mb-4 flex flex-wrap gap-3">
+        <div class="min-w-64 flex-1">
             <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher un produit…') }}" icon="magnifying-glass" />
         </div>
 
@@ -27,6 +27,24 @@
                 @endforeach
             </flux:select>
         </div>
+
+        <div class="w-48">
+            <flux:select wire:model.live="departmentId">
+                <flux:select.option value="">{{ __('Tous les départements') }}</flux:select.option>
+                @foreach ($this->getDepartments() as $department)
+                    <flux:select.option :value="$department->id">{{ $department->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        </div>
+
+        <div class="w-48">
+            <flux:select wire:model.live="categoryId" :disabled="blank($departmentId)">
+                <flux:select.option value="">{{ __('Toutes les catégories') }}</flux:select.option>
+                @foreach ($this->getCategories() as $category)
+                    <flux:select.option :value="$category->id">{{ $category->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        </div>
     </div>
 
     {{-- Tableau --}}
@@ -35,6 +53,7 @@
             <flux:table.columns>
                 <flux:table.column>{{ __('Modèle') }}</flux:table.column>
                 <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
+                <flux:table.column>{{ __('Classification') }}</flux:table.column>
                 <flux:table.column>{{ __('Coût') }}</flux:table.column>
                 <flux:table.column>{{ __('Prix de vente') }}</flux:table.column>
             </flux:table.columns>
@@ -54,16 +73,24 @@
                             </flux:link>
                         </flux:table.cell>
 
+                        <flux:table.cell class="text-zinc-500">
+                            @if ($product->category)
+                                {{ $product->category->department->name }} › {{ $product->category->name }}
+                            @else
+                                —
+                            @endif
+                        </flux:table.cell>
+
                         <flux:table.cell>{{ $product->cost->format() }}</flux:table.cell>
 
                         <flux:table.cell>{{ $product->selling_price->format() }}</flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="4" class="py-12 text-center">
+                        <flux:table.cell colspan="5" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="cube" class="h-8 w-8 text-zinc-300" />
-                                @if (filled($search) || filled($supplierId))
+                                @if (filled($search) || filled($supplierId) || filled($departmentId))
                                     <flux:text class="text-zinc-400">{{ __('Aucun produit trouvé pour ces critères.') }}</flux:text>
                                 @else
                                     <flux:text class="text-zinc-400">{{ __('Aucun produit. Cliquez sur « Ajouter » pour commencer.') }}</flux:text>

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Carbon;
 
 /**
@@ -27,9 +28,9 @@ class Department extends Model
         return $this->hasMany(Category::class);
     }
 
-    /** @return HasMany<Product, $this> */
-    public function products(): HasMany
+    /** @return HasManyThrough<Product, Category, $this> */
+    public function products(): HasManyThrough
     {
-        return $this->hasMany(Product::class);
+        return $this->hasManyThrough(Product::class, Category::class);
     }
 }

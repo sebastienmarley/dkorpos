@@ -11,9 +11,7 @@ use App\Livewire\Accounting\Taxes;
 use App\Livewire\Admin\Permissions;
 use App\Livewire\Admin\Positions;
 use App\Livewire\Admin\Roles;
-use App\Livewire\Catalog\Categories;
-use App\Livewire\Catalog\Colors;
-use App\Livewire\Catalog\Departments;
+use App\Livewire\Catalog\Classification;
 use App\Livewire\Catalog\PriceLists;
 use App\Livewire\Catalog\PriceListShow;
 use App\Livewire\Catalog\Services;
@@ -80,10 +78,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('parts', PartsIndex::class)->middleware('can:parts.view')->name('parts.index');
     Route::get('parts/{part}', PartShow::class)->middleware('can:parts.view')->name('parts.show');
 
-    Route::get('catalog/departments', Departments::class)->middleware('can:departments.view')->name('catalog.departments');
-    Route::get('catalog/categories', Categories::class)->middleware('can:categories.view')->name('catalog.categories');
+    Route::get('catalog/classification', Classification::class)->name('catalog.classification');
     Route::get('catalog/services', Services::class)->middleware('can:services.view')->name('catalog.services');
-    Route::get('catalog/colors', Colors::class)->middleware('can:colors.view')->name('catalog.colors');
     Route::get('catalog/price-lists', PriceLists::class)->middleware('can:price_lists.view')->name('catalog.price-lists');
     Route::get('catalog/price-lists/{priceList}', PriceListShow::class)->middleware('can:price_lists.view')->name('catalog.price-lists.show');
 
