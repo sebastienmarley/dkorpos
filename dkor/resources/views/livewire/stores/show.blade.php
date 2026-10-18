@@ -21,7 +21,7 @@
     {{-- Onglets --}}
     <div x-data="{ tab: @entangle('activeTab') }">
         <div class="flex border-b border-zinc-200 dark:border-zinc-700">
-            @foreach (['identification' => __('Identification'), 'accounting' => __('Comptabilité'), 'hours' => __('Heures d\'ouverture'), 'parameters' => __('Paramètres')] as $key => $label)
+            @foreach (['identification' => __('Identification'), 'accounting' => __('Comptabilité'), 'hours' => __('Heures d\'ouverture'), 'delivery' => __('Livraison'), 'shipping' => __('Expédition'), 'parameters' => __('Paramètres')] as $key => $label)
                 <button
                     type="button"
                     @click="tab = '{{ $key }}'"
@@ -219,6 +219,90 @@
             </form>
         </div>
 
+        {{-- Livraison --}}
+        <div x-show="tab === 'delivery'" x-cloak>
+            <div class="mt-6 max-w-3xl space-y-4">
+                <div class="flex items-start justify-between gap-4">
+                    <flux:text class="text-zinc-500">
+                        {{ __('Chaque camion actif part avec un livreur à l\'horaire et fait au plus sa capacité de livraisons par demi-journée (AM ou PM).') }}
+                        {{ trans_choice(':count livreur actif est rattaché à ce magasin.|:count livreurs actifs sont rattachés à ce magasin.', $driversCount) }}
+                    </flux:text>
+                    @can('stores.edit')
+                        <flux:button variant="primary" icon="plus" wire:click="openTruckModal">{{ __('Ajouter un camion') }}</flux:button>
+                    @endcan
+                </div>
+
+                <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Camion') }}</flux:table.column>
+                            <flux:table.column align="end">{{ __('Livraisons par demi-journée') }}</flux:table.column>
+                            <flux:table.column />
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->getTrucks() as $truck)
+                                <flux:table.row :key="'truck-'.$truck->id" @class(['opacity-50' => ! $truck->is_active])>
+                                    <flux:table.cell variant="strong">
+                                        {{ $truck->name }}
+                                        @unless ($truck->is_active)
+                                            <flux:badge size="sm" class="ms-2">{{ __('Inactif') }}</flux:badge>
+                                        @endunless
+                                    </flux:table.cell>
+                                    <flux:table.cell align="end">{{ $truck->capacity_per_period }}</flux:table.cell>
+                                    <flux:table.cell class="text-right">
+                                        @can('stores.edit')
+                                            <flux:button variant="ghost" size="sm" icon="pencil" wire:click="openTruckModal({{ $truck->id }})" />
+                                        @endcan
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="3" class="py-12 text-center">
+                                        <div class="flex flex-col items-center gap-2">
+                                            <flux:icon name="truck" class="h-8 w-8 text-zinc-300" />
+                                            <flux:text class="text-zinc-400">{{ __('Aucun camion : ce magasin ne peut pas planifier de livraison.') }}</flux:text>
+                                        </div>
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
+                </div>
+            </div>
+        </div>
+
+        {{-- Expédition --}}
+        <div x-show="tab === 'shipping'" x-cloak>
+            <form wire:submit="saveShippingLimits" class="mt-6 max-w-2xl space-y-4">
+                <flux:text class="text-zinc-500">
+                    {{ __('Taille d\'un article qui peut être expédié par un fournisseur d\'expédition. Un article plus grand, plus lourd ou sans dimensions est signalé à la demande d\'expédition, sans la bloquer. Laissez vide pour ne pas vérifier.') }}
+                </flux:text>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <flux:field>
+                        <flux:label>{{ __('Plus grande dimension maximale') }}</flux:label>
+                        <flux:input wire:model="shippingMaxLength" inputmode="decimal" />
+                        <flux:description>{{ __('Longueur, largeur ou hauteur, dans l\'unité des fiches produits.') }}</flux:description>
+                        <flux:error name="shippingMaxLength" />
+                    </flux:field>
+
+                    <flux:field>
+                        <flux:label>{{ __('Poids maximal') }}</flux:label>
+                        <flux:input wire:model="shippingMaxWeight" inputmode="decimal" />
+                        <flux:description>{{ __('Dans l\'unité des fiches produits.') }}</flux:description>
+                        <flux:error name="shippingMaxWeight" />
+                    </flux:field>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                    @can('stores.edit')
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                    @endcan
+                </div>
+            </form>
+        </div>
+
         {{-- Paramètres --}}
         <div x-show="tab === 'parameters'" x-cloak>
             <form wire:submit="saveParameters" class="mt-6 max-w-2xl space-y-6">
@@ -257,4 +341,31 @@
             </form>
         </div>
     </div>
+
+    <flux:modal wire:model="showTruckModal" class="w-full max-w-md">
+        <flux:heading>{{ $editingTruckId ? __('Modifier le camion') : __('Nouveau camion') }}</flux:heading>
+
+        <form wire:submit="saveTruck" class="mt-6 space-y-4">
+            <flux:field>
+                <flux:label>{{ __('Nom') }}</flux:label>
+                <flux:input wire:model="truckName" :placeholder="__('Camion 1, Cube 16 pi…')" required autofocus />
+                <flux:error name="truckName" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Livraisons par demi-journée') }}</flux:label>
+                <flux:input wire:model="truckCapacity" type="number" min="1" max="50" required />
+                <flux:error name="truckCapacity" />
+            </flux:field>
+
+            <flux:checkbox wire:model="truckIsActive" :label="__('Actif')" />
+
+            <div class="flex justify-end gap-2 pt-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Annuler') }}</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
 </div>

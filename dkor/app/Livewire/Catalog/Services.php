@@ -84,6 +84,11 @@ class Services extends Component
     {
         $this->authorize($this->editingId ? 'services.edit' : 'services.create');
 
+        if ($this->isEditingSystemService()) {
+            $this->isInternal = true;
+            $this->isActive = true;
+        }
+
         $this->name = trim($this->name);
         $this->sellingPrice = str_replace(',', '.', $this->sellingPrice);
         $this->offers = array_values(array_filter(array_map(fn (array $offer): array => [
@@ -134,6 +139,12 @@ class Services extends Component
 
         $this->showModal = false;
         $this->reset(['editingId']);
+    }
+
+    /** Le service modifié est géré par l'application (frais d'expédition) : il reste interne et actif. */
+    public function isEditingSystemService(): bool
+    {
+        return $this->editingId !== null && (bool) Service::query()->whereKey($this->editingId)->value('code');
     }
 
     /** @return Collection<int, Supplier> */

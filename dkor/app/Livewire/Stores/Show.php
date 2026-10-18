@@ -4,10 +4,13 @@ namespace App\Livewire\Stores;
 
 use App\Enums\Province;
 use App\Enums\StoreType;
+use App\Models\DeliveryTruck;
 use App\Models\Store;
+use App\Support\DeliveryBooking;
 use Closure;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -67,6 +70,22 @@ class Show extends Component
     public string $shippingWarehouseId = '';
 
     public bool $isActive = true;
+
+    // Expédition
+    public string $shippingMaxLength = '';
+
+    public string $shippingMaxWeight = '';
+
+    // Livraison
+    public bool $showTruckModal = false;
+
+    public ?int $editingTruckId = null;
+
+    public string $truckName = '';
+
+    public string $truckCapacity = '3';
+
+    public bool $truckIsActive = true;
 
     public function mount(Store $store): void
     {
@@ -191,6 +210,73 @@ class Show extends Component
         Flux::toast(text: __('Paramètres sauvegardés.'), variant: 'success');
     }
 
+    /**
+     * Limites d'un article expédiable : au-delà, la demande d'expédition l'indique (sans la bloquer). Vide : aucune
+     * limite.
+     */
+    public function saveShippingLimits(): void
+    {
+        $this->authorize('stores.edit');
+
+        $this->shippingMaxLength = str_replace(',', '.', $this->shippingMaxLength);
+        $this->shippingMaxWeight = str_replace(',', '.', $this->shippingMaxWeight);
+
+        $this->validate([
+            'shippingMaxLength' => ['nullable', 'numeric', 'gt:0', 'max:999999'],
+            'shippingMaxWeight' => ['nullable', 'numeric', 'gt:0', 'max:999999'],
+        ]);
+
+        $this->store->fill([
+            'shipping_max_length' => filled($this->shippingMaxLength) ? round((float) $this->shippingMaxLength, 2) : null,
+            'shipping_max_weight' => filled($this->shippingMaxWeight) ? round((float) $this->shippingMaxWeight, 2) : null,
+        ])->save();
+
+        Flux::toast(text: __('Limites d\'expédition sauvegardées.'), variant: 'success');
+    }
+
+    public function openTruckModal(?int $truckId = null): void
+    {
+        $this->authorize('stores.edit');
+
+        $truck = $truckId === null ? null : $this->store->deliveryTrucks()->findOrFail($truckId);
+
+        $this->editingTruckId = $truck?->id;
+        $this->truckName = $truck->name ?? '';
+        $this->truckCapacity = (string) ($truck->capacity_per_period ?? 3);
+        $this->truckIsActive = $truck->is_active ?? true;
+        $this->resetValidation();
+        $this->showTruckModal = true;
+    }
+
+    public function saveTruck(): void
+    {
+        $this->authorize('stores.edit');
+
+        $this->validate([
+            'truckName' => ['required', 'string', 'max:255', Rule::unique('delivery_trucks', 'name')->where('store_id', $this->store->id)->ignore($this->editingTruckId)],
+            'truckCapacity' => ['required', 'integer', 'min:1', 'max:50'],
+            'truckIsActive' => ['boolean'],
+        ]);
+
+        $attributes = ['name' => trim($this->truckName), 'capacity_per_period' => (int) $this->truckCapacity, 'is_active' => $this->truckIsActive];
+
+        if ($this->editingTruckId === null) {
+            $this->store->deliveryTrucks()->create($attributes);
+        } else {
+            $this->store->deliveryTrucks()->findOrFail($this->editingTruckId)->update($attributes);
+        }
+
+        $this->showTruckModal = false;
+
+        Flux::toast(text: __('Camion sauvegardé.'), variant: 'success');
+    }
+
+    /** @return Collection<int, DeliveryTruck> */
+    public function getTrucks(): Collection
+    {
+        return $this->store->deliveryTrucks()->orderByDesc('is_active')->orderBy('name')->get();
+    }
+
     /** @return array<int, StoreType> */
     public function getStoreTypes(): array
     {
@@ -278,6 +364,8 @@ class Show extends Component
         $this->warehouseStoreId = (string) ($this->store->warehouse_store_id ?? '');
         $this->shippingWarehouseId = (string) ($this->store->shipping_warehouse_id ?? '');
         $this->isActive = $this->store->is_active;
+        $this->shippingMaxLength = $this->store->shipping_max_length === null ? '' : rtrim(rtrim(number_format($this->store->shipping_max_length, 2, '.', ''), '0'), '.');
+        $this->shippingMaxWeight = $this->store->shipping_max_weight === null ? '' : rtrim(rtrim(number_format($this->store->shipping_max_weight, 2, '.', ''), '0'), '.');
     }
 
     public function render(): View
@@ -289,6 +377,7 @@ class Show extends Component
                 9 => __('Septembre'), 10 => __('Octobre'), 11 => __('Novembre'), 12 => __('Décembre'),
             ],
             'provinces' => Province::cases(),
+            'driversCount' => DeliveryBooking::driversOf($this->store->id)->count(),
             'physicalStores' => Store::query()
                 ->where('type', StoreType::Physical)
                 ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->store->warehouse_store_id)->orWhere('id', $this->store->shipping_warehouse_id))

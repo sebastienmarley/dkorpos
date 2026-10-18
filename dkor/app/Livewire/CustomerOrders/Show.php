@@ -160,6 +160,9 @@ class Show extends Component
     /** @var array<int, int|string> quantité à ramasser par ligne */
     public array $pickupQuantities = [];
 
+    /** @var array<int, int> Quantité qui peut être ramassée par ligne (sans les articles prévus dans une livraison). */
+    public array $pickupAvailable = [];
+
     public int $pickupRequiredCents = 0;
 
     /** Montant payé avec le crédit au compte du client (champ affiché seulement si le client a un crédit). */
@@ -1121,19 +1124,19 @@ class Show extends Component
     }
 
     #[On('supplier-line-cancellation-requested')]
+    #[On('order-lines-changed')]
     public function onSupplierLineCancellationRequested(): void
     {
         $this->order->refresh();
     }
 
+    #[On('open-pickup-modal')]
     public function openPickupModal(): void
     {
         $this->authorize('customer_orders.edit');
 
-        $this->pickupQuantities = $this->order->lines()->get()
-            ->filter(fn ($line): bool => $line->status->isPickable() && $line->quantity_reserved > 0)
-            ->mapWithKeys(fn ($line): array => [$line->id => $line->quantity_reserved])
-            ->all();
+        $this->pickupAvailable = $this->order->pickableQuantities();
+        $this->pickupQuantities = $this->pickupAvailable;
         $this->pickupStep = 'items';
         $this->pickupPayments = [];
         $this->resetErrorBag();
@@ -1154,7 +1157,7 @@ class Show extends Component
 
         $quantities = $this->pickupQuantitiesAsIntegers();
 
-        $available = $this->order->lines()->whereKey(array_keys($quantities))->pluck('quantity_reserved', 'id');
+        $available = $this->order->pickableQuantities();
 
         foreach ($quantities as $lineId => $quantity) {
             if ($quantity > (int) ($available[$lineId] ?? 0)) {

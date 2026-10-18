@@ -50,11 +50,11 @@ describe('catalogue de services', function () {
             ->call('save')
             ->assertHasNoErrors();
 
-        expect(Service::sole())
+        expect(Service::whereNull('code')->sole())
             ->is_internal->toBeTrue()
             ->selling_price->toBeMoney(7995)
             ->is_taxable->toBeFalse()
-            ->and(Service::sole()->suppliers()->count())->toBe(0);
+            ->and(Service::whereNull('code')->sole()->suppliers()->count())->toBe(0);
     });
 
     it('crée un service externe offert par plusieurs fournisseurs à des prix différents', function () {
@@ -71,7 +71,7 @@ describe('catalogue de services', function () {
             ->call('save')
             ->assertHasNoErrors();
 
-        $service = Service::sole();
+        $service = Service::whereNull('code')->sole();
 
         expect($service->pricingFor($installer->id)['selling_price'])->toBeMoney(10000)
             ->and($service->pricingFor($installer->id)['cost'])->toBeMoney(6000)

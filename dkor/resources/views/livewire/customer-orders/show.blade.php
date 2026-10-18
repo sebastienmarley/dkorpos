@@ -66,9 +66,15 @@
                     </flux:field>
                 </form>
 
-                @if ($order->balance_due->isPositive() || $order->lines->contains(fn ($line) => $line->status->isPickable() && $line->quantity_reserved > 0))
-                    <flux:button variant="primary" icon="hand-raised" wire:click="openPickupModal" class="ms-auto">{{ __('Ramasser') }}</flux:button>
-                @endif
+                <div class="ms-auto flex gap-2">
+                    @if ($order->lines->contains(fn ($line) => ! $line->isService() && $line->status->isPickable()))
+                        <flux:button icon="truck" x-on:click="$dispatch('open-delivery-modal')">{{ __('Livraison') }}</flux:button>
+                        <flux:button icon="paper-airplane" x-on:click="$dispatch('open-delivery-modal', { method: 'shipping' })">{{ __('Expédition') }}</flux:button>
+                    @endif
+                    @if ($order->balance_due->isPositive() || $order->lines->contains(fn ($line) => $line->status->isPickable() && $line->quantity_reserved > 0))
+                        <flux:button variant="primary" icon="hand-raised" wire:click="openPickupModal">{{ __('Ramasser') }}</flux:button>
+                    @endif
+                </div>
             </div>
         @endcan
 
@@ -211,6 +217,8 @@
             </dl>
         </div>
     </div>
+
+    <livewire:customer-orders.deliveries :order="$order" />
 
     @can('customer_orders.assign_salespeople')
         <flux:modal wire:model="showSalespeopleModal" class="w-full max-w-lg">
@@ -926,14 +934,14 @@
                                     @endif
                                 </div>
                                 <div class="text-xs text-zinc-400">
-                                    {{ __('Disponible : :count', ['count' => $line->quantity_reserved]) }} · {{ $line->unit_price->format() }}
+                                    {{ __('Disponible : :count', ['count' => $pickupAvailable[$line->id] ?? 0]) }} · {{ $line->unit_price->format() }}
                                     @if ($line->quantity_on_order > 0)
                                         · {{ __(':count encore en commande', ['count' => $line->quantity_on_order]) }}
                                     @endif
                                 </div>
                             </div>
                             <div class="w-24">
-                                <flux:input wire:model="pickupQuantities.{{ $line->id }}" type="number" min="0" :max="$line->quantity_reserved" size="sm" />
+                                <flux:input wire:model="pickupQuantities.{{ $line->id }}" type="number" min="0" :max="$pickupAvailable[$line->id] ?? 0" size="sm" />
                                 <flux:error name="pickupQuantities.{{ $line->id }}" />
                             </div>
                         </div>

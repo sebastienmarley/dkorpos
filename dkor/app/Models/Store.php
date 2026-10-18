@@ -32,6 +32,8 @@ use Illuminate\Support\Collection;
  * @property string|null $sick_accrual_start Jour de début de l'accumulation des maladies (MM-JJ).
  * @property int|null $sick_days_full_time Maximum de jours de maladie payés, temps plein.
  * @property float $custom_deposit_percent Dépôt exigé (en %) sur les articles sur mesure non encore remis.
+ * @property float|null $shipping_max_length Plus grande dimension (longueur, largeur ou hauteur) d'un article expédiable, dans l'unité des fiches produits.
+ * @property float|null $shipping_max_weight Poids maximum d'un article expédiable, dans l'unité des fiches produits.
  * @property float $cancellation_fee_percent Frais d'annulation (en % du prix vendant) d'un article déjà commandé.
  * @property int|null $sick_days_part_time Maximum de jours de maladie payés, temps partiel.
  * @property array<string, array{open: bool, from: string, to: string}>|null $opening_hours
@@ -45,7 +47,7 @@ use Illuminate\Support\Collection;
     'name', 'type', 'province', 'phone', 'email',
     'address_civic', 'address_apartment', 'address_street', 'address_city',
     'address_province', 'address_country', 'address_postal_code',
-    'bank_account', 'cancellation_fee_percent', 'custom_deposit_percent',
+    'bank_account', 'cancellation_fee_percent', 'custom_deposit_percent', 'shipping_max_length', 'shipping_max_weight',
     'vacation_accrual_start', 'sick_accrual_start', 'sick_days_full_time', 'sick_days_part_time',
     'opening_hours', 'warehouse_store_id', 'shipping_warehouse_id', 'is_active',
 ])]
@@ -67,10 +69,18 @@ class Store extends Model
         'opening_hours' => 'array',
         'cancellation_fee_percent' => 'float',
         'custom_deposit_percent' => 'float',
+        'shipping_max_length' => 'float',
+        'shipping_max_weight' => 'float',
         'sick_days_full_time' => 'integer',
         'sick_days_part_time' => 'integer',
         'is_active' => 'boolean',
     ];
+
+    /** @return HasMany<DeliveryTruck, $this> */
+    public function deliveryTrucks(): HasMany
+    {
+        return $this->hasMany(DeliveryTruck::class);
+    }
 
     /** @return HasMany<StoreTaxRegistration, $this> */
     public function taxRegistrations(): HasMany

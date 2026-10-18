@@ -20,6 +20,7 @@ use App\Livewire\Catalog\Services;
 use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
 use App\Livewire\CustomerOrders\Show as CustomerOrderShow;
 use App\Livewire\Customers\Index as CustomersIndex;
+use App\Livewire\Deliveries\Index as DeliveriesIndex;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Labels\Index as LabelsIndex;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
@@ -62,6 +63,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('customer-orders', CustomerOrdersIndex::class)->middleware('can:customer_orders.view')->name('customer-orders.index');
     Route::get('customer-orders/{order}', CustomerOrderShow::class)->middleware('can:customer_orders.view')->name('customer-orders.show');
+
+    Route::get('deliveries', DeliveriesIndex::class)->middleware('can:deliveries.view')->name('deliveries.index');
 
     Route::get('suppliers', SuppliersIndex::class)->middleware('can:suppliers.view')->name('suppliers.index');
     Route::get('suppliers/{supplier}', SupplierShow::class)->middleware('can:suppliers.view')->name('suppliers.show');

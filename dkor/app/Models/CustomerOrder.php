@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use App\Actions\NotifyDeliveryItemsReceived;
+use App\Actions\NotifyDeliveryTeam;
+use App\Actions\NotifyShipmentReady;
 use App\Casts\MoneyCast;
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
 use App\Enums\DefectiveResolution;
+use App\Enums\DeliveryMethod;
+use App\Enums\DeliveryStatus;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
 use App\Enums\SupplierOrderLineStatus;
@@ -16,6 +21,7 @@ use App\Support\Money;
 use Database\Factories\CustomerOrderFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -44,6 +50,7 @@ use Illuminate\Support\Str;
  * @property-read Collection<int, User> $salespeople
  * @property-read Collection<int, CustomerOrderLine> $lines
  * @property-read Collection<int, CustomerOrderPickup> $pickups
+ * @property-read Collection<int, CustomerOrderDelivery> $deliveries
  * @property-read Collection<int, CustomerOrderPayment> $payments
  * @property-read Collection<int, CustomerOrderTax> $taxLines
  */
@@ -108,6 +115,12 @@ class CustomerOrder extends Model
     public function pickups(): HasMany
     {
         return $this->hasMany(CustomerOrderPickup::class);
+    }
+
+    /** @return HasMany<CustomerOrderDelivery, $this> */
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(CustomerOrderDelivery::class);
     }
 
     /** @return HasMany<CustomerOrderPayment, $this> */
@@ -336,6 +349,7 @@ class CustomerOrder extends Model
             $line->save();
 
             $this->syncSupplierLine($line);
+            $this->syncDeliveries();
             $this->recalculateBalance();
         });
     }
@@ -358,6 +372,7 @@ class CustomerOrder extends Model
                 'quantity' => $line->quantity_reserved + $onOrder,
             ]);
 
+            $this->syncDeliveries();
             $this->recalculateBalance();
         });
     }
@@ -365,16 +380,16 @@ class CustomerOrder extends Model
     /**
      * Répercute une réception de marchandise : les unités reçues sont aussitôt réservées au client (elles ne sont
      * pas disponibles pour les autres) et passent de « en commande » à « en stock » sur la ligne. Une fois tout reçu,
-     * la ligne passe à « Reçu ».
+     * la ligne passe à « Reçu ». Les livreurs sont avisés si la ligne est prévue dans une livraison à venir.
      */
     public function applySupplierReceipt(CustomerOrderLine $line, int $quantity): void
     {
-        DB::transaction(function () use ($line, $quantity): void {
+        $received = DB::transaction(function () use ($line, $quantity): int {
             $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
             $quantity = min($quantity, $line->quantity_on_order);
 
             if ($quantity < 1) {
-                return;
+                return 0;
             }
 
             if (! $line->isPart()) {
@@ -392,7 +407,11 @@ class CustomerOrder extends Model
                     default => CustomerOrderLineStatus::Ordered,
                 },
             ]);
+
+            return $quantity;
         });
+
+        app(NotifyDeliveryItemsReceived::class)->handle($line, $received);
     }
 
     /**
@@ -451,6 +470,7 @@ class CustomerOrder extends Model
             ]);
 
             $this->syncSupplierLine($reorder);
+            $this->syncDeliveries(reorderedLines: [$line->id => $reorder->id]);
         });
     }
 
@@ -560,6 +580,7 @@ class CustomerOrder extends Model
                 ]);
             }
 
+            $this->syncDeliveries();
             $this->recalculateBalance();
 
             return $fee;
@@ -592,6 +613,7 @@ class CustomerOrder extends Model
                 ]);
             }
 
+            $this->syncDeliveries();
             $this->recalculateBalance();
         });
     }
@@ -619,6 +641,7 @@ class CustomerOrder extends Model
                     'note' => trim($line->note."\n".$note),
                 ]);
 
+                $this->syncDeliveries(withdrawnLineIds: [$line->id]);
                 $this->recalculateBalance();
 
                 return $line;
@@ -643,6 +666,7 @@ class CustomerOrder extends Model
                 'note' => $note,
             ]);
 
+            $this->syncDeliveries();
             $this->recalculateBalance();
 
             return $substitute;
@@ -702,10 +726,107 @@ class CustomerOrder extends Model
             }
 
             $this->detachSupplierLine($line);
+            $this->syncDeliveries(withdrawnLineIds: [$line->id]);
             $line->delete();
 
             $this->recalculateBalance();
         });
+    }
+
+    /**
+     * Garde chaque livraison active dans ce qui reste à remettre au client. La quantité prévue d'une ligne est réduite à
+     * la quantité de la ligne (0 si elle est annulée, retirée ou remplacée par un autre produit), en commençant par la
+     * livraison la plus tardive (les planifiées avant celles en route). Une livraison qui n'a plus d'articles est
+     * annulée. Les livreurs sont avisés une fois la transaction terminée.
+     *
+     * @param  list<int>  $withdrawnLineIds  lignes à retirer des livraisons même si leur quantité reste (substitution, retrait)
+     * @param  array<int, int>  $reorderedLines  nouvelle ligne recommandée au fournisseur, par ligne d'origine : la quantité
+     *                                           retirée de la ligne d'origine y est reportée, dans la même livraison
+     */
+    private function syncDeliveries(array $withdrawnLineIds = [], array $reorderedLines = []): void
+    {
+        $plannedLines = CustomerOrderDeliveryLine::query()
+            ->with('delivery')
+            ->whereHas('delivery', fn (Builder $query) => $query->active()->where('customer_order_id', $this->id))
+            ->get();
+
+        if ($plannedLines->isEmpty()) {
+            return;
+        }
+
+        $orderLines = $this->lines()->get()->keyBy('id');
+
+        /** @var array<int, array{delivery: CustomerOrderDelivery, changes: list<string>}> $changedDeliveries */
+        $changedDeliveries = [];
+
+        foreach ($plannedLines->groupBy('customer_order_line_id') as $lineId => $planned) {
+            $line = $orderLines->get($lineId);
+            $deliverable = $line === null || in_array($lineId, $withdrawnLineIds, true) || $line->isService() || ! $line->status->isPickable()
+                ? 0
+                : $line->quantity;
+            $excess = $planned->sum('quantity') - $deliverable;
+
+            $latestFirst = $planned->sortByDesc(fn (CustomerOrderDeliveryLine $plannedLine): string => implode('|', [
+                $plannedLine->delivery->status === DeliveryStatus::Scheduled ? 1 : 0,
+                $plannedLine->delivery->scheduled_date?->toDateString() ?? '',
+                $plannedLine->delivery->period->value ?? '',
+                str_pad((string) $plannedLine->delivery->id, 10, '0', STR_PAD_LEFT),
+            ]));
+
+            foreach ($latestFirst as $plannedLine) {
+                if ($excess < 1) {
+                    break;
+                }
+
+                $moved = min($excess, $plannedLine->quantity);
+                $excess -= $moved;
+                $label = $line === null ? '' : $line->label;
+
+                if (isset($reorderedLines[$lineId])) {
+                    $reordered = $plannedLine->delivery->lines()->firstOrCreate(['customer_order_line_id' => $reorderedLines[$lineId]], ['quantity' => 0]);
+                    $reordered->increment('quantity', $moved);
+                    $change = __(':quantity × :label recommandé(s) au fournisseur', ['quantity' => $moved, 'label' => $label]);
+                } else {
+                    $change = __(':quantity × :label retiré(s)', ['quantity' => $moved, 'label' => $label]);
+                }
+
+                if ($moved === $plannedLine->quantity) {
+                    $plannedLine->delete();
+                } else {
+                    $plannedLine->decrement('quantity', $moved);
+                }
+
+                $changedDeliveries[$plannedLine->delivery->id]['delivery'] = $plannedLine->delivery;
+                $changedDeliveries[$plannedLine->delivery->id]['changes'][] = $change;
+            }
+        }
+
+        foreach ($changedDeliveries as ['delivery' => $delivery, 'changes' => $changes]) {
+            $isEmpty = $delivery->lines()->doesntExist();
+
+            if ($isEmpty) {
+                $delivery->update([
+                    'status' => DeliveryStatus::Cancelled,
+                    'cancelled_at' => now(),
+                    'cancelled_by' => auth()->id(),
+                    'cancellation_reason' => __('Plus aucun article à livrer'),
+                ]);
+            }
+
+            DB::afterCommit(fn () => app(NotifyDeliveryTeam::class)->handle(
+                $delivery,
+                match (true) {
+                    $delivery->method === DeliveryMethod::Shipping => $isEmpty ? __('Expédition annulée') : __('Expédition modifiée'),
+                    $isEmpty => __('Livraison annulée : :slot', ['slot' => $delivery->slotLabel()]),
+                    default => __('Livraison modifiée : :slot', ['slot' => $delivery->slotLabel()]),
+                },
+                $isEmpty ? __('Plus aucun article à livrer (:changes)', ['changes' => implode(', ', $changes)]) : implode(', ', $changes),
+            ));
+
+            if (! $isEmpty && $delivery->method === DeliveryMethod::Shipping) {
+                DB::afterCommit(fn () => app(NotifyShipmentReady::class)->handle($delivery->fresh()));
+            }
+        }
     }
 
     /**
@@ -956,6 +1077,170 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Montant à encaisser avant de planifier une livraison : la règle du ramassage appliquée aux articles de cette
+     * livraison et de celles déjà prévues (ils seront remis au client), moins ce qui est déjà payé.
+     *
+     * @param  array<int, int>  $quantities  quantité à livrer par ligne
+     */
+    public function amountRequiredForDelivery(array $quantities, ?int $ignoringDeliveryId = null): Money
+    {
+        $total = $this->deliveringQuantities($ignoringDeliveryId);
+
+        foreach ($quantities as $lineId => $quantity) {
+            $total[$lineId] = ($total[$lineId] ?? 0) + $quantity;
+        }
+
+        return $this->amountRequiredFor($total);
+    }
+
+    /**
+     * Montant à encaisser avant de demander une expédition : les articles expédiés (et ceux des autres livraisons
+     * actives) et les frais d'expédition pas encore remis comptent à 100 %, le dépôt sur le reste, moins le payé.
+     *
+     * @param  array<int, int>  $quantities  quantité à expédier par ligne
+     */
+    public function amountRequiredForShipment(array $quantities): Money
+    {
+        foreach ($this->shippingFeeLines() as $feeLine) {
+            $quantities[$feeLine->id] = ($quantities[$feeLine->id] ?? 0) + $feeLine->quantity;
+        }
+
+        return $this->amountRequiredForDelivery($quantities);
+    }
+
+    /**
+     * Lignes de frais d'expédition (service géré par l'application) facturables et pas encore complétées.
+     *
+     * @return Collection<int, CustomerOrderLine>
+     */
+    public function shippingFeeLines(): Collection
+    {
+        return $this->lines()
+            ->whereHas('service', fn (Builder $query) => $query->where('code', Service::SHIPPING_FEE))
+            ->get()
+            ->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable() && ! $line->status->isHandedOver())
+            ->values();
+    }
+
+    /**
+     * Ajoute les frais d'expédition à la commande, au prix fixe du service.
+     *
+     * @throws DomainException si la commande en a déjà.
+     */
+    public function addShippingFee(): CustomerOrderLine
+    {
+        if ($this->shippingFeeLines()->isNotEmpty()) {
+            throw new DomainException(__('Les frais d\'expédition sont déjà sur la commande.'));
+        }
+
+        $service = Service::shippingFee();
+
+        return $this->addService($service, null, 1, $service->name);
+    }
+
+    /**
+     * Valide les quantités d'une nouvelle livraison ou expédition : au moins un article, et pas plus que ce qui reste à
+     * remettre au client (deliverableQuantities()).
+     *
+     * @param  array<int, int>  $quantities  quantité par ligne
+     * @return array<int, int> les quantités positives
+     *
+     * @throws DomainException
+     */
+    public function guardDeliverableQuantities(array $quantities): array
+    {
+        $quantities = array_filter($quantities, fn (int $quantity): bool => $quantity > 0);
+
+        if ($quantities === []) {
+            throw new DomainException(__('Choisissez au moins un article à livrer.'));
+        }
+
+        $deliverable = $this->deliverableQuantities();
+
+        foreach ($quantities as $lineId => $quantity) {
+            if ($quantity > ($deliverable[$lineId] ?? 0)) {
+                throw new DomainException(__('La quantité à livrer dépasse ce qui reste à remettre au client.'));
+            }
+        }
+
+        return $quantities;
+    }
+
+    /**
+     * Adresse de la fiche du client, vérifiée avec lui maintenant par l'usager courant, à copier sur une livraison.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws DomainException si l'adresse est incomplète.
+     */
+    public function verifiedDeliveryAddress(): array
+    {
+        $customer = $this->customer()->firstOrFail();
+
+        if (! $customer->hasCompleteAddress()) {
+            throw new DomainException(__('L\'adresse du client est incomplète : corrigez sa fiche avant de planifier la livraison.'));
+        }
+
+        return [
+            ...$customer->only(CustomerOrderDelivery::ADDRESS_FIELDS),
+            'address_verified_by' => auth()->id(),
+            'address_verified_at' => now(),
+        ];
+    }
+
+    /**
+     * Quantités déjà prévues dans les livraisons actives (planifiées ou en route), par ligne.
+     *
+     * @return array<int, int>
+     */
+    public function deliveringQuantities(?int $ignoringDeliveryId = null): array
+    {
+        return CustomerOrderDeliveryLine::query()
+            ->whereHas('delivery', fn (Builder $query) => $query->active()
+                ->where('customer_order_id', $this->id)
+                ->when($ignoringDeliveryId !== null, fn (Builder $query) => $query->whereKeyNot($ignoringDeliveryId)))
+            ->selectRaw('customer_order_line_id, sum(quantity) as quantity')
+            ->groupBy('customer_order_line_id')
+            ->pluck('quantity', 'customer_order_line_id')
+            ->map(fn (mixed $quantity): int => (int) $quantity)
+            ->all();
+    }
+
+    /**
+     * Quantités qui peuvent encore être prévues dans une livraison, par ligne : les produits et les pièces pas encore
+     * remis (reçus ou non), moins ce qui est déjà dans une livraison active. Les services ne se livrent pas.
+     *
+     * @return array<int, int>
+     */
+    public function deliverableQuantities(?int $ignoringDeliveryId = null): array
+    {
+        $delivering = $this->deliveringQuantities($ignoringDeliveryId);
+
+        return $this->lines()->get()
+            ->filter(fn (CustomerOrderLine $line): bool => ! $line->isService() && $line->status->isPickable())
+            ->mapWithKeys(fn (CustomerOrderLine $line): array => [$line->id => $line->quantity - ($delivering[$line->id] ?? 0)])
+            ->filter(fn (int $quantity): bool => $quantity > 0)
+            ->all();
+    }
+
+    /**
+     * Quantités qui peuvent être ramassées en magasin, par ligne : le stock réservé au client, sans ce qui est prévu
+     * dans une livraison active.
+     *
+     * @return array<int, int>
+     */
+    public function pickableQuantities(): array
+    {
+        $delivering = $this->deliveringQuantities();
+
+        return $this->lines()->get()
+            ->filter(fn (CustomerOrderLine $line): bool => $line->status->isPickable())
+            ->mapWithKeys(fn (CustomerOrderLine $line): array => [$line->id => min($line->quantity_reserved, $line->quantity - ($delivering[$line->id] ?? 0))])
+            ->filter(fn (int $quantity): bool => $quantity > 0)
+            ->all();
+    }
+
+    /**
      * Montant remboursable pour le retour de cette quantité : la valeur retournée (taxes incluses), sans que le payé
      * restant passe sous ce qu'exige le reste de la commande (100 % des articles remis, dépôt sur les autres).
      */
@@ -1056,12 +1341,13 @@ class CustomerOrder extends Model
 
         return DB::transaction(function () use ($quantities, $payments, $creditUsed, $paid): ?CustomerOrderPickup {
             $lines = $this->lines()->lockForUpdate()->whereKey(array_keys($quantities))->get()->keyBy('id');
+            $pickable = $this->pickableQuantities();
 
             foreach ($quantities as $lineId => $quantity) {
                 $line = $lines->get($lineId);
 
-                if ($line === null || ! $line->status->isPickable() || $quantity > $line->quantity_reserved) {
-                    throw new DomainException(__('La quantité à ramasser dépasse ce qui est disponible pour le client.'));
+                if ($line === null || ! $line->status->isPickable() || $quantity > ($pickable[$lineId] ?? 0)) {
+                    throw new DomainException(__('La quantité à ramasser dépasse ce qui est disponible pour le client (les articles prévus dans une livraison ne se ramassent pas).'));
                 }
             }
 
@@ -1268,6 +1554,7 @@ class CustomerOrder extends Model
                 ]);
 
                 $this->syncSupplierLine($line);
+                $this->syncDeliveries();
             }
 
             $line->update(['note' => filled($note) ? $note : null]);

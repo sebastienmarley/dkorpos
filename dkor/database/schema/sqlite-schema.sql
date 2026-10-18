@@ -342,6 +342,8 @@ CREATE TABLE "stores"(
   "cancellation_fee_percent" numeric not null default '0',
   "province" varchar not null default 'QC',
   "custom_deposit_percent" numeric not null default '50',
+  "shipping_max_length" numeric,
+  "shipping_max_weight" numeric,
   foreign key("warehouse_store_id") references stores("id") on delete set null on update no action,
   foreign key("shipping_warehouse_id") references "stores"("id") on delete set null
 );
@@ -549,6 +551,8 @@ CREATE TABLE "services"(
   "is_active" tinyint(1) not null default('1'),
   "created_at" datetime,
   "updated_at" datetime
+  ,
+  "code" varchar
 );
 CREATE UNIQUE INDEX "services_name_unique" on "services"("name");
 CREATE TABLE "service_supplier"(
@@ -994,6 +998,76 @@ CREATE INDEX "notifications_notifiable_type_notifiable_id_index" on "notificatio
   "notifiable_type",
   "notifiable_id"
 );
+CREATE TABLE "delivery_trucks"(
+  "id" integer primary key autoincrement not null,
+  "store_id" integer not null,
+  "name" varchar not null,
+  "capacity_per_period" integer not null,
+  "is_active" tinyint(1) not null default '1',
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("store_id") references "stores"("id") on delete cascade
+);
+CREATE UNIQUE INDEX "delivery_trucks_store_id_name_unique" on "delivery_trucks"(
+  "store_id",
+  "name"
+);
+CREATE TABLE "customer_order_deliveries"(
+  "id" integer primary key autoincrement not null,
+  "customer_order_id" integer not null,
+  "store_id" integer,
+  "rescheduled_from_id" integer,
+  "method" varchar not null,
+  "status" varchar not null,
+  "scheduled_date" date,
+  "period" varchar,
+  "address_civic" varchar not null,
+  "address_apartment" varchar,
+  "address_street" varchar not null,
+  "address_city" varchar not null,
+  "address_province" varchar not null,
+  "address_country" varchar not null,
+  "address_postal_code" varchar not null,
+  "address_verified_by" integer,
+  "address_verified_at" datetime not null,
+  "pay_on_delivery" tinyint(1) not null default '0',
+  "pay_on_delivery_authorized_by" integer,
+  "notes" text,
+  "requested_by" integer,
+  "cancelled_at" datetime,
+  "cancelled_by" integer,
+  "cancellation_reason" varchar,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "ready_at" datetime,
+  foreign key("customer_order_id") references "customer_orders"("id") on delete cascade,
+  foreign key("store_id") references "stores"("id") on delete set null,
+  foreign key("rescheduled_from_id") references "customer_order_deliveries"("id") on delete set null,
+  foreign key("address_verified_by") references "users"("id") on delete set null,
+  foreign key("pay_on_delivery_authorized_by") references "users"("id") on delete set null,
+  foreign key("requested_by") references "users"("id") on delete set null,
+  foreign key("cancelled_by") references "users"("id") on delete set null
+);
+CREATE INDEX "customer_order_deliveries_store_id_scheduled_date_period_index" on "customer_order_deliveries"(
+  "store_id",
+  "scheduled_date",
+  "period"
+);
+CREATE TABLE "customer_order_delivery_lines"(
+  "id" integer primary key autoincrement not null,
+  "customer_order_delivery_id" integer not null,
+  "customer_order_line_id" integer not null,
+  "quantity" integer not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("customer_order_delivery_id") references "customer_order_deliveries"("id") on delete cascade,
+  foreign key("customer_order_line_id") references "customer_order_lines"("id") on delete cascade
+);
+CREATE UNIQUE INDEX "delivery_line_unique" on "customer_order_delivery_lines"(
+  "customer_order_delivery_id",
+  "customer_order_line_id"
+);
+CREATE UNIQUE INDEX "services_code_unique" on "services"("code");
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1152,3 +1226,6 @@ INSERT INTO migrations VALUES(156,'2026_10_18_002006_create_styles_table',14);
 INSERT INTO migrations VALUES(157,'2026_10_18_011628_create_label_requests_table',15);
 INSERT INTO migrations VALUES(158,'2026_10_18_013558_add_displayed_price_to_products_table',16);
 INSERT INTO migrations VALUES(159,'2026_10_18_020022_create_notifications_table',17);
+INSERT INTO migrations VALUES(160,'2026_10_18_125336_create_delivery_trucks_table',18);
+INSERT INTO migrations VALUES(161,'2026_10_18_125337_create_customer_order_deliveries_table',18);
+INSERT INTO migrations VALUES(162,'2026_10_18_133416_add_shipping_to_customer_order_deliveries',19);

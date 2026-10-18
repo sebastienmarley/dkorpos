@@ -38,6 +38,8 @@ it('ne garde en décimal que les taux, pourcentages, multiplicateurs et mesures'
         'products.width',
         'stores.cancellation_fee_percent',
         'stores.custom_deposit_percent',
+        'stores.shipping_max_length',
+        'stores.shipping_max_weight',
         'supplier_invoices.discount_percent',
         'suppliers.base_multiplier',
         'suppliers.customs_fee',
