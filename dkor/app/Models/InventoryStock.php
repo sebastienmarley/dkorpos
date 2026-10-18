@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Actions\QueuePriceChangeLabels;
 use App\Enums\InventoryStatus;
 use Database\Factories\InventoryStockFactory;
+use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -47,6 +48,14 @@ class InventoryStock extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (InventoryStock $stock): void {
+            foreach (InventoryStatus::cases() as $status) {
+                if ($stock->quantityFor($status) < 0) {
+                    throw new DomainException(__('La quantité « :status » ne peut pas être négative.', ['status' => $status->label()]));
+                }
+            }
+        });
+
         static::saved(function (InventoryStock $stock): void {
             if ($stock->wasChanged('quantity_in_demo') || ($stock->wasRecentlyCreated && $stock->quantity_in_demo > 0)) {
                 app(QueuePriceChangeLabels::class)->forProducts([$stock->product_id]);

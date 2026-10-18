@@ -492,6 +492,24 @@ it('refuse de terminer une réception dont les lignes ont été reçues entre-te
         ->and(InventoryUnit::count())->toBe(5);
 });
 
+it('ne réapplique ni n\'abandonne une réception terminée depuis une instance périmée (deux onglets, double clic)', function () {
+    [$order, [$line]] = sentOrder(quantities: [10]);
+    $reception = Reception::start($order->supplier, [$line->id => ['quantity' => 4]]);
+    $staleComplete = Reception::findOrFail($reception->id);
+    $staleDiscard = Reception::findOrFail($reception->id);
+
+    $reception->complete();
+
+    expect(fn () => $staleComplete->complete())->toThrow(DomainException::class, 'Cette réception est déjà terminée.')
+        ->and(fn () => $staleDiscard->discard())->toThrow(DomainException::class)
+        ->and(Reception::find($reception->id))->not->toBeNull()
+        ->and($line->fresh()->quantity_received)->toBe(4)
+        ->and(InventoryUnit::count())->toBe(4)
+        ->and($line->product->inventoryStock()->sole()->quantity_in_stock)->toBe(4);
+
+    expectInventoryIntegrity($line->product);
+});
+
 it('abandonne une réception en cours sans effet sur l\'inventaire mais pas une réception terminée', function () {
     [$order, [$line]] = sentOrder(quantities: [4]);
     $reception = Reception::start($order->supplier, [$line->id => ['quantity' => 4]]);

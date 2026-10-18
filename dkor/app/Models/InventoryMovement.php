@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
+use App\Support\Money;
 use Database\Factories\InventoryMovementFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,12 +23,15 @@ use LogicException;
  * Journal des mouvements d'inventaire: chaque changement de quantité d'un état à un autre y est consigné.
  * Un état source vide signifie que la marchandise vient de l'extérieur (ex.: commande au fournisseur); un état
  * destination vide, qu'elle sort du suivi (ex.: commande annulée). Le journal ne se modifie ni ne se supprime.
+ * Un mouvement qui fait entrer de la marchandise dans les états valorisés, ou l'en fait sortir, crée, sort ou rouvre
+ * les unités d'inventaire (couches de coût FIFO) et consigne sa valeur (ADR 0011).
  *
  * @property int $id
  * @property int $product_id
  * @property InventoryStatus|null $from_status
  * @property InventoryStatus|null $to_status
  * @property int $quantity
+ * @property Money|null $value Valeur des unités créées, sorties ou rouvertes; vide si les unités ne changent pas.
  * @property InventoryMovementType $type
  * @property string|null $reference_type
  * @property int|null $reference_id
@@ -35,7 +42,7 @@ use LogicException;
  * @property-read User|null $user
  * @property-read Model|null $reference
  */
-#[Fillable(['product_id', 'from_status', 'to_status', 'quantity', 'type', 'reference_type', 'reference_id', 'user_id', 'note'])]
+#[Fillable(['product_id', 'from_status', 'to_status', 'quantity', 'value', 'type', 'reference_type', 'reference_id', 'user_id', 'note'])]
 class InventoryMovement extends Model
 {
     /** @use HasFactory<InventoryMovementFactory> */
@@ -48,6 +55,7 @@ class InventoryMovement extends Model
         'to_status' => InventoryStatus::class,
         'type' => InventoryMovementType::class,
         'quantity' => 'integer',
+        'value' => MoneyCast::class,
     ];
 
     protected static function booted(): void
@@ -76,7 +84,12 @@ class InventoryMovement extends Model
 
     /**
      * Déplace une quantité d'un état à un autre (ou depuis/vers l'extérieur avec un état vide), met à jour les
-     * quantités de l'inventaire et consigne le mouvement dans la même transaction.
+     * quantités de l'inventaire et les unités, et consigne le mouvement dans la même transaction.
+     *
+     * Unités (voir unitChange) : une entrée dans les états valorisés crée des unités au coût donné (sinon au coût du
+     * produit), ou rouvre d'abord celles qu'une sortie de la même référence avait sorties (retour d'une commande).
+     * Une sortie sort les plus anciennes (FIFO); un renversement de réception (référence ReceptionLine) supprime celles
+     * de la ligne reçue.
      */
     public static function record(
         Product|int $product,
@@ -87,6 +100,7 @@ class InventoryMovement extends Model
         ?Model $reference = null,
         ?string $note = null,
         int|string|null $userId = null,
+        ?Money $unitCost = null,
     ): InventoryMovement {
         if ($quantity < 1) {
             throw new DomainException(__('La quantité à déplacer doit être d\'au moins 1.'));
@@ -96,9 +110,13 @@ class InventoryMovement extends Model
             throw new DomainException(__('L\'état de départ et d\'arrivée doivent être différents.'));
         }
 
+        if ($type === InventoryMovementType::Transfer && ! ($from?->isManuallyMovable() && $to?->isManuallyMovable())) {
+            throw new DomainException(__('Un transfert manuel se fait seulement entre états physiques (en stock, en démo, défectueux, perdu).'));
+        }
+
         $productId = $product instanceof Product ? $product->id : $product;
 
-        return DB::transaction(function () use ($productId, $from, $to, $quantity, $type, $reference, $note, $userId): InventoryMovement {
+        return DB::transaction(function () use ($productId, $from, $to, $quantity, $type, $reference, $note, $userId, $unitCost): InventoryMovement {
             $stock = InventoryStock::query()->lockForUpdate()->firstOrCreate(['product_id' => $productId]);
 
             if ($from !== null) {
@@ -121,17 +139,109 @@ class InventoryMovement extends Model
 
             $stock->save();
 
-            return static::create([
+            $change = self::unitChange($productId, $from, $to, $quantity, $reference, $unitCost);
+
+            $movement = static::create([
                 'product_id' => $productId,
                 'from_status' => $from,
                 'to_status' => $to,
                 'quantity' => $quantity,
+                'value' => $change['value'],
                 'type' => $type,
                 'reference_type' => $reference?->getMorphClass(),
                 'reference_id' => $reference?->getKey(),
                 'user_id' => $userId ?? auth()->id(),
                 'note' => filled($note) ? $note : null,
             ]);
+
+            ($change['apply'])($movement);
+
+            return $movement;
         });
+    }
+
+    /**
+     * Prévoit le changement d'unités d'un mouvement : sa valeur, et ce qu'il faut faire une fois le mouvement créé
+     * (sortir des unités demande son id). Rien ne change entre deux états valorisés ou deux états non valorisés.
+     *
+     * @return array{value: Money|null, apply: callable(InventoryMovement): void}
+     */
+    private static function unitChange(int $productId, ?InventoryStatus $from, ?InventoryStatus $to, int $quantity, ?Model $reference, ?Money $unitCost): array
+    {
+        $fromValued = $from?->isValued() ?? false;
+        $toValued = $to?->isValued() ?? false;
+
+        if ($fromValued === $toValued) {
+            return ['value' => null, 'apply' => function (): void {}];
+        }
+
+        $inHand = fn (): Builder => InventoryUnit::query()->where('product_id', $productId)->inHand();
+
+        if ($toValued) {
+            $reopened = $from === null && $reference !== null
+                ? InventoryUnit::query()
+                    ->where('product_id', $productId)
+                    ->whereNotNull('delivered_at')
+                    ->whereHas('exitMovement', fn (Builder $exit) => $exit->whereMorphedTo('reference', $reference))
+                    ->orderByDesc('delivered_at')
+                    ->orderByDesc('id')
+                    ->limit($quantity)
+                    ->get()
+                : new Collection;
+            $created = $quantity - $reopened->count();
+            $cost = $unitCost ?? self::productCost($productId);
+
+            return [
+                'value' => self::unitsValue($reopened)->plus($cost->times($created)),
+                'apply' => function () use ($reopened, $created, $productId, $cost, $reference): void {
+                    InventoryUnit::whereKey($reopened->modelKeys())->update(['delivered_at' => null, 'exit_movement_id' => null]);
+
+                    for ($i = 0; $i < $created; $i++) {
+                        InventoryUnit::create([
+                            'product_id' => $productId,
+                            'reception_line_id' => $reference instanceof ReceptionLine ? $reference->id : null,
+                            'cost' => $cost,
+                            'inserted_at' => today(),
+                        ]);
+                    }
+                },
+            ];
+        }
+
+        if ($reference instanceof ReceptionLine && $to !== null) {
+            $units = $inHand()->where('reception_line_id', $reference->id)->orderByDesc('id')->limit($quantity)->get();
+
+            if ($units->count() < $quantity) {
+                throw new DomainException(__('Impossible de renverser : certaines unités reçues ont déjà été livrées ou ne sont pas retraçables.'));
+            }
+
+            return [
+                'value' => self::unitsValue($units),
+                'apply' => function () use ($units): void {
+                    InventoryUnit::whereKey($units->modelKeys())->delete();
+                },
+            ];
+        }
+
+        $units = $inHand()->fifo()->limit($quantity)->get();
+
+        return [
+            // Stock entré avant le suivi des unités : la partie sans unité est valorisée au coût du produit.
+            'value' => self::unitsValue($units)->plus(self::productCost($productId)->times($quantity - $units->count())),
+            'apply' => function (InventoryMovement $movement) use ($units): void {
+                InventoryUnit::whereKey($units->modelKeys())->update(['delivered_at' => today(), 'exit_movement_id' => $movement->id]);
+            },
+        ];
+    }
+
+    /** @param Collection<int, InventoryUnit> $units */
+    private static function unitsValue(Collection $units): Money
+    {
+        return Money::sum($units->map(fn (InventoryUnit $unit): Money => $unit->cost));
+    }
+
+    private static function productCost(int $productId): Money
+    {
+        return Product::query()->findOrFail($productId)->cost;
     }
 }

@@ -112,8 +112,14 @@
                 @endcan
 
                 @can('inventory.view')
-                    <flux:sidebar.item icon="clipboard-document-list" :href="route('inventory.movements')" :current="request()->routeIs('inventory.*')" wire:navigate>
+                    <flux:sidebar.item icon="clipboard-document-list" :href="route('inventory.movements')" :current="request()->routeIs('inventory.movements')" wire:navigate>
                         {{ __('Journal d\'inventaire') }}
+                    </flux:sidebar.item>
+                @endcan
+
+                @can('inventory.adjust')
+                    <flux:sidebar.item icon="adjustments-horizontal" :href="route('inventory.adjustments')" :current="request()->routeIs('inventory.adjustments')" wire:navigate>
+                        {{ __('Ajustements d\'inventaire') }}
                     </flux:sidebar.item>
                 @endcan
 
@@ -153,7 +159,7 @@
                 </flux:sidebar.group>
                 @endcanany
 
-                @canany(['currencies.view', 'invoices.view', 'payroll.view', 'payment_methods.view', 'taxes.view'])
+                @canany(['currencies.view', 'invoices.view', 'payroll.view', 'payment_methods.view', 'taxes.view', 'ledger.view'])
                 <flux:sidebar.group :heading="__('Comptabilité')" expandable :expanded="request()->routeIs('accounting.*')">
                     @can('invoices.view')
                         <flux:sidebar.item icon="document-text" :href="route('accounting.invoices')" :current="request()->routeIs('accounting.invoices*')" wire:navigate>
@@ -178,6 +184,11 @@
                     @can('currencies.view')
                         <flux:sidebar.item icon="currency-dollar" :href="route('accounting.currencies')" :current="request()->routeIs('accounting.currencies')" wire:navigate>
                             {{ __('Devises') }}
+                        </flux:sidebar.item>
+                    @endcan
+                    @can('ledger.view')
+                        <flux:sidebar.item icon="book-open" :href="route('accounting.ledger')" :current="request()->routeIs('accounting.ledger')" wire:navigate>
+                            {{ __('Grand livre') }}
                         </flux:sidebar.item>
                     @endcan
                 </flux:sidebar.group>

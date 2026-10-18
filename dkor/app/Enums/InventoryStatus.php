@@ -62,9 +62,21 @@ enum InventoryStatus: string
         };
     }
 
-    /** Les quantités « en commande » suivent les commandes fournisseurs: pas de transfert manuel. */
+    /**
+     * La marchandise appartient au magasin et a un coût : elle a des unités d'inventaire (couches de coût FIFO,
+     * ADR 0011). « En commande » n'est pas encore reçu; « En commande client » n'est pas utilisé.
+     */
+    public function isValued(): bool
+    {
+        return ! in_array($this, [self::OnOrder, self::CustomerOrder], true);
+    }
+
+    /**
+     * Seuls les états physiques se transfèrent à la main (ADR 0011). Les autres suivent leur document (commande
+     * client, livraison, commande fournisseur, dossier défectueux) : un transfert manuel les désynchroniserait.
+     */
     public function isManuallyMovable(): bool
     {
-        return $this !== self::OnOrder;
+        return in_array($this, [self::InStock, self::InDemo, self::DefectiveStock, self::Lost], true);
     }
 }

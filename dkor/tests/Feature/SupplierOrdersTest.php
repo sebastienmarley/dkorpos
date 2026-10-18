@@ -1250,3 +1250,24 @@ it('offre le lien vers la facturation dans une commande avec une réception', fu
         ->assertSee('Facturation')
         ->assertSee(route('accounting.invoices', ['search' => $order->number]), false);
 });
+
+it('ne réapplique pas l\'envoi ni une modification de ligne depuis une instance périmée', function () {
+    Mail::fake();
+    [$order, $product, $line] = productOrderWithLine(10);
+    $order->markPending();
+    $staleOrder = SupplierOrder::findOrFail($order->id);
+
+    $order->send();
+
+    expect(fn () => $staleOrder->send())->toThrow(DomainException::class)
+        ->and($product->inventoryStock()->sole()->quantity_on_order)->toBe(10);
+
+    $staleLine = SupplierOrderLine::findOrFail($line->id);
+    $order->fresh()->updateLine($line->fresh(), 12, Money::parse(5));
+    SupplierOrder::findOrFail($order->id)->updateLine($staleLine, 12, Money::parse(5));
+
+    expect($line->fresh()->quantity)->toBe(12)
+        ->and($product->inventoryStock()->sole()->quantity_on_order)->toBe(12);
+
+    expectInventoryIntegrity($product);
+});

@@ -93,13 +93,7 @@ it('consigne l\'annulation d\'une commande et reste équilibré avec les quantit
         ['on_order', null, 6, 'order_cancelled'],
     ]);
 
-    $stock = InventoryStock::where('product_id', $product->id)->first();
-    foreach (InventoryStatus::cases() as $status) {
-        $net = InventoryMovement::where('product_id', $product->id)->where('to_status', $status)->sum('quantity')
-            - InventoryMovement::where('product_id', $product->id)->where('from_status', $status)->sum('quantity');
-
-        expect($stock->quantityFor($status))->toBe((int) $net);
-    }
+    expectInventoryIntegrity($product);
 });
 
 it('ne consigne rien pour un brouillon ni une ligne de service', function () {
@@ -145,7 +139,9 @@ it('gère les neuf états', function () {
             continue;
         }
 
-        InventoryMovement::record($product, InventoryStatus::InStock, $status, 1, InventoryMovementType::Transfer);
+        $type = $status->isManuallyMovable() ? InventoryMovementType::Transfer : InventoryMovementType::OrderLineChanged;
+
+        InventoryMovement::record($product, InventoryStatus::InStock, $status, 1, $type);
     }
 
     $stock = InventoryStock::where('product_id', $product->id)->first();
@@ -157,6 +153,31 @@ it('gère les neuf états', function () {
             expect($stock->quantityFor($status))->toBe(1);
         }
     }
+});
+
+it('refuse un transfert manuel vers ou depuis un état suivi par un document', function () {
+    $product = Product::factory()->create();
+    InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 2, 'quantity_on_order' => 0, 'quantity_in_demo' => 0, 'quantity_reserved' => 2, 'quantity_customer_order' => 0]);
+
+    expect(fn () => InventoryMovement::record($product, InventoryStatus::InStock, InventoryStatus::ReservedCustomer, 1, InventoryMovementType::Transfer))
+        ->toThrow(DomainException::class, 'Un transfert manuel se fait seulement entre états physiques')
+        ->and(fn () => InventoryMovement::record($product, InventoryStatus::ReservedCustomer, InventoryStatus::Lost, 1, InventoryMovementType::Transfer))
+        ->toThrow(DomainException::class)
+        ->and(fn () => InventoryMovement::record($product, InventoryStatus::InStock, null, 1, InventoryMovementType::Transfer))
+        ->toThrow(DomainException::class)
+        ->and(InventoryMovement::count())->toBe(0);
+
+    InventoryMovement::record($product, InventoryStatus::InStock, InventoryStatus::InDemo, 1, InventoryMovementType::Transfer);
+
+    expect($product->inventoryStock()->sole())->quantity_in_stock->toBe(1)->quantity_in_demo->toBe(1)->quantity_reserved->toBe(2);
+});
+
+it('refuse d\'enregistrer une quantité négative, même en contournant le journal', function () {
+    $product = Product::factory()->create();
+    $stock = InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 1, 'quantity_lost' => 0]);
+
+    expect(fn () => $stock->update(['quantity_lost' => -1]))->toThrow(DomainException::class, 'La quantité « Perdu » ne peut pas être négative.')
+        ->and($stock->fresh()->quantity_lost)->toBe(0);
 });
 
 it('ne laisse ni modifier ni supprimer le journal', function () {
@@ -225,6 +246,11 @@ it('refuse dans la page un mouvement manuel vers ou depuis « en commande » ou 
     $component->set('fromStatus', 'on_order')->set('toStatus', 'in_stock')->set('quantity', '1')->call('move')->assertHasErrors('fromStatus');
     $component->set('fromStatus', 'in_stock')->set('toStatus', 'in_stock')->call('move')->assertHasErrors('toStatus');
     $component->set('fromStatus', 'in_stock')->set('toStatus', 'lost')->set('quantity', '3')->call('move')->assertHasErrors('quantity');
+
+    foreach (['reserved_customer', 'in_delivery', 'customer_order', 'defective_shipped'] as $status) {
+        $component->set('fromStatus', 'in_stock')->set('toStatus', $status)->set('quantity', '1')->call('move')->assertHasErrors('toStatus');
+        $component->set('fromStatus', $status)->set('toStatus', 'in_stock')->call('move')->assertHasErrors('fromStatus');
+    }
 
     expect(InventoryMovement::count())->toBe(0);
 });
