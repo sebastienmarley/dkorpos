@@ -248,14 +248,18 @@ Pour chaque produit, en tout temps :
 **Protections mises en place**
 
 - `record()` refuse une quantité nulle ou négative, des états identiques et une quantité insuffisante ; il
-  verrouille la ligne de stock. Il refusera aussi une quantité négative à l'enregistrement du stock (I2), en
-  garde supplémentaire.
-- Les documents relisent leur statut sous verrou dans leur transaction (I10) : réception, envoi et lignes de
-  commande fournisseur. Les commandes clients le font déjà (`lockForUpdate()->findOrFail()`).
+  verrouille la ligne de stock. Il refuse aussi un mouvement de type `Transfer` qui touche un état non physique
+  ou l'extérieur, même hors de la page Journal.
+- `InventoryStock` refuse d'enregistrer une quantité négative (I2), même par un chemin qui contourne le journal.
+- Les documents relisent leur statut sous verrou dans leur transaction (I10), avec `refreshForUpdate()`
+  d'Eloquent : réception (`complete`, `discard`, lignes, articles en trop) et commande fournisseur (envoi,
+  annulation, lignes, substitution, annulation de ligne, renversement). Les commandes clients le font déjà
+  (`lockForUpdate()->findOrFail()`).
 - Sur SQLite, `lockForUpdate` est sans effet. Deux transactions qui écrivent en même temps s'excluent :
   l'une échoue (base occupée) au lieu d'écraser l'autre. La relecture du statut dans la transaction règle le
   cas de l'instance périmée, que le verrou ne couvre pas.
-- Un test d'intégrité parcourt les produits après les scénarios d'inventaire et vérifie I1 à I6.
+- `expectInventoryIntegrity()` (`tests/Pest.php`) vérifie I1, I2, I4, I5 et I6 pour un produit ; I3 s'y
+  ajoutera avec le cycle de vie des unités.
 - `inventory.adjust` est vérifiée dans le composant et dans l'action ; la note est obligatoire.
 
 ## Questions ouvertes

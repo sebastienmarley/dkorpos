@@ -307,11 +307,13 @@ class SupplierOrder extends Model
      */
     public function send(): bool
     {
-        if (! $this->status->isEditable()) {
-            throw new DomainException(__('Seule une commande en brouillon ou en attente peut être envoyée.'));
-        }
-
         DB::transaction(function (): void {
+            $this->refreshForUpdate();
+
+            if (! $this->status->isEditable()) {
+                throw new DomainException(__('Seule une commande en brouillon ou en attente peut être envoyée.'));
+            }
+
             $lines = $this->lines()->get();
 
             if ($lines->isEmpty()) {
@@ -471,8 +473,18 @@ class SupplierOrder extends Model
      */
     public function reverseReceipt(ReceptionLine $receptionLine, int $quantity, ?string $reason = null, int|string|null $reversedBy = null): void
     {
-        $line = $receptionLine->orderLine;
+        DB::transaction(function () use ($receptionLine, $quantity, $reason, $reversedBy): void {
+            $this->refreshForUpdate();
+            $receptionLine = ReceptionLine::query()->lockForUpdate()->findOrFail($receptionLine->id);
+            $line = $this->lines()->lockForUpdate()->find($receptionLine->supplier_order_line_id) ?? $receptionLine->orderLine;
 
+            $this->guardReversible($receptionLine, $line, $quantity);
+            $this->applyReversal($receptionLine, $line, $quantity, $reason, $reversedBy);
+        });
+    }
+
+    private function guardReversible(ReceptionLine $receptionLine, SupplierOrderLine $line, int $quantity): void
+    {
         if ($line->supplier_order_id !== $this->id) {
             throw new DomainException(__('Cette réception ne concerne pas cette commande.'));
         }
@@ -492,37 +504,38 @@ class SupplierOrder extends Model
         if ($quantity < 1 || $quantity > $receptionLine->quantity_net) {
             throw new DomainException(__('La quantité à renverser doit être entre 1 et :max.', ['max' => $receptionLine->quantity_net]));
         }
+    }
 
-        DB::transaction(function () use ($receptionLine, $line, $quantity, $reason, $reversedBy): void {
-            $units = InventoryUnit::query()
-                ->where('reception_line_id', $receptionLine->id)
-                ->whereNull('delivered_at')
-                ->orderByDesc('id')
-                ->limit($quantity)
-                ->get();
+    private function applyReversal(ReceptionLine $receptionLine, SupplierOrderLine $line, int $quantity, ?string $reason, int|string|null $reversedBy): void
+    {
+        $units = InventoryUnit::query()
+            ->where('reception_line_id', $receptionLine->id)
+            ->whereNull('delivered_at')
+            ->orderByDesc('id')
+            ->limit($quantity)
+            ->get();
 
-            if ($units->count() < $quantity) {
-                throw new DomainException(__('Impossible de renverser : certaines unités reçues ont déjà été livrées ou ne sont pas retraçables.'));
-            }
+        if ($units->count() < $quantity) {
+            throw new DomainException(__('Impossible de renverser : certaines unités reçues ont déjà été livrées ou ne sont pas retraçables.'));
+        }
 
-            InventoryUnit::whereKey($units->modelKeys())->delete();
+        InventoryUnit::whereKey($units->modelKeys())->delete();
 
-            $customerLine = $line->customerOrderLine()->with('order')->first();
-            $customerLine?->order->applySupplierReceiptReversal($customerLine, $quantity);
+        $customerLine = $line->customerOrderLine()->with('order')->first();
+        $customerLine?->order->applySupplierReceiptReversal($customerLine, $quantity);
 
-            $this->moveStock($line, InventoryStatus::InStock, InventoryStatus::OnOrder, $quantity, InventoryMovementType::ReceiptReversal, $receptionLine, $reason);
+        $this->moveStock($line, InventoryStatus::InStock, InventoryStatus::OnOrder, $quantity, InventoryMovementType::ReceiptReversal, $receptionLine, $reason);
 
-            $line->update(['quantity_received' => $line->quantity_received - $quantity]);
+        $line->update(['quantity_received' => $line->quantity_received - $quantity]);
 
-            $receptionLine->update([
-                'quantity_reversed' => $receptionLine->quantity_reversed + $quantity,
-                'reversed_at' => now(),
-                'reversed_by' => $reversedBy,
-                'reversal_reason' => filled($reason) ? $reason : null,
-            ]);
+        $receptionLine->update([
+            'quantity_reversed' => $receptionLine->quantity_reversed + $quantity,
+            'reversed_at' => now(),
+            'reversed_by' => $reversedBy,
+            'reversal_reason' => filled($reason) ? $reason : null,
+        ]);
 
-            $this->refreshStatusFromLines();
-        });
+        $this->refreshStatusFromLines();
     }
 
     /**
@@ -533,11 +546,13 @@ class SupplierOrder extends Model
      */
     public function addLine(array $attributes): SupplierOrderLine
     {
-        if (! ($this->status->isEditable() || $this->status->isOpen())) {
-            throw new DomainException(__('On ne peut plus ajouter de ligne à cette commande.'));
-        }
-
         return DB::transaction(function () use ($attributes): SupplierOrderLine {
+            $this->refreshForUpdate();
+
+            if (! ($this->status->isEditable() || $this->status->isOpen())) {
+                throw new DomainException(__('On ne peut plus ajouter de ligne à cette commande.'));
+            }
+
             $line = $this->lines()->create($attributes);
 
             if ($this->isProductOrder() && $this->status->isOpen()) {
@@ -556,13 +571,13 @@ class SupplierOrder extends Model
      */
     public function removeOvershipLine(SupplierOrderLine $line): void
     {
-        $this->guardLineBelongs($line);
-
-        if (! $line->is_overship || $line->quantity_received > 0) {
-            throw new DomainException(__('Seul un article reçu en trop, pas encore réceptionné, peut être retiré ainsi.'));
-        }
-
         DB::transaction(function () use ($line): void {
+            $line = $this->lockLine($line);
+
+            if (! $line->is_overship || $line->quantity_received > 0) {
+                throw new DomainException(__('Seul un article reçu en trop, pas encore réceptionné, peut être retiré ainsi.'));
+            }
+
             $this->moveStock($line, InventoryStatus::OnOrder, null, $line->quantity, InventoryMovementType::OrderLineCancelled);
             $line->delete();
         });
@@ -575,19 +590,23 @@ class SupplierOrder extends Model
      */
     public function updateLine(SupplierOrderLine $line, int $quantity, Money $unitCost): void
     {
-        if (! ($this->status->isEditable() || $this->status->isOpen()) || $line->supplier_order_id !== $this->id) {
-            throw new DomainException(__('Les lignes de cette commande ne sont plus modifiables.'));
-        }
-
-        if ($line->status !== SupplierOrderLineStatus::Active) {
-            throw new DomainException(__('Seule une ligne active peut être modifiée.'));
-        }
-
-        if ($quantity < max(1, $line->quantity_received + $line->quantity_short)) {
-            throw new DomainException(__('La quantité ne peut pas être inférieure à la quantité déjà reçue.'));
-        }
-
         DB::transaction(function () use ($line, $quantity, $unitCost): void {
+            $this->refreshForUpdate();
+
+            if (! ($this->status->isEditable() || $this->status->isOpen()) || $line->supplier_order_id !== $this->id) {
+                throw new DomainException(__('Les lignes de cette commande ne sont plus modifiables.'));
+            }
+
+            $line = $this->lockLine($line);
+
+            if ($line->status !== SupplierOrderLineStatus::Active) {
+                throw new DomainException(__('Seule une ligne active peut être modifiée.'));
+            }
+
+            if ($quantity < max(1, $line->quantity_received + $line->quantity_short)) {
+                throw new DomainException(__('La quantité ne peut pas être inférieure à la quantité déjà reçue.'));
+            }
+
             if ($this->isProductOrder() && $this->status->isOpen()) {
                 $this->moveStock(
                     $line,
@@ -616,21 +635,22 @@ class SupplierOrder extends Model
      */
     public function substituteLine(SupplierOrderLine $line, Product $product): SupplierOrderLine
     {
-        $this->guardLineBelongs($line);
-
-        if (! $this->isProductOrder() || ! $this->status->isOpen()) {
-            throw new DomainException(__('Une substitution se fait sur une commande de produits envoyée et non reçue.'));
-        }
-
-        if ($line->status !== SupplierOrderLineStatus::Active || $line->quantity_outstanding === 0 || $line->part_id !== null) {
-            throw new DomainException(__('Cette ligne ne peut pas être substituée.'));
-        }
-
-        if ($product->supplier_id !== $this->supplier_id || $product->is_discontinued || $product->is_non_orderable || $product->id === $line->product_id) {
-            throw new DomainException(__('Ce produit ne peut pas remplacer celui de la ligne.'));
-        }
-
         $replacement = DB::transaction(function () use ($line, $product): SupplierOrderLine {
+            $this->refreshForUpdate();
+            $line = $this->lockLine($line);
+
+            if (! $this->isProductOrder() || ! $this->status->isOpen()) {
+                throw new DomainException(__('Une substitution se fait sur une commande de produits envoyée et non reçue.'));
+            }
+
+            if ($line->status !== SupplierOrderLineStatus::Active || $line->quantity_outstanding === 0 || $line->part_id !== null) {
+                throw new DomainException(__('Cette ligne ne peut pas être substituée.'));
+            }
+
+            if ($product->supplier_id !== $this->supplier_id || $product->is_discontinued || $product->is_non_orderable || $product->id === $line->product_id) {
+                throw new DomainException(__('Ce produit ne peut pas remplacer celui de la ligne.'));
+            }
+
             $quantity = $line->quantity_outstanding;
 
             $this->moveStock($line, InventoryStatus::OnOrder, null, $quantity, InventoryMovementType::Substitution);
@@ -707,10 +727,11 @@ class SupplierOrder extends Model
      */
     public function confirmLineCancellation(SupplierOrderLine $line): void
     {
-        $this->guardLineBelongs($line);
-        $this->guardCancellationRequested($line);
-
         DB::transaction(function () use ($line): void {
+            $this->refreshForUpdate();
+            $line = $this->lockLine($line);
+            $this->guardCancellationRequested($line);
+
             if ($this->isProductOrder()) {
                 $this->moveStock($line, InventoryStatus::OnOrder, null, $line->quantity_outstanding, InventoryMovementType::OrderLineCancelled);
             }
@@ -736,10 +757,10 @@ class SupplierOrder extends Model
      */
     public function rejectLineCancellation(SupplierOrderLine $line): void
     {
-        $this->guardLineBelongs($line);
-        $this->guardCancellationRequested($line);
-
         DB::transaction(function () use ($line): void {
+            $line = $this->lockLine($line);
+            $this->guardCancellationRequested($line);
+
             $line->update([
                 'status' => SupplierOrderLineStatus::Active,
                 'cancellation_reason' => null,
@@ -757,11 +778,13 @@ class SupplierOrder extends Model
      */
     public function complete(): void
     {
-        if ($this->isProductOrder() || $this->status !== SupplierOrderStatus::Sent) {
-            throw new DomainException(__('Cette commande ne peut pas être complétée.'));
-        }
-
         DB::transaction(function (): void {
+            $this->refreshForUpdate();
+
+            if ($this->isProductOrder() || $this->status !== SupplierOrderStatus::Sent) {
+                throw new DomainException(__('Cette commande ne peut pas être complétée.'));
+            }
+
             $this->update(['status' => SupplierOrderStatus::Received, 'received_at' => now()]);
 
             CustomerOrderLine::query()
@@ -798,11 +821,13 @@ class SupplierOrder extends Model
      */
     public function cancel(): void
     {
-        if (! ($this->status->isEditable() || $this->status->isOpen())) {
-            throw new DomainException(__('Cette commande ne peut plus être annulée.'));
-        }
-
         DB::transaction(function (): void {
+            $this->refreshForUpdate();
+
+            if (! ($this->status->isEditable() || $this->status->isOpen())) {
+                throw new DomainException(__('Cette commande ne peut plus être annulée.'));
+            }
+
             if ($this->isProductOrder() && $this->status->isOpen()) {
                 foreach ($this->lines()->get() as $line) {
                     $this->moveStock($line, InventoryStatus::OnOrder, null, $line->quantity_outstanding, InventoryMovementType::OrderCancelled);
@@ -870,6 +895,16 @@ class SupplierOrder extends Model
     {
         $customerLine = $line->customerOrderLine()->with('order')->first();
         $customerLine?->order->applySupplierCancellation($customerLine, $line->quantity_received);
+    }
+
+    /**
+     * Relit une ligne de cette commande sous verrou, dans la transaction qui la modifie (une instance chargée plus tôt peut être périmée).
+     */
+    private function lockLine(SupplierOrderLine $line): SupplierOrderLine
+    {
+        $this->guardLineBelongs($line);
+
+        return $line->refreshForUpdate();
     }
 
     private function guardLineBelongs(SupplierOrderLine $line): void

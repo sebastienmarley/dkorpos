@@ -180,8 +180,15 @@ class Reception extends Model
      */
     public function setLineQuantity(ReceptionLine $line, int $quantity, ?int $damaged = null, ?int $short = null): void
     {
-        $this->guardInProgress($line);
+        DB::transaction(function () use ($line, $quantity, $damaged, $short): void {
+            $this->refreshForUpdate();
+            $this->guardInProgress($line);
+            $this->applyLineQuantity($line, $quantity, $damaged, $short);
+        });
+    }
 
+    private function applyLineQuantity(ReceptionLine $line, int $quantity, ?int $damaged, ?int $short): void
+    {
         $orderLine = $line->orderLine;
         $short = $orderLine->is_overship ? 0 : ($short ?? $line->quantity_short);
 
@@ -236,6 +243,12 @@ class Reception extends Model
         }
 
         return DB::transaction(function () use ($product, $quantity, $order): ReceptionLine {
+            $this->refreshForUpdate();
+
+            if (! $this->isInProgress()) {
+                throw new DomainException(__('Cette réception est terminée.'));
+            }
+
             $orderLine = $order->addLine([
                 'product_id' => $product->id,
                 'quantity' => $quantity,
@@ -278,9 +291,10 @@ class Reception extends Model
      */
     public function removeLine(ReceptionLine $line): void
     {
-        $this->guardInProgress($line);
-
         DB::transaction(function () use ($line): void {
+            $this->refreshForUpdate();
+            $this->guardInProgress($line);
+
             $orderLine = $line->orderLine;
             $line->delete();
 
@@ -321,6 +335,12 @@ class Reception extends Model
         }
 
         DB::transaction(function (): void {
+            $this->refreshForUpdate();
+
+            if (! $this->isInProgress()) {
+                throw new DomainException(__('Cette réception est déjà terminée.'));
+            }
+
             $lines = $this->lines()->with('orderLine.order')->get();
 
             foreach ($lines->groupBy(fn (ReceptionLine $line) => $line->orderLine->supplier_order_id) as $orderLines) {
@@ -405,6 +425,12 @@ class Reception extends Model
         }
 
         DB::transaction(function (): void {
+            $this->refreshForUpdate();
+
+            if (! $this->isInProgress()) {
+                throw new DomainException(__('Une réception terminée ne peut pas être abandonnée : renversez ses lignes.'));
+            }
+
             $overshipLines = $this->lines()->with('orderLine.order')->get()
                 ->map(fn (ReceptionLine $line) => $line->orderLine)
                 ->filter(fn (SupplierOrderLine $orderLine) => $orderLine->is_overship);

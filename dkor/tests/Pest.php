@@ -1,11 +1,14 @@
 <?php
 
+use App\Enums\InventoryStatus;
 use App\Models\CustomerOrder;
 use App\Models\CustomerOrderLine;
 use App\Models\CustomerPaymentMethod;
+use App\Models\InventoryMovement;
 use App\Models\InventoryStock;
 use App\Models\InventoryUnit;
 use App\Models\Product;
+use App\Models\SupplierOrderLine;
 use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -85,4 +88,31 @@ function pickedUpLine(CustomerOrder $order, int $quantity, float $price, Custome
     $order->pickUp([$line->id => $quantity], [['method_id' => $method->id, 'amount' => $order->fresh()->balance_due]]);
 
     return $line->fresh();
+}
+
+/**
+ * Invariants d'inventaire d'un produit (ADR 0011) : journal = quantités (I1), aucune quantité négative (I2),
+ * réservé = commandes clients (I4), en commande = commandes fournisseurs (I5), « en commande client » à 0 (I6).
+ * À utiliser pour un produit dont tout le stock est entré par le journal (pas par une factory).
+ */
+function expectInventoryIntegrity(Product $product): void
+{
+    $stock = InventoryStock::where('product_id', $product->id)->sole();
+
+    foreach (InventoryStatus::cases() as $status) {
+        $net = (int) InventoryMovement::where('product_id', $product->id)->where('to_status', $status)->sum('quantity')
+            - (int) InventoryMovement::where('product_id', $product->id)->where('from_status', $status)->sum('quantity');
+
+        expect($stock->quantityFor($status))->toBe($net, "I1 : journal ≠ quantité « {$status->value} »")
+            ->toBeGreaterThanOrEqual(0);
+    }
+
+    $reserved = (int) CustomerOrderLine::where('product_id', $product->id)->whereNull('part_id')->sum('quantity_reserved');
+    $outstanding = SupplierOrderLine::with('order')->where('product_id', $product->id)->get()
+        ->filter(fn (SupplierOrderLine $line): bool => $line->order->status->isOpen())
+        ->sum(fn (SupplierOrderLine $line): int => $line->quantity_outstanding);
+
+    expect($stock->quantity_reserved + $stock->quantity_in_delivery)->toBe($reserved, 'I4 : réservé ≠ commandes clients')
+        ->and($stock->quantity_on_order)->toBe($outstanding, 'I5 : en commande ≠ commandes fournisseurs')
+        ->and($stock->quantity_customer_order)->toBe(0, 'I6 : « en commande client » non utilisé');
 }

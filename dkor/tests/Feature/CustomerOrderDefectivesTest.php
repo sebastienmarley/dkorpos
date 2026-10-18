@@ -5,6 +5,7 @@ use App\Enums\CustomerPaymentType;
 use App\Enums\DefectiveResolution;
 use App\Enums\DefectiveStatus;
 use App\Enums\InventoryMovementType;
+use App\Enums\InventoryStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Livewire\CustomerOrders\Show;
 use App\Models\CustomerOrder;
@@ -79,7 +80,7 @@ describe('pièce de remplacement', function () {
 describe('reprise du produit', function () {
     it('reprend le produit en inventaire défectueux et ajoute un remplacement au même prix', function () {
         $line = pickedUpLine($this->order, 1, 100, $this->cash);
-        $line->product->inventoryStock()->update(['quantity_in_stock' => 1]);
+        InventoryMovement::record($line->product_id, null, InventoryStatus::InStock, 1, InventoryMovementType::Receipt);
 
         $defective = $this->order->returnDefective($line, 1, 'Moteur bruyant', replace: true);
 

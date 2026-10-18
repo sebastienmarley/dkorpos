@@ -96,6 +96,10 @@ class InventoryMovement extends Model
             throw new DomainException(__('L\'état de départ et d\'arrivée doivent être différents.'));
         }
 
+        if ($type === InventoryMovementType::Transfer && ! ($from?->isManuallyMovable() && $to?->isManuallyMovable())) {
+            throw new DomainException(__('Un transfert manuel se fait seulement entre états physiques (en stock, en démo, défectueux, perdu).'));
+        }
+
         $productId = $product instanceof Product ? $product->id : $product;
 
         return DB::transaction(function () use ($productId, $from, $to, $quantity, $type, $reference, $note, $userId): InventoryMovement {

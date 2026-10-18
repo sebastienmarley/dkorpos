@@ -62,9 +62,12 @@ enum InventoryStatus: string
         };
     }
 
-    /** Les quantités « en commande » suivent les commandes fournisseurs: pas de transfert manuel. */
+    /**
+     * Seuls les états physiques se transfèrent à la main (ADR 0011). Les autres suivent leur document (commande
+     * client, livraison, commande fournisseur, dossier défectueux) : un transfert manuel les désynchroniserait.
+     */
     public function isManuallyMovable(): bool
     {
-        return $this !== self::OnOrder;
+        return in_array($this, [self::InStock, self::InDemo, self::DefectiveStock, self::Lost], true);
     }
 }
