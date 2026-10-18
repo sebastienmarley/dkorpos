@@ -416,17 +416,8 @@ class SupplierOrder extends Model
 
             $receptionLine->update(['quantity' => $quantity, 'quantity_damaged' => $damaged, 'quantity_short' => $short, 'unit_cost' => $cost]);
 
-            for ($i = 0; $line->product_id !== null && $i < $good; $i++) {
-                InventoryUnit::create([
-                    'product_id' => $line->product_id,
-                    'reception_line_id' => $receptionLine->id,
-                    'cost' => $cost,
-                    'inserted_at' => today(),
-                ]);
-            }
-
-            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $good, InventoryMovementType::Receipt, $receptionLine);
-            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::DefectiveStock, $damaged, InventoryMovementType::ReceiptDamaged, $receptionLine);
+            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $good, InventoryMovementType::Receipt, $receptionLine, unitCost: $cost);
+            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::DefectiveStock, $damaged, InventoryMovementType::ReceiptDamaged, $receptionLine, unitCost: $cost);
 
             $this->moveStock($line, InventoryStatus::OnOrder, null, $short, InventoryMovementType::ShortShipped, $receptionLine);
 
@@ -508,19 +499,6 @@ class SupplierOrder extends Model
 
     private function applyReversal(ReceptionLine $receptionLine, SupplierOrderLine $line, int $quantity, ?string $reason, int|string|null $reversedBy): void
     {
-        $units = InventoryUnit::query()
-            ->where('reception_line_id', $receptionLine->id)
-            ->whereNull('delivered_at')
-            ->orderByDesc('id')
-            ->limit($quantity)
-            ->get();
-
-        if ($units->count() < $quantity) {
-            throw new DomainException(__('Impossible de renverser : certaines unités reçues ont déjà été livrées ou ne sont pas retraçables.'));
-        }
-
-        InventoryUnit::whereKey($units->modelKeys())->delete();
-
         $customerLine = $line->customerOrderLine()->with('order')->first();
         $customerLine?->order->applySupplierReceiptReversal($customerLine, $quantity);
 
@@ -932,12 +910,13 @@ class SupplierOrder extends Model
         InventoryMovementType $type,
         ?Model $reference = null,
         ?string $note = null,
+        ?Money $unitCost = null,
     ): void {
         if ($line->product_id === null || $quantity < 1) {
             return;
         }
 
-        InventoryMovement::record($line->product_id, $from, $to, $quantity, $type, $reference ?? $line, $note);
+        InventoryMovement::record($line->product_id, $from, $to, $quantity, $type, $reference ?? $line, $note, unitCost: $unitCost);
     }
 
     private function guardStatus(SupplierOrderStatus $expected, string $message): void

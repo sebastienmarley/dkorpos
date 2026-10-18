@@ -469,6 +469,7 @@ CREATE TABLE "inventory_movements"(
   "user_id" integer,
   "note" varchar,
   "created_at" datetime not null default(CURRENT_TIMESTAMP),
+  "value" integer,
   foreign key("user_id") references users("id") on delete set null on update no action,
   foreign key("product_id") references "products"("id") on delete restrict
 );
@@ -669,22 +670,6 @@ CREATE TABLE "reception_lines"(
   foreign key("reception_id") references receptions("id") on delete cascade on update no action,
   foreign key("supplier_order_line_id") references supplier_order_lines("id") on delete restrict on update no action,
   foreign key("product_id") references products("id") on delete set null on update no action
-);
-CREATE TABLE "inventory_units"(
-  "id" integer primary key autoincrement not null,
-  "product_id" integer not null,
-  "cost" integer not null,
-  "inserted_at" date not null,
-  "delivered_at" date,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "reception_line_id" integer,
-  foreign key("reception_line_id") references reception_lines("id") on delete set null on update no action,
-  foreign key("product_id") references products("id") on delete cascade on update no action
-);
-CREATE INDEX "inventory_units_product_id_inserted_at_index" on "inventory_units"(
-  "product_id",
-  "inserted_at"
 );
 CREATE TABLE "supplier_invoices"(
   "id" integer primary key autoincrement not null,
@@ -1068,6 +1053,27 @@ CREATE UNIQUE INDEX "delivery_line_unique" on "customer_order_delivery_lines"(
   "customer_order_line_id"
 );
 CREATE UNIQUE INDEX "services_code_unique" on "services"("code");
+CREATE TABLE "inventory_units"(
+  "id" integer primary key autoincrement not null,
+  "product_id" integer not null,
+  "cost" integer not null,
+  "inserted_at" date not null,
+  "delivered_at" date,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "reception_line_id" integer,
+  "exit_movement_id" integer,
+  foreign key("product_id") references products("id") on delete cascade on update no action,
+  foreign key("reception_line_id") references reception_lines("id") on delete set null on update no action,
+  foreign key("exit_movement_id") references "inventory_movements"("id") on delete set null
+);
+CREATE INDEX "inventory_units_product_id_inserted_at_index" on "inventory_units"(
+  "product_id",
+  "inserted_at"
+);
+CREATE INDEX "inventory_units_exit_movement_id_index" on "inventory_units"(
+  "exit_movement_id"
+);
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1229,3 +1235,4 @@ INSERT INTO migrations VALUES(159,'2026_10_18_020022_create_notifications_table'
 INSERT INTO migrations VALUES(160,'2026_10_18_125336_create_delivery_trucks_table',18);
 INSERT INTO migrations VALUES(161,'2026_10_18_125337_create_customer_order_deliveries_table',18);
 INSERT INTO migrations VALUES(162,'2026_10_18_133416_add_shipping_to_customer_order_deliveries',19);
+INSERT INTO migrations VALUES(165,'2026_10_18_150648_add_exit_movement_and_value_to_inventory_tables',20);

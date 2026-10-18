@@ -151,6 +151,10 @@ s'en charge, pour que la règle soit écrite une seule fois.
   cents, [ADR 0008](0008-money-in-cents.md)).
 - La réception endommagée crée maintenant des unités, en « Défectueux (stock) ». Le crédit du fournisseur
   les fermera (dossier défectueux, à venir).
+- Une sortie de stock entré avant le suivi des unités (aucune unité en main) est valorisée au coût du produit
+  pour la partie sans unité, au lieu d'échouer.
+- Réalisé dans `InventoryMovement::record()` (paramètre `unitCost` pour la réception). La réception, le
+  renversement, le ramassage et les retours n'écrivent plus les unités eux-mêmes.
 
 ### Les ajustements
 
@@ -258,8 +262,8 @@ Pour chaque produit, en tout temps :
 - Sur SQLite, `lockForUpdate` est sans effet. Deux transactions qui écrivent en même temps s'excluent :
   l'une échoue (base occupée) au lieu d'écraser l'autre. La relecture du statut dans la transaction règle le
   cas de l'instance périmée, que le verrou ne couvre pas.
-- `expectInventoryIntegrity()` (`tests/Pest.php`) vérifie I1, I2, I4, I5 et I6 pour un produit ; I3 s'y
-  ajoutera avec le cycle de vie des unités.
+- `expectInventoryIntegrity()` (`tests/Pest.php`) vérifie I1 à I6 pour un produit dont tout le stock est
+  entré par le journal. `InventoryUnitsTest` couvre le cycle de vie des unités.
 - `inventory.adjust` est vérifiée dans le composant et dans l'action ; la note est obligatoire.
 
 ## Questions ouvertes

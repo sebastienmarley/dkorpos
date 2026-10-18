@@ -549,7 +549,10 @@ erDiagram
 - `inventory_movements` : journal en ajout seulement, qui ne se modifie ni ne se supprime. Sa source
   est une référence **polymorphe** (`reference_type`, `reference_id`), sans clé étrangère : elle ne
   paraît donc pas dans le diagramme.
-- `inventory_units` : coût de chaque unité reçue, avec sa date d'entrée et de livraison.
+- `inventory_units` : couches de coût FIFO ([ADR 0011](adr/0011-inventory-movements-and-adjustments.md)) :
+  une unité possédée par le magasin, à son coût, avec sa date d'entrée, et sa date et son mouvement de sortie.
+  Les unités en main égalent la somme des états valorisés. Les mouvements qui créent, sortent ou rouvrent des
+  unités consignent leur valeur (`inventory_movements.value`, en cents).
 - `defective_products` : dossier d'un produit défectueux, rapporté par un client ou reçu endommagé
   du fournisseur.
 
@@ -560,6 +563,7 @@ erDiagram
     users |o--o{ inventory_movements : "user_id · null"
     reception_lines |o--o{ inventory_units : "reception_line_id · null"
     products ||--o{ inventory_units : "product_id · cascade"
+    inventory_movements |o--o{ inventory_units : "exit_movement_id · null"
     reception_lines |o--o{ defective_products : "reception_line_id · null"
     products ||--o{ defective_products : "product_id · restrict"
     customer_orders |o--o{ defective_products : "customer_order_id · null"
@@ -588,6 +592,7 @@ erDiagram
         string from_status "InventoryStatus · nullable"
         string to_status "InventoryStatus · nullable"
         int quantity
+        int value "cents · nullable"
         string type "InventoryMovementType"
         string reference_type "nullable"
         int reference_id "nullable"
@@ -598,9 +603,10 @@ erDiagram
         int id PK
         int reception_line_id FK "nullable"
         int product_id FK
+        int exit_movement_id FK "nullable"
         int cost "cents"
         date inserted_at
-        date delivered_at "nullable"
+        date delivered_at "sortie · nullable"
         datetime created_at
         datetime updated_at
     }

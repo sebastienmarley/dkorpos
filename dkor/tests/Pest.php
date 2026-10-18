@@ -92,7 +92,8 @@ function pickedUpLine(CustomerOrder $order, int $quantity, float $price, Custome
 
 /**
  * Invariants d'inventaire d'un produit (ADR 0011) : journal = quantités (I1), aucune quantité négative (I2),
- * réservé = commandes clients (I4), en commande = commandes fournisseurs (I5), « en commande client » à 0 (I6).
+ * unités en main = états valorisés (I3), réservé = commandes clients (I4), en commande = commandes fournisseurs (I5),
+ * « en commande client » à 0 (I6).
  * À utiliser pour un produit dont tout le stock est entré par le journal (pas par une factory).
  */
 function expectInventoryIntegrity(Product $product): void
@@ -106,6 +107,10 @@ function expectInventoryIntegrity(Product $product): void
         expect($stock->quantityFor($status))->toBe($net, "I1 : journal ≠ quantité « {$status->value} »")
             ->toBeGreaterThanOrEqual(0);
     }
+
+    $valued = collect(InventoryStatus::cases())->filter->isValued()->sum(fn (InventoryStatus $status): int => $stock->quantityFor($status));
+
+    expect(InventoryUnit::where('product_id', $product->id)->inHand()->count())->toBe($valued, 'I3 : unités en main ≠ états valorisés');
 
     $reserved = (int) CustomerOrderLine::where('product_id', $product->id)->whereNull('part_id')->sum('quantity_reserved');
     $outstanding = SupplierOrderLine::with('order')->where('product_id', $product->id)->get()

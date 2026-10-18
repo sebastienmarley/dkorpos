@@ -1440,15 +1440,6 @@ class CustomerOrder extends Model
 
             InventoryMovement::record($line->product_id, null, InventoryStatus::InStock, $quantity, InventoryMovementType::CustomerReturn, $this);
 
-            InventoryUnit::query()
-                ->where('product_id', $line->product_id)
-                ->whereNotNull('delivered_at')
-                ->orderByDesc('delivered_at')
-                ->orderByDesc('id')
-                ->limit($quantity)
-                ->get()
-                ->each(fn (InventoryUnit $unit) => $unit->update(['delivered_at' => null]));
-
             $returned = [
                 'status' => $refund ? CustomerOrderLineStatus::Refunded : CustomerOrderLineStatus::Returned,
                 'returned_at' => now(),
@@ -1992,14 +1983,6 @@ class CustomerOrder extends Model
     {
         if (! $line->isPart()) {
             InventoryMovement::record($line->product_id, InventoryStatus::ReservedCustomer, null, $quantity, InventoryMovementType::CustomerPickup, $this);
-
-            InventoryUnit::query()
-                ->where('product_id', $line->product_id)
-                ->whereNull('delivered_at')
-                ->fifo()
-                ->limit($quantity)
-                ->get()
-                ->each(fn (InventoryUnit $unit) => $unit->update(['delivered_at' => today()]));
         }
 
         $pickedUp = [
