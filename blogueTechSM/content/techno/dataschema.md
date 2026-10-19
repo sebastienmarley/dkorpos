@@ -1,6 +1,6 @@
 ---
 title: "Réflexion technique schéma de donnée"
-date: 2026-10*18
+date: 2026-10-18
 draft: false
 description: "."
 categories:
