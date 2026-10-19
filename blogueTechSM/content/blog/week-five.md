@@ -26,8 +26,17 @@ La comptabilité, quoi faire avec les grands livres, comment ça marche, de quoi
 
 ## Les progrès concrets
 
+J'ai complété les derniers modules requis pour remplir 100% des fonctions de bases. Ce qui veut dire, livraison, étiquette, mouvement d'inventaire, expédition, grand livre et prise d'inventaire annuelle. On peut voir un survol [ici](https://youtu.be/4ieZpqr_tsc).  
+[L'IA](https://youtu.be/-KeWhp_ZNFU) me permet de vraiment de réfléchir à ce que je veux. Et même si ma vision de départ est très loin du résultat initial que l'IA m'offre, je sais que je peux retourner modifier la présentation, corriger l'approche et obtenir les fonctionnalités recherchées. Exemple, le travail fait sur l'horaire cette semaine a permis de prendre une version 1 fonctionnelle et l'amené vers une v2 plus proche de l'outi que je désire offrir. En y ajoutant les notifications, la prise en considération des rendez-vous, la gestion rapide des rdv à changer, etc. 
 
+- Hors champs, mais j'ai fait la prise d'inventaire annuelle, pour le plaisir de la chose.
+- Concept d'utilisation d'un lecteur optique lors de la prise d'inventaire
+- Module de livraison de base
+- Grand livre de base
+- Raccordement des rendez-vous à l'horaire.
+
+Bref une autre bonne semaine de progrès.
 
 ## La semaine à venir
 
-En cette fin de 2e itération je considère que le produit est pratiquement utilisable tel quel. La prochaine itération portera sur les dernières fonctionnalités, soit la communication interne/externe, et sur le raffinement des fonctions développées à la première itération.
+En cette fin de 2e itération je considère que le produit est pratiquement utilisable tel quel. La prochaine itération portera sur les dernières fonctionnalités, soit la communication interne/externe, et sur le raffinement des fonctions développées à la première itération. Il ne reste qu'à pousser le module de livraison en ajoutant le paiement à la livraison, la signature client et les notifications. Tout cela à venir d'ici le 25 octobre. Remise du jalon 2 et prise de rendez-vous dès que possible.
