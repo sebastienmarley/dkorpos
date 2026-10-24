@@ -50,6 +50,9 @@ $managementAccess = [
     'parts.edit',
     'inventory.count',
     'inventory.supervise',
+    'transfers.request',
+    'transfers.accept',
+    'transfers.receive',
 ];
 
 $warehouseAccess = [
@@ -63,6 +66,8 @@ $warehouseAccess = [
     'deliveries.view',
     'shipments.manage',
     'inventory.count',
+    'transfers.accept',
+    'transfers.receive',
 ];
 
 $accountingAccess = [
@@ -127,6 +132,9 @@ return [
         'customer_orders.return_custom' => ['Autoriser un retour sur mesure — commandes clients', 'Reprendre en retour (échange ou remboursement) un article fabriqué sur mesure.'],
         'customer_orders.deliver_unpaid' => ['Autoriser le paiement à la livraison — commandes clients', 'Planifier une livraison dont le solde exigé sera perçu à la livraison.'],
         'shipments.manage' => ['Gérer les expéditions', 'Recevoir l\'avis des nouvelles expéditions à faire (tous les articles en main) et des expéditions modifiées ou annulées.'],
+        'transfers.request' => ['Demander un transfert — magasins', 'Demander à un autre magasin de transférer de la marchandise vers son magasin, pour le stock ou pour un client.'],
+        'transfers.accept' => ['Accepter un transfert — magasins', 'Accepter ou refuser les transferts demandés au magasin.'],
+        'transfers.receive' => ['Recevoir un transfert — magasins', 'Confirmer la réception des transferts arrivés au magasin.'],
         'deliveries.handle' => ['Faire les livraisons', 'Accéder au menu « Mes livraisons » : ordre de la route, chargement du camion et remise au client.'],
         'deliveries.view' => ['Voir — livraisons', 'Accéder à la page : livraisons (places par demi-journée et livraisons planifiées).'],
         'customer_orders.assign_salespeople' => ['Gérer les vendeurs — commandes clients', 'Modifier les vendeurs et la répartition de la vente dans : commandes clients.'],
@@ -220,7 +228,7 @@ return [
         'design' => ['label' => 'Designer', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
         'delivery' => ['label' => 'Livreur', 'level' => 10, 'permissions' => ['users.view', 'deliveries.handle', ...$pageAccess]],
         'warehouse' => ['label' => 'Commis entrepôt', 'level' => 10, 'permissions' => [...$warehouseAccess]],
-        'salesman' => ['label' => 'Vendeur', 'level' => 10, 'permissions' => [...$pageAccess]],
+        'salesman' => ['label' => 'Vendeur', 'level' => 10, 'permissions' => ['transfers.request', ...$pageAccess]],
         'accounting' => ['label' => 'Comptabilité', 'level' => 10, 'permissions' => [...$accountingAccess]],
         'thirdkey' => ['label' => 'Troisième clé', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
     ],

@@ -347,6 +347,8 @@ class CustomerOrder extends Model
                 throw new DomainException(__('Cette ligne ne peut plus être modifiée.'));
             }
 
+            $this->guardNotInTransfer($line);
+
             if ($line->is_custom && $reserved > $line->quantity_reserved) {
                 throw new DomainException(__('Un article sur mesure se commande toujours : il ne se prend pas en stock.'));
             }
@@ -738,6 +740,8 @@ class CustomerOrder extends Model
             if (! $line->status->isEditable()) {
                 throw new DomainException(__('Cette ligne ne peut plus être retirée.'));
             }
+
+            $this->guardNotInTransfer($line);
 
             if ($line->quantity_reserved > 0) {
                 $this->moveReservation($line->product_id, InventoryStatus::ReservedCustomer, InventoryStatus::InStock, $line->quantity_reserved);
@@ -1159,6 +1163,113 @@ class CustomerOrder extends Model
         $service = Service::shippingFee();
 
         return $this->addService($service, null, 1, $service->name);
+    }
+
+    /**
+     * Sépare d'une ligne la quantité qu'un transfert d'un autre magasin servira (issue #103) : elle est retirée de la
+     * commande au fournisseur (son brouillon n'est pas encore envoyé) et devient une ligne « En commande » sans ligne
+     * fournisseur, liée au transfert. Retourne cette ligne.
+     *
+     * @throws DomainException si l'article n'est pas un produit inventorié, si la quantité dépasse ce qui est en
+     *                         commande ou si la commande fournisseur est déjà envoyée.
+     */
+    public function takeLineForTransfer(CustomerOrderLine $line, int $quantity): CustomerOrderLine
+    {
+        return DB::transaction(function () use ($line, $quantity): CustomerOrderLine {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+
+            if ($line->product_id === null || $line->isPart() || $line->isService() || $line->is_custom) {
+                throw new DomainException(__('Seul un produit du catalogue se transfère d\'un autre magasin.'));
+            }
+
+            $supplierLine = $line->supplierOrderLine()->with('order')->first();
+
+            if ($supplierLine !== null && ! $supplierLine->order->status->isEditable()) {
+                throw new DomainException(__('La commande fournisseur :number est déjà envoyée : annulez d\'abord la ligne chez le fournisseur.', ['number' => $supplierLine->order->number]));
+            }
+
+            if (! in_array($line->status, [CustomerOrderLineStatus::OnOrder, CustomerOrderLineStatus::InStock], true) || $quantity < 1 || $quantity > $line->quantity_on_order) {
+                throw new DomainException(__('On peut transférer au plus la quantité en commande de la ligne (:count).', ['count' => $line->quantity_on_order]));
+            }
+
+            if ($quantity === $line->quantity && $line->quantity_reserved === 0) {
+                $this->detachSupplierLine($line);
+
+                return $line->refresh();
+            }
+
+            $this->fillLineQuantities($line, $line->quantity_reserved, $line->quantity_on_order - $quantity);
+            $line->save();
+            $this->syncSupplierLine($line);
+
+            $transferLine = $this->lines()->create([
+                ...$line->saleAttributes(),
+                'inventory_location_id' => $line->inventory_location_id,
+                'quantity' => $quantity,
+                'quantity_reserved' => 0,
+                'quantity_on_order' => $quantity,
+                'status' => CustomerOrderLineStatus::OnOrder,
+            ]);
+
+            $this->syncDeliveries();
+
+            return $transferLine;
+        });
+    }
+
+    /**
+     * La ligne d'un transfert refusé ou annulé est commandée au fournisseur, comme toute ligne « En commande ».
+     */
+    public function returnLineFromTransfer(CustomerOrderLine $line): void
+    {
+        DB::transaction(function () use ($line): void {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+            $this->syncSupplierLine($line);
+        });
+    }
+
+    /**
+     * La ligne d'un transfert reçu passe « Transfert reçu » : la quantité reçue lui est réservée dans le magasin qui
+     * reçoit. Un écart (moins reçu qu'envoyé) devient une ligne « En commande », commandée au fournisseur.
+     *
+     * @return CustomerOrderLine|null la ligne commandée pour l'écart, s'il y a lieu
+     */
+    public function receiveTransferLine(CustomerOrderLine $line, int $received): ?CustomerOrderLine
+    {
+        return DB::transaction(function () use ($line, $received): ?CustomerOrderLine {
+            $line = $this->lines()->lockForUpdate()->findOrFail($line->id);
+            $short = $line->quantity - $received;
+            $reordered = null;
+
+            if ($short > 0) {
+                $reordered = $this->lines()->create([
+                    ...$line->saleAttributes(),
+                    'quantity' => $short,
+                    'quantity_reserved' => 0,
+                    'quantity_on_order' => $short,
+                    'status' => CustomerOrderLineStatus::OnOrder,
+                ]);
+                $this->syncSupplierLine($reordered);
+            }
+
+            if ($received > 0) {
+                $line->update(['quantity' => $received, 'quantity_reserved' => $received, 'quantity_on_order' => 0, 'status' => CustomerOrderLineStatus::TransferReceived]);
+            } else {
+                $line->delete();
+            }
+
+            $this->syncDeliveries();
+
+            return $reordered;
+        });
+    }
+
+    /** Une ligne servie par un transfert ouvert ne se modifie pas : il faut d'abord annuler le transfert. */
+    private function guardNotInTransfer(CustomerOrderLine $line): void
+    {
+        if ($line->transfers()->open()->exists()) {
+            throw new DomainException(__('Cet article est en transfert d\'un autre magasin : annulez d\'abord le transfert.'));
+        }
     }
 
     /**

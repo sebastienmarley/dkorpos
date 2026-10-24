@@ -9,6 +9,7 @@ enum CustomerOrderLineStatus: string
     case OnOrder = 'on_order';
     case Ordered = 'ordered';
     case Received = 'received';
+    case TransferReceived = 'transfer_received';
     case InDelivery = 'in_delivery';
     case Delivered = 'delivered';
     case PickedUp = 'picked_up';
@@ -27,6 +28,7 @@ enum CustomerOrderLineStatus: string
             self::OnOrder => __('En commande'),
             self::Ordered => __('Commandé'),
             self::Received => __('Reçu'),
+            self::TransferReceived => __('Transfert reçu'),
             self::InDelivery => __('En livraison'),
             self::Delivered => __('Livré'),
             self::PickedUp => __('Ramassé'),
@@ -46,7 +48,7 @@ enum CustomerOrderLineStatus: string
             self::ToDo => 'zinc',
             self::OnOrder => 'yellow',
             self::Ordered => 'sky',
-            self::Received => 'lime',
+            self::Received, self::TransferReceived => 'lime',
             self::InDelivery, self::Shipped => 'blue',
             self::Delivered, self::PickedUp => 'green',
             self::Returned => 'orange',
@@ -72,7 +74,7 @@ enum CustomerOrderLineStatus: string
     /** Lignes dont la partie réservée au client (en stock ou reçue) peut lui être remise. */
     public function isPickable(): bool
     {
-        return in_array($this, [self::InStock, self::OnOrder, self::Ordered, self::Received], true);
+        return in_array($this, [self::InStock, self::OnOrder, self::Ordered, self::Received, self::TransferReceived], true);
     }
 
     /** Lignes remises au client (ramassées, livrées, expédiées ou service complété) : elles doivent être payées à 100 %. */

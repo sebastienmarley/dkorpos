@@ -3,7 +3,8 @@
 namespace App\Enums;
 
 /**
- * États exclusifs d'une unité d'inventaire; chacun correspond à une colonne de quantité d'inventory_stocks.
+ * États exclusifs d'une unité d'inventaire; chacun correspond à une colonne de quantité d'inventory_stocks. Les états
+ * de transfert (issue #103) restent dans le magasin qui expédie jusqu'à la réception.
  */
 enum InventoryStatus: string
 {
@@ -16,6 +17,10 @@ enum InventoryStatus: string
     case DefectiveStock = 'defective_stock';
     case DefectiveShipped = 'defective_shipped';
     case Lost = 'lost';
+    case InTransfer = 'in_transfer';
+    case InTransit = 'in_transit';
+    case CustomerInTransfer = 'customer_in_transfer';
+    case CustomerInTransit = 'customer_in_transit';
 
     public function label(): string
     {
@@ -29,6 +34,10 @@ enum InventoryStatus: string
             self::DefectiveStock => __('Défectueux (stock)'),
             self::DefectiveShipped => __('Défectueux (expédié)'),
             self::Lost => __('Perdu'),
+            self::InTransfer => __('En transfert'),
+            self::InTransit => __('En transit'),
+            self::CustomerInTransfer => __('Client en transfert'),
+            self::CustomerInTransit => __('Client en transit'),
         };
     }
 
@@ -43,6 +52,8 @@ enum InventoryStatus: string
             self::InDelivery => 'indigo',
             self::DefectiveStock, self::DefectiveShipped => 'orange',
             self::Lost => 'red',
+            self::InTransfer, self::CustomerInTransfer => 'cyan',
+            self::InTransit, self::CustomerInTransit => 'teal',
         };
     }
 
@@ -59,6 +70,10 @@ enum InventoryStatus: string
             self::DefectiveStock => 'quantity_defective_stock',
             self::DefectiveShipped => 'quantity_defective_shipped',
             self::Lost => 'quantity_lost',
+            self::InTransfer => 'quantity_in_transfer',
+            self::InTransit => 'quantity_in_transit',
+            self::CustomerInTransfer => 'quantity_customer_in_transfer',
+            self::CustomerInTransit => 'quantity_customer_in_transit',
         };
     }
 

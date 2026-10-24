@@ -50,6 +50,7 @@ use Illuminate\Support\Carbon;
  * @property-read SupplierOrderLine|null $supplierOrderLine
  * @property-read CustomerOrderPickup|null $pickup
  * @property-read InventoryLocation|null $location
+ * @property-read Collection<int, StoreTransfer> $transfers
  * @property-read Collection<int, DefectiveProduct> $defectiveProducts
  * @property-read Collection<int, CustomerOrderDeliveryLine> $deliveryLines
  * @property-read Money $total
@@ -172,6 +173,18 @@ class CustomerOrderLine extends Model
     public function pickup(): BelongsTo
     {
         return $this->belongsTo(CustomerOrderPickup::class, 'customer_order_pickup_id');
+    }
+
+    /** @return HasMany<StoreTransfer, $this> */
+    public function transfers(): HasMany
+    {
+        return $this->hasMany(StoreTransfer::class);
+    }
+
+    /** Transfert ouvert (demandé ou en transit) qui servira cette ligne, s'il y a lieu (issue #103). */
+    public function openTransfer(): ?StoreTransfer
+    {
+        return $this->transfers()->open()->with('fromStore')->first();
     }
 
     /** @return BelongsTo<InventoryLocation, $this> */

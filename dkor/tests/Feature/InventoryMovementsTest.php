@@ -130,9 +130,9 @@ it('déplace entre états et refuse un état insuffisant sans rien changer', fun
         ->and(InventoryMovement::count())->toBe(1);
 });
 
-it('gère les neuf états', function () {
+it('gère tous les états', function () {
     $product = Product::factory()->create();
-    InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 9, 'quantity_on_order' => 0, 'quantity_in_demo' => 0, 'quantity_reserved' => 0, 'quantity_customer_order' => 0]);
+    InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => count(InventoryStatus::cases()), 'quantity_on_order' => 0, 'quantity_in_demo' => 0, 'quantity_reserved' => 0, 'quantity_customer_order' => 0]);
 
     foreach (InventoryStatus::cases() as $status) {
         if ($status === InventoryStatus::InStock) {
