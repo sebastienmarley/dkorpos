@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-24 (173 migrations, 68 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-24 (174 migrations, 68 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 173 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
+les 174 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -291,6 +291,10 @@ erDiagram
   `accepted_quantity` la quantité acceptée et `refusal_reason` la raison d'un refus. Une ligne chargée est
   séparée au besoin et passe « En livraison » (elle reste dans `quantity_reserved`, invariant I4 de
   l'[ADR 0011](adr/0011-inventory-movements-and-adjustments.md)).
+- **Signature (#93)** : `signature_path` est l'image de la signature, sur un disque privé, supprimée après
+  `deliveries.signature_retention_days` jours (365). `signed_by_name` et `signed_at` restent après la
+  suppression. Une livraison « Non livrée » (`undelivered`) note sa raison (`undelivered_reason` : client absent ou
+  tout refusé) et `undelivered_at`. Ses articles reviennent en stock client.
 - `pay_on_delivery` : le solde exigé sera perçu à la livraison, autorisé par un directeur
   (`pay_on_delivery_authorized_by`).
 - Un report annule la livraison (`cancelled_at`, `cancelled_by`, `cancellation_reason`) et en crée une autre qui
@@ -346,6 +350,11 @@ erDiagram
         int departed_by FK "nullable"
         datetime delivered_at "nullable"
         int delivered_by FK "nullable"
+        string signature_path "nullable"
+        string signed_by_name "nullable"
+        datetime signed_at "nullable"
+        string undelivered_reason "UndeliveredReason · nullable"
+        datetime undelivered_at "nullable"
         int requested_by FK "nullable"
         datetime cancelled_at "nullable"
         int cancelled_by FK "nullable"
@@ -1239,7 +1248,8 @@ erDiagram
   magasin (`province`) détermine les taxes copiées sur ses commandes (`customer_order_taxes`).
 - `store_tax_registrations` : numéro d'inscription du magasin pour chaque taxe (un par nom de taxe).
 - `customer_payment_methods` : modes de paiement des clients; `code` identifie ceux gérés par le
-  code (`cash` pour « Comptant »). `merchant_payment_methods` : modes de paiement du marchand.
+  code (`cash` pour « Comptant »). `is_usable_on_delivery` : le livreur peut l'enregistrer pour un paiement à la
+  livraison (ex. : TPV portatif). `merchant_payment_methods` : modes de paiement du marchand.
 
 ```mermaid
 erDiagram
@@ -1308,6 +1318,7 @@ erDiagram
         int id PK
         string name
         bool is_active
+        bool is_usable_on_delivery
         string code UK "nullable"
         datetime created_at
         datetime updated_at

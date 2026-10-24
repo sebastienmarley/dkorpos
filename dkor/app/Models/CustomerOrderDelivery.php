@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryPeriod;
 use App\Enums\DeliveryStatus;
+use App\Enums\UndeliveredReason;
 use Database\Factories\CustomerOrderDeliveryFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -46,6 +47,11 @@ use Illuminate\Support\Carbon;
  * @property int|null $departed_by
  * @property Carbon|null $delivered_at Remise au client (articles acceptés).
  * @property int|null $delivered_by
+ * @property string|null $signature_path Image de la signature du client (disque privé), supprimée après la durée de conservation.
+ * @property string|null $signed_by_name
+ * @property Carbon|null $signed_at
+ * @property UndeliveredReason|null $undelivered_reason
+ * @property Carbon|null $undelivered_at
  * @property int|null $requested_by
  * @property Carbon|null $cancelled_at
  * @property int|null $cancelled_by
@@ -62,7 +68,7 @@ use Illuminate\Support\Carbon;
     'customer_order_id', 'store_id', 'rescheduled_from_id', 'method', 'status', 'scheduled_date', 'period',
     'address_civic', 'address_apartment', 'address_street', 'address_city', 'address_province', 'address_country',
     'address_postal_code', 'address_verified_by', 'address_verified_at', 'pay_on_delivery',
-    'pay_on_delivery_authorized_by', 'notes', 'ready_at', 'route_position', 'departed_at', 'departed_by', 'delivered_at', 'delivered_by', 'requested_by', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
+    'pay_on_delivery_authorized_by', 'notes', 'ready_at', 'route_position', 'departed_at', 'departed_by', 'delivered_at', 'delivered_by', 'signature_path', 'signed_by_name', 'signed_at', 'undelivered_reason', 'undelivered_at', 'requested_by', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
 ])]
 class CustomerOrderDelivery extends Model
 {
@@ -91,6 +97,9 @@ class CustomerOrderDelivery extends Model
         'route_position' => 'integer',
         'departed_at' => 'datetime',
         'delivered_at' => 'datetime',
+        'signed_at' => 'datetime',
+        'undelivered_reason' => UndeliveredReason::class,
+        'undelivered_at' => 'datetime',
     ];
 
     /** @return BelongsTo<CustomerOrder, $this> */

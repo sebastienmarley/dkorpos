@@ -7,6 +7,8 @@ use App\Enums\DeliveryPeriod;
 use App\Enums\DeliveryStatus;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
+use App\Enums\UndeliveredReason;
+use App\Livewire\Accounting\PaymentMethods;
 use App\Livewire\Deliveries\Mine;
 use App\Models\CustomerOrder;
 use App\Models\CustomerOrderDelivery;
@@ -17,12 +19,14 @@ use App\Models\Product;
 use App\Models\User;
 use App\Notifications\DeliveryNotice;
 use App\Support\Money;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 const ROUTE_DATE = '2026-10-27';
 
 beforeEach(function () {
     $this->travelTo(ROUTE_DATE.' 07:30');
+    Storage::fake('local');
 
     $this->order = CustomerOrder::factory()->create();
     $this->order->customer->update(['address_civic' => '12', 'address_street' => 'rue Principale', 'address_city' => 'Rimouski', 'address_province' => 'QC', 'address_country' => 'CA', 'address_postal_code' => 'G5L1A1', 'cellphone' => '(418)555-1234']);
@@ -62,6 +66,12 @@ function plannedDelivery(CustomerOrder $order, array $quantities, DeliveryPeriod
     }
 
     return $delivery->fresh();
+}
+
+/** Signature du client : une image PNG de 1 × 1, en URL de données. */
+function signaturePng(): string
+{
+    return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 }
 
 function settle(CustomerOrder $order, CustomerPaymentMethod $cash): void
@@ -197,7 +207,10 @@ describe('remise au client', function () {
 
         Livewire::test(Mine::class)
             ->call('open', $delivery->id)
-            ->call('complete')
+            ->call('startConfirmation')
+            ->call('confirmReceipt')
+            ->assertSet('completionStep', 'signature')
+            ->call('complete', signaturePng())
             ->assertHasNoErrors();
 
         expect($line->fresh())
@@ -222,10 +235,10 @@ describe('remise au client', function () {
         $deliveryLine = $delivery->lines()->sole();
         $this->order->loadDelivery($delivery, [$deliveryLine->id => 3]);
 
-        expect(fn () => app(CompleteDelivery::class)->handle($delivery, [$deliveryLine->id => 2]))
+        expect(fn () => app(CompleteDelivery::class)->handle($delivery, [$deliveryLine->id => 2], [], 'Client', signaturePng()))
             ->toThrow(DomainException::class, 'Indiquez la raison de chaque article refusé.');
 
-        app(CompleteDelivery::class)->handle($delivery, [$deliveryLine->id => 2], [$deliveryLine->id => 'Endommagé']);
+        app(CompleteDelivery::class)->handle($delivery, [$deliveryLine->id => 2], [$deliveryLine->id => 'Endommagé'], 'Client', signaturePng());
 
         $refused = $line->fresh();
         $delivered = CustomerOrderLine::where('status', CustomerOrderLineStatus::Delivered)->sole();
@@ -253,11 +266,11 @@ describe('remise au client', function () {
         $deliveryLine = $delivery->lines()->sole();
         $this->order->loadDelivery($delivery, [$deliveryLine->id => 1]);
 
-        expect(fn () => app(CompleteDelivery::class)->handle($delivery, [$deliveryLine->id => 1]))
+        expect(fn () => app(CompleteDelivery::class)->handle($delivery, [$deliveryLine->id => 1], [], 'Client', signaturePng()))
             ->toThrow(DomainException::class, 'Percevez le paiement avant de remettre les articles : 114.98 $ à payer.');
 
         settle($this->order, $this->cash);
-        app(CompleteDelivery::class)->handle($delivery, [$deliveryLine->id => 1]);
+        app(CompleteDelivery::class)->handle($delivery, [$deliveryLine->id => 1], [], 'Client', signaturePng());
 
         expect($delivery->fresh()->status)->toBe(DeliveryStatus::Delivered);
     });
@@ -271,7 +284,7 @@ describe('remise au client', function () {
         $deliveryLine = $delivery->lines()->sole();
         $this->order->loadDelivery($delivery, [$deliveryLine->id => 1]);
 
-        app(CompleteDelivery::class)->handle($delivery, [$deliveryLine->id => 1]);
+        app(CompleteDelivery::class)->handle($delivery, [$deliveryLine->id => 1], [], 'Client', signaturePng());
 
         expect($this->order->fresh()->status)->toBe(CustomerOrderStatus::Delivered);
     });
@@ -280,7 +293,7 @@ describe('remise au client', function () {
         $line = journaledLine($this->order, 1, 1);
         $delivery = plannedDelivery($this->order, [$line->id => 1]);
 
-        expect(fn () => app(CompleteDelivery::class)->handle($delivery, [$delivery->lines()->sole()->id => 1]))
+        expect(fn () => app(CompleteDelivery::class)->handle($delivery, [$delivery->lines()->sole()->id => 1], [], 'Client', signaturePng()))
             ->toThrow(DomainException::class, 'Seule une livraison en route peut être remise au client.');
     });
 });
@@ -289,4 +302,194 @@ it('accorde le menu des livraisons aux livreurs et aux directeurs, pas aux vende
     expect($this->driver->can('deliveries.handle'))->toBeTrue()
         ->and(User::factory()->withRole('manager')->create()->can('deliveries.handle'))->toBeTrue()
         ->and(User::factory()->withRole('salesman')->create()->can('deliveries.handle'))->toBeFalse();
+});
+
+describe('signature du client (#93)', function () {
+    /** Livraison en route, payée, d'une ligne de 2 unités et d'une ligne d'une unité. */
+    beforeEach(function () {
+        $this->salesperson = User::factory()->withRole('salesman')->create();
+        $this->order->syncSalespeople([['user_id' => $this->salesperson->id, 'percent' => 100]]);
+        $this->pair = journaledLine($this->order, 2, 2);
+        $this->single = journaledLine($this->order, 1, 1);
+        settle($this->order, $this->cash);
+        $this->delivery = plannedDelivery($this->order, [$this->pair->id => 2, $this->single->id => 1]);
+        [$this->pairLine, $this->singleLine] = $this->delivery->lines()->orderBy('id')->get()->all();
+        $this->order->loadDelivery($this->delivery, [$this->pairLine->id => 2, $this->singleLine->id => 1]);
+    });
+
+    it('coche et décoche tous les articles avec « Tout accepter »', function () {
+        Livewire::test(Mine::class)
+            ->call('open', $this->delivery->id)
+            ->call('startConfirmation')
+            ->assertSet('completionStep', 'checklist')
+            ->assertSee('Tout accepter')
+            ->call('toggleAll', false)
+            ->assertSet('acceptedChecks', [$this->pairLine->id => false, $this->singleLine->id => false])
+            ->call('toggleAll', true)
+            ->assertSet('acceptedChecks', [$this->pairLine->id => true, $this->singleLine->id => true]);
+    });
+
+    it('demande de cocher au moins un article, et une raison pour chaque article refusé', function () {
+        Livewire::test(Mine::class)
+            ->call('open', $this->delivery->id)
+            ->call('startConfirmation')
+            ->call('toggleAll', false)
+            ->call('confirmReceipt')
+            ->assertHasErrors('checklist')
+            ->set("acceptedChecks.{$this->pairLine->id}", true)
+            ->call('confirmReceipt')
+            ->assertHasErrors("refusalReasons.{$this->singleLine->id}")
+            ->set("refusalReasons.{$this->singleLine->id}", 'Mauvais article')
+            ->call('confirmReceipt')
+            ->assertHasNoErrors()
+            ->assertSet('completionStep', 'signature')
+            ->assertSet('signerName', $this->order->customer->firstname.' '.$this->order->customer->lastname);
+    });
+
+    it('conserve la signature avec le nom, la date et les articles acceptés et refusés', function () {
+        Livewire::test(Mine::class)
+            ->call('open', $this->delivery->id)
+            ->call('startConfirmation')
+            ->set("acceptedChecks.{$this->singleLine->id}", false)
+            ->set("refusalReasons.{$this->singleLine->id}", 'Endommagé')
+            ->call('confirmReceipt')
+            ->set('signerName', 'Marie Tremblay')
+            ->call('complete', signaturePng())
+            ->assertHasNoErrors();
+
+        $delivery = $this->delivery->fresh();
+
+        expect($delivery)
+            ->status->toBe(DeliveryStatus::Delivered)
+            ->signed_by_name->toBe('Marie Tremblay')
+            ->signed_at->not->toBeNull()
+            ->and(Storage::disk('local')->exists($delivery->signature_path))->toBeTrue()
+            ->and($this->pairLine->fresh()->accepted_quantity)->toBe(2)
+            ->and($this->singleLine->fresh())
+            ->accepted_quantity->toBe(0)
+            ->refusal_reason->toBe('Endommagé')
+            ->and($this->salesperson->notifications()->sole()->data['body'])->toContain('Endommagé');
+
+        $this->actingAs($this->salesperson)
+            ->get(route('deliveries.signature', $delivery))
+            ->assertOk();
+
+        expectInventoryIntegrity($this->single->product);
+    });
+
+    it('refuse de terminer sans signature', function () {
+        Livewire::test(Mine::class)
+            ->call('open', $this->delivery->id)
+            ->call('startConfirmation')
+            ->call('confirmReceipt')
+            ->call('complete', '')
+            ->assertHasErrors('signature');
+
+        expect($this->delivery->fresh()->status)->toBe(DeliveryStatus::InTransit)
+            ->and(Storage::disk('local')->allFiles())->toBeEmpty();
+    });
+
+    it('ferme la livraison « Non livrée » quand le client est absent, et avise le vendeur', function () {
+        Livewire::test(Mine::class)
+            ->call('open', $this->delivery->id)
+            ->call('markUndelivered', 'customer_absent')
+            ->assertHasNoErrors();
+
+        expect($this->delivery->fresh())
+            ->status->toBe(DeliveryStatus::Undelivered)
+            ->undelivered_reason->toBe(UndeliveredReason::CustomerAbsent)
+            ->and($this->pair->fresh())
+            ->status->toBe(CustomerOrderLineStatus::InStock)
+            ->quantity_reserved->toBe(2)
+            ->and($this->singleLine->fresh()->refusal_reason)->toBe('Client absent')
+            ->and($this->salesperson->notifications()->sole()->data['title'])->toBe('Livraison non livrée (client absent) — commande #'.$this->order->id)
+            ->and($this->order->pickableQuantities())->toBe([$this->pair->id => 2, $this->single->id => 1]);
+
+        expectInventoryIntegrity($this->pair->product);
+    });
+
+    it('ferme la livraison « Non livrée » quand le client refuse tout, avec une raison par article', function () {
+        Livewire::test(Mine::class)
+            ->call('open', $this->delivery->id)
+            ->set('completionStep', 'refused')
+            ->set("refusalReasons.{$this->pairLine->id}", 'Mauvaise couleur')
+            ->call('markUndelivered', 'all_refused')
+            ->assertHasErrors('refused')
+            ->set("refusalReasons.{$this->singleLine->id}", 'Plus besoin')
+            ->call('markUndelivered', 'all_refused')
+            ->assertHasNoErrors();
+
+        expect($this->delivery->fresh())
+            ->status->toBe(DeliveryStatus::Undelivered)
+            ->undelivered_reason->toBe(UndeliveredReason::AllRefused)
+            ->and($this->pairLine->fresh()->refusal_reason)->toBe('Mauvaise couleur');
+    });
+
+    it('supprime l\'image après 365 jours et garde le nom du signataire', function () {
+        app(CompleteDelivery::class)->handle($this->delivery, [$this->pairLine->id => 2, $this->singleLine->id => 1], [], 'Marie Tremblay', signaturePng());
+        $path = $this->delivery->fresh()->signature_path;
+
+        $this->travel(364)->days();
+        $this->artisan('deliveries:purge-signatures')->assertSuccessful();
+        expect(Storage::disk('local')->exists($path))->toBeTrue();
+
+        $this->travel(2)->days();
+        $this->artisan('deliveries:purge-signatures')->assertSuccessful();
+
+        expect(Storage::disk('local')->exists($path))->toBeFalse()
+            ->and($this->delivery->fresh())
+            ->signature_path->toBeNull()
+            ->signed_by_name->toBe('Marie Tremblay')
+            ->signed_at->not->toBeNull();
+    });
+});
+
+describe('paiement à la livraison (#93)', function () {
+    beforeEach(function () {
+        $this->line = journaledLine($this->order, 1, 1);
+        $this->delivery = plannedDelivery($this->order, [$this->line->id => 1], attributes: ['pay_on_delivery' => true]);
+        $this->order->loadDelivery($this->delivery, [$this->delivery->lines()->sole()->id => 1]);
+        $this->terminal = CustomerPaymentMethod::factory()->create(['name' => 'TPV', 'is_usable_on_delivery' => true]);
+    });
+
+    it('n\'offre que les modes utilisables à la livraison, puis débloque la confirmation', function () {
+        Livewire::test(Mine::class)
+            ->call('open', $this->delivery->id)
+            ->assertSee('Paiement à percevoir : 114.98 $')
+            ->assertSet('payment.method_id', $this->terminal->id)
+            ->set('payment.method_id', $this->cash->id)
+            ->call('collectPayment')
+            ->assertHasErrors('payment.method_id')
+            ->set('payment.method_id', $this->terminal->id)
+            ->call('collectPayment')
+            ->assertHasNoErrors()
+            ->assertDontSee('Paiement à percevoir');
+
+        expect($this->order->payments()->sole())
+            ->customer_payment_method_id->toBe($this->terminal->id)
+            ->amount->toBeMoney(11498);
+    });
+
+    it('marque un mode de paiement « utilisable à la livraison » dans la gestion des modes de paiement', function () {
+        $admin = User::factory()->withRole('admin')->create();
+        $method = CustomerPaymentMethod::factory()->create(['name' => 'Débit']);
+
+        Livewire::actingAs($admin)
+            ->test(PaymentMethods::class)
+            ->call('openEdit', $method->id)
+            ->set('isUsableOnDelivery', true)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        expect($method->fresh()->is_usable_on_delivery)->toBeTrue();
+    });
+});
+
+it('refuse l\'image de la signature sans la permission de voir les commandes', function () {
+    $delivery = CustomerOrderDelivery::factory()->create(['customer_order_id' => $this->order->id, 'signature_path' => 'signatures/x.png', 'signed_at' => now()]);
+    Storage::disk('local')->put('signatures/x.png', 'png');
+
+    $this->actingAs(User::factory()->withRole('warehouse')->create())
+        ->get(route('deliveries.signature', $delivery))
+        ->assertForbidden();
 });

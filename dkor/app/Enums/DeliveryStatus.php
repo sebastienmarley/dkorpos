@@ -7,6 +7,7 @@ enum DeliveryStatus: string
     case Scheduled = 'scheduled';
     case InTransit = 'in_transit';
     case Delivered = 'delivered';
+    case Undelivered = 'undelivered';
     case Cancelled = 'cancelled';
 
     public function label(): string
@@ -15,6 +16,7 @@ enum DeliveryStatus: string
             self::Scheduled => __('Planifiée'),
             self::InTransit => __('En route'),
             self::Delivered => __('Livrée'),
+            self::Undelivered => __('Non livrée'),
             self::Cancelled => __('Annulée'),
         };
     }
@@ -35,6 +37,7 @@ enum DeliveryStatus: string
             self::Scheduled => 'sky',
             self::InTransit => 'blue',
             self::Delivered => 'green',
+            self::Undelivered => 'orange',
             self::Cancelled => 'red',
         };
     }

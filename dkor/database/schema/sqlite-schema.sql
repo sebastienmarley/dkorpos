@@ -79,6 +79,8 @@ CREATE TABLE "customer_payment_methods"(
   "created_at" datetime,
   "updated_at" datetime,
   "code" varchar
+  ,
+  "is_usable_on_delivery" tinyint(1) not null default '0'
 );
 CREATE TABLE "merchant_payment_methods"(
   "id" integer primary key autoincrement not null,
@@ -1243,6 +1245,11 @@ CREATE TABLE "customer_order_deliveries"(
   "departed_by" integer,
   "delivered_at" datetime,
   "delivered_by" integer,
+  "signature_path" varchar,
+  "signed_by_name" varchar,
+  "signed_at" datetime,
+  "undelivered_reason" varchar,
+  "undelivered_at" datetime,
   foreign key("cancelled_by") references users("id") on delete set null on update no action,
   foreign key("requested_by") references users("id") on delete set null on update no action,
   foreign key("pay_on_delivery_authorized_by") references users("id") on delete set null on update no action,
@@ -1432,3 +1439,4 @@ INSERT INTO migrations VALUES(190,'2026_10_18_195715_create_inventory_count_shee
 INSERT INTO migrations VALUES(191,'2026_10_18_195716_create_inventory_count_scans_table',23);
 INSERT INTO migrations VALUES(192,'2026_10_18_195717_create_inventory_count_results_table',23);
 INSERT INTO migrations VALUES(194,'2026_10_24_193306_add_driver_tracking_to_customer_order_deliveries',24);
+INSERT INTO migrations VALUES(195,'2026_10_24_200559_add_signature_to_customer_order_deliveries',25);

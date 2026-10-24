@@ -35,6 +35,36 @@
                             @if ($delivery->cancellation_reason)
                                 <div class="text-xs text-zinc-400">{{ $delivery->cancellation_reason }}</div>
                             @endif
+                            @if ($delivery->undelivered_reason)
+                                <div class="text-xs text-orange-600 dark:text-orange-400">
+                                    {{ __('Non livrée le :date : :reason. Les articles sont revenus en stock client.', ['date' => $delivery->undelivered_at?->translatedFormat('j M Y à H:i'), 'reason' => $delivery->undelivered_reason->label()]) }}
+                                </div>
+                            @endif
+                            @if (in_array($delivery->status, [\App\Enums\DeliveryStatus::Delivered, \App\Enums\DeliveryStatus::Undelivered], true))
+                                <ul class="text-xs text-zinc-500">
+                                    @foreach ($delivery->lines as $deliveryLine)
+                                        <li wire:key="outcome-{{ $deliveryLine->id }}">
+                                            {{ __(':accepted / :quantity × :label accepté(s)', ['accepted' => (int) $deliveryLine->accepted_quantity, 'quantity' => $deliveryLine->quantity, 'label' => $deliveryLine->line->label]) }}
+                                            @if ($deliveryLine->refusal_reason)
+                                                <span class="text-red-600 dark:text-red-400">— {{ $deliveryLine->refusal_reason }}</span>
+                                            @endif
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                            @if ($delivery->signed_at)
+                                <div class="flex items-end gap-3 pt-1">
+                                    @if ($delivery->signature_path)
+                                        <img src="{{ route('deliveries.signature', $delivery) }}" alt="{{ __('Signature de :name', ['name' => $delivery->signed_by_name]) }}" class="h-16 rounded border border-zinc-200 bg-white dark:border-zinc-700" />
+                                    @endif
+                                    <div class="text-xs text-zinc-500">
+                                        {{ __('Signé par :name le :date', ['name' => $delivery->signed_by_name, 'date' => $delivery->signed_at->translatedFormat('j M Y à H:i')]) }}
+                                        @unless ($delivery->signature_path)
+                                            <div class="text-zinc-400">{{ __('Image supprimée après la durée de conservation.') }}</div>
+                                        @endunless
+                                    </div>
+                                </div>
+                            @endif
                         </div>
 
                         @can('customer_orders.edit')

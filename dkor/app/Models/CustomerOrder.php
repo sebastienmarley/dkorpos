@@ -17,6 +17,7 @@ use App\Enums\InventoryStatus;
 use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
+use App\Enums\UndeliveredReason;
 use App\Support\Money;
 use Database\Factories\CustomerOrderFactory;
 use DomainException;
@@ -2108,6 +2109,10 @@ class CustomerOrder extends Model
                 }
             }
 
+            if ($acceptedByLine === []) {
+                throw new DomainException(__('Cochez au moins un article accepté par le client (sinon, la livraison est non livrée).'));
+            }
+
             $required = $this->amountRequiredFor($acceptedByLine);
 
             if ($required->isPositive()) {
@@ -2131,11 +2136,7 @@ class CustomerOrder extends Model
                 }
 
                 if ($refusedQuantity > 0) {
-                    if (! $line->isPart()) {
-                        InventoryMovement::record($line->product_id, InventoryStatus::InDelivery, InventoryStatus::ReservedCustomer, $refusedQuantity, InventoryMovementType::DeliveryRefused, $delivery);
-                    }
-
-                    $line->refresh()->update(['status' => $deliveryLine->loaded_from_status ?? CustomerOrderLineStatus::Received]);
+                    $this->returnFromDelivery($delivery, $deliveryLine, $line, $refusedQuantity);
                     $refused[] = __(':quantity × :label : :reason', ['quantity' => $refusedQuantity, 'label' => $line->label, 'reason' => trim((string) $refusalReasons[$deliveryLine->id])]);
                 }
 
@@ -2152,6 +2153,56 @@ class CustomerOrder extends Model
 
             return $refused;
         });
+    }
+
+    /**
+     * Ferme une livraison en route sans rien remettre au client (issue #93) : client absent, ou articles tous refusés.
+     * Toutes les lignes chargées retournent en stock client, avec le statut qu'elles avaient avant le chargement, et
+     * la livraison passe « Non livrée ».
+     *
+     * @param  array<int, string>  $refusalReasons  raison par ligne de livraison (tout refusé), sinon la raison générale
+     * @return list<string> les articles revenus au magasin (« 1 × Modèle : raison »)
+     *
+     * @throws DomainException si la livraison n'est pas en route ou si un article refusé n'a pas de raison.
+     */
+    public function failDelivery(CustomerOrderDelivery $delivery, UndeliveredReason $reason, array $refusalReasons = []): array
+    {
+        return DB::transaction(function () use ($delivery, $reason, $refusalReasons): array {
+            $delivery = $this->lockedDelivery($delivery, DeliveryStatus::InTransit, __('Seule une livraison en route peut être fermée sans remise.'));
+            $returned = [];
+
+            foreach ($delivery->lines()->get() as $deliveryLine) {
+                $lineReason = $reason === UndeliveredReason::AllRefused ? trim((string) ($refusalReasons[$deliveryLine->id] ?? '')) : $reason->label();
+
+                if ($lineReason === '') {
+                    throw new DomainException(__('Indiquez la raison de chaque article refusé.'));
+                }
+
+                $line = $this->lines()->lockForUpdate()->findOrFail($deliveryLine->customer_order_line_id);
+                $this->returnFromDelivery($delivery, $deliveryLine, $line, $deliveryLine->quantity);
+                $deliveryLine->update(['accepted_quantity' => 0, 'refusal_reason' => $lineReason]);
+                $returned[] = __(':quantity × :label : :reason', ['quantity' => $deliveryLine->quantity, 'label' => $line->label, 'reason' => $lineReason]);
+            }
+
+            $delivery->update(['status' => DeliveryStatus::Undelivered, 'undelivered_reason' => $reason, 'undelivered_at' => now(), 'delivered_by' => auth()->id()]);
+
+            $this->refreshStatusFromLines();
+
+            return $returned;
+        });
+    }
+
+    /**
+     * Retourne en stock client une quantité chargée d'une ligne « En livraison », avec le statut qu'avait la ligne
+     * avant le chargement.
+     */
+    private function returnFromDelivery(CustomerOrderDelivery $delivery, CustomerOrderDeliveryLine $deliveryLine, CustomerOrderLine $line, int $quantity): void
+    {
+        if (! $line->isPart()) {
+            InventoryMovement::record($line->product_id, InventoryStatus::InDelivery, InventoryStatus::ReservedCustomer, $quantity, InventoryMovementType::DeliveryRefused, $delivery);
+        }
+
+        $line->refresh()->update(['status' => $deliveryLine->loaded_from_status ?? CustomerOrderLineStatus::Received]);
     }
 
     /**
