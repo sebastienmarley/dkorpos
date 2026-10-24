@@ -14,7 +14,10 @@ class DeliveryNotice extends Notification
 {
     public const string Type = 'delivery';
 
-    public function __construct(public CustomerOrderDelivery $delivery, public string $title, public string $body) {}
+    /**
+     * @param  string|null  $url  lien de l'avis (par défaut : la page des livraisons, à la date ou aux expéditions)
+     */
+    public function __construct(public CustomerOrderDelivery $delivery, public string $title, public string $body, public ?string $url = null) {}
 
     /**
      * @return list<string>
@@ -39,9 +42,9 @@ class DeliveryNotice extends Notification
         return [
             'title' => $this->title,
             'body' => $this->body,
-            'url' => $this->delivery->method === DeliveryMethod::Shipping
+            'url' => $this->url ?? ($this->delivery->method === DeliveryMethod::Shipping
                 ? route('deliveries.index').'#expeditions'
-                : route('deliveries.index', ['date' => $this->delivery->scheduled_date?->toDateString()]),
+                : route('deliveries.index', ['date' => $this->delivery->scheduled_date?->toDateString()])),
             'icon' => 'truck',
         ];
     }

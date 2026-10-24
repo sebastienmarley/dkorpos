@@ -87,8 +87,14 @@
                     </flux:sidebar.item>
                 @endcan
 
+                @can('deliveries.handle')
+                    <flux:sidebar.item icon="truck" :href="route('deliveries.mine')" :current="request()->routeIs('deliveries.mine')" wire:navigate>
+                        {{ __('Mes livraisons') }}
+                    </flux:sidebar.item>
+                @endcan
+
                 @can('deliveries.view')
-                    <flux:sidebar.item icon="map-pin" :href="route('deliveries.index')" :current="request()->routeIs('deliveries.*')" wire:navigate>
+                    <flux:sidebar.item icon="map-pin" :href="route('deliveries.index')" :current="request()->routeIs('deliveries.index')" wire:navigate>
                         {{ __('Livraisons') }}
                     </flux:sidebar.item>
                 @endcan

@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-18 (160 migrations, 57 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-24 (173 migrations, 68 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 160 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
+les 173 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -284,6 +284,13 @@ erDiagram
 - Une expédition (`shipping`) n'a ni date ni demi-journée; elle doit être payée à 100 % (pas de
   `pay_on_delivery`). `ready_at` note le moment où tous ses articles sont en main et l'avis « Nouvelle expédition à
   faire » envoyé, une seule fois.
+- **Menu du livreur (#94)** : `route_position` est le rang dans la route de la demi-journée, le même pour tous les
+  livreurs du magasin (vide : ordre de planification). `departed_at`/`departed_by` notent le départ du camion
+  (« En route »), `delivered_at`/`delivered_by` la remise au client (« Livrée »). Sur chaque ligne de livraison,
+  `loaded_from_status` garde le statut de la ligne avant le chargement (rendu si le client la refuse),
+  `accepted_quantity` la quantité acceptée et `refusal_reason` la raison d'un refus. Une ligne chargée est
+  séparée au besoin et passe « En livraison » (elle reste dans `quantity_reserved`, invariant I4 de
+  l'[ADR 0011](adr/0011-inventory-movements-and-adjustments.md)).
 - `pay_on_delivery` : le solde exigé sera perçu à la livraison, autorisé par un directeur
   (`pay_on_delivery_authorized_by`).
 - Un report annule la livraison (`cancelled_at`, `cancelled_by`, `cancellation_reason`) et en crée une autre qui
@@ -301,6 +308,8 @@ erDiagram
     users |o--o{ customer_order_deliveries : "pay_on_delivery_authorized_by · null"
     users |o--o{ customer_order_deliveries : "requested_by · null"
     users |o--o{ customer_order_deliveries : "cancelled_by · null"
+    users |o--o{ customer_order_deliveries : "departed_by · null"
+    users |o--o{ customer_order_deliveries : "delivered_by · null"
     customer_order_deliveries ||--o{ customer_order_delivery_lines : "customer_order_delivery_id · cascade"
     customer_order_lines ||--o{ customer_order_delivery_lines : "customer_order_line_id · cascade"
     stores ||--o{ delivery_trucks : "store_id · cascade"
@@ -319,6 +328,7 @@ erDiagram
         string status "DeliveryStatus"
         date scheduled_date "nullable"
         string period "DeliveryPeriod · nullable"
+        int route_position "nullable"
         string address_civic
         string address_apartment "nullable"
         string address_street
@@ -332,6 +342,10 @@ erDiagram
         int pay_on_delivery_authorized_by FK "nullable"
         text notes "nullable"
         datetime ready_at "nullable"
+        datetime departed_at "nullable"
+        int departed_by FK "nullable"
+        datetime delivered_at "nullable"
+        int delivered_by FK "nullable"
         int requested_by FK "nullable"
         datetime cancelled_at "nullable"
         int cancelled_by FK "nullable"
@@ -344,6 +358,9 @@ erDiagram
         int customer_order_delivery_id FK
         int customer_order_line_id FK
         int quantity
+        string loaded_from_status "CustomerOrderLineStatus · nullable"
+        int accepted_quantity "nullable"
+        string refusal_reason "nullable"
         datetime created_at
         datetime updated_at
     }

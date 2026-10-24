@@ -997,47 +997,6 @@ CREATE UNIQUE INDEX "delivery_trucks_store_id_name_unique" on "delivery_trucks"(
   "store_id",
   "name"
 );
-CREATE TABLE "customer_order_deliveries"(
-  "id" integer primary key autoincrement not null,
-  "customer_order_id" integer not null,
-  "store_id" integer,
-  "rescheduled_from_id" integer,
-  "method" varchar not null,
-  "status" varchar not null,
-  "scheduled_date" date,
-  "period" varchar,
-  "address_civic" varchar not null,
-  "address_apartment" varchar,
-  "address_street" varchar not null,
-  "address_city" varchar not null,
-  "address_province" varchar not null,
-  "address_country" varchar not null,
-  "address_postal_code" varchar not null,
-  "address_verified_by" integer,
-  "address_verified_at" datetime not null,
-  "pay_on_delivery" tinyint(1) not null default '0',
-  "pay_on_delivery_authorized_by" integer,
-  "notes" text,
-  "requested_by" integer,
-  "cancelled_at" datetime,
-  "cancelled_by" integer,
-  "cancellation_reason" varchar,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "ready_at" datetime,
-  foreign key("customer_order_id") references "customer_orders"("id") on delete cascade,
-  foreign key("store_id") references "stores"("id") on delete set null,
-  foreign key("rescheduled_from_id") references "customer_order_deliveries"("id") on delete set null,
-  foreign key("address_verified_by") references "users"("id") on delete set null,
-  foreign key("pay_on_delivery_authorized_by") references "users"("id") on delete set null,
-  foreign key("requested_by") references "users"("id") on delete set null,
-  foreign key("cancelled_by") references "users"("id") on delete set null
-);
-CREATE INDEX "customer_order_deliveries_store_id_scheduled_date_period_index" on "customer_order_deliveries"(
-  "store_id",
-  "scheduled_date",
-  "period"
-);
 CREATE TABLE "customer_order_delivery_lines"(
   "id" integer primary key autoincrement not null,
   "customer_order_delivery_id" integer not null,
@@ -1045,6 +1004,9 @@ CREATE TABLE "customer_order_delivery_lines"(
   "quantity" integer not null,
   "created_at" datetime,
   "updated_at" datetime,
+  "loaded_from_status" varchar,
+  "accepted_quantity" integer,
+  "refusal_reason" varchar,
   foreign key("customer_order_delivery_id") references "customer_order_deliveries"("id") on delete cascade,
   foreign key("customer_order_line_id") references "customer_order_lines"("id") on delete cascade
 );
@@ -1248,6 +1210,54 @@ CREATE INDEX "inventory_count_results_inventory_count_id_status_inventory_zone_i
   "status",
   "inventory_zone_id"
 );
+CREATE TABLE "customer_order_deliveries"(
+  "id" integer primary key autoincrement not null,
+  "customer_order_id" integer not null,
+  "store_id" integer,
+  "rescheduled_from_id" integer,
+  "method" varchar not null,
+  "status" varchar not null,
+  "scheduled_date" date,
+  "period" varchar,
+  "address_civic" varchar not null,
+  "address_apartment" varchar,
+  "address_street" varchar not null,
+  "address_city" varchar not null,
+  "address_province" varchar not null,
+  "address_country" varchar not null,
+  "address_postal_code" varchar not null,
+  "address_verified_by" integer,
+  "address_verified_at" datetime not null,
+  "pay_on_delivery" tinyint(1) not null default('0'),
+  "pay_on_delivery_authorized_by" integer,
+  "notes" text,
+  "requested_by" integer,
+  "cancelled_at" datetime,
+  "cancelled_by" integer,
+  "cancellation_reason" varchar,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "ready_at" datetime,
+  "route_position" integer,
+  "departed_at" datetime,
+  "departed_by" integer,
+  "delivered_at" datetime,
+  "delivered_by" integer,
+  foreign key("cancelled_by") references users("id") on delete set null on update no action,
+  foreign key("requested_by") references users("id") on delete set null on update no action,
+  foreign key("pay_on_delivery_authorized_by") references users("id") on delete set null on update no action,
+  foreign key("address_verified_by") references users("id") on delete set null on update no action,
+  foreign key("rescheduled_from_id") references customer_order_deliveries("id") on delete set null on update no action,
+  foreign key("store_id") references stores("id") on delete set null on update no action,
+  foreign key("customer_order_id") references customer_orders("id") on delete cascade on update no action,
+  foreign key("departed_by") references "users"("id") on delete set null,
+  foreign key("delivered_by") references "users"("id") on delete set null
+);
+CREATE INDEX "customer_order_deliveries_store_id_scheduled_date_period_index" on "customer_order_deliveries"(
+  "store_id",
+  "scheduled_date",
+  "period"
+);
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1421,3 +1431,4 @@ INSERT INTO migrations VALUES(189,'2026_10_18_195714_create_inventory_count_shee
 INSERT INTO migrations VALUES(190,'2026_10_18_195715_create_inventory_count_sheet_lines_table',23);
 INSERT INTO migrations VALUES(191,'2026_10_18_195716_create_inventory_count_scans_table',23);
 INSERT INTO migrations VALUES(192,'2026_10_18_195717_create_inventory_count_results_table',23);
+INSERT INTO migrations VALUES(194,'2026_10_24_193306_add_driver_tracking_to_customer_order_deliveries',24);
