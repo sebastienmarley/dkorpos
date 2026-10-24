@@ -176,7 +176,7 @@ class Index extends Component
     private function query(): Builder
     {
         return CustomerOrderDelivery::query()
-            ->with(['order.customer', 'order.store', 'lines.line.product', 'lines.line.part', 'shippingSupplier'])
+            ->with(['order.customer', 'order.store', 'lines.line.product', 'lines.line.part', 'lines.line.location.zone', 'shippingSupplier'])
             ->where('method', DeliveryMethod::Shipping)
             ->where('store_id', (int) $this->storeId);
     }

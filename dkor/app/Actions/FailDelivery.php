@@ -16,13 +16,14 @@ class FailDelivery
 
     /**
      * @param  array<int, string>  $refusalReasons  raison par ligne de livraison (tout refusé)
+     * @param  array<int, int|null>  $returnLocations  emplacement où l'article est rangé au retour, par ligne de livraison
      *
      * @throws DomainException
      */
-    public function handle(CustomerOrderDelivery $delivery, UndeliveredReason $reason, array $refusalReasons = []): void
+    public function handle(CustomerOrderDelivery $delivery, UndeliveredReason $reason, array $refusalReasons = [], array $returnLocations = []): void
     {
         $order = $delivery->order()->firstOrFail();
-        $returned = $order->failDelivery($delivery, $reason, $refusalReasons);
+        $returned = $order->failDelivery($delivery, $reason, $refusalReasons, $returnLocations);
 
         $this->notifySalespeople->handle(
             $delivery->refresh(),

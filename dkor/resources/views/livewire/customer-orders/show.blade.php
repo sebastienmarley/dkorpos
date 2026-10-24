@@ -126,6 +126,9 @@
                                 @if ($line->note)
                                     <div class="max-w-xs truncate text-xs font-normal text-zinc-400">{{ $line->note }}</div>
                                 @endif
+                                @if ($line->location)
+                                    <div class="text-xs font-normal text-sky-700 dark:text-sky-400">{{ __('Emplacement : :location', ['location' => $line->location->label()]) }}</div>
+                                @endif
                                 @foreach ($line->defectiveProducts as $defective)
                                     <div class="text-xs font-normal text-amber-600 dark:text-amber-400">{{ __('Défectueux — dossier #:id · :resolution', ['id' => $defective->id, 'resolution' => $defective->resolution->label()]) }}</div>
                                 @endforeach
@@ -372,6 +375,12 @@
                     <flux:heading class="mb-1">{{ $editingLine->product->model }} <span class="font-normal text-zinc-500">#{{ $editingLine->product_id }}</span></flux:heading>
                 @endif
                 <flux:badge :color="$editingLine->status->color()" size="sm">{{ $editingLine->status->label() }}</flux:badge>
+
+                @unless ($editingLine->isService())
+                    <div class="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                        <livewire:line-placement :line-id="$editingLine->id" :key="'placement-'.$editingLine->id" />
+                    </div>
+                @endunless
 
                 <form wire:submit="saveLine" class="mt-6 space-y-4">
                     @php($editable = $editingLine->status->isEditable())

@@ -23,10 +23,11 @@ class CompleteDelivery
      * @param  array<int, int>  $accepted  quantité acceptée par ligne de livraison
      * @param  array<int, string>  $refusalReasons  raison du refus par ligne de livraison
      * @param  string  $signature  image PNG de la signature, en URL de données (data:image/png;base64,…)
+     * @param  array<int, int|null>  $returnLocations  emplacement où l'article refusé est rangé, par ligne de livraison
      *
      * @throws DomainException
      */
-    public function handle(CustomerOrderDelivery $delivery, array $accepted, array $refusalReasons, string $signedByName, string $signature): void
+    public function handle(CustomerOrderDelivery $delivery, array $accepted, array $refusalReasons, string $signedByName, string $signature, array $returnLocations = []): void
     {
         if (blank($signedByName)) {
             throw new DomainException(__('Indiquez le nom de la personne qui signe.'));
@@ -40,7 +41,7 @@ class CompleteDelivery
 
         try {
             $order = $delivery->order()->firstOrFail();
-            $refused = $order->completeDelivery($delivery, $accepted, $refusalReasons);
+            $refused = $order->completeDelivery($delivery, $accepted, $refusalReasons, $returnLocations);
         } catch (Throwable $exception) {
             $disk->delete($path);
 

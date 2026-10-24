@@ -231,6 +231,12 @@ ajustement ne se modifie ni ne se supprime : une erreur se corrige par l'ajustem
 
 #### Comptes doubles, zones et douchette
 
+- **Zones par magasin (#96)** : chaque zone appartient à un magasin, et se gère dans l'onglet « Zones et
+  emplacements » de sa fiche (permission `inventory.supervise`). Le stock reste un total pour l'entreprise : la prise
+  d'inventaire couvre les zones de tous les magasins, nommées « Magasin — Zone ». Prendre et finaliser un magasin à
+  la fois demande d'abord le stock par magasin (story à venir). Les emplacements d'une zone (`inventory_locations`)
+  informent seulement (où chercher un article) : ils ne tiennent pas de quantités et ne passent pas par le journal.
+
 - **Lecteur** : une douchette (USB ou Bluetooth), qui tape le code et Entrée comme un clavier, sur la page
   mobile « Mes comptes ». Aucune dépendance ajoutée; la lecture par caméra reste hors périmètre. Le code est
   cherché dans `product_upcs`; un code inconnu est consigné sans produit, et un superviseur (ou qui modifie les

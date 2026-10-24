@@ -2,19 +2,24 @@
 
 namespace App\Livewire\Products;
 
+use App\Enums\StoreType;
 use App\Enums\SupplierType;
 use App\Models\Category;
 use App\Models\Color;
 use App\Models\Department;
+use App\Models\InventoryLocation;
 use App\Models\Product;
+use App\Models\Store;
 use App\Models\Style;
 use App\Models\Supplier;
 use App\Rules\UniqueCleanProductModel;
 use App\Support\Money;
 use Closure;
+use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 use Livewire\Component;
@@ -69,10 +74,48 @@ class Show extends Component
 
     public string $weight = '';
 
+    /** @var array<int, string> emplacement habituel du produit, par magasin (issue #96) */
+    public array $habitualLocations = [];
+
     public function mount(Product $product): void
     {
         $this->product = $product;
         $this->fillFromModel();
+        $this->habitualLocations = $product->storeLocations()->pluck('inventory_location_id', 'store_id')->map(fn (int $id): string => (string) $id)->all();
+    }
+
+    /** Note l'emplacement habituel du produit dans l'entrepôt d'un magasin (proposé au rangement). */
+    public function saveHabitualLocation(int $storeId): void
+    {
+        $this->authorize('products.edit');
+
+        $locationId = $this->habitualLocations[$storeId] ?? '';
+
+        try {
+            $this->product->setHabitualLocation($storeId, filled($locationId) ? (int) $locationId : null);
+        } catch (DomainException $exception) {
+            $this->addError('habitualLocations.'.$storeId, $exception->getMessage());
+
+            return;
+        }
+
+        Flux::toast(text: __('Emplacement habituel enregistré.'), variant: 'success');
+    }
+
+    /**
+     * Emplacements actifs proposés, par magasin physique qui en a.
+     *
+     * @return SupportCollection<int, array{store: Store, locations: Collection<int, InventoryLocation>}>
+     */
+    public function getLocationsByStore(): SupportCollection
+    {
+        return Store::query()->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get()
+            ->map(fn (Store $store): array => [
+                'store' => $store,
+                'locations' => InventoryLocation::query()->ofStore($store->id)->selectable()->with('zone')->orderBy('code')->get(),
+            ])
+            ->filter(fn (array $entry): bool => $entry['locations']->isNotEmpty())
+            ->values();
     }
 
     public function updatedModel(string $value): void

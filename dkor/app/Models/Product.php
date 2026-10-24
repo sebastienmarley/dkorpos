@@ -7,6 +7,7 @@ use App\Casts\MoneyCast;
 use App\Rules\UniqueCleanProductModel;
 use App\Support\Money;
 use Database\Factories\ProductFactory;
+use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -94,6 +95,38 @@ class Product extends Model
                 app(QueuePriceChangeLabels::class)->forProducts([$product->id]);
             }
         });
+    }
+
+    /** @return HasMany<ProductStoreLocation, $this> */
+    public function storeLocations(): HasMany
+    {
+        return $this->hasMany(ProductStoreLocation::class);
+    }
+
+    /** Emplacement habituel du produit dans l'entrepôt de ce magasin, s'il est noté. */
+    public function habitualLocationFor(int $storeId): ?InventoryLocation
+    {
+        return $this->storeLocations()->where('store_id', $storeId)->with('location.zone')->first()?->location;
+    }
+
+    /**
+     * Note (ou efface, avec null) l'emplacement habituel du produit dans ce magasin.
+     *
+     * @throws DomainException si l'emplacement n'est pas un emplacement actif de ce magasin.
+     */
+    public function setHabitualLocation(int $storeId, ?int $locationId): void
+    {
+        if ($locationId === null) {
+            $this->storeLocations()->where('store_id', $storeId)->delete();
+
+            return;
+        }
+
+        if (! InventoryLocation::query()->ofStore($storeId)->selectable()->whereKey($locationId)->exists()) {
+            throw new DomainException(__('Choisissez un emplacement actif de ce magasin.'));
+        }
+
+        $this->storeLocations()->updateOrCreate(['store_id' => $storeId], ['inventory_location_id' => $locationId]);
     }
 
     /**

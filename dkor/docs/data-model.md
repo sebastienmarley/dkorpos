@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-24 (175 migrations, 69 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-24 (176 migrations, 71 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 175 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
+les 176 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -92,6 +92,9 @@ erDiagram
     products ||--o{ inventory_count_lines : ""
     inventory_counts ||--o{ inventory_count_sheets : ""
     inventory_zones |o--o{ inventory_count_sheets : ""
+    stores |o--o{ inventory_zones : ""
+    inventory_zones ||--o{ inventory_locations : ""
+    inventory_locations |o--o{ customer_order_lines : ""
     inventory_count_sheets ||--o{ inventory_count_sheet_lines : ""
     inventory_count_sheets ||--o{ inventory_count_scans : ""
     inventory_counts ||--o{ inventory_count_results : ""
@@ -204,6 +207,7 @@ erDiagram
     customer_order_lines {
         int id PK
         int customer_order_pickup_id FK "nullable"
+        int inventory_location_id FK "nullable"
         int product_id FK "nullable"
         int part_id FK "nullable"
         int service_id FK "nullable"
@@ -625,7 +629,14 @@ erDiagram
   marque le gel du stock (compté après la fermeture) jusqu'à la finalisation ou l'abandon.
 - `inventory_count_lines` : un produit dans un type de compte (Stock, Stock client, Défectueux, Démonstrateur),
   la quantité comptée ou « conservée », l'attendu figé à la finalisation et l'ajustement créé pour l'écart.
-- `inventory_zones` : zones permanentes de l'entrepôt, où le stock se compte zone par zone.
+- `inventory_zones` : zones permanentes de l'entrepôt d'un magasin (`store_id`, nom unique par magasin), où le
+  stock se compte zone par zone. La prise d'inventaire reste pour toute l'entreprise : ses feuilles couvrent les
+  zones de tous les magasins, nommées « Magasin — Zone ».
+- `inventory_locations` (issue #96) : emplacements précis d'une zone (allée, étagère), au code unique par magasin
+  (vérifié par l'application, sans tenir compte de la casse). L'emplacement **informe** : il ne tient pas de
+  quantités. Il est noté sur une ligne de commande client (`customer_order_lines.inventory_location_id` : où
+  chercher l'article réservé, à livrer ou à expédier), et comme emplacement habituel d'un produit dans un magasin
+  (`product_store_locations`, un par produit et magasin). Désactivé, il n'est plus proposé mais reste affiché.
 - `inventory_count_sheets` : feuilles de compte d'une prise. Une portée (état compté, et zone pour le stock), une
   passe (A, B ou recompte), le compteur attribué, l'avancement et la réconciliation de la portée.
 - `inventory_count_sheet_lines` : quantité comptée d'un produit sur une feuille.
@@ -649,6 +660,12 @@ erDiagram
     users |o--o{ inventory_count_lines : "counted_by · null"
     inventory_counts ||--o{ inventory_count_sheets : "inventory_count_id · cascade"
     inventory_zones |o--o{ inventory_count_sheets : "inventory_zone_id · restrict"
+    stores |o--o{ inventory_zones : "store_id · restrict"
+    inventory_zones ||--o{ inventory_locations : "inventory_zone_id · restrict"
+    inventory_locations |o--o{ customer_order_lines : "inventory_location_id · null"
+    products ||--o{ product_store_locations : "product_id · cascade"
+    stores ||--o{ product_store_locations : "store_id · cascade"
+    inventory_locations ||--o{ product_store_locations : "inventory_location_id · cascade"
     users |o--o{ inventory_count_sheets : "assigned_to · null"
     inventory_count_sheets ||--o{ inventory_count_sheet_lines : "inventory_count_sheet_id · cascade"
     products ||--o{ inventory_count_sheet_lines : "product_id · restrict"
@@ -745,9 +762,27 @@ erDiagram
     }
     inventory_zones {
         int id PK
-        string name UK
+        int store_id FK "nullable"
+        string name "UK avec store_id"
         int sort_order
         bool is_active
+        datetime created_at
+        datetime updated_at
+    }
+    inventory_locations {
+        int id PK
+        int inventory_zone_id FK
+        string code
+        string description "nullable"
+        bool is_active
+        datetime created_at
+        datetime updated_at
+    }
+    product_store_locations {
+        int id PK
+        int product_id FK
+        int store_id FK
+        int inventory_location_id FK
         datetime created_at
         datetime updated_at
     }

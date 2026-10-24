@@ -28,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $quote_number Numéro de soumission du fournisseur (article sur mesure).
  * @property int|null $supplier_order_line_id
  * @property int|null $customer_order_pickup_id
+ * @property int|null $inventory_location_id Emplacement de l'entrepôt où chercher l'article réservé (pour information).
  * @property int $quantity
  * @property int $quantity_reserved
  * @property int $quantity_on_order
@@ -48,11 +49,12 @@ use Illuminate\Support\Carbon;
  * @property-read string $label
  * @property-read SupplierOrderLine|null $supplierOrderLine
  * @property-read CustomerOrderPickup|null $pickup
+ * @property-read InventoryLocation|null $location
  * @property-read Collection<int, DefectiveProduct> $defectiveProducts
  * @property-read Collection<int, CustomerOrderDeliveryLine> $deliveryLines
  * @property-read Money $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'is_no_charge', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
+#[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'inventory_location_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'is_no_charge', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
@@ -170,6 +172,12 @@ class CustomerOrderLine extends Model
     public function pickup(): BelongsTo
     {
         return $this->belongsTo(CustomerOrderPickup::class, 'customer_order_pickup_id');
+    }
+
+    /** @return BelongsTo<InventoryLocation, $this> */
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(InventoryLocation::class, 'inventory_location_id');
     }
 
     /** @return HasMany<CustomerOrderDeliveryLine, $this> */

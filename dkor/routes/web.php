@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\StoreType;
 use App\Http\Controllers\DeliverySignatureController;
 use App\Http\Controllers\LabelPrintController;
 use App\Http\Controllers\ProductLabelController;
@@ -30,7 +31,6 @@ use App\Livewire\Inventory\CountSheets as InventoryCountSheets;
 use App\Livewire\Inventory\CountShow as InventoryCountShow;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Inventory\MyCountSheets;
-use App\Livewire\Inventory\Zones as InventoryZones;
 use App\Livewire\Labels\Index as LabelsIndex;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
 use App\Livewire\Orders\Show as SupplierOrderShow;
@@ -53,6 +53,7 @@ use App\Livewire\Suppliers\Index as SuppliersIndex;
 use App\Livewire\Suppliers\Show as SupplierShow;
 use App\Livewire\Users\Index as UsersIndex;
 use App\Livewire\Users\Show as UserShow;
+use App\Models\Store;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -95,7 +96,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('inventory/counts/{count}', InventoryCountShow::class)->middleware('can:inventory.count')->name('inventory.counts.show');
     Route::get('inventory/counts/{count}/sheets', InventoryCountSheets::class)->middleware('can:inventory.supervise')->name('inventory.counts.sheets');
     Route::get('inventory/my-counts', MyCountSheets::class)->middleware('can:inventory.count')->name('inventory.my-counts');
-    Route::get('inventory/zones', InventoryZones::class)->middleware('can:inventory.supervise')->name('inventory.zones');
+    Route::get('inventory/zones', function () {
+        $storeId = auth()->user()->store_id ?? Store::query()->where('type', StoreType::Physical)->orderBy('id')->value('id');
+
+        abort_if($storeId === null, 404);
+
+        return redirect()->route('stores.show', ['store' => $storeId, 'tab' => 'locations']);
+    })->middleware('can:inventory.supervise')->name('inventory.zones');
 
     Route::get('products', ProductsIndex::class)->middleware('can:products.view')->name('products.index');
     Route::get('products/{product}', ProductShow::class)->middleware('can:products.view')->name('products.show');
@@ -123,7 +130,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('accounting/ledger', Ledger::class)->middleware('can:ledger.view')->name('accounting.ledger');
 
     Route::get('stores', StoresIndex::class)->middleware('can:stores.view')->name('stores.index');
-    Route::get('stores/{store}', StoreShow::class)->middleware('can:stores.view')->name('stores.show');
+    Route::get('stores/{store}', StoreShow::class)->name('stores.show'); // stores.view ou inventory.supervise : vérifié par le composant
 
     Route::get('admin/positions', Positions::class)->middleware('can:positions.manage')->name('admin.positions');
     Route::get('admin/roles', Roles::class)->middleware('can:roles.manage')->name('admin.roles');

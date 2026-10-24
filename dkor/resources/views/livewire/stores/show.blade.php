@@ -21,7 +21,7 @@
     {{-- Onglets --}}
     <div x-data="{ tab: @entangle('activeTab') }">
         <div class="flex border-b border-zinc-200 dark:border-zinc-700">
-            @foreach (['identification' => __('Identification'), 'accounting' => __('Comptabilité'), 'hours' => __('Heures d\'ouverture'), 'delivery' => __('Livraison'), 'shipping' => __('Expédition'), 'parameters' => __('Paramètres')] as $key => $label)
+            @foreach ($this->getTabs() as $key => $label)
                 <button
                     type="button"
                     @click="tab = '{{ $key }}'"
@@ -31,6 +31,7 @@
             @endforeach
         </div>
 
+        @can('stores.view')
         {{-- Identification --}}
         <div x-show="tab === 'identification'" x-cloak>
             <form wire:submit="saveIdentification" class="mt-6 max-w-2xl space-y-6">
@@ -340,6 +341,13 @@
                 </div>
             </form>
         </div>
+        @endcan
+
+        @can('inventory.supervise')
+            <div x-show="tab === 'locations'" x-cloak>
+                <livewire:stores.locations :store="$store" />
+            </div>
+        @endcan
     </div>
 
     <flux:modal wire:model="showTruckModal" class="w-full max-w-md">

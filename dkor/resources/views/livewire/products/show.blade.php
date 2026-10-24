@@ -234,6 +234,33 @@
                     @endcan
                 </div>
             </form>
+
+            @php($locationsByStore = $this->getLocationsByStore())
+            @if ($locationsByStore->isNotEmpty())
+                <div class="mt-8 max-w-2xl">
+                    <flux:heading size="sm" class="mb-1">{{ __('Emplacement habituel dans l\'entrepôt') }}</flux:heading>
+                    <flux:text class="mb-3 text-sm text-zinc-500">{{ __('Proposé par défaut quand on range ce produit pour un client.') }}</flux:text>
+                    <div class="space-y-2">
+                        @foreach ($locationsByStore as $entry)
+                            <div wire:key="habitual-{{ $entry['store']->id }}" class="flex flex-wrap items-end gap-2">
+                                <flux:field class="min-w-48 flex-1">
+                                    <flux:label>{{ $entry['store']->name }}</flux:label>
+                                    <flux:select wire:model="habitualLocations.{{ $entry['store']->id }}" :disabled="! auth()->user()->can('products.edit')">
+                                        <flux:select.option value="">{{ __('— Aucun —') }}</flux:select.option>
+                                        @foreach ($entry['locations'] as $location)
+                                            <flux:select.option :value="$location->id">{{ $location->label() }}</flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+                                    <flux:error name="habitualLocations.{{ $entry['store']->id }}" />
+                                </flux:field>
+                                @can('products.edit')
+                                    <flux:button wire:click="saveHabitualLocation({{ $entry['store']->id }})">{{ __('Enregistrer') }}</flux:button>
+                                @endcan
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
         </div>
 
         {{-- UPC --}}

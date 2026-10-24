@@ -1141,6 +1141,38 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Note (ou efface, avec null) l'emplacement de l'entrepôt où une ligne est rangée (issue #96). Pour information
+     * seulement : l'emplacement ne tient pas de quantités.
+     *
+     * @throws DomainException si la ligne est un service ou si l'emplacement n'est pas un emplacement actif du
+     *                         magasin de la commande.
+     */
+    public function placeLine(CustomerOrderLine $line, ?int $locationId): void
+    {
+        if ($line->customer_order_id !== $this->id || $line->isService()) {
+            throw new DomainException(__('Seul un produit ou une pièce de la commande se range dans l\'entrepôt.'));
+        }
+
+        if ($locationId !== null && ($this->store_id === null || ! InventoryLocation::query()->ofStore($this->store_id)->selectable()->whereKey($locationId)->exists())) {
+            throw new DomainException(__('Choisissez un emplacement actif du magasin de la commande.'));
+        }
+
+        $line->update(['inventory_location_id' => $locationId]);
+    }
+
+    /**
+     * Emplacement proposé pour ranger une ligne : le sien, sinon l'emplacement habituel du produit dans le magasin.
+     */
+    public function suggestedLocationFor(CustomerOrderLine $line): ?InventoryLocation
+    {
+        if ($line->location !== null) {
+            return $line->location;
+        }
+
+        return $line->product !== null && $this->store_id !== null ? $line->product->habitualLocationFor($this->store_id) : null;
+    }
+
+    /**
      * Valide les quantités d'une nouvelle livraison ou expédition : au moins un article, et pas plus que ce qui reste à
      * remettre au client (deliverableQuantities()).
      *
@@ -1997,7 +2029,8 @@ class CustomerOrder extends Model
 
     /**
      * Sépare une quantité réservée d'une ligne et lui donne de nouveaux attributs : la ligne entière si elle part en
-     * entier (rien d'autre réservé ni en commande), sinon une nouvelle ligne de vente, l'originale gardant le reste.
+     * entier (rien d'autre réservé ni en commande), sinon une nouvelle ligne de vente, l'originale gardant le reste. La
+     * nouvelle ligne garde l'emplacement de l'originale.
      *
      * @param  array<string, mixed>  $attributes
      */
@@ -2018,6 +2051,7 @@ class CustomerOrder extends Model
 
         return $this->lines()->create([
             ...$line->saleAttributes(),
+            'inventory_location_id' => $line->inventory_location_id,
             ...$attributes,
         ]);
     }
@@ -2081,14 +2115,15 @@ class CustomerOrder extends Model
      *
      * @param  array<int, int>  $accepted  quantité acceptée par ligne de livraison (absente : rien d'accepté)
      * @param  array<int, string>  $refusalReasons  raison du refus par ligne de livraison
+     * @param  array<int, int|null>  $returnLocations  emplacement où l'article refusé est rangé au retour, par ligne de livraison
      * @return list<string> les articles refusés (« 1 × Modèle : raison »)
      *
      * @throws DomainException si la livraison n'est pas en route, si une quantité est invalide, si un refus n'a pas de
      *                         raison ou si les articles acceptés ne sont pas payés.
      */
-    public function completeDelivery(CustomerOrderDelivery $delivery, array $accepted, array $refusalReasons = []): array
+    public function completeDelivery(CustomerOrderDelivery $delivery, array $accepted, array $refusalReasons = [], array $returnLocations = []): array
     {
-        return DB::transaction(function () use ($delivery, $accepted, $refusalReasons): array {
+        return DB::transaction(function () use ($delivery, $accepted, $refusalReasons, $returnLocations): array {
             $delivery = $this->lockedDelivery($delivery, DeliveryStatus::InTransit, __('Seule une livraison en route peut être remise au client.'));
             $deliveryLines = $delivery->lines()->get();
             $acceptedByLine = [];
@@ -2136,7 +2171,7 @@ class CustomerOrder extends Model
                 }
 
                 if ($refusedQuantity > 0) {
-                    $this->returnFromDelivery($delivery, $deliveryLine, $line, $refusedQuantity);
+                    $this->returnFromDelivery($delivery, $deliveryLine, $line, $refusedQuantity, $returnLocations[$deliveryLine->id] ?? null);
                     $refused[] = __(':quantity × :label : :reason', ['quantity' => $refusedQuantity, 'label' => $line->label, 'reason' => trim((string) $refusalReasons[$deliveryLine->id])]);
                 }
 
@@ -2279,13 +2314,14 @@ class CustomerOrder extends Model
      * la livraison passe « Non livrée ».
      *
      * @param  array<int, string>  $refusalReasons  raison par ligne de livraison (tout refusé), sinon la raison générale
+     * @param  array<int, int|null>  $returnLocations  emplacement où l'article est rangé au retour, par ligne de livraison
      * @return list<string> les articles revenus au magasin (« 1 × Modèle : raison »)
      *
      * @throws DomainException si la livraison n'est pas en route ou si un article refusé n'a pas de raison.
      */
-    public function failDelivery(CustomerOrderDelivery $delivery, UndeliveredReason $reason, array $refusalReasons = []): array
+    public function failDelivery(CustomerOrderDelivery $delivery, UndeliveredReason $reason, array $refusalReasons = [], array $returnLocations = []): array
     {
-        return DB::transaction(function () use ($delivery, $reason, $refusalReasons): array {
+        return DB::transaction(function () use ($delivery, $reason, $refusalReasons, $returnLocations): array {
             $delivery = $this->lockedDelivery($delivery, DeliveryStatus::InTransit, __('Seule une livraison en route peut être fermée sans remise.'));
             $returned = [];
 
@@ -2297,7 +2333,7 @@ class CustomerOrder extends Model
                 }
 
                 $line = $this->lines()->lockForUpdate()->findOrFail($deliveryLine->customer_order_line_id);
-                $this->returnFromDelivery($delivery, $deliveryLine, $line, $deliveryLine->quantity);
+                $this->returnFromDelivery($delivery, $deliveryLine, $line, $deliveryLine->quantity, $returnLocations[$deliveryLine->id] ?? null);
                 $deliveryLine->update(['accepted_quantity' => 0, 'refusal_reason' => $lineReason]);
                 $returned[] = __(':quantity × :label : :reason', ['quantity' => $deliveryLine->quantity, 'label' => $line->label, 'reason' => $lineReason]);
             }
@@ -2312,15 +2348,19 @@ class CustomerOrder extends Model
 
     /**
      * Retourne en stock client une quantité chargée d'une ligne « En livraison », avec le statut qu'avait la ligne
-     * avant le chargement.
+     * avant le chargement, et note l'emplacement où le livreur la range (issue #96), s'il est donné.
      */
-    private function returnFromDelivery(CustomerOrderDelivery $delivery, CustomerOrderDeliveryLine $deliveryLine, CustomerOrderLine $line, int $quantity): void
+    private function returnFromDelivery(CustomerOrderDelivery $delivery, CustomerOrderDeliveryLine $deliveryLine, CustomerOrderLine $line, int $quantity, ?int $locationId = null): void
     {
         if (! $line->isPart()) {
             InventoryMovement::record($line->product_id, InventoryStatus::InDelivery, InventoryStatus::ReservedCustomer, $quantity, InventoryMovementType::DeliveryRefused, $delivery);
         }
 
         $line->refresh()->update(['status' => $deliveryLine->loaded_from_status ?? CustomerOrderLineStatus::Received]);
+
+        if ($locationId !== null) {
+            $this->placeLine($line, $locationId);
+        }
     }
 
     /**

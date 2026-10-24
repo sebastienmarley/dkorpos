@@ -145,8 +145,8 @@
                 @endcan
 
                 @can('inventory.supervise')
-                    <flux:sidebar.item icon="map" :href="route('inventory.zones')" :current="request()->routeIs('inventory.zones')" wire:navigate>
-                        {{ __('Zones d\'inventaire') }}
+                    <flux:sidebar.item icon="map" :href="route('inventory.zones')" :current="request()->routeIs('inventory.zones')">
+                        {{ __('Zones et emplacements') }}
                     </flux:sidebar.item>
                 @endcan
 
