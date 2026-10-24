@@ -17,6 +17,9 @@ class PaymentMethods extends Component
 
     public string $name = '';
 
+    /** Le livreur peut enregistrer ce mode à la livraison (ex. : TPV portatif). */
+    public bool $isUsableOnDelivery = false;
+
     public bool $showMerchantModal = false;
 
     public ?int $editingMerchantId = null;
@@ -27,7 +30,7 @@ class PaymentMethods extends Component
     {
         $this->authorize('payment_methods.create');
 
-        $this->reset(['editingId', 'name']);
+        $this->reset(['editingId', 'name', 'isUsableOnDelivery']);
         $this->resetValidation();
         $this->showModal = true;
     }
@@ -39,6 +42,7 @@ class PaymentMethods extends Component
 
         $this->editingId = $paymentMethod->id;
         $this->name = $paymentMethod->name;
+        $this->isUsableOnDelivery = $paymentMethod->is_usable_on_delivery;
         $this->resetValidation();
         $this->showModal = true;
     }
@@ -79,15 +83,15 @@ class PaymentMethods extends Component
         if ($this->editingId) {
             $paymentMethod = CustomerPaymentMethod::findOrFail($this->editingId);
             abort_if($paymentMethod->isSystem(), 403);
-            $paymentMethod->update(['name' => $this->name]);
+            $paymentMethod->update(['name' => $this->name, 'is_usable_on_delivery' => $this->isUsableOnDelivery]);
             Flux::toast(text: __('Mode de paiement mis à jour.'), variant: 'success');
         } else {
-            CustomerPaymentMethod::create(['name' => $this->name, 'is_active' => true]);
+            CustomerPaymentMethod::create(['name' => $this->name, 'is_active' => true, 'is_usable_on_delivery' => $this->isUsableOnDelivery]);
             Flux::toast(text: __('Mode de paiement créé.'), variant: 'success');
         }
 
         $this->showModal = false;
-        $this->reset(['editingId', 'name']);
+        $this->reset(['editingId', 'name', 'isUsableOnDelivery']);
     }
 
     public function openCreateMerchant(): void

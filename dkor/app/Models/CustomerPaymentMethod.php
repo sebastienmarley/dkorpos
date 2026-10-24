@@ -14,10 +14,11 @@ use Illuminate\Support\Carbon;
  * @property string|null $code
  * @property string $name
  * @property bool $is_active
+ * @property bool $is_usable_on_delivery Le livreur peut l'enregistrer à la livraison (ex. : TPV portatif).
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['code', 'name', 'is_active'])]
+#[Fillable(['code', 'name', 'is_active', 'is_usable_on_delivery'])]
 class CustomerPaymentMethod extends Model
 {
     /** @use HasFactory<CustomerPaymentMethodFactory> */
@@ -28,6 +29,7 @@ class CustomerPaymentMethod extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_usable_on_delivery' => 'boolean',
     ];
 
     /**

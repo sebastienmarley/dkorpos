@@ -29,6 +29,9 @@
                             @if ($paymentMethod->isSystem())
                                 <flux:badge size="sm" color="zinc" icon="lock-closed" class="ms-2">{{ __('Géré par le système') }}</flux:badge>
                             @endif
+                            @if ($paymentMethod->is_usable_on_delivery)
+                                <flux:badge size="sm" color="sky" icon="truck" class="ms-2">{{ __('Utilisable à la livraison') }}</flux:badge>
+                            @endif
                         </flux:table.cell>
                         <flux:table.cell class="text-right">
                             @if (! $paymentMethod->isSystem() && auth()->user()->can('payment_methods.edit'))
@@ -135,6 +138,11 @@
                 <flux:label>{{ __('Nom') }}</flux:label>
                 <flux:input wire:model="name" type="text" placeholder="Visa" required autofocus />
                 <flux:error name="name" />
+            </flux:field>
+
+            <flux:field>
+                <flux:checkbox wire:model="isUsableOnDelivery" :label="__('Utilisable à la livraison')" />
+                <flux:description>{{ __('Le livreur peut enregistrer ce mode pour un paiement à la livraison (ex. : TPV portatif).') }}</flux:description>
             </flux:field>
 
             <div class="flex justify-end gap-3 pt-2">

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DeliverySignatureController;
 use App\Http\Controllers\LabelPrintController;
 use App\Http\Controllers\ProductLabelController;
 use App\Livewire\Accounting\Currencies;
@@ -74,6 +75,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('deliveries', DeliveriesIndex::class)->middleware('can:deliveries.view')->name('deliveries.index');
     Route::get('deliveries/mine', MyDeliveries::class)->middleware('can:deliveries.handle')->name('deliveries.mine');
+    Route::get('deliveries/{delivery}/signature', DeliverySignatureController::class)->middleware('can:customer_orders.view')->name('deliveries.signature');
 
     Route::get('suppliers', SuppliersIndex::class)->middleware('can:suppliers.view')->name('suppliers.index');
     Route::get('suppliers/{supplier}', SupplierShow::class)->middleware('can:suppliers.view')->name('suppliers.show');

@@ -3,13 +3,16 @@
 namespace App\Livewire\Deliveries;
 
 use App\Actions\CompleteDelivery;
+use App\Actions\FailDelivery;
 use App\Actions\ReorderDeliveryRoute;
 use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryPeriod;
 use App\Enums\DeliveryStatus;
 use App\Enums\StoreType;
+use App\Enums\UndeliveredReason;
 use App\Models\CustomerOrderDelivery;
 use App\Models\CustomerOrderDeliveryLine;
+use App\Models\CustomerPaymentMethod;
 use App\Models\Store;
 use App\Support\Money;
 use DomainException;
@@ -17,12 +20,14 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
  * Menu mobile du livreur (issue #94) : les livraisons d'une journée du magasin, dans l'ordre de la route, le
- * chargement du camion et la remise au client (articles acceptés ou refusés).
+ * chargement du camion et la remise au client. La remise (issue #93) : le paiement à la livraison s'il y a lieu, la
+ * liste des articles que le client coche, puis sa signature; ou une livraison non livrée (client absent, tout refusé).
  */
 class Mine extends Component
 {
@@ -38,8 +43,21 @@ class Mine extends Component
     /** @var array<int, int|string> quantité chargée par ligne de livraison */
     public array $loadQuantities = [];
 
-    /** @var array<int, int|string> quantité acceptée par ligne de livraison */
+    /**
+     * Étape de la remise : '' (détail), checklist (articles à cocher), signature, ou refused (le client refuse tout).
+     */
+    public string $completionStep = '';
+
+    /** @var array<int, bool> articles cochés (acceptés) par ligne de livraison */
+    public array $acceptedChecks = [];
+
+    /** @var array<int, int|string> quantité acceptée par ligne de livraison (une ligne de plusieurs unités) */
     public array $acceptedQuantities = [];
+
+    public string $signerName = '';
+
+    /** @var array{method_id: int|string, amount: string} paiement perçu à la livraison */
+    public array $payment = ['method_id' => '', 'amount' => ''];
 
     /** @var array<int, string> raison du refus par ligne de livraison */
     public array $refusalReasons = [];
@@ -107,8 +125,12 @@ class Mine extends Component
 
         $this->openedId = $delivery->id;
         $this->loadQuantities = $delivery->lines->mapWithKeys(fn (CustomerOrderDeliveryLine $deliveryLine): array => [$deliveryLine->id => $this->loadable($deliveryLine)])->all();
+        $this->acceptedChecks = $delivery->lines->mapWithKeys(fn (CustomerOrderDeliveryLine $deliveryLine): array => [$deliveryLine->id => true])->all();
         $this->acceptedQuantities = $delivery->lines->mapWithKeys(fn (CustomerOrderDeliveryLine $deliveryLine): array => [$deliveryLine->id => $deliveryLine->quantity])->all();
         $this->refusalReasons = [];
+        $this->completionStep = '';
+        $this->signerName = trim($delivery->order->customer->firstname.' '.$delivery->order->customer->lastname);
+        $this->payment = ['method_id' => $this->getDeliveryPaymentMethods()->first()->id ?? '', 'amount' => $this->amountToCollect($delivery)->toDecimal()];
         $this->resetErrorBag();
     }
 
@@ -138,28 +160,131 @@ class Mine extends Component
         $this->open($delivery->id);
     }
 
-    /** Le client a reçu les articles : ceux qu'il accepte sont livrés, les autres reviennent au magasin. */
-    public function complete(CompleteDelivery $completeDelivery): void
+    /** Coche ou décoche tous les articles (« Tout accepter »). */
+    public function toggleAll(bool $accepted): void
+    {
+        $this->acceptedChecks = array_map(fn (): bool => $accepted, $this->acceptedChecks);
+    }
+
+    /** Le livreur enregistre le paiement perçu à la livraison, avec un mode « utilisable à la livraison ». */
+    public function collectPayment(): void
     {
         $this->authorize('deliveries.handle');
 
+        $this->payment['amount'] = str_replace(',', '.', (string) $this->payment['amount']);
+
         $this->validate([
-            'acceptedQuantities.*' => ['required', 'integer', 'min:0'],
-            'refusalReasons.*' => ['nullable', 'string', 'max:255'],
+            'payment.method_id' => ['required', 'integer', Rule::exists('customer_payment_methods', 'id')->where('is_active', true)->where('is_usable_on_delivery', true)],
+            'payment.amount' => ['required', 'numeric', 'gt:0', 'max:99999999.99'],
         ]);
 
         $delivery = $this->findDelivery((int) $this->openedId);
 
         try {
-            $completeDelivery->handle($delivery, array_map(fn (int|string $quantity): int => (int) $quantity, $this->acceptedQuantities), $this->refusalReasons);
+            $delivery->order->pickUp([], [['method_id' => (int) $this->payment['method_id'], 'amount' => Money::parse($this->payment['amount'])]]);
         } catch (DomainException $exception) {
-            $this->addError('complete', $exception->getMessage());
+            $this->addError('payment', $exception->getMessage());
+
+            return;
+        }
+
+        Flux::toast(text: __('Paiement enregistré.'), variant: 'success');
+        $this->open($delivery->id);
+    }
+
+    public function startConfirmation(): void
+    {
+        $this->authorize('deliveries.handle');
+
+        $this->resetErrorBag();
+        $this->completionStep = 'checklist';
+    }
+
+    /** Le client confirme avoir reçu, en bon état, les articles cochés : il signe ensuite. */
+    public function confirmReceipt(): void
+    {
+        $this->authorize('deliveries.handle');
+
+        $delivery = $this->findDelivery((int) $this->openedId);
+        $accepted = $this->acceptedByLine($delivery);
+
+        if (array_filter($accepted) === []) {
+            $this->addError('checklist', __('Cochez au moins un article reçu (sinon : « Le client refuse tout »).'));
+
+            return;
+        }
+
+        foreach ($delivery->lines as $deliveryLine) {
+            if ($accepted[$deliveryLine->id] < $deliveryLine->quantity && blank($this->refusalReasons[$deliveryLine->id] ?? null)) {
+                $this->addError('refusalReasons.'.$deliveryLine->id, __('Indiquez la raison du refus.'));
+
+                return;
+            }
+        }
+
+        $this->resetErrorBag();
+        $this->completionStep = 'signature';
+    }
+
+    /** Le client a signé et touche « Terminé » : la livraison est remise. */
+    public function complete(string $signature, CompleteDelivery $completeDelivery): void
+    {
+        $this->authorize('deliveries.handle');
+
+        $this->validate(['signerName' => ['required', 'string', 'max:255'], 'refusalReasons.*' => ['nullable', 'string', 'max:255']]);
+
+        $delivery = $this->findDelivery((int) $this->openedId);
+
+        try {
+            $completeDelivery->handle($delivery, $this->acceptedByLine($delivery), $this->refusalReasons, $this->signerName, $signature);
+        } catch (DomainException $exception) {
+            $this->addError('signature', $exception->getMessage());
 
             return;
         }
 
         $this->openedId = null;
-        Flux::toast(text: __('Livraison terminée.'), variant: 'success');
+        Flux::toast(text: __('Livraison terminée et signée.'), variant: 'success');
+    }
+
+    /** Ferme la livraison sans rien remettre : client absent, ou tout refusé (avec une raison par article). */
+    public function markUndelivered(string $reason, FailDelivery $failDelivery): void
+    {
+        $this->authorize('deliveries.handle');
+
+        $undeliveredReason = UndeliveredReason::from($reason);
+        $delivery = $this->findDelivery((int) $this->openedId);
+
+        try {
+            $failDelivery->handle($delivery, $undeliveredReason, $this->refusalReasons);
+        } catch (DomainException $exception) {
+            $this->addError('refused', $exception->getMessage());
+
+            return;
+        }
+
+        $this->openedId = null;
+        Flux::toast(text: __('Livraison non livrée : les articles reviennent au magasin.'), variant: 'warning');
+    }
+
+    /** @return Collection<int, CustomerPaymentMethod> */
+    public function getDeliveryPaymentMethods(): Collection
+    {
+        return CustomerPaymentMethod::query()->where('is_active', true)->where('is_usable_on_delivery', true)->orderBy('name')->get();
+    }
+
+    /**
+     * Quantité acceptée par ligne de livraison : la quantité saisie pour un article coché, 0 sinon.
+     *
+     * @return array<int, int>
+     */
+    private function acceptedByLine(CustomerOrderDelivery $delivery): array
+    {
+        return $delivery->lines->mapWithKeys(fn (CustomerOrderDeliveryLine $deliveryLine): array => [
+            $deliveryLine->id => ($this->acceptedChecks[$deliveryLine->id] ?? false)
+                ? max(0, min($deliveryLine->quantity, (int) ($this->acceptedQuantities[$deliveryLine->id] ?? $deliveryLine->quantity)))
+                : 0,
+        ])->all();
     }
 
     /** Montant que le livreur doit percevoir avant de remettre les articles (paiement à la livraison). */

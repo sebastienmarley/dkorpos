@@ -2,7 +2,7 @@
 
 - **Statut :** Accepté
 - **Date :** 2026-10-18
-- **Issues liées :** #12 (livraison), #86 (expédition), #94 (menu du livreur)
+- **Issues liées :** #12 (livraison), #86 (expédition), #94 (menu du livreur), #93 (signature)
 
 ## Contexte
 
@@ -159,7 +159,23 @@ Nous retenons l'**option C**.
     ligne avant le chargement (`loaded_from_status`). Les vendeurs de la commande en sont avisés ;
   - le paiement exigé doit être perçu avant la remise ;
   - la livraison passe « Livrée ».
-- **La signature du client (#93)** viendra avant la remise.
+- **La signature du client (#93)** précède la remise :
+  1. si la livraison est en paiement à la livraison, le livreur enregistre d'abord le paiement, avec un mode
+     « utilisable à la livraison » (`customer_payment_methods.is_usable_on_delivery`, coché dans la gestion des
+     modes de paiement). La confirmation reste bloquée tant que le montant n'est pas perçu ;
+  2. le client coche les articles qu'il accepte (« Tout accepter » coche tout). Un article décoché ou accepté en
+     partie demande une raison, et au moins un article doit être accepté ;
+  3. le client signe dans un canevas Alpine.js, sans nouvelle dépendance, et son nom se corrige. « Terminé » sans
+     signature est refusé.
+  - L'Action `CompleteDelivery` range l'image PNG (une URL de données, 1 Mo au plus) sur le disque privé
+    (`deliveries.signature_disk`), puis appelle `completeDelivery()`. Si la remise échoue, l'image est supprimée.
+    Le nom et la date sont gardés sur la livraison. La commande client montre la signature (route protégée
+    `deliveries.signature`, permission `customer_orders.view`), le signataire et les articles acceptés et refusés.
+  - **Non livrée** (`DeliveryStatus::Undelivered`) : si le client est absent ou refuse tout, `FailDelivery`
+    retourne tous les articles en stock client, note la raison (`UndeliveredReason`) et avise les vendeurs. Un
+    refus total demande une raison par article.
+  - La commande `deliveries:purge-signatures`, planifiée chaque jour à 3 h, supprime les images de plus de
+    `deliveries.signature_retention_days` jours (365, `config/deliveries.php`).
 - `CustomerOrder::splitOff()` sépare une ligne pour le ramassage, le chargement et la remise.
   `refreshStatusFromLines()` passe la commande à « Livrée » quand tout est remis et qu'au moins une ligne est
   livrée ou expédiée, même si une autre a été ramassée.
@@ -174,8 +190,8 @@ Nous retenons l'**option C**.
 
 **Négatives / limitations**
 
-- Une livraison dont le client refuse tous les articles est quand même « Livrée » : ses lignes de livraison
-  gardent la quantité acceptée (0) et la raison.
+- Le paiement perçu à la livraison passe par l'enregistrement d'un paiement sans ramassage (`pickUp()` sans
+  article). Le TPV lui-même n'est pas relié à l'application.
 - Une livraison en route ne s'annule pas et ne se reporte pas. Un article refusé se replanifie dans une nouvelle
   livraison.
 - La capacité compte des livraisons, sans tenir compte de leur durée, de leur distance ni du volume des articles.
@@ -192,7 +208,8 @@ Nous retenons l'**option C**.
   refusée, le report est annulé en entier et la livraison d'origine reste planifiée.
 - Une expédition ne se reporte pas, et le paiement à la livraison y est refusé, même pour un directeur.
 - L'avis « Nouvelle expédition à faire » ne part qu'une fois (`ready_at`).
-- On ne charge que ce qui est en main pour le client, et on ne remet qu'une livraison en route, payée.
+- On ne charge que ce qui est en main pour le client, et on ne remet qu'une livraison en route, payée et signée.
+- L'image de la signature n'est jamais publique : disque privé, route sous permission, purge après 365 jours.
 - `customer_orders.edit` pour planifier, reporter, demander une expédition ou annuler, `deliveries.handle` pour
   le menu du livreur,
   `customer_orders.deliver_unpaid` pour le paiement à la livraison, `stores.edit` pour les camions et les limites
@@ -210,6 +227,9 @@ Nous retenons l'**option C**.
 - `database/migrations/2026_10_18_133416_add_shipping_to_customer_order_deliveries.php`
 - `database/migrations/2026_10_24_193306_add_driver_tracking_to_customer_order_deliveries.php`
 - `app/Actions/CompleteDelivery.php`, `app/Actions/ReorderDeliveryRoute.php`, `app/Livewire/Deliveries/Mine.php`
+- `database/migrations/2026_10_24_200559_add_signature_to_customer_order_deliveries.php`
+- `app/Actions/FailDelivery.php`, `app/Actions/NotifyDeliverySalespeople.php`, `app/Actions/PurgeDeliverySignatures.php`,
+  `app/Http/Controllers/DeliverySignatureController.php`, `config/deliveries.php`
 - `app/Actions/RequestShipment.php`, `app/Actions/NotifyShipmentReady.php`, `app/Actions/NotifyDeliveryTeam.php`
 - `app/Actions/ScheduleDelivery.php`, `app/Actions/CancelDelivery.php`, `app/Support/DeliveryBooking.php`
 - `app/Livewire/CustomerOrders/Deliveries.php`, `app/Livewire/Deliveries/Index.php`
