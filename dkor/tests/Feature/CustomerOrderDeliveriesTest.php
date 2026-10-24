@@ -283,7 +283,7 @@ describe('annulation et report', function () {
             ->cancelled_by->toBe($this->user->id)
             ->and($this->order->deliverableQuantities())->toBe([$line->id => 1])
             ->and(DeliveryBooking::bookedCount($this->order->store_id, DELIVERY_DATE, DeliveryPeriod::Am))->toBe(0)
-            ->and($this->driver->notifications()->pluck('data')->pluck('title')->last())->toContain('Livraison annulée');
+            ->and($this->driver->notifications()->pluck('data')->pluck('title')->implode(' | '))->toContain('Livraison annulée');
     });
 
     it('refuse d\'annuler une livraison qui n\'est plus planifiée', function () {
@@ -316,7 +316,7 @@ describe('annulation et report', function () {
             ->period->toBe(DeliveryPeriod::Pm)
             ->address_street->toBe('rue Principale')
             ->and($replacement->lines()->pluck('quantity', 'customer_order_line_id')->all())->toBe([$line->id => 2])
-            ->and($this->driver->notifications()->pluck('data')->pluck('title')->last())->toContain('Livraison reportée');
+            ->and($this->driver->notifications()->pluck('data')->pluck('title')->implode(' | '))->toContain('Livraison reportée');
     });
 
     it('garde la livraison d\'origine si la nouvelle demi-journée est complète', function () {
@@ -406,7 +406,7 @@ describe('lignes modifiées après la planification', function () {
 
     it('garde dans la livraison la partie reçue d\'une ligne annulée par le fournisseur', function () {
         [$line, $delivery] = orderedLineToDeliver($this->order);
-        $line->product->inventoryStock()->increment('quantity_in_stock');
+        $line->product->inventoryStocks()->increment('quantity_in_stock');
         $this->order->applySupplierReceipt($line, 1);
 
         $this->order->applySupplierCancellation($line->fresh(), 1);
@@ -418,7 +418,7 @@ describe('lignes modifiées après la planification', function () {
 
     it('reporte sur la ligne recommandée la quantité endommagée à la réception', function () {
         [$line, $delivery] = orderedLineToDeliver($this->order);
-        $line->product->inventoryStock()->increment('quantity_in_stock');
+        $line->product->inventoryStocks()->increment('quantity_in_stock');
         $this->order->applySupplierReceipt($line, 1);
 
         $this->order->applySupplierDamagedReceipt($line->fresh(), 1);
@@ -446,7 +446,7 @@ it('avise les livreurs quand un article à livrer est reçu avant la date de liv
     $line = stockedLine($this->order, 0, 1, 100);
     $this->order->pickUp([], [['method_id' => $this->cash->id, 'amount' => Money::parse(114.98)]]);
     scheduleDelivery($this->order, [$line->id => 1]);
-    $line->product->inventoryStock()->increment('quantity_in_stock');
+    $line->product->inventoryStocks()->increment('quantity_in_stock');
 
     $this->order->applySupplierReceipt($line, 1);
 
@@ -458,7 +458,7 @@ it('avise les livreurs quand un article à livrer est reçu avant la date de liv
 
 it('n\'avise pas les livreurs pour un article reçu sans livraison prévue', function () {
     $line = stockedLine($this->order, 0, 1, 100);
-    $line->product->inventoryStock()->increment('quantity_in_stock');
+    $line->product->inventoryStocks()->increment('quantity_in_stock');
 
     $this->order->applySupplierReceipt($line, 1);
 

@@ -80,7 +80,7 @@ describe('pièce de remplacement', function () {
 describe('reprise du produit', function () {
     it('reprend le produit en inventaire défectueux et ajoute un remplacement au même prix', function () {
         $line = pickedUpLine($this->order, 1, 100, $this->cash);
-        InventoryMovement::record($line->product_id, null, InventoryStatus::InStock, 1, InventoryMovementType::Receipt);
+        InventoryMovement::record($line->product_id, $line->order->stockStoreId(), null, InventoryStatus::InStock, 1, InventoryMovementType::Receipt);
 
         $defective = $this->order->returnDefective($line, 1, 'Moteur bruyant', replace: true);
 
@@ -98,7 +98,7 @@ describe('reprise du produit', function () {
             ->quantity_reserved->toBe(1)
             ->status->toBe(CustomerOrderLineStatus::InStock)
             ->note->toContain('#'.$defective->id)
-            ->and($line->product->inventoryStock()->sole())
+            ->and($line->product->inventoryStocks()->sole())
             ->quantity_defective_stock->toBe(1)
             ->quantity_in_stock->toBe(0)
             ->and(InventoryMovement::where('type', InventoryMovementType::CustomerDefectiveReturn)->sole()->quantity)->toBe(1)
@@ -124,7 +124,7 @@ describe('reprise du produit', function () {
             ->and($line->fresh()->status)->toBe(CustomerOrderLineStatus::Refunded)
             ->and($this->order->fresh())->balance_due->toBeMoney(0)->amount_paid->toBeMoney(0)
             ->and($this->order->payments()->where('type', CustomerPaymentType::Refund)->sole()->amount)->toBeMoney(-11498)
-            ->and($line->product->inventoryStock()->sole()->quantity_defective_stock)->toBe(1);
+            ->and($line->product->inventoryStocks()->sole()->quantity_defective_stock)->toBe(1);
     });
 
     it('sépare la ligne quand une partie seulement est défectueuse', function () {

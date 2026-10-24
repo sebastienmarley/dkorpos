@@ -171,7 +171,7 @@ describe('show', function () {
         Livewire::test(Show::class, ['order' => $this->order])->call('addProduct', $product->id);
 
         $line = $this->order->lines()->sole();
-        $stock = $product->inventoryStock()->sole();
+        $stock = $product->inventoryStocks()->sole();
 
         expect($line->status)->toBe(CustomerOrderLineStatus::InStock)
             ->and($line->quantity)->toBe(1)
@@ -203,7 +203,7 @@ describe('show', function () {
             ->and($line->quantity_reserved)->toBe(1)
             ->and($line->quantity_on_order)->toBe(1)
             ->and($line->status)->toBe(CustomerOrderLineStatus::OnOrder)
-            ->and($product->inventoryStock()->sole()->quantity_in_stock)->toBe(0);
+            ->and($product->inventoryStocks()->sole()->quantity_in_stock)->toBe(0);
     });
 
     it('met tout en commande sans stock', function () {
@@ -269,7 +269,7 @@ describe('show', function () {
             ->quantity_reserved->toBe(1)
             ->quantity_on_order->toBe(0)
             ->quantity->toBe(1)
-            ->and($product->inventoryStock()->sole())
+            ->and($product->inventoryStocks()->sole())
             ->quantity_in_stock->toBe(2)
             ->quantity_reserved->toBe(1);
     });
@@ -287,7 +287,7 @@ describe('show', function () {
             ->assertHasNoErrors();
 
         expect($line->fresh())->quantity_reserved->toBe(1)->quantity_on_order->toBe(1)
-            ->and($product->inventoryStock()->sole()->quantity_in_stock)->toBe(1);
+            ->and($product->inventoryStocks()->sole()->quantity_in_stock)->toBe(1);
 
         $component->call('openLineModal', $line->id)
             ->set('editReserved', '2')
@@ -297,7 +297,7 @@ describe('show', function () {
 
         expect($line->fresh())->quantity_reserved->toBe(2)->quantity_on_order->toBe(0)
             ->status->toBe(CustomerOrderLineStatus::InStock)
-            ->and($product->inventoryStock()->sole()->quantity_in_stock)->toBe(0);
+            ->and($product->inventoryStocks()->sole()->quantity_in_stock)->toBe(0);
     });
 
     it('refuse d\'augmenter la réservation quand le stock libéré a été pris par un autre client', function () {
@@ -323,7 +323,7 @@ describe('show', function () {
             ->assertSet('showLineModal', true);
 
         expect($line->fresh())->quantity_reserved->toBe(0)->note->toBeNull()
-            ->and($product->inventoryStock()->sole()->quantity_reserved)->toBe(1);
+            ->and($product->inventoryStocks()->sole()->quantity_reserved)->toBe(1);
     });
 
     it('refuse une ligne à quantité nulle', function () {
@@ -364,7 +364,7 @@ describe('show', function () {
 
         expect($this->order->lines()->count())->toBe(0)
             ->and($this->order->fresh()->balance_due)->toBeMoney(0)
-            ->and($product->inventoryStock()->sole())
+            ->and($product->inventoryStocks()->sole())
             ->quantity_in_stock->toBe(1)
             ->quantity_reserved->toBe(0);
     });
@@ -704,7 +704,7 @@ describe('lien avec les commandes fournisseurs', function () {
 
         expect($this->order->lines()->count())->toBe(0)
             ->and(SupplierOrderLine::count())->toBe(0)
-            ->and($product->inventoryStock()->sole()->quantity_in_stock)->toBe(1);
+            ->and($product->inventoryStocks()->sole()->quantity_in_stock)->toBe(1);
     });
 
     it('passe la ligne client à « Commandé » à l\'envoi et ne permet plus de la retirer', function () {
@@ -914,7 +914,7 @@ describe('lien avec les commandes fournisseurs', function () {
                 ->quantity_on_order->toBe(1)
                 ->quantity->toBe(3)
                 ->status->toBe(CustomerOrderLineStatus::Ordered)
-                ->and($this->product->inventoryStock()->sole())
+                ->and($this->product->inventoryStocks()->sole())
                 ->quantity_in_stock->toBe(0)
                 ->quantity_reserved->toBe(2)
                 ->quantity_on_order->toBe(1);
@@ -938,7 +938,7 @@ describe('lien avec les commandes fournisseurs', function () {
                 ->quantity_reserved->toBe(2)
                 ->quantity_on_order->toBe(1)
                 ->status->toBe(CustomerOrderLineStatus::Ordered)
-                ->and($this->product->inventoryStock()->sole())
+                ->and($this->product->inventoryStocks()->sole())
                 ->quantity_in_stock->toBe(0)
                 ->quantity_reserved->toBe(2)
                 ->quantity_on_order->toBe(1);

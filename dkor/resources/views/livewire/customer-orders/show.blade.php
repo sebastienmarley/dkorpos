@@ -468,7 +468,7 @@
                         <flux:field>
                             <flux:label>
                                 {{ __('En stock (réservé)') }}
-                                <span class="ms-1 font-normal text-zinc-400">{{ __('max. :count', ['count' => $editingLine->quantity_reserved + ($editingLine->product->inventoryStock?->quantityAvailable() ?? 0)]) }}</span>
+                                <span class="ms-1 font-normal text-zinc-400">{{ __('max. :count', ['count' => $editingLine->quantity_reserved + ($editingLine->product->stockAt($order->stockStoreId())?->quantityAvailable() ?? 0)]) }}</span>
                             </flux:label>
                             <flux:input wire:model="editReserved" type="number" min="0" :disabled="! $editable" />
                             <flux:error name="editReserved" />

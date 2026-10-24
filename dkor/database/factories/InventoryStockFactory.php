@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\InventoryStock;
 use App\Models\Product;
+use App\Models\Store;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -17,6 +18,7 @@ class InventoryStockFactory extends Factory
     public function definition(): array
     {
         return [
+            'store_id' => fn (): int => Store::defaultIdFor(auth()->user()) ?? Store::factory()->create()->id,
             'product_id' => Product::factory(),
             'quantity_in_stock' => fake()->numberBetween(0, 100),
             'quantity_on_order' => fake()->numberBetween(0, 20),

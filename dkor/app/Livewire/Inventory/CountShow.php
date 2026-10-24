@@ -203,7 +203,7 @@ class CountShow extends Component
     private function linesQuery(): Builder
     {
         return $this->count->lines()->getQuery()
-            ->with(['product.inventoryStock', 'counter', 'adjustment.movement'])
+            ->with(['product.inventoryStocks', 'inventoryCount', 'counter', 'adjustment.movement'])
             ->join('products', 'products.id', '=', 'inventory_count_lines.product_id')
             ->orderBy('products.model')
             ->select('inventory_count_lines.*');

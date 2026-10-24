@@ -1319,12 +1319,12 @@ class Show extends Component
 
     public function render(): View
     {
-        $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStock', 'part.supplier', 'service', 'supplier', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
+        $editingLine = $this->editingLineId ? $this->order->lines()->with(['product.inventoryStocks', 'part.supplier', 'service', 'supplier', 'supplierOrderLine.order'])->find($this->editingLineId) : null;
         $returnLine = $this->returnLineId ? $this->order->lines()->with('product')->find($this->returnLineId) : null;
         $customProduct = $this->customProductId ? Product::with('supplier')->find($this->customProductId) : null;
         $defectiveLine = $this->defectiveLineId ? $this->order->lines()->with('product.supplier')->find($this->defectiveLineId) : null;
 
-        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStocks', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),

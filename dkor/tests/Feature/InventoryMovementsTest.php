@@ -113,17 +113,17 @@ it('déplace entre états et refuse un état insuffisant sans rien changer', fun
         'quantity_on_order' => 0, 'quantity_reserved' => 0, 'quantity_customer_order' => 0,
     ]);
 
-    InventoryMovement::record($product, InventoryStatus::InStock, InventoryStatus::DefectiveStock, 2, InventoryMovementType::Transfer, note: 'Rayé');
+    InventoryMovement::record($product, testStoreId(), InventoryStatus::InStock, InventoryStatus::DefectiveStock, 2, InventoryMovementType::Transfer, note: 'Rayé');
 
     $stock = InventoryStock::where('product_id', $product->id)->first();
     expect($stock)->quantity_in_stock->toBe(3)->quantity_defective_stock->toBe(2)
         ->and(InventoryMovement::first())->note->toBe('Rayé')->user_id->toBe(auth()->id());
 
-    expect(fn () => InventoryMovement::record($product, InventoryStatus::InStock, InventoryStatus::Lost, 4, InventoryMovementType::Transfer))
+    expect(fn () => InventoryMovement::record($product, testStoreId(), InventoryStatus::InStock, InventoryStatus::Lost, 4, InventoryMovementType::Transfer))
         ->toThrow(DomainException::class)
-        ->and(fn () => InventoryMovement::record($product, InventoryStatus::InStock, InventoryStatus::InStock, 1, InventoryMovementType::Transfer))
+        ->and(fn () => InventoryMovement::record($product, testStoreId(), InventoryStatus::InStock, InventoryStatus::InStock, 1, InventoryMovementType::Transfer))
         ->toThrow(DomainException::class)
-        ->and(fn () => InventoryMovement::record($product, InventoryStatus::InStock, InventoryStatus::Lost, 0, InventoryMovementType::Transfer))
+        ->and(fn () => InventoryMovement::record($product, testStoreId(), InventoryStatus::InStock, InventoryStatus::Lost, 0, InventoryMovementType::Transfer))
         ->toThrow(DomainException::class);
 
     expect($stock->fresh())->quantity_in_stock->toBe(3)->quantity_lost->toBe(0)
@@ -141,7 +141,7 @@ it('gère les neuf états', function () {
 
         $type = $status->isManuallyMovable() ? InventoryMovementType::Transfer : InventoryMovementType::OrderLineChanged;
 
-        InventoryMovement::record($product, InventoryStatus::InStock, $status, 1, $type);
+        InventoryMovement::record($product, testStoreId(), InventoryStatus::InStock, $status, 1, $type);
     }
 
     $stock = InventoryStock::where('product_id', $product->id)->first();
@@ -159,17 +159,17 @@ it('refuse un transfert manuel vers ou depuis un état suivi par un document', f
     $product = Product::factory()->create();
     InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => 2, 'quantity_on_order' => 0, 'quantity_in_demo' => 0, 'quantity_reserved' => 2, 'quantity_customer_order' => 0]);
 
-    expect(fn () => InventoryMovement::record($product, InventoryStatus::InStock, InventoryStatus::ReservedCustomer, 1, InventoryMovementType::Transfer))
+    expect(fn () => InventoryMovement::record($product, testStoreId(), InventoryStatus::InStock, InventoryStatus::ReservedCustomer, 1, InventoryMovementType::Transfer))
         ->toThrow(DomainException::class, 'Un transfert manuel se fait seulement entre états physiques')
-        ->and(fn () => InventoryMovement::record($product, InventoryStatus::ReservedCustomer, InventoryStatus::Lost, 1, InventoryMovementType::Transfer))
+        ->and(fn () => InventoryMovement::record($product, testStoreId(), InventoryStatus::ReservedCustomer, InventoryStatus::Lost, 1, InventoryMovementType::Transfer))
         ->toThrow(DomainException::class)
-        ->and(fn () => InventoryMovement::record($product, InventoryStatus::InStock, null, 1, InventoryMovementType::Transfer))
+        ->and(fn () => InventoryMovement::record($product, testStoreId(), InventoryStatus::InStock, null, 1, InventoryMovementType::Transfer))
         ->toThrow(DomainException::class)
         ->and(InventoryMovement::count())->toBe(0);
 
-    InventoryMovement::record($product, InventoryStatus::InStock, InventoryStatus::InDemo, 1, InventoryMovementType::Transfer);
+    InventoryMovement::record($product, testStoreId(), InventoryStatus::InStock, InventoryStatus::InDemo, 1, InventoryMovementType::Transfer);
 
-    expect($product->inventoryStock()->sole())->quantity_in_stock->toBe(1)->quantity_in_demo->toBe(1)->quantity_reserved->toBe(2);
+    expect($product->inventoryStocks()->sole())->quantity_in_stock->toBe(1)->quantity_in_demo->toBe(1)->quantity_reserved->toBe(2);
 });
 
 it('refuse d\'enregistrer une quantité négative, même en contournant le journal', function () {
@@ -200,7 +200,7 @@ it('refuse un renversement de réception si le stock n\'est plus « en stock »'
     [$order, $product, $line] = pendingOrder(5);
     $order->send();
     $reception = $order->fresh()->receive([$line->id => ['quantity' => 5, 'unit_cost' => 5]]);
-    InventoryMovement::record($product, InventoryStatus::InStock, InventoryStatus::InDemo, 4, InventoryMovementType::Transfer);
+    InventoryMovement::record($product, testStoreId(), InventoryStatus::InStock, InventoryStatus::InDemo, 4, InventoryMovementType::Transfer);
 
     expect(fn () => $reception->lines->first()->reverse(3))->toThrow(DomainException::class)
         ->and($line->fresh()->quantity_received)->toBe(5)
@@ -212,7 +212,7 @@ it('affiche, filtre et alimente le journal depuis la page', function () {
     $a = Product::factory()->create(['model' => 'Produit Alpha']);
     $b = Product::factory()->create(['model' => 'Produit Bêta']);
     InventoryStock::factory()->create(['product_id' => $a->id, 'quantity_in_stock' => 5, 'quantity_on_order' => 0, 'quantity_in_demo' => 0, 'quantity_reserved' => 0, 'quantity_customer_order' => 0]);
-    InventoryMovement::record($a, InventoryStatus::InStock, InventoryStatus::Lost, 1, InventoryMovementType::Transfer);
+    InventoryMovement::record($a, testStoreId(), InventoryStatus::InStock, InventoryStatus::Lost, 1, InventoryMovementType::Transfer);
     InventoryMovement::factory()->create(['product_id' => $b->id, 'from_status' => InventoryStatus::InStock, 'to_status' => InventoryStatus::InDemo]);
 
     Livewire::test(Movements::class)

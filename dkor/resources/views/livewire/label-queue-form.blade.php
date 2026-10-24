@@ -8,7 +8,7 @@
                 <flux:field>
                     <flux:label>{{ __('Nombre d\'étiquettes') }}</flux:label>
                     <flux:input wire:model="quantity" type="number" min="1" max="99" required autofocus />
-                    <flux:description>{{ trans_choice(':count unité en démo.|:count unités en démo.', $product->inventoryStock->quantity_in_demo ?? 0) }}</flux:description>
+                    <flux:description>{{ trans_choice(':count unité en démo.|:count unités en démo.', $product->totalQuantity(\App\Enums\InventoryStatus::InDemo)) }}</flux:description>
                     <flux:error name="quantity" />
                 </flux:field>
 

@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
+ * @property int|null $store_id Magasin (ADR 0012).
  * @property int $product_id
  * @property int $quantity_in_stock
  * @property int $quantity_on_order
@@ -28,7 +29,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read Product $product
  */
-#[Fillable(['product_id', 'quantity_in_stock', 'quantity_on_order', 'quantity_in_demo', 'quantity_reserved', 'quantity_customer_order', 'quantity_in_delivery', 'quantity_defective_stock', 'quantity_defective_shipped', 'quantity_lost'])]
+#[Fillable(['store_id', 'product_id', 'quantity_in_stock', 'quantity_on_order', 'quantity_in_demo', 'quantity_reserved', 'quantity_customer_order', 'quantity_in_delivery', 'quantity_defective_stock', 'quantity_defective_shipped', 'quantity_lost'])]
 class InventoryStock extends Model
 {
     /** @use HasFactory<InventoryStockFactory> */
@@ -61,6 +62,12 @@ class InventoryStock extends Model
                 app(QueuePriceChangeLabels::class)->forProducts([$stock->product_id]);
             }
         });
+    }
+
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     /** @return BelongsTo<Product, $this> */

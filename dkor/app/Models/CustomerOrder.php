@@ -124,6 +124,23 @@ class CustomerOrder extends Model
         return $this->hasMany(CustomerOrderDelivery::class);
     }
 
+    /**
+     * Magasin dont le stock sert cette commande (ADR 0012) : l'entrepôt du magasin de la commande s'il en a un, sinon
+     * le magasin lui-même. Réservations, ramassages, livraisons, expéditions et retours s'y font.
+     *
+     * @throws DomainException si la commande n'a pas de magasin.
+     */
+    public function stockStoreId(): int
+    {
+        if ($this->store_id === null) {
+            throw new DomainException(__('La commande n\'est liée à aucun magasin : impossible de toucher à son inventaire.'));
+        }
+
+        $store = $this->relationLoaded('store') ? $this->store : $this->store()->first();
+
+        return $store?->stockStoreId() ?? $this->store_id;
+    }
+
     /** @return HasMany<CustomerOrderPayment, $this> */
     public function payments(): HasMany
     {
@@ -217,7 +234,7 @@ class CustomerOrder extends Model
                     ->first()
                     ?? $this->lines()->make(['product_id' => $product->id, 'unit_price' => $product->selling_price, 'is_taxable' => $product->is_taxable]);
 
-            $available = InventoryStock::query()->lockForUpdate()->where('product_id', $product->id)->value('quantity_in_stock') ?? 0;
+            $available = InventoryStock::query()->lockForUpdate()->where('product_id', $product->id)->where('store_id', $this->stockStoreId())->value('quantity_in_stock') ?? 0;
             $reserved = min((int) $available, $quantity);
 
             if ($reserved > 0) {
@@ -895,17 +912,20 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Brouillon de commande du fournisseur, du type voulu (produits ou services), créé au besoin.
+     * Brouillon de commande du fournisseur, du type voulu (produits ou services), à livrer au magasin qui tient le
+     * stock de cette commande (ADR 0012), créé au besoin.
      */
     private function supplierDraftFor(int $supplierId, SupplierType $type): SupplierOrder
     {
         return SupplierOrder::query()
             ->where('supplier_id', $supplierId)
+            ->where('store_id', $this->stockStoreId())
             ->where('type', $type)
             ->where('status', SupplierOrderStatus::Draft)
             ->lockForUpdate()
             ->first()
             ?? SupplierOrder::create([
+                'store_id' => $this->stockStoreId(),
                 'type' => $type,
                 'supplier_id' => $supplierId,
                 'created_by' => auth()->id(),
@@ -1002,6 +1022,7 @@ class CustomerOrder extends Model
     {
         InventoryMovement::record(
             $productId,
+            $this->stockStoreId(),
             $from,
             $to,
             $quantity,
@@ -1472,7 +1493,7 @@ class CustomerOrder extends Model
                 ]));
             }
 
-            InventoryMovement::record($line->product_id, null, InventoryStatus::InStock, $quantity, InventoryMovementType::CustomerReturn, $this);
+            InventoryMovement::record($line->product_id, $this->stockStoreId(), null, InventoryStatus::InStock, $quantity, InventoryMovementType::CustomerReturn, $this);
 
             $returned = [
                 'status' => $refund ? CustomerOrderLineStatus::Refunded : CustomerOrderLineStatus::Returned,
@@ -1806,7 +1827,7 @@ class CustomerOrder extends Model
                 ]));
             }
 
-            InventoryMovement::record($line->product_id, null, InventoryStatus::DefectiveStock, $quantity, InventoryMovementType::CustomerDefectiveReturn, $this);
+            InventoryMovement::record($line->product_id, $this->stockStoreId(), null, InventoryStatus::DefectiveStock, $quantity, InventoryMovementType::CustomerDefectiveReturn, $this);
 
             $returned = [
                 'status' => $replace ? CustomerOrderLineStatus::Returned : CustomerOrderLineStatus::Refunded,
@@ -2016,7 +2037,7 @@ class CustomerOrder extends Model
     private function handOver(CustomerOrderLine $line, int $quantity, CustomerOrderPickup $pickup): void
     {
         if (! $line->isPart()) {
-            InventoryMovement::record($line->product_id, InventoryStatus::ReservedCustomer, null, $quantity, InventoryMovementType::CustomerPickup, $this);
+            InventoryMovement::record($line->product_id, $this->stockStoreId(), InventoryStatus::ReservedCustomer, null, $quantity, InventoryMovementType::CustomerPickup, $this);
         }
 
         $this->splitOff($line, $quantity, [
@@ -2092,7 +2113,7 @@ class CustomerOrder extends Model
                 }
 
                 if (! $line->isPart()) {
-                    InventoryMovement::record($line->product_id, InventoryStatus::ReservedCustomer, InventoryStatus::InDelivery, $quantity, InventoryMovementType::DeliveryLoaded, $delivery);
+                    InventoryMovement::record($line->product_id, $this->stockStoreId(), InventoryStatus::ReservedCustomer, InventoryStatus::InDelivery, $quantity, InventoryMovementType::DeliveryLoaded, $delivery);
                 }
 
                 $previousStatus = $line->status;
@@ -2164,7 +2185,7 @@ class CustomerOrder extends Model
 
                 if ($quantity > 0) {
                     if (! $line->isPart()) {
-                        InventoryMovement::record($line->product_id, InventoryStatus::InDelivery, null, $quantity, InventoryMovementType::CustomerDelivery, $this);
+                        InventoryMovement::record($line->product_id, $this->stockStoreId(), InventoryStatus::InDelivery, null, $quantity, InventoryMovementType::CustomerDelivery, $this);
                     }
 
                     $deliveredLine = $this->splitOff($line, $quantity, ['quantity_reserved' => 0, 'status' => CustomerOrderLineStatus::Delivered, 'delivered_at' => now()]);
@@ -2267,7 +2288,7 @@ class CustomerOrder extends Model
                 $line = $this->lines()->findOrFail($shipmentLine->customer_order_line_id);
 
                 if (! $line->isPart()) {
-                    InventoryMovement::record($line->product_id, InventoryStatus::ReservedCustomer, null, $quantity, InventoryMovementType::CustomerShipment, $this);
+                    InventoryMovement::record($line->product_id, $this->stockStoreId(), InventoryStatus::ReservedCustomer, null, $quantity, InventoryMovementType::CustomerShipment, $this);
                 }
 
                 $shipped = $this->splitOff($line, $quantity, ['quantity_reserved' => 0, 'status' => CustomerOrderLineStatus::Shipped, 'delivered_at' => now()]);
@@ -2353,7 +2374,7 @@ class CustomerOrder extends Model
     private function returnFromDelivery(CustomerOrderDelivery $delivery, CustomerOrderDeliveryLine $deliveryLine, CustomerOrderLine $line, int $quantity, ?int $locationId = null): void
     {
         if (! $line->isPart()) {
-            InventoryMovement::record($line->product_id, InventoryStatus::InDelivery, InventoryStatus::ReservedCustomer, $quantity, InventoryMovementType::DeliveryRefused, $delivery);
+            InventoryMovement::record($line->product_id, $this->stockStoreId(), InventoryStatus::InDelivery, InventoryStatus::ReservedCustomer, $quantity, InventoryMovementType::DeliveryRefused, $delivery);
         }
 
         $line->refresh()->update(['status' => $deliveryLine->loaded_from_status ?? CustomerOrderLineStatus::Received]);

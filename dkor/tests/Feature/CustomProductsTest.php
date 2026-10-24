@@ -47,7 +47,7 @@ it('vend un article sur mesure : toujours commandé, avec spécifications, coût
         ->unit_cost->toBeMoney(90000)
         ->description->toBe('84 po, tissu Lin gris, pattes noires (soumission S-4521)')
         ->label->toContain('tissu Lin gris')
-        ->and($this->template->inventoryStock()->sole()->quantity_in_stock)->toBe(5);
+        ->and($this->template->inventoryStocks()->sole()->quantity_in_stock)->toBe(5);
 });
 
 it('crée une ligne distincte pour chaque article sur mesure', function () {

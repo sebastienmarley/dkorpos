@@ -2,7 +2,7 @@
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:link :href="route('inventory.counts')" wire:navigate class="text-sm">← {{ __('Prises d\'inventaire') }}</flux:link>
-            <flux:heading level="1" size="xl" class="mt-1">{{ __('Prise d\'inventaire du :date', ['date' => $count->counted_on->format('Y-m-d')]) }}</flux:heading>
+            <flux:heading level="1" size="xl" class="mt-1">{{ __('Prise d\'inventaire du :date — :store', ['date' => $count->counted_on->format('Y-m-d'), 'store' => $count->store?->name ?? '—']) }}</flux:heading>
             <div class="mt-2 flex gap-2">
                 <flux:badge :color="$count->status->color()" size="sm">{{ $count->status->label() }}</flux:badge>
                 @if ($count->isInProgress())

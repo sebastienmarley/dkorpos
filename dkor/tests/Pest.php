@@ -10,6 +10,7 @@ use App\Models\InventoryUnit;
 use App\Models\Product;
 use App\Models\Reception;
 use App\Models\ReceptionLine;
+use App\Models\Store;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Support\Money;
@@ -73,8 +74,9 @@ expect()->extend('toBeMoney', function (int $cents) {
 function stockedLine(CustomerOrder $order, int $inStock, int $quantity, float $price): CustomerOrderLine
 {
     $product = Product::factory()->create();
-    InventoryStock::factory()->create(['product_id' => $product->id, 'quantity_in_stock' => $inStock, 'quantity_reserved' => 0]);
-    InventoryUnit::factory()->count($inStock)->create(['product_id' => $product->id, 'delivered_at' => null]);
+    $storeId = $order->stockStoreId();
+    InventoryStock::factory()->create(['product_id' => $product->id, 'store_id' => $storeId, 'quantity_in_stock' => $inStock, 'quantity_reserved' => 0]);
+    InventoryUnit::factory()->count($inStock)->create(['product_id' => $product->id, 'store_id' => $storeId, 'delivered_at' => null]);
 
     $line = $order->addProduct($product, $quantity);
     $order->updateLine($line, $line->quantity_reserved, $line->quantity_on_order, Money::parse($price), null);
@@ -94,35 +96,44 @@ function pickedUpLine(CustomerOrder $order, int $quantity, float $price, Custome
 }
 
 /**
- * Invariants d'inventaire d'un produit (ADR 0011) : journal = quantités (I1), aucune quantité négative (I2),
+ * Invariants d'inventaire d'un produit, magasin par magasin (ADR 0011 et 0012) : journal = quantités (I1), aucune quantité négative (I2),
  * unités en main = états valorisés (I3), réservé = commandes clients (I4), en commande = commandes fournisseurs (I5),
  * « en commande client » à 0 (I6).
  * À utiliser pour un produit dont tout le stock est entré par le journal (pas par une factory).
  */
 function expectInventoryIntegrity(Product $product): void
 {
-    $stock = InventoryStock::where('product_id', $product->id)->sole();
+    $storeIds = InventoryStock::where('product_id', $product->id)->pluck('store_id');
 
-    foreach (InventoryStatus::cases() as $status) {
-        $net = (int) InventoryMovement::where('product_id', $product->id)->where('to_status', $status)->sum('quantity')
-            - (int) InventoryMovement::where('product_id', $product->id)->where('from_status', $status)->sum('quantity');
+    expect($storeIds)->not->toBeEmpty();
 
-        expect($stock->quantityFor($status))->toBe($net, "I1 : journal ≠ quantité « {$status->value} »")
-            ->toBeGreaterThanOrEqual(0);
+    foreach ($storeIds as $storeId) {
+        $stock = InventoryStock::where('product_id', $product->id)->where('store_id', $storeId)->sole();
+        $movements = InventoryMovement::where('product_id', $product->id)->where('store_id', $storeId);
+
+        foreach (InventoryStatus::cases() as $status) {
+            $net = (int) (clone $movements)->where('to_status', $status)->sum('quantity')
+                - (int) (clone $movements)->where('from_status', $status)->sum('quantity');
+
+            expect($stock->quantityFor($status))->toBe($net, "I1 : journal ≠ quantité « {$status->value} » (magasin {$storeId})")
+                ->toBeGreaterThanOrEqual(0);
+        }
+
+        $valued = collect(InventoryStatus::cases())->filter->isValued()->sum(fn (InventoryStatus $status): int => $stock->quantityFor($status));
+
+        expect(InventoryUnit::where('product_id', $product->id)->where('store_id', $storeId)->inHand()->count())->toBe($valued, "I3 : unités en main ≠ états valorisés (magasin {$storeId})");
+
+        $reserved = (int) CustomerOrderLine::where('product_id', $product->id)->whereNull('part_id')
+            ->whereHas('order', fn ($order) => $order->whereIn('store_id', Store::query()->where('id', $storeId)->orWhere('warehouse_store_id', $storeId)->select('id')))
+            ->sum('quantity_reserved');
+        $outstanding = SupplierOrderLine::with('order')->where('product_id', $product->id)->get()
+            ->filter(fn (SupplierOrderLine $line): bool => $line->order->status->isOpen() && $line->order->store_id === $storeId)
+            ->sum(fn (SupplierOrderLine $line): int => $line->quantity_outstanding);
+
+        expect($stock->quantity_reserved + $stock->quantity_in_delivery)->toBe($reserved, "I4 : réservé ≠ commandes clients (magasin {$storeId})")
+            ->and($stock->quantity_on_order)->toBe($outstanding, "I5 : en commande ≠ commandes fournisseurs (magasin {$storeId})")
+            ->and($stock->quantity_customer_order)->toBe(0, 'I6 : « en commande client » non utilisé');
     }
-
-    $valued = collect(InventoryStatus::cases())->filter->isValued()->sum(fn (InventoryStatus $status): int => $stock->quantityFor($status));
-
-    expect(InventoryUnit::where('product_id', $product->id)->inHand()->count())->toBe($valued, 'I3 : unités en main ≠ états valorisés');
-
-    $reserved = (int) CustomerOrderLine::where('product_id', $product->id)->whereNull('part_id')->sum('quantity_reserved');
-    $outstanding = SupplierOrderLine::with('order')->where('product_id', $product->id)->get()
-        ->filter(fn (SupplierOrderLine $line): bool => $line->order->status->isOpen())
-        ->sum(fn (SupplierOrderLine $line): int => $line->quantity_outstanding);
-
-    expect($stock->quantity_reserved + $stock->quantity_in_delivery)->toBe($reserved, 'I4 : réservé ≠ commandes clients')
-        ->and($stock->quantity_on_order)->toBe($outstanding, 'I5 : en commande ≠ commandes fournisseurs')
-        ->and($stock->quantity_customer_order)->toBe(0, 'I6 : « en commande client » non utilisé');
 }
 
 /**
@@ -136,4 +147,13 @@ function receiveProduct(Product $product, int $quantity, float $cost): Reception
     $order->fresh()->send();
 
     return Reception::record($order->supplier, [$line->id => ['quantity' => $quantity]])->lines()->sole();
+}
+
+/**
+ * Magasin dont le stock sert les tests d'inventaire : celui que l'application prend par défaut pour l'usager connecté
+ * (son magasin, sinon le premier magasin physique), créé au besoin (ADR 0012).
+ */
+function testStoreId(): int
+{
+    return Store::defaultIdFor(auth()->user()) ?? Store::factory()->create()->id;
 }

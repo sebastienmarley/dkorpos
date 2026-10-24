@@ -52,11 +52,11 @@ class InventoryCountLine extends Model
     ];
 
     /**
-     * Quantité attendue : figée à la finalisation, sinon la quantité courante de l'état.
+     * Quantité attendue : figée à la finalisation, sinon la quantité courante de l'état dans le magasin compté.
      */
     public function expected(): int
     {
-        return $this->expected_quantity ?? $this->product->inventoryStock?->quantityFor($this->status) ?? 0;
+        return $this->expected_quantity ?? $this->product->stockAt((int) $this->inventoryCount->store_id)?->quantityFor($this->status) ?? 0;
     }
 
     public function isCounted(): bool

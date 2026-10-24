@@ -76,6 +76,22 @@ class Store extends Model
         'is_active' => 'boolean',
     ];
 
+    /**
+     * Magasin par défaut d'un usager (ADR 0012) : le sien, sinon le premier magasin physique actif (bureau chef).
+     */
+    public static function defaultIdFor(?User $user): ?int
+    {
+        return $user->store_id ?? static::query()->where('type', StoreType::Physical)->orderBy('id')->value('id');
+    }
+
+    /**
+     * Magasin dont le stock sert les ventes de ce magasin (ADR 0012) : son entrepôt s'il en a un, sinon lui-même.
+     */
+    public function stockStoreId(): int
+    {
+        return $this->warehouse_store_id ?? $this->id;
+    }
+
     /** @return HasMany<InventoryZone, $this> */
     public function inventoryZones(): HasMany
     {

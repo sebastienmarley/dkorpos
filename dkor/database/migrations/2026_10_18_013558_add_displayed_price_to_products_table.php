@@ -19,7 +19,7 @@ return new class extends Migration
         });
 
         Product::query()
-            ->whereHas('inventoryStock', fn ($query) => $query->where('quantity_in_demo', '>', 0))
+            ->whereHas('inventoryStocks', fn ($query) => $query->where('quantity_in_demo', '>', 0))
             ->with('supplier')
             ->chunkById(200, function (Collection $products): void {
                 foreach ($products as $product) {

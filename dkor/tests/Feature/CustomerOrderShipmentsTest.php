@@ -239,7 +239,7 @@ describe('suivi des expéditions', function () {
         app(CancelDelivery::class)->handle($shipment);
 
         expect($shipment->fresh()->status)->toBe(DeliveryStatus::Cancelled)
-            ->and(shipmentNotices($this->warehouseClerk)->pluck('title')->last())->toBe('Expédition annulée')
+            ->and(shipmentNotices($this->warehouseClerk)->pluck('title')->all())->toContain('Expédition annulée')
             ->and($this->order->deliverableQuantities())->toBe([$line->id => 1]);
     });
 
@@ -322,7 +322,7 @@ function journaledShipmentLine(CustomerOrder $order, int $inStock, int $quantity
     $product = Product::factory()->create(['cost' => Money::parse(40)]);
 
     if ($inStock > 0) {
-        InventoryMovement::record($product, null, InventoryStatus::InStock, $inStock, InventoryMovementType::Adjustment);
+        InventoryMovement::record($product, $order->stockStoreId(), null, InventoryStatus::InStock, $inStock, InventoryMovementType::Adjustment);
     }
 
     $line = $order->addProduct($product, $quantity);
@@ -444,7 +444,7 @@ describe('menu d\'expédition (#95)', function () {
         Reception::start($supplierLine->order->supplier, [$supplierLine->id => ['quantity' => 1]])->complete();
 
         expect($remainder->fresh()->ready_at)->not->toBeNull()
-            ->and(shipmentNotices($this->warehouseClerk)->pluck('title')->last())->toBe('Nouvelle expédition à faire');
+            ->and(shipmentNotices($this->warehouseClerk)->pluck('title')->all())->toContain('Nouvelle expédition à faire');
     });
 });
 

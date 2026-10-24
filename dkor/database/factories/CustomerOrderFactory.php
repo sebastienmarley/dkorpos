@@ -25,7 +25,7 @@ class CustomerOrderFactory extends Factory
             'store_id' => function (): int {
                 (new TaxSeeder)->run();
 
-                return Store::factory()->create()->id;
+                return auth()->user()->store_id ?? Store::factory()->create()->id;
             },
             'status' => CustomerOrderStatus::New,
             'balance_due' => Money::zero(),
