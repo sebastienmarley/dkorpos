@@ -2,7 +2,7 @@
 
 - **Statut :** Accepté
 - **Date :** 2026-10-18
-- **Issues liées :** #12 (livraison), #86 (expédition)
+- **Issues liées :** #12 (livraison), #86 (expédition), #94 (menu du livreur)
 
 ## Contexte
 
@@ -140,6 +140,30 @@ Nous retenons l'**option C**.
 - Une même commande peut être livrée, expédiée et ramassée pour des articles différents : les quantités sont
   réservées quelle que soit la méthode.
 
+**Menu du livreur (#94) :**
+
+- La page mobile **Mes livraisons** (`deliveries.mine`, permission `deliveries.handle` : livreurs et directeurs)
+  montre les livraisons d'une journée du magasin, par demi-journée. Une livraison qui attend un article encore en
+  commande est marquée « En attente d'articles ». L'adresse ouvre l'itinéraire dans l'application de cartes, et le
+  montant à percevoir s'affiche pour un paiement à la livraison.
+- **L'ordre de la route** (`route_position`) se change avec des flèches, pour la demi-journée. Il est le même pour
+  tous les livreurs du magasin (`ReorderDeliveryRoute`). Sans ordre, la liste suit l'ordre de planification.
+- **Le chargement** (`CustomerOrder::loadDelivery()`) : la partie chargée de chaque ligne passe « En livraison »,
+  séparée au besoin. Elle reste dans `quantity_reserved`, et ses unités passent de « Réservé client » à « En
+  livraison » (`DeliveryLoaded`). On ne charge que ce qui est en main pour le client. Un article non chargé est
+  retiré de la livraison, et la livraison part « En route ».
+- **La remise** (`CustomerOrder::completeDelivery()`, appelée par l'Action `CompleteDelivery`) :
+  - la quantité acceptée passe « Livré » et sort de l'inventaire en premier entré, premier sorti
+    (`CustomerDelivery`) ;
+  - la quantité refusée, avec sa raison, revient en stock client (`DeliveryRefused`), avec le statut qu'avait la
+    ligne avant le chargement (`loaded_from_status`). Les vendeurs de la commande en sont avisés ;
+  - le paiement exigé doit être perçu avant la remise ;
+  - la livraison passe « Livrée ».
+- **La signature du client (#93)** viendra avant la remise.
+- `CustomerOrder::splitOff()` sépare une ligne pour le ramassage, le chargement et la remise.
+  `refreshStatusFromLines()` passe la commande à « Livrée » quand tout est remis et qu'au moins une ligne est
+  livrée ou expédiée, même si une autre a été ramassée.
+
 ## Conséquences
 
 **Positives**
@@ -150,8 +174,10 @@ Nous retenons l'**option C**.
 
 **Négatives / limitations**
 
-- La remise au client à la livraison (passage à « Livré », sortie d'inventaire) reste à faire avec le menu du
-  livreur, hors périmètre de la #12.
+- Une livraison dont le client refuse tous les articles est quand même « Livrée » : ses lignes de livraison
+  gardent la quantité acceptée (0) et la raison.
+- Une livraison en route ne s'annule pas et ne se reporte pas. Un article refusé se replanifie dans une nouvelle
+  livraison.
 - La capacité compte des livraisons, sans tenir compte de leur durée, de leur distance ni du volume des articles.
 - Les frais d'expédition sont ajoutés à la commande dès l'étape des articles, pour pouvoir les encaisser. Si
   l'employé abandonne la demande, ils restent sur la commande jusqu'à ce qu'il les retire.
@@ -166,21 +192,24 @@ Nous retenons l'**option C**.
   refusée, le report est annulé en entier et la livraison d'origine reste planifiée.
 - Une expédition ne se reporte pas, et le paiement à la livraison y est refusé, même pour un directeur.
 - L'avis « Nouvelle expédition à faire » ne part qu'une fois (`ready_at`).
-- `customer_orders.edit` pour planifier, reporter, demander une expédition ou annuler,
+- On ne charge que ce qui est en main pour le client, et on ne remet qu'une livraison en route, payée.
+- `customer_orders.edit` pour planifier, reporter, demander une expédition ou annuler, `deliveries.handle` pour
+  le menu du livreur,
   `customer_orders.deliver_unpaid` pour le paiement à la livraison, `stores.edit` pour les camions et les limites
   d'expédition, `shipments.manage` pour les avis d'expédition.
 
 ## Questions ouvertes
 
-- Remettre les articles au client depuis le menu du livreur, ou les expédier depuis le menu d'expédition : une
-  méthode commune avec `pickUp()`, qui séparerait les lignes, compléterait les frais d'expédition et encaisserait
-  le paiement à la livraison.
+- Expédier depuis le menu d'expédition (#95) : réutiliser `splitOff()` pour les lignes « Expédié » et compléter
+  les frais d'expédition.
 
 ## Références
 
 - `database/migrations/2026_10_18_125336_create_delivery_trucks_table.php`
 - `database/migrations/2026_10_18_125337_create_customer_order_deliveries_table.php`
 - `database/migrations/2026_10_18_133416_add_shipping_to_customer_order_deliveries.php`
+- `database/migrations/2026_10_24_193306_add_driver_tracking_to_customer_order_deliveries.php`
+- `app/Actions/CompleteDelivery.php`, `app/Actions/ReorderDeliveryRoute.php`, `app/Livewire/Deliveries/Mine.php`
 - `app/Actions/RequestShipment.php`, `app/Actions/NotifyShipmentReady.php`, `app/Actions/NotifyDeliveryTeam.php`
 - `app/Actions/ScheduleDelivery.php`, `app/Actions/CancelDelivery.php`, `app/Support/DeliveryBooking.php`
 - `app/Livewire/CustomerOrders/Deliveries.php`, `app/Livewire/Deliveries/Index.php`

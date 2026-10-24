@@ -30,6 +30,7 @@ dataset('pages', [
     'schedules.appointments' => ['schedules.appointments', 'appointments.view'],
     'users.index' => ['users.index', 'users.view'],
     'deliveries.index' => ['deliveries.index', 'deliveries.view'],
+    'deliveries.mine' => ['deliveries.mine', 'deliveries.handle'],
 ]);
 
 beforeEach(function () {

@@ -761,7 +761,8 @@ class CustomerOrder extends Model
 
         foreach ($plannedLines->groupBy('customer_order_line_id') as $lineId => $planned) {
             $line = $orderLines->get($lineId);
-            $deliverable = $line === null || in_array($lineId, $withdrawnLineIds, true) || $line->isService() || ! $line->status->isPickable()
+            $deliverable = $line === null || in_array($lineId, $withdrawnLineIds, true) || $line->isService()
+                || ! ($line->status->isPickable() || $line->status === CustomerOrderLineStatus::InDelivery)
                 ? 0
                 : $line->quantity;
             $excess = $planned->sum('quantity') - $deliverable;
@@ -1953,8 +1954,8 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Passe la commande à « Ramassée » ou « Livrée » une fois toutes ses lignes facturables remises au client (les
-     * services complétés ne comptent pas pour le choix entre les deux); une
+     * Passe la commande à « Livrée » une fois toutes ses lignes facturables remises au client, dès qu'une a été livrée
+     * ou expédiée, sinon à « Ramassée » (les services complétés ne comptent pas pour le choix entre les deux); une
      * commande qui l'était et qui reçoit un nouvel article (ex. un échange) revient « En attente ».
      */
     private function refreshStatusFromLines(): void
@@ -1967,13 +1968,13 @@ class CustomerOrder extends Model
             return;
         }
 
-        $done = fn (CustomerOrderLineStatus $handedOver): bool => $statuses->contains($handedOver)
-            && $statuses->every(fn (CustomerOrderLineStatus $status): bool => in_array($status, [$handedOver, CustomerOrderLineStatus::Completed], true));
+        $allHandedOver = $statuses->every(fn (CustomerOrderLineStatus $status): bool => $status->isHandedOver());
+        $reachedCustomer = $statuses->contains(fn (CustomerOrderLineStatus $status): bool => in_array($status, [CustomerOrderLineStatus::Delivered, CustomerOrderLineStatus::Shipped], true));
 
-        if ($done(CustomerOrderLineStatus::PickedUp)) {
-            $this->update(['status' => CustomerOrderStatus::PickedUp]);
-        } elseif ($done(CustomerOrderLineStatus::Delivered)) {
+        if ($allHandedOver && $reachedCustomer) {
             $this->update(['status' => CustomerOrderStatus::Delivered]);
+        } elseif ($allHandedOver && $statuses->contains(CustomerOrderLineStatus::PickedUp)) {
+            $this->update(['status' => CustomerOrderStatus::PickedUp]);
         } elseif (in_array($this->status, [CustomerOrderStatus::PickedUp, CustomerOrderStatus::Delivered], true)) {
             $this->update(['status' => CustomerOrderStatus::Pending]);
         }
@@ -1985,19 +1986,28 @@ class CustomerOrder extends Model
             InventoryMovement::record($line->product_id, InventoryStatus::ReservedCustomer, null, $quantity, InventoryMovementType::CustomerPickup, $this);
         }
 
-        $pickedUp = [
+        $this->splitOff($line, $quantity, [
             'quantity_reserved' => 0,
-            'quantity_on_order' => 0,
-            'quantity' => $quantity,
             'status' => CustomerOrderLineStatus::PickedUp,
             'customer_order_pickup_id' => $pickup->id,
             'delivered_at' => now(),
-        ];
+        ]);
+    }
+
+    /**
+     * Sépare une quantité réservée d'une ligne et lui donne de nouveaux attributs : la ligne entière si elle part en
+     * entier (rien d'autre réservé ni en commande), sinon une nouvelle ligne de vente, l'originale gardant le reste.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function splitOff(CustomerOrderLine $line, int $quantity, array $attributes): CustomerOrderLine
+    {
+        $attributes = ['quantity' => $quantity, 'quantity_on_order' => 0, ...$attributes];
 
         if ($quantity === $line->quantity_reserved && $line->quantity_on_order === 0) {
-            $line->update($pickedUp);
+            $line->update($attributes);
 
-            return;
+            return $line;
         }
 
         $line->update([
@@ -2005,10 +2015,159 @@ class CustomerOrder extends Model
             'quantity' => $line->quantity - $quantity,
         ]);
 
-        $this->lines()->create([
+        return $this->lines()->create([
             ...$line->saleAttributes(),
-            ...$pickedUp,
+            ...$attributes,
         ]);
+    }
+
+    /**
+     * Charge dans le camion les quantités choisies d'une livraison planifiée (issue #94) : la partie chargée de chaque
+     * ligne passe « En livraison » (séparée au besoin; elle reste réservée au client), ses unités passent de « Réservé
+     * client » à « En livraison », et la livraison part « En route ». Une ligne non chargée est retirée de la
+     * livraison et reste réservée au client.
+     *
+     * @param  array<int, int>  $quantities  quantité chargée par ligne de livraison
+     *
+     * @throws DomainException si la livraison n'est pas planifiée, si rien n'est chargé ou si une quantité dépasse ce
+     *                         qui est en main pour le client.
+     */
+    public function loadDelivery(CustomerOrderDelivery $delivery, array $quantities): void
+    {
+        DB::transaction(function () use ($delivery, $quantities): void {
+            $delivery = $this->lockedDelivery($delivery, DeliveryStatus::Scheduled, __('Seule une livraison planifiée peut être chargée.'));
+
+            if (array_filter($quantities, fn (int $quantity): bool => $quantity > 0) === []) {
+                throw new DomainException(__('Cochez au moins un article chargé dans le camion.'));
+            }
+
+            foreach ($delivery->lines()->with('line')->get() as $deliveryLine) {
+                $quantity = $quantities[$deliveryLine->id] ?? 0;
+                $line = $this->lines()->lockForUpdate()->findOrFail($deliveryLine->customer_order_line_id);
+                $loadable = $line->status->isPickable() ? min($deliveryLine->quantity, $line->quantity_reserved) : 0;
+
+                if ($quantity < 0 || $quantity > $loadable) {
+                    throw new DomainException(__(':label : on peut charger au plus :count (en main pour le client).', ['label' => $line->label, 'count' => $loadable]));
+                }
+
+                if ($quantity === 0) {
+                    $deliveryLine->delete();
+
+                    continue;
+                }
+
+                if (! $line->isPart()) {
+                    InventoryMovement::record($line->product_id, InventoryStatus::ReservedCustomer, InventoryStatus::InDelivery, $quantity, InventoryMovementType::DeliveryLoaded, $delivery);
+                }
+
+                $previousStatus = $line->status;
+                $loaded = $this->splitOff($line, $quantity, ['quantity_reserved' => $quantity, 'status' => CustomerOrderLineStatus::InDelivery]);
+
+                $deliveryLine->update(['customer_order_line_id' => $loaded->id, 'quantity' => $quantity, 'loaded_from_status' => $previousStatus]);
+            }
+
+            $delivery->update(['status' => DeliveryStatus::InTransit, 'departed_at' => now(), 'departed_by' => auth()->id()]);
+
+            $this->syncDeliveries();
+        });
+    }
+
+    /**
+     * Remet au client les articles d'une livraison en route (issue #94, confirmée par le client à la #93) : la
+     * quantité acceptée de chaque ligne passe « Livré » et sort de l'inventaire (premier entré, premier sorti); la
+     * quantité refusée retourne en stock client, avec le statut qu'avait la ligne avant le chargement. La livraison
+     * passe « Livrée » et la commande, « Livrée » une fois tout remis.
+     *
+     * @param  array<int, int>  $accepted  quantité acceptée par ligne de livraison (absente : rien d'accepté)
+     * @param  array<int, string>  $refusalReasons  raison du refus par ligne de livraison
+     * @return list<string> les articles refusés (« 1 × Modèle : raison »)
+     *
+     * @throws DomainException si la livraison n'est pas en route, si une quantité est invalide, si un refus n'a pas de
+     *                         raison ou si les articles acceptés ne sont pas payés.
+     */
+    public function completeDelivery(CustomerOrderDelivery $delivery, array $accepted, array $refusalReasons = []): array
+    {
+        return DB::transaction(function () use ($delivery, $accepted, $refusalReasons): array {
+            $delivery = $this->lockedDelivery($delivery, DeliveryStatus::InTransit, __('Seule une livraison en route peut être remise au client.'));
+            $deliveryLines = $delivery->lines()->get();
+            $acceptedByLine = [];
+
+            foreach ($deliveryLines as $deliveryLine) {
+                $quantity = $accepted[$deliveryLine->id] ?? 0;
+
+                if ($quantity < 0 || $quantity > $deliveryLine->quantity) {
+                    throw new DomainException(__('La quantité acceptée doit être entre 0 et la quantité livrée.'));
+                }
+
+                if ($quantity < $deliveryLine->quantity && blank($refusalReasons[$deliveryLine->id] ?? null)) {
+                    throw new DomainException(__('Indiquez la raison de chaque article refusé.'));
+                }
+
+                if ($quantity > 0) {
+                    $acceptedByLine[$deliveryLine->customer_order_line_id] = $quantity;
+                }
+            }
+
+            $required = $this->amountRequiredFor($acceptedByLine);
+
+            if ($required->isPositive()) {
+                throw new DomainException(__('Percevez le paiement avant de remettre les articles : :amount $ à payer.', ['amount' => $required->toDecimal()]));
+            }
+
+            $refused = [];
+
+            foreach ($deliveryLines as $deliveryLine) {
+                $line = $this->lines()->lockForUpdate()->findOrFail($deliveryLine->customer_order_line_id);
+                $quantity = $accepted[$deliveryLine->id] ?? 0;
+                $refusedQuantity = $deliveryLine->quantity - $quantity;
+                $deliveredLine = $line;
+
+                if ($quantity > 0) {
+                    if (! $line->isPart()) {
+                        InventoryMovement::record($line->product_id, InventoryStatus::InDelivery, null, $quantity, InventoryMovementType::CustomerDelivery, $this);
+                    }
+
+                    $deliveredLine = $this->splitOff($line, $quantity, ['quantity_reserved' => 0, 'status' => CustomerOrderLineStatus::Delivered, 'delivered_at' => now()]);
+                }
+
+                if ($refusedQuantity > 0) {
+                    if (! $line->isPart()) {
+                        InventoryMovement::record($line->product_id, InventoryStatus::InDelivery, InventoryStatus::ReservedCustomer, $refusedQuantity, InventoryMovementType::DeliveryRefused, $delivery);
+                    }
+
+                    $line->refresh()->update(['status' => $deliveryLine->loaded_from_status ?? CustomerOrderLineStatus::Received]);
+                    $refused[] = __(':quantity × :label : :reason', ['quantity' => $refusedQuantity, 'label' => $line->label, 'reason' => trim((string) $refusalReasons[$deliveryLine->id])]);
+                }
+
+                $deliveryLine->update([
+                    'customer_order_line_id' => $deliveredLine->id,
+                    'accepted_quantity' => $quantity,
+                    'refusal_reason' => $refusedQuantity > 0 ? trim((string) $refusalReasons[$deliveryLine->id]) : null,
+                ]);
+            }
+
+            $delivery->update(['status' => DeliveryStatus::Delivered, 'delivered_at' => now(), 'delivered_by' => auth()->id()]);
+
+            $this->refreshStatusFromLines();
+
+            return $refused;
+        });
+    }
+
+    /**
+     * Relit et verrouille une livraison par nos camions de cette commande, dans le statut attendu.
+     *
+     * @throws DomainException
+     */
+    private function lockedDelivery(CustomerOrderDelivery $delivery, DeliveryStatus $expected, string $message): CustomerOrderDelivery
+    {
+        $locked = CustomerOrderDelivery::query()->whereKey($delivery->id)->lockForUpdate()->firstOrFail();
+
+        if ($locked->customer_order_id !== $this->id || $locked->method !== DeliveryMethod::Internal || $locked->status !== $expected) {
+            throw new DomainException($message);
+        }
+
+        return $locked;
     }
 
     /**

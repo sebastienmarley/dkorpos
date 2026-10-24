@@ -41,6 +41,11 @@ use Illuminate\Support\Carbon;
  * @property int|null $pay_on_delivery_authorized_by
  * @property string|null $notes
  * @property Carbon|null $ready_at Moment où tous les articles sont en main (avis de nouvelle expédition envoyé).
+ * @property int|null $route_position Rang dans la route du livreur, pour la demi-journée (null : ordre de planification).
+ * @property Carbon|null $departed_at Départ du camion avec les articles chargés.
+ * @property int|null $departed_by
+ * @property Carbon|null $delivered_at Remise au client (articles acceptés).
+ * @property int|null $delivered_by
  * @property int|null $requested_by
  * @property Carbon|null $cancelled_at
  * @property int|null $cancelled_by
@@ -57,7 +62,7 @@ use Illuminate\Support\Carbon;
     'customer_order_id', 'store_id', 'rescheduled_from_id', 'method', 'status', 'scheduled_date', 'period',
     'address_civic', 'address_apartment', 'address_street', 'address_city', 'address_province', 'address_country',
     'address_postal_code', 'address_verified_by', 'address_verified_at', 'pay_on_delivery',
-    'pay_on_delivery_authorized_by', 'notes', 'ready_at', 'requested_by', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
+    'pay_on_delivery_authorized_by', 'notes', 'ready_at', 'route_position', 'departed_at', 'departed_by', 'delivered_at', 'delivered_by', 'requested_by', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
 ])]
 class CustomerOrderDelivery extends Model
 {
@@ -83,6 +88,9 @@ class CustomerOrderDelivery extends Model
         'pay_on_delivery' => 'boolean',
         'cancelled_at' => 'datetime',
         'ready_at' => 'datetime',
+        'route_position' => 'integer',
+        'departed_at' => 'datetime',
+        'delivered_at' => 'datetime',
     ];
 
     /** @return BelongsTo<CustomerOrder, $this> */
