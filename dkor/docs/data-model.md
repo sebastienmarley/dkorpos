@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-24 (174 migrations, 68 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-24 (175 migrations, 69 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 174 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
+les 175 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -295,6 +295,10 @@ erDiagram
   `deliveries.signature_retention_days` jours (365). `signed_by_name` et `signed_at` restent après la
   suppression. Une livraison « Non livrée » (`undelivered`) note sa raison (`undelivered_reason` : client absent ou
   tout refusé) et `undelivered_at`. Ses articles reviennent en stock client.
+- **Envoi d'une expédition (#95)** : `shipping_supplier_id` est le transporteur (fournisseur d'expédition) et
+  `shipping_cost` le coût de sa soumission (cents). `tracking_number`, `shipped_at` et `shipped_by` notent
+  l'envoi, et `supplier_invoice_id` la facture du transporteur. Un envoi partiel laisse une nouvelle expédition à
+  faire pour le reste (`rescheduled_from_id` : l'envoi d'origine).
 - `pay_on_delivery` : le solde exigé sera perçu à la livraison, autorisé par un directeur
   (`pay_on_delivery_authorized_by`).
 - Un report annule la livraison (`cancelled_at`, `cancelled_by`, `cancellation_reason`) et en crée une autre qui
@@ -307,6 +311,9 @@ erDiagram
 erDiagram
     customer_orders ||--o{ customer_order_deliveries : "customer_order_id · cascade"
     stores |o--o{ customer_order_deliveries : "store_id · null"
+    suppliers |o--o{ customer_order_deliveries : "shipping_supplier_id · null"
+    supplier_invoices |o--o{ customer_order_deliveries : "supplier_invoice_id · restrict"
+    users |o--o{ customer_order_deliveries : "shipped_by · null"
     customer_order_deliveries |o--o{ customer_order_deliveries : "rescheduled_from_id · null"
     users |o--o{ customer_order_deliveries : "address_verified_by · null"
     users |o--o{ customer_order_deliveries : "pay_on_delivery_authorized_by · null"
@@ -327,6 +334,12 @@ erDiagram
         int id PK
         int customer_order_id FK
         int store_id FK "nullable"
+        int shipping_supplier_id FK "nullable"
+        int shipping_cost "cents · nullable"
+        string tracking_number "nullable"
+        datetime shipped_at "nullable"
+        int shipped_by FK "nullable"
+        int supplier_invoice_id FK "nullable"
         int rescheduled_from_id FK "nullable"
         string method "DeliveryMethod"
         string status "DeliveryStatus"
@@ -387,7 +400,11 @@ erDiagram
 ## Fournisseurs, réceptions et factures
 
 - Une facture couvre **soit** une réception (produits), **soit** une commande de services : les deux
-  clés sont uniques et `nullable`.
+  clés sont uniques et `nullable`. Une facture de **transporteur** (fournisseur d'expédition, issue #95) n'a ni
+  l'une ni l'autre : elle couvre plusieurs envois, reliés par `customer_order_deliveries.supplier_invoice_id`
+  (`restrict`, un envoi n'est facturé qu'une fois). `supplier_invoice_taxes` détaille ses taxes (une ligne par
+  taxe), et son écriture au grand livre va aux frais d'expédition et transport, à un compte « à recevoir » par
+  taxe et aux comptes fournisseurs.
 - `supplier_order_lines.substituted_from_line_id` relie une ligne à celle qu'elle remplace
   (substitution par le fournisseur).
 - **Erreurs d'expédition :** à la réception, `quantity_short` compte ce qui est annoncé (et facturé) par
@@ -407,6 +424,7 @@ erDiagram
     suppliers |o--o{ suppliers : "default_shipping_supplier_id · null"
     currencies |o--o{ suppliers : "currency_id · null"
     suppliers |o--o{ supplier_orders : "shipping_supplier_id · null"
+    supplier_invoices ||--o{ supplier_invoice_taxes : "supplier_invoice_id · cascade"
     suppliers ||--o{ supplier_orders : "supplier_id · restrict"
     users |o--o{ supplier_orders : "created_by · null"
     supplier_order_lines |o--o{ supplier_order_lines : "substituted_from_line_id · null"
@@ -564,6 +582,14 @@ erDiagram
         date credit_received_at "nullable"
         bool discount_next_month
         string description "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    supplier_invoice_taxes {
+        int id PK
+        int supplier_invoice_id FK
+        string tax_name "UK avec supplier_invoice_id"
+        int amount "cents"
         datetime created_at
         datetime updated_at
     }

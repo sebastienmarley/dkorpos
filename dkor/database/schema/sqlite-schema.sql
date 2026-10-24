@@ -1250,20 +1250,42 @@ CREATE TABLE "customer_order_deliveries"(
   "signed_at" datetime,
   "undelivered_reason" varchar,
   "undelivered_at" datetime,
-  foreign key("cancelled_by") references users("id") on delete set null on update no action,
-  foreign key("requested_by") references users("id") on delete set null on update no action,
-  foreign key("pay_on_delivery_authorized_by") references users("id") on delete set null on update no action,
-  foreign key("address_verified_by") references users("id") on delete set null on update no action,
-  foreign key("rescheduled_from_id") references customer_order_deliveries("id") on delete set null on update no action,
-  foreign key("store_id") references stores("id") on delete set null on update no action,
+  "shipping_supplier_id" integer,
+  "shipping_cost" integer,
+  "tracking_number" varchar,
+  "shipped_at" datetime,
+  "shipped_by" integer,
+  "supplier_invoice_id" integer,
+  foreign key("delivered_by") references users("id") on delete set null on update no action,
+  foreign key("departed_by") references users("id") on delete set null on update no action,
   foreign key("customer_order_id") references customer_orders("id") on delete cascade on update no action,
-  foreign key("departed_by") references "users"("id") on delete set null,
-  foreign key("delivered_by") references "users"("id") on delete set null
+  foreign key("store_id") references stores("id") on delete set null on update no action,
+  foreign key("rescheduled_from_id") references customer_order_deliveries("id") on delete set null on update no action,
+  foreign key("address_verified_by") references users("id") on delete set null on update no action,
+  foreign key("pay_on_delivery_authorized_by") references users("id") on delete set null on update no action,
+  foreign key("requested_by") references users("id") on delete set null on update no action,
+  foreign key("cancelled_by") references users("id") on delete set null on update no action,
+  foreign key("shipping_supplier_id") references "suppliers"("id") on delete set null,
+  foreign key("shipped_by") references "users"("id") on delete set null,
+  foreign key("supplier_invoice_id") references "supplier_invoices"("id") on delete restrict
 );
 CREATE INDEX "customer_order_deliveries_store_id_scheduled_date_period_index" on "customer_order_deliveries"(
   "store_id",
   "scheduled_date",
   "period"
+);
+CREATE TABLE "supplier_invoice_taxes"(
+  "id" integer primary key autoincrement not null,
+  "supplier_invoice_id" integer not null,
+  "tax_name" varchar not null,
+  "amount" integer not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("supplier_invoice_id") references "supplier_invoices"("id") on delete cascade
+);
+CREATE UNIQUE INDEX "supplier_invoice_taxes_supplier_invoice_id_tax_name_unique" on "supplier_invoice_taxes"(
+  "supplier_invoice_id",
+  "tax_name"
 );
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
@@ -1440,3 +1462,4 @@ INSERT INTO migrations VALUES(191,'2026_10_18_195716_create_inventory_count_scan
 INSERT INTO migrations VALUES(192,'2026_10_18_195717_create_inventory_count_results_table',23);
 INSERT INTO migrations VALUES(194,'2026_10_24_193306_add_driver_tracking_to_customer_order_deliveries',24);
 INSERT INTO migrations VALUES(195,'2026_10_24_200559_add_signature_to_customer_order_deliveries',25);
+INSERT INTO migrations VALUES(196,'2026_10_24_203637_add_shipment_sending_to_customer_order_deliveries',26);

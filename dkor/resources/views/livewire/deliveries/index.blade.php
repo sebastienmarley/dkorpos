@@ -79,52 +79,10 @@
             {{ __('Places : livraisons planifiées / capacité des camions qui ont un livreur à l\'horaire. Les camions et leur capacité se gèrent dans la fiche du magasin, onglet Livraison.') }}
         </flux:text>
 
-        <div id="expeditions" class="mt-8">
-            <flux:heading size="lg" class="mb-3">{{ __('Expéditions') }}</flux:heading>
-
-            <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-                <flux:table>
-                    <flux:table.columns>
-                        <flux:table.column>{{ __('Commande') }}</flux:table.column>
-                        <flux:table.column>{{ __('Adresse') }}</flux:table.column>
-                        <flux:table.column>{{ __('Articles') }}</flux:table.column>
-                        <flux:table.column>{{ __('Statut') }}</flux:table.column>
-                    </flux:table.columns>
-
-                    <flux:table.rows>
-                        @forelse ($shipments as $shipment)
-                            <flux:table.row :key="'shipment-'.$shipment->id">
-                                <flux:table.cell variant="strong">
-                                    @can('customer_orders.view')
-                                        <flux:link :href="route('customer-orders.show', $shipment->order)" wire:navigate>#{{ $shipment->customer_order_id }}</flux:link>
-                                    @else
-                                        #{{ $shipment->customer_order_id }}
-                                    @endcan
-                                    · {{ $shipment->order->customer->firstname }} {{ $shipment->order->customer->lastname }}
-                                    @if ($shipment->notes)
-                                        <div class="max-w-xs truncate text-xs font-normal text-zinc-400">{{ $shipment->notes }}</div>
-                                    @endif
-                                </flux:table.cell>
-                                <flux:table.cell>{{ $shipment->formattedAddress() }}</flux:table.cell>
-                                <flux:table.cell>{{ $shipment->lines->map(fn ($shipmentLine) => $shipmentLine->quantity.' × '.$shipmentLine->line->label)->join(', ') }}</flux:table.cell>
-                                <flux:table.cell>
-                                    @if ($shipment->ready_at)
-                                        <flux:badge size="sm" color="green" icon="check">{{ __('À faire — articles en main depuis le :date', ['date' => $shipment->ready_at->translatedFormat('j M')]) }}</flux:badge>
-                                    @else
-                                        <flux:badge size="sm" color="zinc" icon="clock">{{ __('En attente des articles') }}</flux:badge>
-                                    @endif
-                                </flux:table.cell>
-                            </flux:table.row>
-                        @empty
-                            <flux:table.row>
-                                <flux:table.cell colspan="4" class="py-8 text-center">
-                                    <flux:text class="text-zinc-400">{{ __('Aucune expédition à faire.') }}</flux:text>
-                                </flux:table.cell>
-                            </flux:table.row>
-                        @endforelse
-                    </flux:table.rows>
-                </flux:table>
-            </div>
-        </div>
+        @can('shipments.manage')
+            <flux:text class="mt-6 text-sm">
+                <flux:link :href="route('shipments.index', ['store' => $storeId])" wire:navigate>{{ __('Voir les expéditions à faire →') }}</flux:link>
+            </flux:text>
+        @endcan
     @endif
 </div>

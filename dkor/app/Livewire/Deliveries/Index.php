@@ -15,7 +15,7 @@ use Livewire\Component;
 
 /**
  * Grille des livraisons d'un magasin par semaine : chaque demi-journée montre ses places (camions avec un livreur à
- * l'horaire) et les livraisons planifiées. Sous la grille, les expéditions à faire du magasin.
+ * l'horaire) et les livraisons planifiées. Les expéditions ont leur propre menu (Shipments\Index).
  */
 class Index extends Component
 {
@@ -80,24 +80,6 @@ class Index extends Component
             ->get();
     }
 
-    /**
-     * Expéditions à faire du magasin (issue #86) : celles dont tous les articles sont en main d'abord.
-     *
-     * @return Collection<int, CustomerOrderDelivery>
-     */
-    public function getShipments(): Collection
-    {
-        return CustomerOrderDelivery::query()
-            ->active()
-            ->with(['order.customer', 'lines.line.product', 'lines.line.part'])
-            ->where('method', DeliveryMethod::Shipping)
-            ->where('store_id', (int) $this->storeId)
-            ->orderByRaw('ready_at is null')
-            ->orderBy('ready_at')
-            ->orderBy('id')
-            ->get();
-    }
-
     public function render(): View
     {
         $hasStore = $this->storeId !== '';
@@ -107,7 +89,6 @@ class Index extends Component
             'start' => $this->weekStart(),
             'halfDays' => $hasStore ? DeliveryBooking::slots((int) $this->storeId, $this->weekStart()->toDateString(), 7) : [],
             'deliveries' => $hasStore ? $this->getDeliveries() : new Collection,
-            'shipments' => $hasStore ? $this->getShipments() : new Collection,
         ])->layout('layouts.app', ['title' => __('Livraisons')]);
     }
 }

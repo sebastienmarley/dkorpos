@@ -449,7 +449,7 @@ it('crée une facture libre rattachée à un fournisseur, sans document', functi
 });
 
 it('compare le montant d\'une facture libre et applique l\'escompte du fournisseur', function () {
-    $supplier = Supplier::factory()->create(['is_active' => true, 'early_payment_discount_percent' => 2, 'early_payment_discount_days' => 10, 'early_payment_next_month' => true]);
+    $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'is_active' => true, 'early_payment_discount_percent' => 2, 'early_payment_discount_days' => 10, 'early_payment_next_month' => true]);
 
     $component = Livewire::test(Create::class)
         ->set('supplierId', (string) $supplier->id)
@@ -471,8 +471,8 @@ it('compare le montant d\'une facture libre et applique l\'escompte du fournisse
 });
 
 it('valide la facture libre: fournisseur actif, numéro unique et montants', function () {
-    $supplier = Supplier::factory()->create(['is_active' => true]);
-    $inactive = Supplier::factory()->create(['is_active' => false]);
+    $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'is_active' => true]);
+    $inactive = Supplier::factory()->create(['type' => SupplierType::Product, 'is_active' => false]);
     SupplierInvoice::recordStandalone($supplier, ['invoice_number' => 'L-1', 'invoice_date' => '2026-10-01', 'merchandise_total' => 10, 'invoice_total' => 10]);
 
     Livewire::test(Create::class)

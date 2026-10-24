@@ -386,7 +386,7 @@ class Deliveries extends Component
     public function getDeliveries(): Collection
     {
         return $this->order->deliveries()
-            ->with(['lines.line.product', 'lines.line.part', 'requester'])
+            ->with(['lines.line.product', 'lines.line.part', 'requester', 'shippingSupplier'])
             ->orderByRaw('case when status in (?, ?) then 0 else 1 end', DeliveryStatus::activeValues())
             ->orderBy('scheduled_date')
             ->latest('id')

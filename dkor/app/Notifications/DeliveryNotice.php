@@ -43,7 +43,7 @@ class DeliveryNotice extends Notification
             'title' => $this->title,
             'body' => $this->body,
             'url' => $this->url ?? ($this->delivery->method === DeliveryMethod::Shipping
-                ? route('deliveries.index').'#expeditions'
+                ? route('shipments.index')
                 : route('deliveries.index', ['date' => $this->delivery->scheduled_date?->toDateString()])),
             'icon' => 'truck',
         ];

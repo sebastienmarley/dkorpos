@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Casts\MoneyCast;
+use App\Enums\DeliveryMethod;
 use App\Enums\ReceptionStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Facture d'un fournisseur pour une réception terminée: coûts réels des lignes, frais de transport, de douanes et
@@ -52,6 +54,8 @@ use Illuminate\Support\Facades\DB;
  * @property-read Reception|null $reception
  * @property-read SupplierOrder|null $order
  * @property-read Collection<int, SupplierInvoiceLine> $lines
+ * @property-read Collection<int, SupplierInvoiceTax> $taxLines
+ * @property-read Collection<int, CustomerOrderDelivery> $shipments
  */
 #[Fillable([
     'supplier_id', 'reception_id', 'supplier_order_id', 'invoice_number', 'invoice_date', 'description', 'merchandise_total', 'freight_fee', 'customs_fee',
@@ -107,6 +111,22 @@ class SupplierInvoice extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(SupplierInvoiceLine::class)->orderBy('id');
+    }
+
+    /** @return HasMany<SupplierInvoiceTax, $this> */
+    public function taxLines(): HasMany
+    {
+        return $this->hasMany(SupplierInvoiceTax::class)->orderBy('id');
+    }
+
+    /**
+     * Envois (expéditions) d'un transporteur couverts par cette facture.
+     *
+     * @return HasMany<CustomerOrderDelivery, $this>
+     */
+    public function shipments(): HasMany
+    {
+        return $this->hasMany(CustomerOrderDelivery::class)->orderBy('shipped_at')->orderBy('id');
     }
 
     public function isStandalone(): bool
@@ -286,6 +306,97 @@ class SupplierInvoice extends Model
     public static function recordStandalone(Supplier $supplier, array $details, int|string|null $createdBy = null): SupplierInvoice
     {
         return DB::transaction(fn () => self::persist($supplier, [], collect(), $details, [], $createdBy));
+    }
+
+    /**
+     * Enregistre la facture d'un transporteur qui couvre plusieurs envois (issue #95) : chaque envoi y est relié (une
+     * seule fois), les taxes sont détaillées, et l'écriture est passée au grand livre. Le montant avant taxes va aux
+     * frais d'expédition et transport, chaque taxe à son compte « à recevoir », et le total aux comptes fournisseurs.
+     *
+     * @param  list<int>  $shipmentIds  envois (expéditions envoyées) couverts par la facture
+     * @param  array{invoice_number: string, invoice_date: string, description?: string|null, merchandise_total: float|int|string, invoice_total: float|int|string}  $details
+     * @param  array<string, float|int|string>  $taxAmounts  montant par taxe (TPS, TVQ…), en dollars
+     *
+     * @throws DomainException si le fournisseur n'est pas un transporteur, si un envoi n'est pas de lui, n'est pas
+     *                         encore parti ou est déjà facturé, ou si le montant avant taxes n'est pas positif.
+     */
+    public static function recordForShipments(Supplier $carrier, array $shipmentIds, array $details, array $taxAmounts, int|string|null $createdBy = null): SupplierInvoice
+    {
+        if ($carrier->type !== SupplierType::Shipping) {
+            throw new DomainException(__('Seul un fournisseur d\'expédition facture des envois.'));
+        }
+
+        $shipmentIds = array_values(array_unique($shipmentIds));
+
+        if ($shipmentIds === []) {
+            throw new DomainException(__('Choisissez au moins un envoi couvert par la facture.'));
+        }
+
+        return DB::transaction(function () use ($carrier, $shipmentIds, $details, $taxAmounts, $createdBy): SupplierInvoice {
+            $shipments = CustomerOrderDelivery::query()->whereKey($shipmentIds)->lockForUpdate()->get();
+
+            if ($shipments->count() !== count($shipmentIds)) {
+                throw new DomainException(__('Un envoi choisi n\'existe plus.'));
+            }
+
+            foreach ($shipments as $shipment) {
+                if ($shipment->method !== DeliveryMethod::Shipping || $shipment->shipping_supplier_id !== $carrier->id || $shipment->shipped_at === null) {
+                    throw new DomainException(__('L\'envoi de la commande #:order n\'est pas un envoi de ce transporteur.', ['order' => $shipment->customer_order_id]));
+                }
+
+                if ($shipment->supplier_invoice_id !== null) {
+                    throw new DomainException(__('L\'envoi de la commande #:order est déjà relié à une facture.', ['order' => $shipment->customer_order_id]));
+                }
+            }
+
+            $taxes = collect($taxAmounts)
+                ->map(fn (float|int|string $amount): Money => Money::parse($amount))
+                ->filter(fn (Money $amount): bool => $amount->isPositive());
+            $taxTotal = Money::sum($taxes->values()->all());
+
+            $invoice = self::persist($carrier, [], collect(), [...$details, 'freight_fee' => 0, 'customs_fee' => 0, 'taxes' => $taxTotal->toDecimal()], [], $createdBy);
+            $expense = $invoice->invoice_total->minus($taxTotal);
+
+            if (! $expense->isPositive()) {
+                throw new DomainException(__('Le montant de la facture doit dépasser ses taxes.'));
+            }
+
+            foreach ($taxes as $taxName => $amount) {
+                $invoice->taxLines()->create(['tax_name' => $taxName, 'amount' => $amount]);
+            }
+
+            CustomerOrderDelivery::query()->whereKey($shipmentIds)->update(['supplier_invoice_id' => $invoice->id]);
+
+            LedgerEntry::post(
+                Str::limit(__('Facture :number — :carrier (:count envois)', ['number' => $invoice->invoice_number, 'carrier' => $carrier->name, 'count' => count($shipmentIds)]), 250),
+                [
+                    ['account' => LedgerAccount::forKey(LedgerAccount::SHIPPING_EXPENSE), 'debit' => $expense],
+                    ...$taxes->map(fn (Money $amount, string $taxName): array => ['account' => LedgerAccount::forTaxReceivable($taxName), 'debit' => $amount])->values()->all(),
+                    ['account' => LedgerAccount::forKey(LedgerAccount::ACCOUNTS_PAYABLE), 'credit' => $invoice->invoice_total],
+                ],
+                $invoice,
+                $invoice->invoice_date,
+                $createdBy,
+            );
+
+            return $invoice;
+        });
+    }
+
+    /**
+     * Somme des coûts soumis par le transporteur pour les envois couverts par la facture.
+     */
+    public function shipmentsCost(): Money
+    {
+        return Money::sum($this->shipments->map(fn (CustomerOrderDelivery $shipment): Money => $shipment->shipping_cost ?? Money::zero())->all());
+    }
+
+    /**
+     * Écart entre le montant avant taxes de la facture et les coûts soumis de ses envois (positif : facturé de plus).
+     */
+    public function shipmentsVariance(): Money
+    {
+        return $this->merchandise_total->minus($this->shipmentsCost());
     }
 
     /**
