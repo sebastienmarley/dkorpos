@@ -118,14 +118,24 @@
         <flux:text class="text-zinc-500">{{ __('Déplace une quantité d\'un état à un autre. Les quantités « en commande » suivent les commandes fournisseurs.') }}</flux:text>
 
         <div class="mt-6 space-y-4">
+            <flux:field>
+                <flux:label>{{ __('Magasin') }}</flux:label>
+                <flux:select wire:model.live="storeId">
+                    @foreach ($stores as $store)
+                        <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="storeId" />
+            </flux:field>
+
             @if ($selectedProduct)
                 <div class="flex items-center justify-between rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                     <div>
                         <flux:text class="font-medium">{{ $selectedProduct->display_name }}</flux:text>
-                        @if ($selectedProduct->inventoryStock)
+                        @if ($stock = $selectedProduct->stockAt((int) $storeId))
                             <flux:text class="text-xs text-zinc-400">
                                 @foreach ($movableStatuses as $status)
-                                    {{ $status->label() }} : {{ $selectedProduct->inventoryStock->quantityFor($status) }}{{ ! $loop->last ? ' · ' : '' }}
+                                    {{ $status->label() }} : {{ $stock->quantityFor($status) }}{{ ! $loop->last ? ' · ' : '' }}
                                 @endforeach
                             </flux:text>
                         @endif

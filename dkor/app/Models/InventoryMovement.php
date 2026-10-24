@@ -27,6 +27,7 @@ use LogicException;
  * les unités d'inventaire (couches de coût FIFO) et consigne sa valeur (ADR 0011).
  *
  * @property int $id
+ * @property int|null $store_id Magasin (ADR 0012).
  * @property int $product_id
  * @property InventoryStatus|null $from_status
  * @property InventoryStatus|null $to_status
@@ -42,7 +43,7 @@ use LogicException;
  * @property-read User|null $user
  * @property-read Model|null $reference
  */
-#[Fillable(['product_id', 'from_status', 'to_status', 'quantity', 'value', 'type', 'reference_type', 'reference_id', 'user_id', 'note'])]
+#[Fillable(['store_id', 'product_id', 'from_status', 'to_status', 'quantity', 'value', 'type', 'reference_type', 'reference_id', 'user_id', 'note'])]
 class InventoryMovement extends Model
 {
     /** @use HasFactory<InventoryMovementFactory> */
@@ -64,6 +65,12 @@ class InventoryMovement extends Model
         static::deleting(fn () => throw new LogicException('Le journal d\'inventaire ne se supprime pas.'));
     }
 
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
+    }
+
     /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
@@ -83,8 +90,8 @@ class InventoryMovement extends Model
     }
 
     /**
-     * Déplace une quantité d'un état à un autre (ou depuis/vers l'extérieur avec un état vide), met à jour les
-     * quantités de l'inventaire et les unités, et consigne le mouvement dans la même transaction.
+     * Déplace une quantité d'un état à un autre (ou depuis/vers l'extérieur avec un état vide) dans le stock d'un
+     * magasin (ADR 0012), met à jour ses quantités et ses unités, et consigne le mouvement dans la même transaction.
      *
      * Unités (voir unitChange) : une entrée dans les états valorisés crée des unités au coût donné (sinon au coût du
      * produit), ou rouvre d'abord celles qu'une sortie de la même référence avait sorties (retour d'une commande).
@@ -93,6 +100,7 @@ class InventoryMovement extends Model
      */
     public static function record(
         Product|int $product,
+        Store|int $store,
         ?InventoryStatus $from,
         ?InventoryStatus $to,
         int $quantity,
@@ -115,15 +123,16 @@ class InventoryMovement extends Model
         }
 
         $productId = $product instanceof Product ? $product->id : $product;
+        $storeId = $store instanceof Store ? $store->id : $store;
 
-        return DB::transaction(function () use ($productId, $from, $to, $quantity, $type, $reference, $note, $userId, $unitCost): InventoryMovement {
+        return DB::transaction(function () use ($productId, $storeId, $from, $to, $quantity, $type, $reference, $note, $userId, $unitCost): InventoryMovement {
             $frozen = [InventoryStatus::InStock, InventoryStatus::Lost];
 
-            if ((in_array($from, $frozen, true) || in_array($to, $frozen, true)) && InventoryCount::stockIsFrozen()) {
+            if ((in_array($from, $frozen, true) || in_array($to, $frozen, true)) && InventoryCount::stockIsFrozen($storeId)) {
                 throw new DomainException(__('Le stock est gelé pour la prise d\'inventaire en cours : finalisez-la ou abandonnez-la avant de le déplacer.'));
             }
 
-            $stock = InventoryStock::query()->lockForUpdate()->firstOrCreate(['product_id' => $productId]);
+            $stock = InventoryStock::query()->lockForUpdate()->firstOrCreate(['product_id' => $productId, 'store_id' => $storeId]);
 
             if ($from !== null) {
                 $available = (int) $stock->{$from->column()};
@@ -145,9 +154,10 @@ class InventoryMovement extends Model
 
             $stock->save();
 
-            $change = self::unitChange($productId, $from, $to, $quantity, $reference, $unitCost);
+            $change = self::unitChange($productId, $storeId, $from, $to, $quantity, $reference, $unitCost);
 
             $movement = static::create([
+                'store_id' => $storeId,
                 'product_id' => $productId,
                 'from_status' => $from,
                 'to_status' => $to,
@@ -172,7 +182,7 @@ class InventoryMovement extends Model
      *
      * @return array{value: Money|null, apply: callable(InventoryMovement): void}
      */
-    private static function unitChange(int $productId, ?InventoryStatus $from, ?InventoryStatus $to, int $quantity, ?Model $reference, ?Money $unitCost): array
+    private static function unitChange(int $productId, int $storeId, ?InventoryStatus $from, ?InventoryStatus $to, int $quantity, ?Model $reference, ?Money $unitCost): array
     {
         $fromValued = $from?->isValued() ?? false;
         $toValued = $to?->isValued() ?? false;
@@ -181,12 +191,13 @@ class InventoryMovement extends Model
             return ['value' => null, 'apply' => function (): void {}];
         }
 
-        $inHand = fn (): Builder => InventoryUnit::query()->where('product_id', $productId)->inHand();
+        $inHand = fn (): Builder => InventoryUnit::query()->where('product_id', $productId)->where('store_id', $storeId)->inHand();
 
         if ($toValued) {
             $reopened = $from === null && $reference !== null
                 ? InventoryUnit::query()
                     ->where('product_id', $productId)
+                    ->where('store_id', $storeId)
                     ->whereNotNull('delivered_at')
                     ->whereHas('exitMovement', fn (Builder $exit) => $exit->whereMorphedTo('reference', $reference))
                     ->orderByDesc('delivered_at')
@@ -199,11 +210,12 @@ class InventoryMovement extends Model
 
             return [
                 'value' => self::unitsValue($reopened)->plus($cost->times($created)),
-                'apply' => function () use ($reopened, $created, $productId, $cost, $reference): void {
+                'apply' => function () use ($reopened, $created, $productId, $storeId, $cost, $reference): void {
                     InventoryUnit::whereKey($reopened->modelKeys())->update(['delivered_at' => null, 'exit_movement_id' => null]);
 
                     for ($i = 0; $i < $created; $i++) {
                         InventoryUnit::create([
+                            'store_id' => $storeId,
                             'product_id' => $productId,
                             'reception_line_id' => $reference instanceof ReceptionLine ? $reference->id : null,
                             'cost' => $cost,

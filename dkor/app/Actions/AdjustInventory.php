@@ -10,6 +10,7 @@ use App\Models\InventoryMovement;
 use App\Models\LedgerAccount;
 use App\Models\LedgerEntry;
 use App\Models\Product;
+use App\Models\Store;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use DomainException;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 /**
- * Ajuste l'inventaire d'un produit sans document d'achat ni de vente (issue #52, ADR 0011) : perte, vol, usage
+ * Ajuste l'inventaire d'un produit dans un magasin (ADR 0012) sans document d'achat ni de vente (issue #52, ADR 0011) : perte, vol, usage
  * magasin, correction de comptage ou stock initial.
  *
  * Dans une seule transaction : l'ajustement, son mouvement d'inventaire (qui sort les unités FIFO, ou en crée au coût
@@ -35,7 +36,7 @@ class AdjustInventory
      * @throws AuthorizationException sans la permission inventory.adjust.
      * @throws DomainException si le motif ne permet pas ce sens ou cet état, ou si la quantité est insuffisante.
      */
-    public function handle(User $user, Product $product, InventoryAdjustmentReason $reason, InventoryStatus $status, bool $isEntry, int $quantity, string $note, ?CarbonInterface $postedOn = null): InventoryAdjustment
+    public function handle(User $user, Product $product, Store|int $store, InventoryAdjustmentReason $reason, InventoryStatus $status, bool $isEntry, int $quantity, string $note, ?CarbonInterface $postedOn = null): InventoryAdjustment
     {
         Gate::forUser($user)->authorize('inventory.adjust');
 
@@ -57,8 +58,11 @@ class AdjustInventory
             throw new DomainException(__('Expliquez l\'ajustement dans la note.'));
         }
 
-        return DB::transaction(function () use ($user, $product, $reason, $status, $isEntry, $quantity, $note, $postedOn): InventoryAdjustment {
+        $storeId = $store instanceof Store ? $store->id : $store;
+
+        return DB::transaction(function () use ($user, $product, $storeId, $reason, $status, $isEntry, $quantity, $note, $postedOn): InventoryAdjustment {
             $adjustment = InventoryAdjustment::create([
+                'store_id' => $storeId,
                 'product_id' => $product->id,
                 'reason' => $reason,
                 'status' => $status,
@@ -70,6 +74,7 @@ class AdjustInventory
 
             $movement = InventoryMovement::record(
                 $product,
+                $storeId,
                 $isEntry ? null : $status,
                 $isEntry ? $status : null,
                 $quantity,
@@ -93,6 +98,7 @@ class AdjustInventory
                     $adjustment,
                     $postedOn,
                     $user->id,
+                    $storeId,
                 );
             }
 

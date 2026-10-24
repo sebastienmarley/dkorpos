@@ -116,13 +116,15 @@ class Create extends Component
             ->whereColumn('quantity_received', '<', 'quantity')
             ->whereHas('order', fn ($query) => $query
                 ->where('supplier_id', $this->supplierId)
+                ->when(auth()->user()->store_id !== null, fn ($query) => $query->where('store_id', auth()->user()->store_id))
                 ->where('type', SupplierType::Product)
                 ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived]))
             ->first();
     }
 
     /**
-     * Commandes ouvertes du fournisseur dont le numéro ou le quote # correspond à la recherche (rien sans recherche).
+     * Commandes ouvertes du fournisseur, destinées au magasin de l'usager (ADR 0012), dont le numéro ou le quote #
+     * correspond à la recherche (rien sans recherche).
      *
      * @return Collection<int, SupplierOrder>
      */
@@ -136,6 +138,7 @@ class Create extends Component
 
         return SupplierOrder::query()
             ->where('supplier_id', $this->supplierId)
+            ->when(auth()->user()->store_id !== null, fn ($query) => $query->where('store_id', auth()->user()->store_id))
             ->where('type', SupplierType::Product)
             ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived])
             ->where(fn ($query) => $query

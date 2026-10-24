@@ -58,7 +58,7 @@ class AnnualInventoryFinalUpdate
                 }
             }
 
-            $lines = $count->lines()->with('product.inventoryStock')->get();
+            $lines = $count->lines()->with(['product.inventoryStocks', 'inventoryCount'])->get();
 
             $uncounted = $lines->reject(fn (InventoryCountLine $line): bool => $line->isCounted());
 
@@ -90,6 +90,7 @@ class AnnualInventoryFinalUpdate
                 $adjustment = $difference === 0 ? null : $this->adjustInventory->handle(
                     $user,
                     $line->product,
+                    (int) $count->store_id,
                     $difference < 0 ? InventoryAdjustmentReason::AnnualCountLoss : InventoryAdjustmentReason::CountCorrection,
                     $line->status,
                     $difference > 0,

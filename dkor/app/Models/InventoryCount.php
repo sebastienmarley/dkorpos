@@ -7,6 +7,7 @@ use App\Enums\InventoryCountResultSource;
 use App\Enums\InventoryCountStatus;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
+use App\Enums\StoreType;
 use Carbon\CarbonInterface;
 use Database\Factories\InventoryCountFactory;
 use DomainException;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use LogicException;
@@ -38,6 +40,7 @@ use LogicException;
  * écart, avec son écriture à la date de comptage. Une prise finalisée ou abandonnée ne change plus.
  *
  * @property int $id
+ * @property int|null $store_id Magasin (ADR 0012).
  * @property Carbon $counted_on
  * @property InventoryCountStatus $status
  * @property Carbon|null $stock_frozen_at
@@ -53,7 +56,7 @@ use LogicException;
  * @property-read User|null $starter
  * @property-read User|null $finalizer
  */
-#[Fillable(['counted_on', 'status', 'stock_frozen_at', 'started_by', 'finalized_at', 'finalized_by', 'abandoned_at'])]
+#[Fillable(['store_id', 'counted_on', 'status', 'stock_frozen_at', 'started_by', 'finalized_at', 'finalized_by', 'abandoned_at'])]
 class InventoryCount extends Model
 {
     /** @use HasFactory<InventoryCountFactory> */
@@ -99,31 +102,67 @@ class InventoryCount extends Model
         return array_map(fn (string $status): InventoryStatus => InventoryStatus::from($status), array_keys(self::countTypes()));
     }
 
-    public static function inProgress(): ?self
+    /**
+     * Début de l'année fiscale qui contient la date (config `inventory.fiscal_year_start`, 1er février par défaut).
+     */
+    public static function fiscalYearStart(?CarbonInterface $date = null): Carbon
     {
-        return static::query()->where('status', InventoryCountStatus::InProgress)->latest('id')->first();
-    }
+        $date = Carbon::parse($date ?? today());
+        [$month, $day] = array_map('intval', explode('-', (string) config('inventory.fiscal_year_start', '02-01')));
+        $start = $date->copy()->setDate($date->year, $month, $day)->startOfDay();
 
-    /** Une prise en cours a gelé le stock : aucun mouvement ne touche « En stock » ni « Perdu ». */
-    public static function stockIsFrozen(): bool
-    {
-        return static::query()->where('status', InventoryCountStatus::InProgress)->whereNotNull('stock_frozen_at')->exists();
+        return $start->greaterThan($date) ? $start->subYear() : $start;
     }
 
     /**
-     * Démarre une prise : les perdus reviennent « En stock » (un mouvement par produit) et chaque produit qui a du
-     * stock dans un type de compte reçoit sa ligne.
+     * Dernière prise finalisée de chaque magasin physique actif, et s'il en a eu une depuis le début de l'année
+     * fiscale.
      *
-     * @throws DomainException si une prise est déjà en cours.
+     * @return SupportCollection<int, array{store: Store, last: ?InventoryCount, isCurrent: bool}>
      */
-    public static function start(CarbonInterface $countedOn, User $startedBy): self
+    public static function fiscalYearStatus(): SupportCollection
     {
-        return DB::transaction(function () use ($countedOn, $startedBy): self {
-            if (static::query()->where('status', InventoryCountStatus::InProgress)->lockForUpdate()->exists()) {
-                throw new DomainException(__('Une prise d\'inventaire est déjà en cours : finalisez-la ou abandonnez-la.'));
+        $start = self::fiscalYearStart();
+
+        return Store::query()->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get()->toBase()
+            ->map(function (Store $store) use ($start): array {
+                $last = self::query()->where('store_id', $store->id)->where('status', InventoryCountStatus::Finalized)->latest('counted_on')->first();
+
+                return ['store' => $store, 'last' => $last, 'isCurrent' => $last !== null && $last->counted_on->greaterThanOrEqualTo($start)];
+            });
+    }
+
+    /** Prise en cours d'un magasin (ADR 0012 : une prise à la fois par magasin). */
+    public static function inProgress(int $storeId): ?self
+    {
+        return static::query()->where('store_id', $storeId)->where('status', InventoryCountStatus::InProgress)->latest('id')->first();
+    }
+
+    /** La prise en cours du magasin a gelé son stock : aucun mouvement de ce magasin ne touche « En stock » ni « Perdu ». */
+    public static function stockIsFrozen(int $storeId): bool
+    {
+        return static::query()->where('store_id', $storeId)->where('status', InventoryCountStatus::InProgress)->whereNotNull('stock_frozen_at')->exists();
+    }
+
+    /**
+     * Démarre la prise d'un magasin : ses perdus reviennent « En stock » (un mouvement par produit) et chaque produit
+     * qui a du stock dans ce magasin, dans un type de compte, reçoit sa ligne.
+     *
+     * @throws DomainException si une prise est déjà en cours pour ce magasin.
+     */
+    public static function start(CarbonInterface $countedOn, User $startedBy, Store|int $store): self
+    {
+        $storeId = $store instanceof Store ? $store->id : $store;
+
+        return DB::transaction(function () use ($countedOn, $startedBy, $storeId): self {
+            Store::query()->whereKey($storeId)->lockForUpdate()->firstOrFail();
+
+            if (static::query()->where('store_id', $storeId)->where('status', InventoryCountStatus::InProgress)->exists()) {
+                throw new DomainException(__('Une prise d\'inventaire est déjà en cours pour ce magasin : finalisez-la ou abandonnez-la.'));
             }
 
             $count = static::create([
+                'store_id' => $storeId,
                 'counted_on' => $countedOn,
                 'status' => InventoryCountStatus::InProgress,
                 'started_by' => $startedBy->id,
@@ -134,6 +173,12 @@ class InventoryCount extends Model
 
             return $count;
         });
+    }
+
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     /**
@@ -229,7 +274,7 @@ class InventoryCount extends Model
 
     /**
      * Prépare les feuilles de compte A et B : une par type entier (défectueux, démonstrateur, stock client) et une par
-     * zone active du stock. Les feuilles déjà préparées sont conservées.
+     * zone active du magasin compté. Les feuilles déjà préparées sont conservées.
      */
     public function prepareSheets(): void
     {
@@ -239,7 +284,7 @@ class InventoryCount extends Model
 
             $scopes = collect([InventoryStatus::DefectiveStock, InventoryStatus::InDemo, InventoryStatus::ReservedCustomer])
                 ->map(fn (InventoryStatus $status): array => [$status, null])
-                ->merge(InventoryZone::query()->active()->ordered()->pluck('id')->map(fn (int $zoneId): array => [InventoryStatus::InStock, $zoneId]));
+                ->merge(InventoryZone::query()->where('store_id', $this->store_id)->active()->ordered()->pluck('id')->map(fn (int $zoneId): array => [InventoryStatus::InStock, $zoneId]));
 
             foreach ($scopes as [$status, $zoneId]) {
                 foreach ([InventoryCountPass::A, InventoryCountPass::B] as $pass) {
@@ -521,6 +566,7 @@ class InventoryCount extends Model
         $existing = $this->lines()->get()->map(fn (InventoryCountLine $line): string => $line->product_id.'-'.$line->status->value)->flip();
 
         InventoryStock::query()
+            ->where('store_id', $this->store_id)
             ->where(fn ($query) => collect($statuses)->each(fn (InventoryStatus $status) => $query->orWhere($status->column(), '>', 0)))
             ->get()
             ->each(function (InventoryStock $stock) use ($statuses, $existing): void {
@@ -564,9 +610,10 @@ class InventoryCount extends Model
 
     private function returnLostToStock(User $user): void
     {
-        InventoryStock::query()->where('quantity_lost', '>', 0)->get()->each(
+        InventoryStock::query()->where('store_id', $this->store_id)->where('quantity_lost', '>', 0)->get()->each(
             fn (InventoryStock $stock) => InventoryMovement::record(
                 $stock->product_id,
+                (int) $this->store_id,
                 InventoryStatus::Lost,
                 InventoryStatus::InStock,
                 $stock->quantity_lost,

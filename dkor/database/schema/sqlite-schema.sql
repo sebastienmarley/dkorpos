@@ -90,25 +90,6 @@ CREATE TABLE "merchant_payment_methods"(
   "created_at" datetime,
   "updated_at" datetime
 );
-CREATE TABLE "inventory_stocks"(
-  "id" integer primary key autoincrement not null,
-  "product_id" integer not null,
-  "quantity_in_stock" integer not null default '0',
-  "quantity_on_order" integer not null default '0',
-  "quantity_in_demo" integer not null default '0',
-  "quantity_reserved" integer not null default '0',
-  "quantity_customer_order" integer not null default '0',
-  "created_at" datetime,
-  "updated_at" datetime,
-  "quantity_in_delivery" integer not null default '0',
-  "quantity_defective_stock" integer not null default '0',
-  "quantity_defective_shipped" integer not null default '0',
-  "quantity_lost" integer not null default '0',
-  foreign key("product_id") references "products"("id") on delete cascade
-);
-CREATE UNIQUE INDEX "inventory_stocks_product_id_unique" on "inventory_stocks"(
-  "product_id"
-);
 CREATE TABLE "departments"(
   "id" integer primary key autoincrement not null,
   "name" varchar not null,
@@ -265,58 +246,6 @@ CREATE TABLE "currencies"(
   "is_archived" tinyint(1) not null default '0'
 );
 CREATE UNIQUE INDEX "currencies_code_unique" on "currencies"("code");
-CREATE TABLE "supplier_orders"(
-  "id" integer primary key autoincrement not null,
-  "number" varchar,
-  "type" varchar not null,
-  "supplier_id" integer not null,
-  "status" varchar not null default('draft'),
-  "notes" text,
-  "sent_at" datetime,
-  "received_at" datetime,
-  "created_by" integer,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "is_collect" tinyint(1) not null default '0',
-  "shipping_supplier_id" integer,
-  "quote_number" varchar,
-  "last_emailed_at" datetime,
-  "is_drop_ship" tinyint(1) not null default '0',
-  "drop_ship_name" varchar,
-  "drop_ship_address_civic" varchar,
-  "drop_ship_address_apartment" varchar,
-  "drop_ship_address_street" varchar,
-  "drop_ship_address_city" varchar,
-  "drop_ship_address_province" varchar,
-  "drop_ship_address_country" varchar,
-  "drop_ship_address_postal_code" varchar,
-  foreign key("created_by") references users("id") on delete set null on update no action,
-  foreign key("supplier_id") references suppliers("id") on delete restrict on update no action,
-  foreign key("shipping_supplier_id") references "suppliers"("id") on delete set null
-);
-CREATE UNIQUE INDEX "supplier_orders_number_unique" on "supplier_orders"(
-  "number"
-);
-CREATE INDEX "supplier_orders_type_status_index" on "supplier_orders"(
-  "type",
-  "status"
-);
-CREATE TABLE "receptions"(
-  "id" integer primary key autoincrement not null,
-  "number" varchar,
-  "supplier_id" integer not null,
-  "received_by" integer,
-  "received_at" datetime not null,
-  "reference" varchar,
-  "notes" text,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "status" varchar not null default 'completed',
-  "completed_at" datetime,
-  foreign key("supplier_id") references "suppliers"("id") on delete restrict,
-  foreign key("received_by") references "users"("id") on delete set null
-);
-CREATE UNIQUE INDEX "receptions_number_unique" on "receptions"("number");
 CREATE TABLE "stores"(
   "id" integer primary key autoincrement not null,
   "name" varchar not null,
@@ -458,30 +387,6 @@ CREATE TABLE "defective_products"(
 CREATE INDEX "defective_products_status_resolution_index" on "defective_products"(
   "status",
   "resolution"
-);
-CREATE TABLE "inventory_movements"(
-  "id" integer primary key autoincrement not null,
-  "product_id" integer not null,
-  "from_status" varchar,
-  "to_status" varchar,
-  "quantity" integer not null,
-  "type" varchar not null,
-  "reference_type" varchar,
-  "reference_id" integer,
-  "user_id" integer,
-  "note" varchar,
-  "created_at" datetime not null default(CURRENT_TIMESTAMP),
-  "value" integer,
-  foreign key("user_id") references users("id") on delete set null on update no action,
-  foreign key("product_id") references "products"("id") on delete restrict
-);
-CREATE INDEX "inventory_movements_product_id_created_at_index" on "inventory_movements"(
-  "product_id",
-  "created_at"
-);
-CREATE INDEX "inventory_movements_reference_type_reference_id_index" on "inventory_movements"(
-  "reference_type",
-  "reference_id"
 );
 CREATE TABLE "taxes"(
   "id" integer primary key autoincrement not null,
@@ -980,27 +885,6 @@ CREATE UNIQUE INDEX "delivery_line_unique" on "customer_order_delivery_lines"(
   "customer_order_line_id"
 );
 CREATE UNIQUE INDEX "services_code_unique" on "services"("code");
-CREATE TABLE "inventory_units"(
-  "id" integer primary key autoincrement not null,
-  "product_id" integer not null,
-  "cost" integer not null,
-  "inserted_at" date not null,
-  "delivered_at" date,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "reception_line_id" integer,
-  "exit_movement_id" integer,
-  foreign key("product_id") references products("id") on delete cascade on update no action,
-  foreign key("reception_line_id") references reception_lines("id") on delete set null on update no action,
-  foreign key("exit_movement_id") references "inventory_movements"("id") on delete set null
-);
-CREATE INDEX "inventory_units_product_id_inserted_at_index" on "inventory_units"(
-  "product_id",
-  "inserted_at"
-);
-CREATE INDEX "inventory_units_exit_movement_id_index" on "inventory_units"(
-  "exit_movement_id"
-);
 CREATE TABLE "ledger_accounts"(
   "id" integer primary key autoincrement not null,
   "code" varchar not null,
@@ -1014,21 +898,6 @@ CREATE UNIQUE INDEX "ledger_accounts_code_unique" on "ledger_accounts"("code");
 CREATE UNIQUE INDEX "ledger_accounts_system_key_unique" on "ledger_accounts"(
   "system_key"
 );
-CREATE TABLE "ledger_entries"(
-  "id" integer primary key autoincrement not null,
-  "posted_on" date not null,
-  "description" varchar not null,
-  "reference_type" varchar,
-  "reference_id" integer,
-  "user_id" integer,
-  "created_at" datetime not null default CURRENT_TIMESTAMP,
-  foreign key("user_id") references "users"("id") on delete set null
-);
-CREATE INDEX "ledger_entries_reference_type_reference_id_index" on "ledger_entries"(
-  "reference_type",
-  "reference_id"
-);
-CREATE INDEX "ledger_entries_posted_on_index" on "ledger_entries"("posted_on");
 CREATE TABLE "ledger_entry_lines"(
   "id" integer primary key autoincrement not null,
   "ledger_entry_id" integer not null,
@@ -1038,38 +907,6 @@ CREATE TABLE "ledger_entry_lines"(
   foreign key("ledger_entry_id") references "ledger_entries"("id") on delete cascade,
   foreign key("ledger_account_id") references "ledger_accounts"("id") on delete restrict
 );
-CREATE TABLE "inventory_adjustments"(
-  "id" integer primary key autoincrement not null,
-  "product_id" integer not null,
-  "reason" varchar not null,
-  "status" varchar not null,
-  "is_entry" tinyint(1) not null,
-  "quantity" integer not null,
-  "note" varchar not null,
-  "user_id" integer,
-  "created_at" datetime not null default CURRENT_TIMESTAMP,
-  foreign key("product_id") references "products"("id") on delete restrict,
-  foreign key("user_id") references "users"("id") on delete set null
-);
-CREATE INDEX "inventory_adjustments_product_id_created_at_index" on "inventory_adjustments"(
-  "product_id",
-  "created_at"
-);
-CREATE TABLE "inventory_counts"(
-  "id" integer primary key autoincrement not null,
-  "counted_on" date not null,
-  "status" varchar not null default 'in_progress',
-  "stock_frozen_at" datetime,
-  "started_by" integer,
-  "finalized_at" datetime,
-  "finalized_by" integer,
-  "abandoned_at" datetime,
-  "created_at" datetime,
-  "updated_at" datetime,
-  foreign key("started_by") references "users"("id") on delete set null,
-  foreign key("finalized_by") references "users"("id") on delete set null
-);
-CREATE INDEX "inventory_counts_status_index" on "inventory_counts"("status");
 CREATE TABLE "inventory_count_lines"(
   "id" integer primary key autoincrement not null,
   "inventory_count_id" integer not null,
@@ -1319,6 +1156,198 @@ CREATE UNIQUE INDEX "product_store_locations_product_id_store_id_unique" on "pro
   "product_id",
   "store_id"
 );
+CREATE TABLE "inventory_stocks"(
+  "id" integer primary key autoincrement not null,
+  "product_id" integer not null,
+  "quantity_in_stock" integer not null default('0'),
+  "quantity_on_order" integer not null default('0'),
+  "quantity_in_demo" integer not null default('0'),
+  "quantity_reserved" integer not null default('0'),
+  "quantity_customer_order" integer not null default('0'),
+  "created_at" datetime,
+  "updated_at" datetime,
+  "quantity_in_delivery" integer not null default('0'),
+  "quantity_defective_stock" integer not null default('0'),
+  "quantity_defective_shipped" integer not null default('0'),
+  "quantity_lost" integer not null default('0'),
+  "store_id" integer,
+  foreign key("product_id") references products("id") on delete cascade on update no action,
+  foreign key("store_id") references "stores"("id") on delete restrict
+);
+CREATE INDEX "inventory_stocks_store_id_index" on "inventory_stocks"(
+  "store_id"
+);
+CREATE TABLE "inventory_units"(
+  "id" integer primary key autoincrement not null,
+  "product_id" integer not null,
+  "cost" integer not null,
+  "inserted_at" date not null,
+  "delivered_at" date,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "reception_line_id" integer,
+  "exit_movement_id" integer,
+  "store_id" integer,
+  foreign key("exit_movement_id") references inventory_movements("id") on delete set null on update no action,
+  foreign key("reception_line_id") references reception_lines("id") on delete set null on update no action,
+  foreign key("product_id") references products("id") on delete cascade on update no action,
+  foreign key("store_id") references "stores"("id") on delete restrict
+);
+CREATE INDEX "inventory_units_exit_movement_id_index" on "inventory_units"(
+  "exit_movement_id"
+);
+CREATE INDEX "inventory_units_product_id_inserted_at_index" on "inventory_units"(
+  "product_id",
+  "inserted_at"
+);
+CREATE INDEX "inventory_units_store_id_index" on "inventory_units"("store_id");
+CREATE TABLE "inventory_movements"(
+  "id" integer primary key autoincrement not null,
+  "product_id" integer not null,
+  "from_status" varchar,
+  "to_status" varchar,
+  "quantity" integer not null,
+  "type" varchar not null,
+  "reference_type" varchar,
+  "reference_id" integer,
+  "user_id" integer,
+  "note" varchar,
+  "created_at" datetime not null default(CURRENT_TIMESTAMP),
+  "value" integer,
+  "store_id" integer,
+  foreign key("product_id") references products("id") on delete restrict on update no action,
+  foreign key("user_id") references users("id") on delete set null on update no action,
+  foreign key("store_id") references "stores"("id") on delete restrict
+);
+CREATE INDEX "inventory_movements_product_id_created_at_index" on "inventory_movements"(
+  "product_id",
+  "created_at"
+);
+CREATE INDEX "inventory_movements_reference_type_reference_id_index" on "inventory_movements"(
+  "reference_type",
+  "reference_id"
+);
+CREATE TABLE "inventory_adjustments"(
+  "id" integer primary key autoincrement not null,
+  "product_id" integer not null,
+  "reason" varchar not null,
+  "status" varchar not null,
+  "is_entry" tinyint(1) not null,
+  "quantity" integer not null,
+  "note" varchar not null,
+  "user_id" integer,
+  "created_at" datetime not null default(CURRENT_TIMESTAMP),
+  "store_id" integer,
+  foreign key("user_id") references users("id") on delete set null on update no action,
+  foreign key("product_id") references products("id") on delete restrict on update no action,
+  foreign key("store_id") references "stores"("id") on delete restrict
+);
+CREATE INDEX "inventory_adjustments_product_id_created_at_index" on "inventory_adjustments"(
+  "product_id",
+  "created_at"
+);
+CREATE INDEX "inventory_adjustments_store_id_index" on "inventory_adjustments"(
+  "store_id"
+);
+CREATE TABLE "inventory_counts"(
+  "id" integer primary key autoincrement not null,
+  "counted_on" date not null,
+  "status" varchar not null default('in_progress'),
+  "stock_frozen_at" datetime,
+  "started_by" integer,
+  "finalized_at" datetime,
+  "finalized_by" integer,
+  "abandoned_at" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "store_id" integer,
+  foreign key("finalized_by") references users("id") on delete set null on update no action,
+  foreign key("started_by") references users("id") on delete set null on update no action,
+  foreign key("store_id") references "stores"("id") on delete restrict
+);
+CREATE INDEX "inventory_counts_status_index" on "inventory_counts"("status");
+CREATE INDEX "inventory_counts_store_id_index" on "inventory_counts"(
+  "store_id"
+);
+CREATE TABLE "supplier_orders"(
+  "id" integer primary key autoincrement not null,
+  "number" varchar,
+  "type" varchar not null,
+  "supplier_id" integer not null,
+  "status" varchar not null default('draft'),
+  "notes" text,
+  "sent_at" datetime,
+  "received_at" datetime,
+  "created_by" integer,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "is_collect" tinyint(1) not null default('0'),
+  "shipping_supplier_id" integer,
+  "quote_number" varchar,
+  "last_emailed_at" datetime,
+  "is_drop_ship" tinyint(1) not null default('0'),
+  "drop_ship_name" varchar,
+  "drop_ship_address_civic" varchar,
+  "drop_ship_address_apartment" varchar,
+  "drop_ship_address_street" varchar,
+  "drop_ship_address_city" varchar,
+  "drop_ship_address_province" varchar,
+  "drop_ship_address_country" varchar,
+  "drop_ship_address_postal_code" varchar,
+  "store_id" integer,
+  foreign key("shipping_supplier_id") references suppliers("id") on delete set null on update no action,
+  foreign key("supplier_id") references suppliers("id") on delete restrict on update no action,
+  foreign key("created_by") references users("id") on delete set null on update no action,
+  foreign key("store_id") references "stores"("id") on delete restrict
+);
+CREATE UNIQUE INDEX "supplier_orders_number_unique" on "supplier_orders"(
+  "number"
+);
+CREATE INDEX "supplier_orders_type_status_index" on "supplier_orders"(
+  "type",
+  "status"
+);
+CREATE INDEX "supplier_orders_store_id_index" on "supplier_orders"("store_id");
+CREATE TABLE "receptions"(
+  "id" integer primary key autoincrement not null,
+  "number" varchar,
+  "supplier_id" integer not null,
+  "received_by" integer,
+  "received_at" datetime not null,
+  "reference" varchar,
+  "notes" text,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "status" varchar not null default('completed'),
+  "completed_at" datetime,
+  "store_id" integer,
+  foreign key("received_by") references users("id") on delete set null on update no action,
+  foreign key("supplier_id") references suppliers("id") on delete restrict on update no action,
+  foreign key("store_id") references "stores"("id") on delete restrict
+);
+CREATE UNIQUE INDEX "receptions_number_unique" on "receptions"("number");
+CREATE INDEX "receptions_store_id_index" on "receptions"("store_id");
+CREATE TABLE "ledger_entries"(
+  "id" integer primary key autoincrement not null,
+  "posted_on" date not null,
+  "description" varchar not null,
+  "reference_type" varchar,
+  "reference_id" integer,
+  "user_id" integer,
+  "created_at" datetime not null default(CURRENT_TIMESTAMP),
+  "store_id" integer,
+  foreign key("user_id") references users("id") on delete set null on update no action,
+  foreign key("store_id") references "stores"("id") on delete restrict
+);
+CREATE INDEX "ledger_entries_posted_on_index" on "ledger_entries"("posted_on");
+CREATE INDEX "ledger_entries_reference_type_reference_id_index" on "ledger_entries"(
+  "reference_type",
+  "reference_id"
+);
+CREATE UNIQUE INDEX "inventory_stocks_product_id_store_id_unique" on "inventory_stocks"(
+  "product_id",
+  "store_id"
+);
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -1496,3 +1525,4 @@ INSERT INTO migrations VALUES(194,'2026_10_24_193306_add_driver_tracking_to_cust
 INSERT INTO migrations VALUES(195,'2026_10_24_200559_add_signature_to_customer_order_deliveries',25);
 INSERT INTO migrations VALUES(196,'2026_10_24_203637_add_shipment_sending_to_customer_order_deliveries',26);
 INSERT INTO migrations VALUES(198,'2026_10_24_211857_create_inventory_locations_table',27);
+INSERT INTO migrations VALUES(200,'2026_10_24_214309_add_store_to_inventory',28);

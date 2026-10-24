@@ -43,7 +43,7 @@ function journaledLine(CustomerOrder $order, int $inStock, int $quantity): Custo
     $product = Product::factory()->create(['cost' => Money::parse(40)]);
 
     if ($inStock > 0) {
-        InventoryMovement::record($product, null, InventoryStatus::InStock, $inStock, InventoryMovementType::Adjustment);
+        InventoryMovement::record($product, $order->stockStoreId(), null, InventoryStatus::InStock, $inStock, InventoryMovementType::Adjustment);
     }
 
     $line = $order->addProduct($product, $quantity);
@@ -154,7 +154,7 @@ describe('chargement du camion', function () {
             ->status->toBe(DeliveryStatus::InTransit)
             ->departed_by->toBe($this->driver->id)
             ->and($deliveryLine->fresh()->loaded_from_status)->toBe(CustomerOrderLineStatus::InStock)
-            ->and($line->product->inventoryStock()->sole())
+            ->and($line->product->inventoryStocks()->sole())
             ->quantity_reserved->toBe(0)
             ->quantity_in_delivery->toBe(2);
 
@@ -221,7 +221,7 @@ describe('remise au client', function () {
             ->status->toBe(DeliveryStatus::Delivered)
             ->delivered_by->toBe($this->driver->id)
             ->and($this->order->fresh()->status)->toBe(CustomerOrderStatus::Delivered)
-            ->and($line->product->inventoryStock()->sole()->quantity_in_delivery)->toBe(0);
+            ->and($line->product->inventoryStocks()->sole()->quantity_in_delivery)->toBe(0);
 
         expectInventoryIntegrity($line->product);
     });

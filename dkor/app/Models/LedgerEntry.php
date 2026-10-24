@@ -22,6 +22,7 @@ use LogicException;
  * correction passe une écriture inverse. Seul post() crée une écriture.
  *
  * @property int $id
+ * @property int|null $store_id Magasin (ADR 0012).
  * @property Carbon $posted_on
  * @property string $description
  * @property string|null $reference_type
@@ -32,7 +33,7 @@ use LogicException;
  * @property-read User|null $user
  * @property-read Model|null $reference
  */
-#[Fillable(['posted_on', 'description', 'reference_type', 'reference_id', 'user_id'])]
+#[Fillable(['store_id', 'posted_on', 'description', 'reference_type', 'reference_id', 'user_id'])]
 class LedgerEntry extends Model
 {
     /** @use HasFactory<LedgerEntryFactory> */
@@ -51,13 +52,14 @@ class LedgerEntry extends Model
     }
 
     /**
-     * Passe une écriture équilibrée. Chaque ligne a un débit ou un crédit positif (pas les deux).
+     * Passe une écriture équilibrée. Chaque ligne a un débit ou un crédit positif (pas les deux). Une écriture
+     * d'inventaire porte son magasin (ADR 0012); les autres, tenues par le bureau chef, n'en ont pas.
      *
      * @param  list<array{account: LedgerAccount, debit?: Money, credit?: Money}>  $lines
      *
      * @throws DomainException si l'écriture est vide, déséquilibrée ou si une ligne est invalide.
      */
-    public static function post(string $description, array $lines, ?Model $reference = null, ?CarbonInterface $postedOn = null, int|string|null $userId = null): self
+    public static function post(string $description, array $lines, ?Model $reference = null, ?CarbonInterface $postedOn = null, int|string|null $userId = null, ?int $storeId = null): self
     {
         if (count($lines) < 2) {
             throw new DomainException(__('Une écriture a au moins deux lignes.'));
@@ -85,8 +87,9 @@ class LedgerEntry extends Model
             ]));
         }
 
-        return DB::transaction(function () use ($description, $lines, $reference, $postedOn, $userId): self {
+        return DB::transaction(function () use ($description, $lines, $reference, $postedOn, $userId, $storeId): self {
             $entry = static::create([
+                'store_id' => $storeId,
                 'posted_on' => $postedOn ?? today(),
                 'description' => $description,
                 'reference_type' => $reference?->getMorphClass(),
@@ -104,6 +107,12 @@ class LedgerEntry extends Model
 
             return $entry;
         });
+    }
+
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     /** @return HasMany<LedgerEntryLine, $this> */

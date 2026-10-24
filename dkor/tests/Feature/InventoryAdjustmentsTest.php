@@ -32,7 +32,7 @@ beforeEach(function () {
 
 function adjust(Product $product, InventoryAdjustmentReason $reason, InventoryStatus $status, bool $isEntry, int $quantity, string $note = 'Constaté au plancher'): InventoryAdjustment
 {
-    return app(AdjustInventory::class)->handle(auth()->user(), $product, $reason, $status, $isEntry, $quantity, $note);
+    return app(AdjustInventory::class)->handle(auth()->user(), $product, testStoreId(), $reason, $status, $isEntry, $quantity, $note);
 }
 
 /**
@@ -73,7 +73,7 @@ it('entre le stock initial au coût du produit : Stock / Solde d\'ouverture', fu
     expect($adjustment->movement->value)->toBeMoney(3600)
         ->and(InventoryUnit::inHand()->where('cost', 900)->count())->toBe(4)
         ->and(entryLines($adjustment->ledgerEntry))->toBe([['1300', 3600, 0], ['3900', 0, 3600]])
-        ->and($this->product->inventoryStock()->sole()->quantity_in_stock)->toBe(4);
+        ->and($this->product->inventoryStocks()->sole()->quantity_in_stock)->toBe(4);
 
     expectInventoryIntegrity($this->product);
 });
@@ -86,7 +86,7 @@ it('corrige un comptage dans les deux sens et sort l\'usage magasin', function (
     expect(entryLines($found->ledgerEntry))->toBe([['1300', 1800, 0], ['5120', 0, 1800]])
         ->and(entryLines($missing->ledgerEntry))->toBe([['5120', 900, 0], ['1300', 0, 900]])
         ->and(entryLines($used->ledgerEntry))->toBe([['5400', 900, 0], ['1300', 0, 900]])
-        ->and($this->product->inventoryStock()->sole()->quantity_in_demo)->toBe(0);
+        ->and($this->product->inventoryStocks()->sole()->quantity_in_demo)->toBe(0);
 
     expectInventoryIntegrity($this->product);
 });
@@ -129,7 +129,7 @@ it('ne laisse ni modifier ni supprimer un ajustement', function () {
 it('réserve les ajustements à la permission inventory.adjust', function () {
     $manager = User::factory()->withRole('manager')->create();
 
-    expect(fn () => app(AdjustInventory::class)->handle($manager, $this->product, InventoryAdjustmentReason::OpeningBalance, InventoryStatus::InStock, true, 1, 'Note'))
+    expect(fn () => app(AdjustInventory::class)->handle($manager, $this->product, testStoreId(), InventoryAdjustmentReason::OpeningBalance, InventoryStatus::InStock, true, 1, 'Note'))
         ->toThrow(AuthorizationException::class)
         ->and(InventoryAdjustment::count())->toBe(0);
 

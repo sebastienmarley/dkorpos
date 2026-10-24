@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Actions\QueuePriceChangeLabels;
 use App\Casts\MoneyCast;
+use App\Enums\InventoryStatus;
 use App\Rules\UniqueCleanProductModel;
 use App\Support\Money;
 use Database\Factories\ProductFactory;
@@ -15,7 +16,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Support\Carbon;
 
@@ -220,10 +220,30 @@ class Product extends Model
         return $this->hasMany(LabelRequest::class);
     }
 
-    /** @return HasOne<InventoryStock, $this> */
-    public function inventoryStock(): HasOne
+    /**
+     * Stock du produit, une ligne par magasin (ADR 0012).
+     *
+     * @return HasMany<InventoryStock, $this>
+     */
+    public function inventoryStocks(): HasMany
     {
-        return $this->hasOne(InventoryStock::class);
+        return $this->hasMany(InventoryStock::class);
+    }
+
+    /** Stock du produit dans un magasin, s'il en a déjà eu. */
+    public function stockAt(int $storeId): ?InventoryStock
+    {
+        return $this->relationLoaded('inventoryStocks')
+            ? $this->inventoryStocks->firstWhere('store_id', $storeId)
+            : $this->inventoryStocks()->where('store_id', $storeId)->first();
+    }
+
+    /** Quantité d'un état pour toute l'entreprise (somme des magasins). */
+    public function totalQuantity(InventoryStatus $status): int
+    {
+        return $this->relationLoaded('inventoryStocks')
+            ? (int) $this->inventoryStocks->sum(fn (InventoryStock $stock): int => $stock->quantityFor($status))
+            : (int) $this->inventoryStocks()->sum($status->column());
     }
 
     public function getSellingPriceAttribute(): Money

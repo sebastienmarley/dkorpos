@@ -40,7 +40,7 @@ function countLine(InventoryCount $count, Product $product, InventoryStatus $sta
 
 function transfer(Product $product, InventoryStatus $from, InventoryStatus $to, int $quantity): void
 {
-    InventoryMovement::record($product, $from, $to, $quantity, InventoryMovementType::Transfer);
+    InventoryMovement::record($product, testStoreId(), $from, $to, $quantity, InventoryMovementType::Transfer);
 }
 
 it('remet les perdus en stock au démarrage et crée une ligne par produit et par type de compte', function () {
@@ -48,9 +48,9 @@ it('remet les perdus en stock au démarrage et crée une ligne par produit et pa
     transfer($this->product, InventoryStatus::InStock, InventoryStatus::InDemo, 2);
     transfer($this->product, InventoryStatus::InStock, InventoryStatus::Lost, 1);
 
-    $count = InventoryCount::start(Carbon::parse('2026-12-31'), $this->owner);
+    $count = InventoryCount::start(Carbon::parse('2026-12-31'), $this->owner, testStoreId());
 
-    expect($this->product->inventoryStock()->sole())
+    expect($this->product->inventoryStocks()->sole())
         ->quantity_lost->toBe(0)
         ->quantity_in_stock->toBe(4)
         ->and(InventoryMovement::where('type', InventoryMovementType::CountLostReturned)->sole())
@@ -59,19 +59,19 @@ it('remet les perdus en stock au démarrage et crée une ligne par produit et pa
         ->and($count->lines()->get()->map(fn (InventoryCountLine $line): string => $line->status->value)->sort()->values()->all())
         ->toBe(['in_demo', 'in_stock'])
         ->and(countLine($count, $this->product, InventoryStatus::InStock)->expected())->toBe(4)
-        ->and(fn () => InventoryCount::start(today(), $this->owner))->toThrow(DomainException::class, 'déjà en cours');
+        ->and(fn () => InventoryCount::start(today(), $this->owner, testStoreId()))->toThrow(DomainException::class, 'déjà en cours');
 
     expectInventoryIntegrity($this->product);
 });
 
 it('gèle le stock et le perdu jusqu\'à la finalisation ou l\'abandon, sans geler les autres états', function () {
     receiveProduct($this->product, 3, 5);
-    $count = InventoryCount::start(today(), $this->owner);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
 
     transfer($this->product, InventoryStatus::InStock, InventoryStatus::Lost, 1);
     $count->freezeStock($this->owner);
 
-    expect($this->product->inventoryStock()->sole()->quantity_lost)->toBe(0)
+    expect($this->product->inventoryStocks()->sole()->quantity_lost)->toBe(0)
         ->and(fn () => transfer($this->product, InventoryStatus::InStock, InventoryStatus::InDemo, 1))->toThrow(DomainException::class, 'Le stock est gelé')
         ->and(fn () => $count->freezeStock($this->owner))->toThrow(DomainException::class);
 
@@ -81,7 +81,7 @@ it('gèle le stock et le perdu jusqu\'à la finalisation ou l\'abandon, sans gel
     transfer($this->product, InventoryStatus::InDemo, InventoryStatus::DefectiveStock, 1);
 
     expect($count->fresh()->status)->toBe(InventoryCountStatus::Abandoned)
-        ->and($this->product->inventoryStock()->sole())->quantity_in_stock->toBe(2)->quantity_defective_stock->toBe(1)
+        ->and($this->product->inventoryStocks()->sole())->quantity_in_stock->toBe(2)->quantity_defective_stock->toBe(1)
         ->and(fn () => $count->fresh()->update(['counted_on' => today()->subDay()]))->toThrow(LogicException::class);
 
     expectInventoryIntegrity($this->product);
@@ -90,7 +90,7 @@ it('gèle le stock et le perdu jusqu\'à la finalisation ou l\'abandon, sans gel
 it('ne compte le stock qu\'une fois gelé et refuse une quantité négative', function () {
     receiveProduct($this->product, 2, 5);
     transfer($this->product, InventoryStatus::InStock, InventoryStatus::InDemo, 1);
-    $count = InventoryCount::start(today(), $this->owner);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
 
     $stock = countLine($count, $this->product, InventoryStatus::InStock);
     $demo = countLine($count, $this->product, InventoryStatus::InDemo);
@@ -107,7 +107,7 @@ it('finalise : un manque devient une perte et un surplus une correction, à la d
     transfer($this->product, InventoryStatus::InStock, InventoryStatus::InDemo, 2);
     transfer($this->product, InventoryStatus::InStock, InventoryStatus::Lost, 1);
 
-    $count = InventoryCount::start(Carbon::parse('2026-12-31'), $this->owner);
+    $count = InventoryCount::start(Carbon::parse('2026-12-31'), $this->owner, testStoreId());
     $count->recordCount(countLine($count, $this->product, InventoryStatus::InDemo), 1, false, 'Démo vendue au plancher', $this->owner);
     $count->freezeStock($this->owner);
     $count->recordCount(countLine($count, $this->product, InventoryStatus::InStock), 5, false, null, $this->owner);
@@ -133,7 +133,7 @@ it('finalise : un manque devient une perte et un surplus une correction, à la d
         ->and($stock)->expected_quantity->toBe(4)
         ->and($stock->adjustment->reason)->toBe(InventoryAdjustmentReason::CountCorrection)
         ->and($lines($stock->adjustment->ledgerEntry))->toBe([['1300', 900, 0], ['5120', 0, 900]])
-        ->and($this->product->inventoryStock()->sole())->quantity_in_stock->toBe(5)->quantity_in_demo->toBe(1)
+        ->and($this->product->inventoryStocks()->sole())->quantity_in_stock->toBe(5)->quantity_in_demo->toBe(1)
         ->and(fn () => app(AnnualInventoryFinalUpdate::class)->handle($count->fresh(), $this->owner))->toThrow(DomainException::class);
 
     transfer($this->product, InventoryStatus::InStock, InventoryStatus::InDemo, 1);
@@ -144,7 +144,7 @@ it('finalise : un manque devient une perte et un surplus une correction, à la d
 it('refuse de finaliser sans gel, avec une ligne à compter ou un écart dans le stock client', function () {
     receiveProduct($this->product, 3, 5);
     CustomerOrder::factory()->create()->addProduct($this->product, 1);
-    $count = InventoryCount::start(today(), $this->owner);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
     $finalize = fn () => app(AnnualInventoryFinalUpdate::class)->handle($count->fresh(), $this->owner);
 
     expect($finalize)->toThrow(DomainException::class, 'Gelez et comptez le stock');
@@ -172,7 +172,7 @@ it('refuse de finaliser sans gel, avec une ligne à compter ou un écart dans le
 
 it('laisse compter avec inventory.count, mais réserve le démarrage, le gel et la finalisation à inventory.adjust', function () {
     receiveProduct($this->product, 1, 5);
-    $count = InventoryCount::start(today(), $this->owner);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
     $manager = User::factory()->withRole('manager')->create();
     $line = countLine($count, $this->product, InventoryStatus::InStock);
 

@@ -4,9 +4,11 @@ namespace App\Livewire\Inventory;
 
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
+use App\Enums\StoreType;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\ReceptionLine;
+use App\Models\Store;
 use App\Models\SupplierOrderLine;
 use DomainException;
 use Flux\Flux;
@@ -44,6 +46,9 @@ class Movements extends Component
 
     public string $note = '';
 
+    /** Magasin dont le stock change d'état (ADR 0012), par défaut celui de l'usager. */
+    public string $storeId = '';
+
     public function updatedProductFilter(): void
     {
         $this->resetPage();
@@ -69,6 +74,7 @@ class Movements extends Component
         $this->quantity = '1';
         $this->resetValidation();
         $this->showMove = true;
+        $this->storeId = (string) (Store::defaultIdFor(auth()->user()) ?? '');
     }
 
     public function selectProduct(int $productId): void
@@ -85,6 +91,7 @@ class Movements extends Component
         $movable = collect(InventoryStatus::cases())->filter->isManuallyMovable()->map->value->all();
 
         $this->validate([
+            'storeId' => ['required', 'integer', Rule::exists('stores', 'id')->where('type', StoreType::Physical->value)],
             'moveProductId' => ['required', 'integer', 'exists:products,id'],
             'fromStatus' => ['required', Rule::in($movable)],
             'toStatus' => ['required', Rule::in($movable), 'different:fromStatus'],
@@ -95,6 +102,7 @@ class Movements extends Component
         try {
             InventoryMovement::record(
                 (int) $this->moveProductId,
+                (int) $this->storeId,
                 InventoryStatus::from($this->fromStatus),
                 InventoryStatus::from($this->toStatus),
                 (int) $this->quantity,
@@ -146,7 +154,7 @@ class Movements extends Component
             ->latest('id')
             ->paginate(15);
 
-        $selectedProduct = $this->moveProductId ? Product::with('inventoryStock')->find($this->moveProductId) : null;
+        $selectedProduct = $this->moveProductId ? Product::with('inventoryStocks')->find($this->moveProductId) : null;
 
         return view('livewire.inventory.movements', [
             'movements' => $movements,
@@ -155,6 +163,7 @@ class Movements extends Component
             'types' => InventoryMovementType::cases(),
             'filteredProduct' => filled($this->productFilter) ? Product::find($this->productFilter) : null,
             'selectedProduct' => $selectedProduct,
+            'stores' => Store::query()->where('type', StoreType::Physical)->orderBy('name')->get(),
             'productResults' => $this->showMove && ! $this->moveProductId ? $this->searchProducts() : collect(),
         ])->layout('layouts.app', ['title' => __('Journal d\'inventaire')]);
     }

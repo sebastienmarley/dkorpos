@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-24 (176 migrations, 71 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-24 (177 migrations, 71 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 176 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
+les 177 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -83,7 +83,7 @@ erDiagram
     supplier_order_lines |o--o{ supplier_invoice_lines : ""
     supplier_invoices ||--o{ supplier_invoice_lines : ""
     reception_lines |o--o{ supplier_invoice_lines : ""
-    products ||--o| inventory_stocks : ""
+    products ||--o{ inventory_stocks : ""
     products ||--o{ inventory_movements : ""
     reception_lines |o--o{ inventory_units : ""
     products ||--o{ inventory_units : ""
@@ -490,6 +490,7 @@ erDiagram
     }
     supplier_orders {
         int id PK
+        int store_id FK "nullable"
         int shipping_supplier_id FK "nullable"
         int supplier_id FK
         int created_by FK "nullable"
@@ -535,6 +536,7 @@ erDiagram
     }
     receptions {
         int id PK
+        int store_id FK "nullable"
         int received_by FK "nullable"
         int supplier_id FK
         string number UK "nullable"
@@ -612,7 +614,11 @@ erDiagram
 
 ## Inventaire
 
-- `inventory_stocks` : quantités courantes par état, une seule ligne par produit (`UK`).
+- **Par magasin** ([ADR 0012](adr/0012-inventory-by-store.md)) : le stock, les unités, le journal, les ajustements et
+  les prises d'inventaire appartiennent à un magasin (`store_id`). Une commande fournisseur a son magasin de
+  destination, une réception le magasin qui reçoit, et une écriture d'inventaire son magasin (vide pour les
+  écritures du bureau chef). Une commande client est servie par le stock de l'entrepôt de son magasin.
+- `inventory_stocks` : quantités courantes par état, une ligne par produit et par magasin (`UK product_id, store_id`).
 - `inventory_movements` : journal en ajout seulement, qui ne se modifie ni ne se supprime. Sa source
   est une référence **polymorphe** (`reference_type`, `reference_id`), sans clé étrangère : elle ne
   paraît donc pas dans le diagramme.
@@ -647,7 +653,8 @@ erDiagram
 
 ```mermaid
 erDiagram
-    products ||--o| inventory_stocks : "product_id · cascade"
+    products ||--o{ inventory_stocks : "product_id · cascade"
+    stores |o--o{ inventory_stocks : "store_id · restrict"
     products ||--o{ inventory_movements : "product_id · restrict"
     users |o--o{ inventory_movements : "user_id · null"
     reception_lines |o--o{ inventory_units : "reception_line_id · null"
@@ -684,6 +691,7 @@ erDiagram
     users |o--o{ defective_products : "created_by · null"
     inventory_stocks {
         int id PK
+        int store_id FK "nullable"
         int product_id FK, UK
         int quantity_in_stock
         int quantity_on_order
@@ -699,6 +707,7 @@ erDiagram
     }
     inventory_movements {
         int id PK
+        int store_id FK "nullable"
         int product_id FK
         int user_id FK "nullable"
         string from_status "InventoryStatus · nullable"
@@ -713,6 +722,7 @@ erDiagram
     }
     inventory_units {
         int id PK
+        int store_id FK "nullable"
         int reception_line_id FK "nullable"
         int product_id FK
         int exit_movement_id FK "nullable"
@@ -724,6 +734,7 @@ erDiagram
     }
     inventory_adjustments {
         int id PK
+        int store_id FK "nullable"
         int product_id FK
         int user_id FK "nullable"
         string reason "InventoryAdjustmentReason"
@@ -735,6 +746,7 @@ erDiagram
     }
     inventory_counts {
         int id PK
+        int store_id FK "nullable"
         int started_by FK "nullable"
         int finalized_by FK "nullable"
         date counted_on
@@ -874,6 +886,7 @@ erDiagram
     }
     ledger_entries {
         int id PK
+        int store_id FK "nullable"
         int user_id FK "nullable"
         date posted_on
         string description

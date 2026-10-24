@@ -697,7 +697,7 @@ it('permet une nouvelle commande en brouillon une fois la précédente en attent
         ->assertHasNoErrors();
 
     expect(SupplierOrder::where('supplier_id', $order->supplier_id)->count())->toBe(2)
-        ->and(SupplierOrder::hasDraftFor($order->supplier_id))->toBeTrue();
+        ->and(SupplierOrder::hasDraftFor($order->supplier_id, $order->store_id))->toBeTrue();
 });
 
 it('met en attente un brouillon avec lignes, sans toucher à l\'inventaire', function () {
@@ -725,7 +725,7 @@ it('envoie un brouillon directement sans le mettre en attente', function () {
 
     expect($order->fresh())->status->toBe(SupplierOrderStatus::Sent)->sent_at->not->toBeNull()
         ->and(InventoryStock::where('product_id', $product->id)->first()->quantity_on_order)->toBe(4)
-        ->and(SupplierOrder::hasDraftFor($order->supplier_id))->toBeFalse();
+        ->and(SupplierOrder::hasDraftFor($order->supplier_id, $order->store_id))->toBeFalse();
 });
 
 it('envoie directement un brouillon de services et refuse une commande déjà envoyée', function () {
@@ -1260,14 +1260,14 @@ it('ne réapplique pas l\'envoi ni une modification de ligne depuis une instance
     $order->send();
 
     expect(fn () => $staleOrder->send())->toThrow(DomainException::class)
-        ->and($product->inventoryStock()->sole()->quantity_on_order)->toBe(10);
+        ->and($product->inventoryStocks()->sole()->quantity_on_order)->toBe(10);
 
     $staleLine = SupplierOrderLine::findOrFail($line->id);
     $order->fresh()->updateLine($line->fresh(), 12, Money::parse(5));
     SupplierOrder::findOrFail($order->id)->updateLine($staleLine, 12, Money::parse(5));
 
     expect($line->fresh()->quantity)->toBe(12)
-        ->and($product->inventoryStock()->sole()->quantity_on_order)->toBe(12);
+        ->and($product->inventoryStocks()->sole()->quantity_on_order)->toBe(12);
 
     expectInventoryIntegrity($product);
 });

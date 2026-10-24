@@ -39,7 +39,7 @@ it('reprend l\'article en stock lors d\'un échange et garde le payé au crédit
         ->amount_paid->toBeMoney(11498)
         ->balance_due->toBeMoney(-11498)
         ->and($order->payments()->count())->toBe(1)
-        ->and($line->product->inventoryStock()->sole()->quantity_in_stock)->toBe(1)
+        ->and($line->product->inventoryStocks()->sole()->quantity_in_stock)->toBe(1)
         ->and(InventoryUnit::where('product_id', $line->product_id)->whereNull('delivered_at')->count())->toBe(1)
         ->and(InventoryMovement::where('type', InventoryMovementType::CustomerReturn)->sole()->quantity)->toBe(1);
 });
@@ -68,7 +68,7 @@ it('rembourse un article retourné', function () {
         ->and($order)->amount_paid->toBeMoney(0)->balance_due->toBeMoney(0)
         ->and($order->payments()->orderBy('id')->pluck('amount')->map->cents()->all())->toBe([11498, -11498])
         ->and($order->payments()->orderByDesc('id')->first()->type)->toBe(CustomerPaymentType::Refund)
-        ->and($line->product->inventoryStock()->sole()->quantity_in_stock)->toBe(1);
+        ->and($line->product->inventoryStocks()->sole()->quantity_in_stock)->toBe(1);
 });
 
 it('sépare la ligne retournée en partie', function () {
@@ -91,7 +91,7 @@ it('refuse un remboursement supérieur au montant remboursable', function () {
         ->toThrow(DomainException::class);
 
     expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::PickedUp)
-        ->and($line->product->inventoryStock()->sole()->quantity_in_stock)->toBe(0);
+        ->and($line->product->inventoryStocks()->sole()->quantity_in_stock)->toBe(0);
 });
 
 it('refuse le retour d\'un article qui n\'a pas été remis au client', function () {

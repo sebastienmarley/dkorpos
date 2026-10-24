@@ -31,6 +31,7 @@ use Throwable;
 
 /**
  * @property int $id
+ * @property int|null $store_id Magasin (ADR 0012).
  * @property string|null $number
  * @property string|null $quote_number
  * @property SupplierType $type
@@ -60,7 +61,7 @@ use Throwable;
  * @property-read Collection<int, SupplierOrderLine> $lines
  * @property-read Money $total
  */
-#[Fillable(['number', 'quote_number', 'type', 'supplier_id', 'status', 'is_collect', 'shipping_supplier_id', 'is_drop_ship', 'drop_ship_name', 'drop_ship_address_civic', 'drop_ship_address_apartment', 'drop_ship_address_street', 'drop_ship_address_city', 'drop_ship_address_province', 'drop_ship_address_country', 'drop_ship_address_postal_code', 'notes', 'sent_at', 'last_emailed_at', 'received_at', 'created_by'])]
+#[Fillable(['store_id', 'number', 'quote_number', 'type', 'supplier_id', 'status', 'is_collect', 'shipping_supplier_id', 'is_drop_ship', 'drop_ship_name', 'drop_ship_address_civic', 'drop_ship_address_apartment', 'drop_ship_address_street', 'drop_ship_address_city', 'drop_ship_address_province', 'drop_ship_address_country', 'drop_ship_address_postal_code', 'notes', 'sent_at', 'last_emailed_at', 'received_at', 'created_by'])]
 class SupplierOrder extends Model
 {
     /** @use HasFactory<SupplierOrderFactory> */
@@ -85,6 +86,7 @@ class SupplierOrder extends Model
     protected static function booted(): void
     {
         static::creating(function (SupplierOrder $order): void {
+            $order->store_id ??= Store::defaultIdFor(auth()->user());
             $supplier = Supplier::find($order->supplier_id);
 
             if ($supplier?->collect && $order->type === SupplierType::Product) {
@@ -94,8 +96,8 @@ class SupplierOrder extends Model
 
             $isDraft = ($order->status ?? SupplierOrderStatus::Draft) === SupplierOrderStatus::Draft;
 
-            if ($isDraft && static::hasDraftFor($order->supplier_id)) {
-                throw new DomainException(__('Une commande en brouillon existe déjà pour ce fournisseur.'));
+            if ($isDraft && static::hasDraftFor($order->supplier_id, $order->store_id)) {
+                throw new DomainException(__('Une commande en brouillon existe déjà pour ce fournisseur et ce magasin.'));
             }
         });
 
@@ -105,6 +107,12 @@ class SupplierOrder extends Model
                 $order->saveQuietly();
             }
         });
+    }
+
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     /** @return BelongsTo<Supplier, $this> */
@@ -163,10 +171,12 @@ class SupplierOrder extends Model
     /**
      * Un fournisseur n'a jamais plus d'une commande en brouillon à la fois.
      */
-    public static function hasDraftFor(int|string|null $supplierId): bool
+    /** Un fournisseur a au plus un brouillon par magasin de destination (ADR 0012). */
+    public static function hasDraftFor(int|string|null $supplierId, ?int $storeId): bool
     {
         return static::query()
             ->where('supplier_id', $supplierId)
+            ->where('store_id', $storeId)
             ->where('status', SupplierOrderStatus::Draft)
             ->exists();
     }
@@ -916,7 +926,7 @@ class SupplierOrder extends Model
             return;
         }
 
-        InventoryMovement::record($line->product_id, $from, $to, $quantity, $type, $reference ?? $line, $note, unitCost: $unitCost);
+        InventoryMovement::record($line->product_id, (int) $this->store_id, $from, $to, $quantity, $type, $reference ?? $line, $note, unitCost: $unitCost);
     }
 
     private function guardStatus(SupplierOrderStatus $expected, string $message): void

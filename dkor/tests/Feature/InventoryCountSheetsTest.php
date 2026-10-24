@@ -63,7 +63,8 @@ function countSheet(InventoryCountSheet $sheet, User $counter, array $scans = []
 }
 
 it('gère les zones permanentes et prépare les feuilles A et B des types et des zones actives', function () {
-    $store = Store::factory()->create(['name' => 'Rimouski']);
+    $store = Store::findOrFail(testStoreId());
+    $store->update(['name' => 'Rimouski']);
 
     Livewire::test(Locations::class, ['store' => $store])
         ->call('openZone')
@@ -77,7 +78,7 @@ it('gère les zones permanentes et prépare les feuilles A et B des types et des
         ->call('saveZone')
         ->call('toggleZone', InventoryZone::where('name', 'Mezzanine')->sole()->id);
 
-    $count = InventoryCount::start(today(), $this->owner);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
     $count->prepareSheets();
     $count->prepareSheets();
 
@@ -89,7 +90,7 @@ it('gère les zones permanentes et prépare les feuilles A et B des types et des
 });
 
 it('fait compter chaque portée par deux personnes différentes', function () {
-    $count = InventoryCount::start(today(), $this->owner);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
     $count->prepareSheets();
     $a = sheetOf($count, InventoryStatus::InDemo, null, InventoryCountPass::A);
     $b = sheetOf($count, InventoryStatus::InDemo, null, InventoryCountPass::B);
@@ -106,8 +107,8 @@ it('fait compter chaque portée par deux personnes différentes', function () {
 });
 
 it('lit les codes à la douchette, annule, corrige et consigne les codes inconnus', function () {
-    $zone = InventoryZone::factory()->create();
-    $count = InventoryCount::start(today(), $this->owner);
+    $zone = InventoryZone::factory()->create(['store_id' => testStoreId()]);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
     $count->prepareSheets();
     $demo = sheetOf($count, InventoryStatus::InDemo, null, InventoryCountPass::A);
     $stock = sheetOf($count, InventoryStatus::InStock, $zone, InventoryCountPass::A);
@@ -141,7 +142,7 @@ it('lit les codes à la douchette, annule, corrige et consigne les codes inconnu
 });
 
 it('associe un code inconnu à un produit, par un superviseur seulement', function () {
-    $count = InventoryCount::start(today(), $this->owner);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
     $count->prepareSheets();
     $demo = sheetOf($count, InventoryStatus::InDemo, null, InventoryCountPass::A);
     $count->assignSheet($demo, $this->counterA);
@@ -163,12 +164,13 @@ it('associe un code inconnu à un produit, par un superviseur seulement', functi
 
 it('compare, recompte les désaccords, réconcilie et alimente les lignes de la prise', function () {
     receiveProduct($this->product, 10, 5);
-    InventoryMovement::record($this->product, InventoryStatus::InStock, InventoryStatus::InDemo, 2, InventoryMovementType::Transfer);
-    $store = Store::factory()->create(['name' => 'Rimouski']);
+    InventoryMovement::record($this->product, testStoreId(), InventoryStatus::InStock, InventoryStatus::InDemo, 2, InventoryMovementType::Transfer);
+    $store = Store::findOrFail(testStoreId());
+    $store->update(['name' => 'Rimouski']);
     $zone1 = InventoryZone::factory()->create(['store_id' => $store->id, 'name' => 'Allée 1', 'sort_order' => 1]);
     $zone2 = InventoryZone::factory()->create(['store_id' => $store->id, 'name' => 'Allée 2', 'sort_order' => 2]);
 
-    $count = InventoryCount::start(today(), $this->owner);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
     $count->prepareSheets();
     $count->freezeStock($this->owner);
 
@@ -223,15 +225,15 @@ it('compare, recompte les désaccords, réconcilie et alimente les lignes de la 
         ->and($stockLine->fresh()->adjustment)
         ->reason->toBe(InventoryAdjustmentReason::AnnualCountLoss)
         ->quantity->toBe(1)
-        ->and($this->product->inventoryStock()->sole()->quantity_in_stock)->toBe(7);
+        ->and($this->product->inventoryStocks()->sole()->quantity_in_stock)->toBe(7);
 
     expectInventoryIntegrity($this->product);
 });
 
 it('retient le recompte qui ne concorde ni avec A ni avec B seulement sur décision du superviseur', function () {
     receiveProduct($this->product, 5, 5);
-    InventoryMovement::record($this->product, InventoryStatus::InStock, InventoryStatus::InDemo, 5, InventoryMovementType::Transfer);
-    $count = InventoryCount::start(today(), $this->owner);
+    InventoryMovement::record($this->product, testStoreId(), InventoryStatus::InStock, InventoryStatus::InDemo, 5, InventoryMovementType::Transfer);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
     $count->prepareSheets();
 
     countSheet(sheetOf($count, InventoryStatus::InDemo, null, InventoryCountPass::A), $this->counterA, ['111' => 3]);
@@ -247,7 +249,7 @@ it('retient le recompte qui ne concorde ni avec A ni avec B seulement sur décis
 });
 
 it('montre à chaque compteur ses feuilles et le fait compter sur la page mobile', function () {
-    $count = InventoryCount::start(today(), $this->owner);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
     $count->prepareSheets();
     $demo = sheetOf($count, InventoryStatus::InDemo, null, InventoryCountPass::A);
     $count->assignSheet($demo, $this->counterA);
@@ -281,7 +283,7 @@ it('montre à chaque compteur ses feuilles et le fait compter sur la page mobile
 });
 
 it('réserve la supervision des feuilles à inventory.supervise et y attribue les comptes', function () {
-    $count = InventoryCount::start(today(), $this->owner);
+    $count = InventoryCount::start(today(), $this->owner, testStoreId());
     $manager = User::factory()->withRole('manager')->create();
 
     $this->actingAs($this->counterA)->get(route('inventory.counts.sheets', $count))->assertForbidden();

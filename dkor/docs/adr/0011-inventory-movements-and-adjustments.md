@@ -1,6 +1,6 @@
 # ADR 0011 — Mouvements d'inventaire, unités FIFO et ajustements
 
-- **Statut :** Proposé
+- **Statut :** Proposé — remplacé en partie par [ADR 0012](0012-inventory-by-store.md) (stock par magasin)
 - **Date :** 2026-10-18
 - **Issue liée :** #52 (englobe #56 et #57)
 

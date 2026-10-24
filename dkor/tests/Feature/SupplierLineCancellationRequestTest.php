@@ -196,7 +196,7 @@ describe('annulation avec frais', function () {
         $supplierOrder->fresh()->rejectLineCancellation($supplierLine->fresh());
         $supplierOrder->fresh()->receive([$supplierLine->id => ['quantity' => 2, 'unit_cost' => 5]]);
 
-        expect($line->product->inventoryStock()->sole())
+        expect($line->product->inventoryStocks()->sole())
             ->quantity_in_stock->toBe(2)
             ->quantity_reserved->toBe(0)
             ->and($line->fresh()->status)->toBe(CustomerOrderLineStatus::Cancelled);

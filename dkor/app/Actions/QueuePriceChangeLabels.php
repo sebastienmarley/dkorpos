@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\InventoryStatus;
 use App\Enums\LabelReason;
 use App\Models\LabelRequest;
 use App\Models\Product;
@@ -38,7 +39,7 @@ class QueuePriceChangeLabels
      */
     public static function reasonFor(Product $product): ?LabelReason
     {
-        if (($product->inventoryStock->quantity_in_demo ?? 0) < 1) {
+        if ($product->totalQuantity(InventoryStatus::InDemo) < 1) {
             return null;
         }
 
@@ -56,9 +57,9 @@ class QueuePriceChangeLabels
     {
         $products
             ->where(fn (Builder $query) => $query
-                ->whereHas('inventoryStock', fn (Builder $stock) => $stock->where('quantity_in_demo', '>', 0))
+                ->whereHas('inventoryStocks', fn (Builder $stock) => $stock->where('quantity_in_demo', '>', 0))
                 ->orWhereHas('labelRequests', fn (Builder $request) => $request->pending()->whereIn('reason', LabelReason::automatic())))
-            ->with(['supplier', 'inventoryStock'])
+            ->with(['supplier', 'inventoryStocks'])
             ->chunkById(200, function (Collection $chunk): void {
                 $pending = LabelRequest::query()
                     ->pending()
@@ -83,7 +84,7 @@ class QueuePriceChangeLabels
             return;
         }
 
-        $quantity = $product->inventoryStock->quantity_in_demo;
+        $quantity = $product->totalQuantity(InventoryStatus::InDemo);
 
         if ($pending !== null && $pending->reason === $reason) {
             $pending->update(['quantity' => $quantity]);

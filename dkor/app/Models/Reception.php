@@ -22,6 +22,7 @@ use Throwable;
 
 /**
  * @property int $id
+ * @property int|null $store_id Magasin (ADR 0012).
  * @property string|null $number
  * @property int $supplier_id
  * @property ReceptionStatus $status
@@ -37,7 +38,7 @@ use Throwable;
  * @property-read Collection<int, ReceptionLine> $lines
  * @property-read Money $total
  */
-#[Fillable(['number', 'supplier_id', 'status', 'received_by', 'received_at', 'completed_at', 'reference', 'notes'])]
+#[Fillable(['store_id', 'number', 'supplier_id', 'status', 'received_by', 'received_at', 'completed_at', 'reference', 'notes'])]
 class Reception extends Model
 {
     /** @use HasFactory<ReceptionFactory> */
@@ -57,6 +58,12 @@ class Reception extends Model
                 $reception->saveQuietly();
             }
         });
+    }
+
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     /** @return BelongsTo<Supplier, $this> */
@@ -138,7 +145,21 @@ class Reception extends Model
                 }
             }
 
+            $storeIds = $lines->map(fn (SupplierOrderLine $line): ?int => $line->order->store_id)->unique()->values();
+
+            if ($storeIds->count() > 1) {
+                throw new DomainException(__('Une réception ne couvre que les commandes d\'un seul magasin.'));
+            }
+
+            $storeId = $storeIds->first();
+            $receiverStoreId = isset($details['received_by']) ? User::query()->whereKey($details['received_by'])->value('store_id') : null;
+
+            if ($receiverStoreId !== null && $receiverStoreId !== $storeId) {
+                throw new DomainException(__('Cette commande est destinée à un autre magasin : vous ne pouvez pas la recevoir.'));
+            }
+
             $reception = static::create([
+                'store_id' => $storeId,
                 'supplier_id' => $supplier->id,
                 'status' => ReceptionStatus::InProgress,
                 'received_by' => $details['received_by'] ?? null,

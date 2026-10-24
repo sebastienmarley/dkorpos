@@ -505,7 +505,7 @@ it('ne réapplique ni n\'abandonne une réception terminée depuis une instance 
         ->and(Reception::find($reception->id))->not->toBeNull()
         ->and($line->fresh()->quantity_received)->toBe(4)
         ->and(InventoryUnit::count())->toBe(4)
-        ->and($line->product->inventoryStock()->sole()->quantity_in_stock)->toBe(4);
+        ->and($line->product->inventoryStocks()->sole()->quantity_in_stock)->toBe(4);
 
     expectInventoryIntegrity($line->product);
 });

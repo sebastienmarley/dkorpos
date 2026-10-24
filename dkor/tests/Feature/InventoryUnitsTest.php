@@ -95,7 +95,7 @@ it('crée les unités des articles endommagés et supprime celles d\'une récept
     $order->fresh()->send();
     $receptionLine = Reception::record($order->supplier, [$line->id => ['quantity' => 4, 'damaged' => 1]])->lines()->sole();
 
-    InventoryMovement::record($this->product, InventoryStatus::InStock, InventoryStatus::Lost, 1, InventoryMovementType::Transfer);
+    InventoryMovement::record($this->product, testStoreId(), InventoryStatus::InStock, InventoryStatus::Lost, 1, InventoryMovementType::Transfer);
 
     expect(InventoryUnit::inHand()->count())->toBe(4)
         ->and(InventoryMovement::where('type', InventoryMovementType::Transfer)->sole()->value)->toBeNull();
@@ -114,8 +114,8 @@ it('valorise au coût du produit le stock sans unité et une entrée sans coût'
         'quantity_reserved' => 0, 'quantity_customer_order' => 0,
     ]);
 
-    $exit = InventoryMovement::record($this->product, InventoryStatus::InStock, null, 2, InventoryMovementType::CustomerPickup);
-    $entry = InventoryMovement::record($this->product, null, InventoryStatus::InDemo, 1, InventoryMovementType::CustomerReturn);
+    $exit = InventoryMovement::record($this->product, testStoreId(), InventoryStatus::InStock, null, 2, InventoryMovementType::CustomerPickup);
+    $entry = InventoryMovement::record($this->product, testStoreId(), null, InventoryStatus::InDemo, 1, InventoryMovementType::CustomerReturn);
 
     expect($exit->value)->toBeMoney(1800)
         ->and($entry->value)->toBeMoney(900)

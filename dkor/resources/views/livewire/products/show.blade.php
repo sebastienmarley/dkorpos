@@ -53,6 +53,13 @@
 
             <button
                 type="button"
+                @click="tab = 'inventory'"
+                :class="tab === 'inventory' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
+                class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+            >{{ __('Inventaire') }}</button>
+
+            <button
+                type="button"
                 @click="tab = 'photos'"
                 :class="tab === 'photos' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                 class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
@@ -310,6 +317,44 @@
         @endcan
 
         {{-- Photos --}}
+        {{-- Inventaire par magasin (ADR 0012) --}}
+        <div x-show="tab === 'inventory'" x-cloak class="mt-6">
+            @php($stockStatuses = [\App\Enums\InventoryStatus::InStock, \App\Enums\InventoryStatus::InDemo, \App\Enums\InventoryStatus::ReservedCustomer, \App\Enums\InventoryStatus::InDelivery, \App\Enums\InventoryStatus::DefectiveStock, \App\Enums\InventoryStatus::Lost, \App\Enums\InventoryStatus::OnOrder])
+            @php($stocks = $product->inventoryStocks()->with('store')->get()->sortBy(fn ($stock) => $stock->store?->name))
+            <div class="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <flux:table>
+                    <flux:table.columns>
+                        <flux:table.column>{{ __('Magasin') }}</flux:table.column>
+                        @foreach ($stockStatuses as $stockStatus)
+                            <flux:table.column align="end">{{ $stockStatus->label() }}</flux:table.column>
+                        @endforeach
+                    </flux:table.columns>
+                    <flux:table.rows>
+                        @forelse ($stocks as $stock)
+                            <flux:table.row :key="'stock-'.$stock->id">
+                                <flux:table.cell variant="strong">{{ $stock->store?->name ?? '—' }}</flux:table.cell>
+                                @foreach ($stockStatuses as $stockStatus)
+                                    <flux:table.cell align="end">{{ $stock->quantityFor($stockStatus) }}</flux:table.cell>
+                                @endforeach
+                            </flux:table.row>
+                        @empty
+                            <flux:table.row>
+                                <flux:table.cell :colspan="count($stockStatuses) + 1" class="py-6 text-center text-zinc-400">{{ __('Aucun stock dans les magasins.') }}</flux:table.cell>
+                            </flux:table.row>
+                        @endforelse
+                        @if ($stocks->count() > 1)
+                            <flux:table.row>
+                                <flux:table.cell variant="strong">{{ __('Total de l\'entreprise') }}</flux:table.cell>
+                                @foreach ($stockStatuses as $stockStatus)
+                                    <flux:table.cell align="end" class="font-semibold">{{ $stocks->sum(fn ($stock) => $stock->quantityFor($stockStatus)) }}</flux:table.cell>
+                                @endforeach
+                            </flux:table.row>
+                        @endif
+                    </flux:table.rows>
+                </flux:table>
+            </div>
+        </div>
+
         <div x-show="tab === 'photos'" x-cloak>
             <div class="mt-6 max-w-2xl">
                 <div class="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 py-16 dark:border-zinc-600 dark:bg-zinc-800/50">

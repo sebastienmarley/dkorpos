@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * égalent la somme des états valorisés; seul InventoryMovement::record() les crée, les sort ou les rouvre.
  *
  * @property int $id
+ * @property int|null $store_id Magasin (ADR 0012).
  * @property int $product_id
  * @property int|null $reception_line_id
  * @property Money $cost
@@ -28,7 +29,7 @@ use Illuminate\Support\Carbon;
  * @property-read Product $product
  * @property-read InventoryMovement|null $exitMovement
  */
-#[Fillable(['product_id', 'reception_line_id', 'cost', 'inserted_at', 'delivered_at', 'exit_movement_id'])]
+#[Fillable(['store_id', 'product_id', 'reception_line_id', 'cost', 'inserted_at', 'delivered_at', 'exit_movement_id'])]
 class InventoryUnit extends Model
 {
     /** @use HasFactory<InventoryUnitFactory> */
@@ -39,6 +40,12 @@ class InventoryUnit extends Model
         'inserted_at' => 'date',
         'delivered_at' => 'date',
     ];
+
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
+    }
 
     /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo

@@ -4,6 +4,7 @@ namespace App\Livewire\Orders;
 
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
+use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\SupplierOrder;
 use Illuminate\Contracts\View\View;
@@ -73,7 +74,7 @@ class Index extends Component
             ],
         ]);
 
-        if (SupplierOrder::hasDraftFor($this->newSupplierId)) {
+        if (SupplierOrder::hasDraftFor($this->newSupplierId, Store::defaultIdFor(auth()->user()))) {
             $this->addError('newSupplierId', __('Une commande en brouillon existe déjà pour ce fournisseur.'));
 
             return;

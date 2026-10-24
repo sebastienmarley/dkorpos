@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Enums\InventoryStatus;
 use App\Enums\LabelReason;
 use App\Models\LabelRequest;
 use App\Models\Product;
@@ -27,8 +28,8 @@ class LabelQueueForm extends Component
         $this->authorize('labels.create');
 
         $this->resetErrorBag();
-        $this->product = Product::with('inventoryStock')->findOrFail($productId);
-        $this->quantity = max(1, $this->product->inventoryStock->quantity_in_demo ?? 1);
+        $this->product = Product::with('inventoryStocks')->findOrFail($productId);
+        $this->quantity = max(1, $this->product->totalQuantity(InventoryStatus::InDemo));
         $this->showModal = true;
     }
 

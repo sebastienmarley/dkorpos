@@ -5,8 +5,10 @@ namespace App\Livewire\Inventory;
 use App\Actions\AdjustInventory;
 use App\Enums\InventoryAdjustmentReason;
 use App\Enums\InventoryStatus;
+use App\Enums\StoreType;
 use App\Models\InventoryAdjustment;
 use App\Models\Product;
+use App\Models\Store;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -39,6 +41,9 @@ class Adjustments extends Component
 
     public string $note = '';
 
+    /** Magasin dont le stock est ajusté (ADR 0012), par défaut celui de l'usager. */
+    public string $storeId = '';
+
     public function mount(): void
     {
         $this->authorize('inventory.adjust');
@@ -55,6 +60,7 @@ class Adjustments extends Component
         $this->quantity = '1';
         $this->resetValidation();
         $this->showAdjust = true;
+        $this->storeId = (string) (Store::defaultIdFor(auth()->user()) ?? '');
     }
 
     public function selectProduct(int $productId): void
@@ -97,12 +103,14 @@ class Adjustments extends Component
             'status' => ['required', Rule::enum(InventoryStatus::class)],
             'quantity' => ['required', 'integer', 'min:1', 'max:99999'],
             'note' => ['required', 'string', 'max:255'],
+            'storeId' => ['required', 'integer', Rule::exists('stores', 'id')->where('type', StoreType::Physical->value)],
         ]);
 
         try {
             $adjustInventory->handle(
                 auth()->user(),
                 Product::findOrFail($this->adjustProductId),
+                (int) $this->storeId,
                 InventoryAdjustmentReason::from($this->reason),
                 InventoryStatus::from($this->status),
                 $this->direction === 'entry',
@@ -146,7 +154,8 @@ class Adjustments extends Component
             'reasons' => collect(InventoryAdjustmentReason::cases())->filter->isManual()->values(),
             'selectedReason' => $reason,
             'reasonStatuses' => $reason->statuses(),
-            'selectedProduct' => $this->adjustProductId ? Product::with('inventoryStock')->find($this->adjustProductId) : null,
+            'selectedProduct' => $this->adjustProductId ? Product::with('inventoryStocks')->find($this->adjustProductId) : null,
+            'stores' => Store::query()->where('type', StoreType::Physical)->orderBy('name')->get(),
             'productResults' => $this->showAdjust && ! $this->adjustProductId ? $this->searchProducts() : collect(),
         ])->layout('layouts.app', ['title' => __('Ajustements d\'inventaire')]);
     }

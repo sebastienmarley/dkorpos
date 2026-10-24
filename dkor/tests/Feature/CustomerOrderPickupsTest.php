@@ -64,7 +64,7 @@ it('ramasse une ligne complète, sort les unités de l\'inventaire et encaisse l
         ->status->toBe(CustomerOrderStatus::PickedUp)
         ->amount_paid->toBeMoney(22995)
         ->balance_due->toBeMoney(0)
-        ->and($line->product->inventoryStock()->sole())
+        ->and($line->product->inventoryStocks()->sole())
         ->quantity_in_stock->toBe(0)
         ->quantity_reserved->toBe(0)
         ->and(InventoryUnit::whereNull('delivered_at')->count())->toBe(0)
@@ -110,7 +110,7 @@ it('refuse un paiement insuffisant sans rien changer', function () {
     expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::InStock)
         ->and($this->order->payments()->count())->toBe(0)
         ->and($this->order->pickups()->count())->toBe(0)
-        ->and($line->product->inventoryStock()->sole()->quantity_reserved)->toBe(1);
+        ->and($line->product->inventoryStocks()->sole()->quantity_reserved)->toBe(1);
 });
 
 it('refuse un paiement qui dépasse le solde', function () {

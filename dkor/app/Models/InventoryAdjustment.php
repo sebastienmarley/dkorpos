@@ -19,6 +19,7 @@ use LogicException;
  * modifie ni ne se supprime : une erreur se corrige par l'ajustement inverse.
  *
  * @property int $id
+ * @property int|null $store_id Magasin (ADR 0012).
  * @property int $product_id
  * @property InventoryAdjustmentReason $reason
  * @property InventoryStatus $status
@@ -32,7 +33,7 @@ use LogicException;
  * @property-read InventoryMovement|null $movement
  * @property-read LedgerEntry|null $ledgerEntry
  */
-#[Fillable(['product_id', 'reason', 'status', 'is_entry', 'quantity', 'note', 'user_id'])]
+#[Fillable(['store_id', 'product_id', 'reason', 'status', 'is_entry', 'quantity', 'note', 'user_id'])]
 class InventoryAdjustment extends Model
 {
     /** @use HasFactory<InventoryAdjustmentFactory> */
@@ -51,6 +52,12 @@ class InventoryAdjustment extends Model
     {
         static::updating(fn () => throw new LogicException('Un ajustement d\'inventaire ne se modifie pas.'));
         static::deleting(fn () => throw new LogicException('Un ajustement d\'inventaire ne se supprime pas.'));
+    }
+
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     /** @return BelongsTo<Product, $this> */
