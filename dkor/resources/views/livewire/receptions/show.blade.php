@@ -138,6 +138,28 @@
         </flux:table>
     </div>
 
+    @if (! $inProgress)
+        @php($customerLines = $reception->lines->map(fn ($line) => $line->orderLine->customerOrderLine)->filter(fn ($customerLine) => $customerLine !== null && ! $customerLine->isService() && $customerLine->quantity_reserved > 0)->unique('id'))
+        @if ($customerLines->isNotEmpty())
+            @can('receptions.create')
+                <div class="mt-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                    <flux:heading size="lg">{{ __('Ranger les articles réservés aux clients') }}</flux:heading>
+                    <flux:text class="mt-1 text-sm text-zinc-500">{{ __('Notez où chaque article est rangé : le livreur, l\'entrepôt ou le vendeur sauront où le chercher.') }}</flux:text>
+                    <div class="mt-4 space-y-4">
+                        @foreach ($customerLines as $customerLine)
+                            <div wire:key="place-{{ $customerLine->id }}" class="border-t border-zinc-100 pt-3 first:border-0 first:pt-0 dark:border-zinc-800">
+                                <div class="mb-2 text-sm font-medium">
+                                    {{ __(':label — commande #:order (:customer), :count réservé(s)', ['label' => $customerLine->label, 'order' => $customerLine->customer_order_id, 'customer' => $customerLine->order->customer->lastname, 'count' => $customerLine->quantity_reserved]) }}
+                                </div>
+                                <livewire:line-placement :line-id="$customerLine->id" :key="'reception-placement-'.$customerLine->id" />
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endcan
+        @endif
+    @endif
+
     @if ($inProgress)
         @can('receptions.create')
             <div class="mt-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">

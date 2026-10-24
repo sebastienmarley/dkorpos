@@ -1125,6 +1125,7 @@ class Show extends Component
 
     #[On('supplier-line-cancellation-requested')]
     #[On('order-lines-changed')]
+    #[On('line-placed')]
     public function onSupplierLineCancellationRequested(): void
     {
         $this->order->refresh();
@@ -1323,7 +1324,7 @@ class Show extends Component
         $customProduct = $this->customProductId ? Product::with('supplier')->find($this->customProductId) : null;
         $defectiveLine = $this->defectiveLineId ? $this->order->lines()->with('product.supplier')->find($this->defectiveLineId) : null;
 
-        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStock', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),

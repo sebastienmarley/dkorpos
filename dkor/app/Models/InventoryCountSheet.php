@@ -64,7 +64,7 @@ class InventoryCountSheet extends Model
     {
         $type = InventoryCount::countTypes()[$this->status->value];
 
-        return $this->zone ? $type.' — '.$this->zone->name : $type;
+        return $this->zone ? $type.' — '.$this->zone->labelWithStore() : $type;
     }
 
     public function isDone(): bool

@@ -203,7 +203,7 @@ class Show extends Component
 
     public function render(): View
     {
-        $this->reception->load(['supplier', 'receiver', 'lines.product', 'lines.orderLine.order']);
+        $this->reception->load(['supplier', 'receiver', 'lines.product', 'lines.orderLine.order', 'lines.orderLine.customerOrderLine.order.customer', 'lines.orderLine.customerOrderLine.product', 'lines.orderLine.customerOrderLine.part']);
 
         return view('livewire.receptions.show')
             ->layout('layouts.app', ['title' => $this->reception->number]);

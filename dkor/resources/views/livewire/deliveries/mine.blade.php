@@ -90,6 +90,9 @@
                                                 <div class="text-xs text-zinc-400">
                                                     {{ __('Prévu : :planned · en main : :loadable', ['planned' => $deliveryLine->quantity, 'loadable' => $this->loadable($deliveryLine)]) }}
                                                 </div>
+                                                @if ($deliveryLine->line->location)
+                                                    <div class="text-xs text-sky-700 dark:text-sky-400">{{ __('Emplacement : :location', ['location' => $deliveryLine->line->location->label()]) }}</div>
+                                                @endif
                                             </div>
                                             <div class="w-20">
                                                 <flux:input wire:model="loadQuantities.{{ $deliveryLine->id }}" type="number" min="0" :max="$this->loadable($deliveryLine)" size="sm" />
@@ -164,6 +167,7 @@
                                                 @if (! $isChecked || (int) ($acceptedQuantities[$deliveryLine->id] ?? $deliveryLine->quantity) < $deliveryLine->quantity)
                                                     <flux:input wire:model="refusalReasons.{{ $deliveryLine->id }}" size="sm" :placeholder="__('Raison du refus (endommagé, mauvais article, refusé par le client…)')" />
                                                     <flux:error name="refusalReasons.{{ $deliveryLine->id }}" />
+                                                    @include('livewire.deliveries.partials.return-location', ['deliveryLine' => $deliveryLine])
                                                 @endif
                                             </div>
                                         @endforeach
@@ -252,6 +256,7 @@
                                         @foreach ($delivery->lines as $deliveryLine)
                                             <div wire:key="refuse-{{ $deliveryLine->id }}">
                                                 <flux:input wire:model="refusalReasons.{{ $deliveryLine->id }}" size="sm" :label="$deliveryLine->quantity.' × '.$deliveryLine->line->label" :placeholder="__('Raison du refus')" />
+                                                @include('livewire.deliveries.partials.return-location', ['deliveryLine' => $deliveryLine])
                                             </div>
                                         @endforeach
                                         <flux:error name="refused" />

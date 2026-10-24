@@ -13,6 +13,7 @@ use App\Enums\UndeliveredReason;
 use App\Models\CustomerOrderDelivery;
 use App\Models\CustomerOrderDeliveryLine;
 use App\Models\CustomerPaymentMethod;
+use App\Models\InventoryLocation;
 use App\Models\Store;
 use App\Support\Money;
 use DomainException;
@@ -55,6 +56,9 @@ class Mine extends Component
     public array $acceptedQuantities = [];
 
     public string $signerName = '';
+
+    /** @var array<int, int|string> emplacement où l'article refusé est rangé au retour, par ligne de livraison */
+    public array $returnLocations = [];
 
     /** @var array{method_id: int|string, amount: string} paiement perçu à la livraison */
     public array $payment = ['method_id' => '', 'amount' => ''];
@@ -128,6 +132,7 @@ class Mine extends Component
         $this->acceptedChecks = $delivery->lines->mapWithKeys(fn (CustomerOrderDeliveryLine $deliveryLine): array => [$deliveryLine->id => true])->all();
         $this->acceptedQuantities = $delivery->lines->mapWithKeys(fn (CustomerOrderDeliveryLine $deliveryLine): array => [$deliveryLine->id => $deliveryLine->quantity])->all();
         $this->refusalReasons = [];
+        $this->returnLocations = [];
         $this->completionStep = '';
         $this->signerName = trim($delivery->order->customer->firstname.' '.$delivery->order->customer->lastname);
         $this->payment = ['method_id' => $this->getDeliveryPaymentMethods()->first()->id ?? '', 'amount' => $this->amountToCollect($delivery)->toDecimal()];
@@ -236,7 +241,7 @@ class Mine extends Component
         $delivery = $this->findDelivery((int) $this->openedId);
 
         try {
-            $completeDelivery->handle($delivery, $this->acceptedByLine($delivery), $this->refusalReasons, $this->signerName, $signature);
+            $completeDelivery->handle($delivery, $this->acceptedByLine($delivery), $this->refusalReasons, $this->signerName, $signature, $this->returnLocationIds());
         } catch (DomainException $exception) {
             $this->addError('signature', $exception->getMessage());
 
@@ -256,7 +261,7 @@ class Mine extends Component
         $delivery = $this->findDelivery((int) $this->openedId);
 
         try {
-            $failDelivery->handle($delivery, $undeliveredReason, $this->refusalReasons);
+            $failDelivery->handle($delivery, $undeliveredReason, $this->refusalReasons, $this->returnLocationIds());
         } catch (DomainException $exception) {
             $this->addError('refused', $exception->getMessage());
 
@@ -265,6 +270,26 @@ class Mine extends Component
 
         $this->openedId = null;
         Flux::toast(text: __('Livraison non livrée : les articles reviennent au magasin.'), variant: 'warning');
+    }
+
+    /**
+     * Emplacements actifs du magasin, pour ranger un article refusé au retour (issue #96).
+     *
+     * @return Collection<int, InventoryLocation>
+     */
+    public function getReturnLocations(): Collection
+    {
+        return $this->storeId === '' ? new Collection : InventoryLocation::query()->ofStore((int) $this->storeId)->selectable()->with('zone')->orderBy('code')->get();
+    }
+
+    /**
+     * Emplacements choisis pour le retour, par ligne de livraison (vides retirés).
+     *
+     * @return array<int, int>
+     */
+    private function returnLocationIds(): array
+    {
+        return array_map(fn (int|string $id): int => (int) $id, array_filter($this->returnLocations, fn (int|string $id): bool => filled($id)));
     }
 
     /** @return Collection<int, CustomerPaymentMethod> */
@@ -342,7 +367,7 @@ class Mine extends Component
     public function getDeliveries(): Collection
     {
         return CustomerOrderDelivery::query()
-            ->with(['order.customer', 'lines.line.product', 'lines.line.part'])
+            ->with(['order.customer', 'lines.line.product', 'lines.line.part', 'lines.line.location.zone'])
             ->where('method', DeliveryMethod::Internal)
             ->where('store_id', (int) $this->storeId)
             ->whereDate('scheduled_date', $this->date)

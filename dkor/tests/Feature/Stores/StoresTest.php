@@ -18,7 +18,7 @@ beforeEach(function () {
 });
 
 dataset('privilegedRoles', ['owner', 'admin']);
-dataset('otherRoles', ['manager', 'salesman', 'accounting']);
+dataset('otherRoles', ['salesman', 'accounting']);
 
 it('autorise propriétaire et administrateur à voir les magasins', function (string $role) {
     $store = Store::factory()->create();
@@ -37,6 +37,20 @@ it('refuse les autres rôles', function (string $role) {
     $this->get(route('stores.index'))->assertForbidden();
     $this->get(route('stores.show', $store))->assertForbidden();
 })->with('otherRoles');
+
+it('ouvre au superviseur d\'inventaire seulement l\'onglet des zones et emplacements de la fiche', function () {
+    $store = Store::factory()->create();
+
+    $this->actingAs(User::factory()->withRole('manager')->create());
+
+    $this->get(route('stores.index'))->assertForbidden();
+    $this->get(route('stores.show', $store))->assertOk()->assertSee('Zones et emplacements')->assertDontSee('Comptabilité');
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->assertSet('activeTab', 'locations')
+        ->call('saveIdentification')
+        ->assertForbidden();
+});
 
 it('crée un magasin avec son nom et son type', function () {
     $this->actingAs(User::factory()->withRole('owner')->create());

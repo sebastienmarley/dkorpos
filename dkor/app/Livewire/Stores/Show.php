@@ -11,13 +11,16 @@ use Closure;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 class Show extends Component
 {
     public Store $store;
 
+    #[Url(as: 'tab')]
     public string $activeTab = 'identification';
 
     // Identification
@@ -87,10 +90,42 @@ class Show extends Component
 
     public bool $truckIsActive = true;
 
+    /**
+     * La fiche s'ouvre avec stores.view (tous les onglets) ou inventory.supervise (l'onglet Zones et emplacements).
+     */
     public function mount(Store $store): void
     {
+        abort_unless(Gate::any(['stores.view', 'inventory.supervise']), 403);
+
         $this->store = $store;
         $this->fillFromModel();
+
+        if (! Gate::allows('stores.view')) {
+            $this->activeTab = 'locations';
+        }
+    }
+
+    /**
+     * Onglets de la fiche que l'usager peut voir.
+     *
+     * @return array<string, string>
+     */
+    public function getTabs(): array
+    {
+        $tabs = Gate::allows('stores.view') ? [
+            'identification' => __('Identification'),
+            'accounting' => __('Comptabilité'),
+            'hours' => __('Heures d\'ouverture'),
+            'delivery' => __('Livraison'),
+            'shipping' => __('Expédition'),
+            'parameters' => __('Paramètres'),
+        ] : [];
+
+        if (Gate::allows('inventory.supervise')) {
+            $tabs['locations'] = __('Zones et emplacements');
+        }
+
+        return $tabs;
     }
 
     public function updatedAddressCountry(): void

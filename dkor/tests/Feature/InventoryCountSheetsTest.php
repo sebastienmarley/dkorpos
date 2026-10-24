@@ -11,7 +11,7 @@ use App\Enums\InventoryStatus;
 use App\Enums\SupplierType;
 use App\Livewire\Inventory\CountSheets;
 use App\Livewire\Inventory\MyCountSheets;
-use App\Livewire\Inventory\Zones;
+use App\Livewire\Stores\Locations;
 use App\Models\InventoryCount;
 use App\Models\InventoryCountResult;
 use App\Models\InventoryCountSheet;
@@ -19,6 +19,7 @@ use App\Models\InventoryMovement;
 use App\Models\InventoryZone;
 use App\Models\Product;
 use App\Models\ProductUpc;
+use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Support\Money;
@@ -62,17 +63,19 @@ function countSheet(InventoryCountSheet $sheet, User $counter, array $scans = []
 }
 
 it('gère les zones permanentes et prépare les feuilles A et B des types et des zones actives', function () {
-    Livewire::test(Zones::class)
-        ->call('openCreate')
-        ->set('name', 'Allée 1')
-        ->call('save')
-        ->call('openCreate')
-        ->set('name', 'Allée 1')
-        ->call('save')
-        ->assertHasErrors('name')
-        ->set('name', 'Mezzanine')
-        ->call('save')
-        ->call('toggleActive', InventoryZone::where('name', 'Mezzanine')->sole()->id);
+    $store = Store::factory()->create(['name' => 'Rimouski']);
+
+    Livewire::test(Locations::class, ['store' => $store])
+        ->call('openZone')
+        ->set('zoneName', 'Allée 1')
+        ->call('saveZone')
+        ->call('openZone')
+        ->set('zoneName', 'Allée 1')
+        ->call('saveZone')
+        ->assertHasErrors('zoneName')
+        ->set('zoneName', 'Mezzanine')
+        ->call('saveZone')
+        ->call('toggleZone', InventoryZone::where('name', 'Mezzanine')->sole()->id);
 
     $count = InventoryCount::start(today(), $this->owner);
     $count->prepareSheets();
@@ -80,7 +83,7 @@ it('gère les zones permanentes et prépare les feuilles A et B des types et des
 
     expect($count->sheets()->count())->toBe(8)
         ->and($count->sheets()->whereNotNull('inventory_zone_id')->pluck('inventory_zone_id')->unique()->all())->toBe([InventoryZone::where('name', 'Allée 1')->sole()->id])
-        ->and(sheetOf($count, InventoryStatus::InStock, InventoryZone::first(), InventoryCountPass::B)->areaLabel())->toBe('Stock — Allée 1');
+        ->and(sheetOf($count, InventoryStatus::InStock, InventoryZone::first(), InventoryCountPass::B)->areaLabel())->toBe('Stock — Rimouski — Allée 1');
 
     $this->actingAs($this->counterA)->get(route('inventory.zones'))->assertForbidden();
 });
@@ -161,8 +164,9 @@ it('associe un code inconnu à un produit, par un superviseur seulement', functi
 it('compare, recompte les désaccords, réconcilie et alimente les lignes de la prise', function () {
     receiveProduct($this->product, 10, 5);
     InventoryMovement::record($this->product, InventoryStatus::InStock, InventoryStatus::InDemo, 2, InventoryMovementType::Transfer);
-    $zone1 = InventoryZone::factory()->create(['name' => 'Allée 1', 'sort_order' => 1]);
-    $zone2 = InventoryZone::factory()->create(['name' => 'Allée 2', 'sort_order' => 2]);
+    $store = Store::factory()->create(['name' => 'Rimouski']);
+    $zone1 = InventoryZone::factory()->create(['store_id' => $store->id, 'name' => 'Allée 1', 'sort_order' => 1]);
+    $zone2 = InventoryZone::factory()->create(['store_id' => $store->id, 'name' => 'Allée 2', 'sort_order' => 2]);
 
     $count = InventoryCount::start(today(), $this->owner);
     $count->prepareSheets();
@@ -188,7 +192,7 @@ it('compare, recompte les désaccords, réconcilie et alimente les lignes de la 
     ])
         ->and(fn () => $count->reconcileScope(InventoryStatus::InStock, $zone2->id, $this->owner))->toThrow(DomainException::class, 'Créez le recompte')
         ->and(fn () => $count->createRecount(InventoryStatus::InStock, $zone2->id, $this->counterA))->toThrow(DomainException::class, 'troisième compteur')
-        ->and($finalize)->toThrow(DomainException::class, 'Portées à réconcilier avant de finaliser : Démonstrateur, Stock — Allée 1, Stock — Allée 2.');
+        ->and($finalize)->toThrow(DomainException::class, 'Portées à réconcilier avant de finaliser : Démonstrateur, Stock — Rimouski — Allée 1, Stock — Rimouski — Allée 2.');
 
     $recount = $count->createRecount(InventoryStatus::InStock, $zone2->id, $this->counterC);
     $other = Product::factory()->create(['supplier_id' => $this->product->supplier_id]);

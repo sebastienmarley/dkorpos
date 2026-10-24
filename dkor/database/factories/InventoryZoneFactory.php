@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\InventoryZone;
+use App\Models\Store;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -18,6 +19,7 @@ class InventoryZoneFactory extends Factory
     public function definition(): array
     {
         return [
+            'store_id' => Store::factory(),
             'name' => fake()->unique()->bothify('Allée ##?'),
             'sort_order' => fake()->numberBetween(0, 100),
             'is_active' => true,

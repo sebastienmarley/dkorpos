@@ -63,6 +63,9 @@
                                             · {{ __(':length × :width × :height · :weight', ['length' => $product->length ?? '?', 'width' => $product->width ?? '?', 'height' => $product->height ?? '?', 'weight' => $product->weight ?? '?']) }}
                                         @endif
                                     </div>
+                                    @if ($shipmentLine->line->location)
+                                        <div class="text-xs text-sky-700 dark:text-sky-400">{{ __('Emplacement : :location', ['location' => $shipmentLine->line->location->label()]) }}</div>
+                                    @endif
                                     @if ($warning)
                                         <div class="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"><flux:icon.exclamation-triangle class="h-3.5 w-3.5" /> {{ $warning }}</div>
                                     @endif

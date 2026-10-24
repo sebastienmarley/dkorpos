@@ -117,7 +117,7 @@ class CountShow extends Component
         $money = fn (?Money $value): string => $value === null ? '' : str_replace('.', ',', $value->toDecimal());
         $zoneDetails = $this->count->results()->with('zone')->whereNotNull('inventory_zone_id')->get()
             ->groupBy(fn (InventoryCountResult $result): string => $result->product_id.'-'.$result->status->value)
-            ->map(fn ($results): string => $results->map(fn (InventoryCountResult $result): string => $result->zone?->name.' : '.$result->quantity)->implode(' ; '));
+            ->map(fn ($results): string => $results->map(fn (InventoryCountResult $result): string => $result->zone?->labelWithStore().' : '.$result->quantity)->implode(' ; '));
 
         return response()->streamDownload(function () use ($lines, $types, $money, $zoneDetails): void {
             $output = fopen('php://output', 'w');
