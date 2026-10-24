@@ -202,7 +202,7 @@ describe('année fiscale', function () {
             ->and($status['Gaspé']['isCurrent'])->toBeFalse();
 
         Livewire::test(Counts::class)
-            ->assertSee('Année fiscale depuis le 1 février 2026')
+            ->assertSee('Année fiscale depuis le '.Carbon::parse('2026-02-01')->translatedFormat('j F Y'))
             ->assertSee('Faite cette année')
             ->assertSee('À faire cette année');
     });
