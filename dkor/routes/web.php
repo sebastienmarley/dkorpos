@@ -46,6 +46,7 @@ use App\Livewire\Schedules\Holidays;
 use App\Livewire\Schedules\Index as SchedulesIndex;
 use App\Livewire\Schedules\ScheduleEdit;
 use App\Livewire\Schedules\Templates;
+use App\Livewire\Shipments\Index as ShipmentsIndex;
 use App\Livewire\Stores\Index as StoresIndex;
 use App\Livewire\Stores\Show as StoreShow;
 use App\Livewire\Suppliers\Index as SuppliersIndex;
@@ -75,6 +76,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('deliveries', DeliveriesIndex::class)->middleware('can:deliveries.view')->name('deliveries.index');
     Route::get('deliveries/mine', MyDeliveries::class)->middleware('can:deliveries.handle')->name('deliveries.mine');
+    Route::get('shipments', ShipmentsIndex::class)->middleware('can:shipments.manage')->name('shipments.index');
     Route::get('deliveries/{delivery}/signature', DeliverySignatureController::class)->middleware('can:customer_orders.view')->name('deliveries.signature');
 
     Route::get('suppliers', SuppliersIndex::class)->middleware('can:suppliers.view')->name('suppliers.index');

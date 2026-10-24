@@ -35,6 +35,13 @@
                             @if ($delivery->cancellation_reason)
                                 <div class="text-xs text-zinc-400">{{ $delivery->cancellation_reason }}</div>
                             @endif
+                            @if ($delivery->shipped_at)
+                                <div class="text-xs text-zinc-600 dark:text-zinc-300">
+                                    {{ __('Expédiée le :date par :carrier — suivi : :tracking', ['date' => $delivery->shipped_at->translatedFormat('j M Y'), 'carrier' => $delivery->shippingSupplier?->name ?? '—', 'tracking' => $delivery->tracking_number]) }}
+                                </div>
+                            @elseif ($delivery->shippingSupplier)
+                                <div class="text-xs text-zinc-500">{{ __('Transporteur choisi : :carrier', ['carrier' => $delivery->shippingSupplier->name]) }}</div>
+                            @endif
                             @if ($delivery->undelivered_reason)
                                 <div class="text-xs text-orange-600 dark:text-orange-400">
                                     {{ __('Non livrée le :date : :reason. Les articles sont revenus en stock client.', ['date' => $delivery->undelivered_at?->translatedFormat('j M Y à H:i'), 'reason' => $delivery->undelivered_reason->label()]) }}

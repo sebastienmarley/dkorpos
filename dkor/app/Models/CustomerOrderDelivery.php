@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Casts\MoneyCast;
 use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryPeriod;
 use App\Enums\DeliveryStatus;
+use App\Enums\SupplierType;
 use App\Enums\UndeliveredReason;
+use App\Support\Money;
 use Database\Factories\CustomerOrderDeliveryFactory;
+use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,7 +28,13 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $customer_order_id
  * @property int|null $store_id Magasin dont les camions font la livraison.
- * @property int|null $rescheduled_from_id Livraison annulée que celle-ci remplace (report).
+ * @property int|null $shipping_supplier_id Transporteur (fournisseur de type Expédition) choisi pour une expédition.
+ * @property Money|null $shipping_cost Coût de la soumission du transporteur.
+ * @property string|null $tracking_number
+ * @property Carbon|null $shipped_at
+ * @property int|null $shipped_by
+ * @property int|null $supplier_invoice_id Facture du transporteur qui couvre cet envoi.
+ * @property int|null $rescheduled_from_id Livraison d'origine : celle qu'un report a annulée, ou l'envoi partiel dont celle-ci est le reste.
  * @property DeliveryMethod $method
  * @property DeliveryStatus $status
  * @property Carbon|null $scheduled_date
@@ -60,12 +70,15 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read CustomerOrder $order
  * @property-read Store|null $store
+ * @property-read Supplier|null $shippingSupplier
+ * @property-read SupplierInvoice|null $supplierInvoice
  * @property-read CustomerOrderDelivery|null $rescheduledFrom
  * @property-read Collection<int, CustomerOrderDeliveryLine> $lines
  * @property-read User|null $requester
  */
 #[Fillable([
-    'customer_order_id', 'store_id', 'rescheduled_from_id', 'method', 'status', 'scheduled_date', 'period',
+    'customer_order_id', 'store_id', 'shipping_supplier_id', 'shipping_cost', 'tracking_number', 'shipped_at', 'shipped_by',
+    'supplier_invoice_id', 'rescheduled_from_id', 'method', 'status', 'scheduled_date', 'period',
     'address_civic', 'address_apartment', 'address_street', 'address_city', 'address_province', 'address_country',
     'address_postal_code', 'address_verified_by', 'address_verified_at', 'pay_on_delivery',
     'pay_on_delivery_authorized_by', 'notes', 'ready_at', 'route_position', 'departed_at', 'departed_by', 'delivered_at', 'delivered_by', 'signature_path', 'signed_by_name', 'signed_at', 'undelivered_reason', 'undelivered_at', 'requested_by', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
@@ -94,6 +107,8 @@ class CustomerOrderDelivery extends Model
         'pay_on_delivery' => 'boolean',
         'cancelled_at' => 'datetime',
         'ready_at' => 'datetime',
+        'shipping_cost' => MoneyCast::class,
+        'shipped_at' => 'datetime',
         'route_position' => 'integer',
         'departed_at' => 'datetime',
         'delivered_at' => 'datetime',
@@ -112,6 +127,18 @@ class CustomerOrderDelivery extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    /** @return BelongsTo<Supplier, $this> */
+    public function shippingSupplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class, 'shipping_supplier_id');
+    }
+
+    /** @return BelongsTo<SupplierInvoice, $this> */
+    public function supplierInvoice(): BelongsTo
+    {
+        return $this->belongsTo(SupplierInvoice::class);
     }
 
     /** @return BelongsTo<CustomerOrderDelivery, $this> */
@@ -150,6 +177,29 @@ class CustomerOrderDelivery extends Model
         $civic = $this->address_apartment ? $this->address_civic.'-'.$this->address_apartment : $this->address_civic;
 
         return trim($civic.' '.$this->address_street).', '.$this->address_city.' '.$this->address_province.' '.$this->address_postal_code;
+    }
+
+    /**
+     * Choisit le transporteur d'une expédition à faire et note le coût de sa soumission (issue #95).
+     *
+     * @throws DomainException si ce n'est pas une expédition à faire ou si le transporteur n'est pas un fournisseur
+     *                         d'expédition actif.
+     */
+    public function chooseCarrier(int $carrierId, Money $cost): void
+    {
+        if ($this->method !== DeliveryMethod::Shipping || $this->status !== DeliveryStatus::Scheduled) {
+            throw new DomainException(__('Seule une expédition à faire peut changer de transporteur.'));
+        }
+
+        if (! Supplier::query()->whereKey($carrierId)->where('type', SupplierType::Shipping)->where('is_active', true)->exists()) {
+            throw new DomainException(__('Choisissez un fournisseur d\'expédition actif.'));
+        }
+
+        if ($cost->isNegative()) {
+            throw new DomainException(__('Le coût de la soumission ne peut pas être négatif.'));
+        }
+
+        $this->update(['shipping_supplier_id' => $carrierId, 'shipping_cost' => $cost]);
     }
 
     /** Tous les articles prévus sont en main : la quantité réservée au client couvre chaque ligne. */

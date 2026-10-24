@@ -194,6 +194,10 @@ ajustement ne se modifie ni ne se supprime : une erreur se corrige par l'ajustem
   se supprime : une correction passe une écriture inverse.
 - `LedgerEntry::post()` est le seul point de création. Il refuse une écriture déséquilibrée, vide, ou une
   ligne qui a à la fois un débit et un crédit.
+- Les factures de transporteur (issue #95, [ADR 0010](0010-customer-order-deliveries.md)) passent aussi une
+  écriture : Frais d'expédition et transport (5200) au débit pour le montant avant taxes, un compte « à
+  recevoir » par taxe (`LedgerAccount::forTaxReceivable()`, codes 1410, 1411…) au débit, et Comptes fournisseurs
+  (2100) au crédit pour le total.
 - Au départ, seuls les ajustements passent des écritures. Les réceptions, les ventes (coût des marchandises
   vendues) et les crédits fournisseurs suivront : voir les questions ouvertes.
 

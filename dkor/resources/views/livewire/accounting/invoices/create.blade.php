@@ -34,6 +34,55 @@
             <flux:error name="description" />
         </flux:field>
 
+        @if ($this->isCarrier())
+            @php($shipments = $this->getInvoiceableShipments())
+            <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <flux:heading size="sm" class="mb-2">{{ __('Envois couverts par la facture') }}</flux:heading>
+                @forelse ($shipments as $shipment)
+                    <div wire:key="invoice-shipment-{{ $shipment->id }}" class="flex items-center justify-between gap-3 border-b border-zinc-100 py-1 text-sm last:border-0 dark:border-zinc-800">
+                        <flux:checkbox wire:model.live="shipmentIds.{{ $shipment->id }}" :label="__(':date — commande #:order (:customer) — suivi :tracking', ['date' => $shipment->shipped_at->format('Y-m-d'), 'order' => $shipment->customer_order_id, 'customer' => $shipment->order->customer->lastname, 'tracking' => $shipment->tracking_number])" />
+                        <span class="shrink-0 text-zinc-500">{{ $shipment->shipping_cost?->format() }}</span>
+                    </div>
+                @empty
+                    <flux:text class="text-sm text-zinc-400">{{ __('Aucun envoi de ce transporteur à facturer.') }}</flux:text>
+                @endforelse
+                <flux:error name="shipmentIds" />
+                <div class="mt-2 flex justify-end text-sm text-zinc-500">
+                    {{ __('Coûts soumis des envois cochés : :amount', ['amount' => $this->selectedShipmentsCost()->format()]) }}
+                </div>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-4">
+                <flux:field>
+                    <flux:label>{{ __('Montant avant taxes') }}</flux:label>
+                    <flux:input wire:model.live.debounce.400ms="merchandiseTotal" type="number" min="0" step="0.01" required />
+                    <flux:error name="merchandiseTotal" />
+                </flux:field>
+                @foreach ($taxAmounts as $taxName => $amount)
+                    <flux:field wire:key="tax-{{ $taxName }}">
+                        <flux:label>{{ $taxName }}</flux:label>
+                        <flux:input wire:model.live.debounce.400ms="taxAmounts.{{ $taxName }}" type="number" min="0" step="0.01" required />
+                        <flux:error name="taxAmounts.{{ $taxName }}" />
+                    </flux:field>
+                @endforeach
+                <flux:field>
+                    <flux:label>{{ __('Montant de la facture') }}</flux:label>
+                    <flux:input wire:model.live.debounce.400ms="invoiceTotal" type="number" min="0" step="0.01" required />
+                    <flux:error name="invoiceTotal" />
+                </flux:field>
+            </div>
+
+            @php($shipmentsVariance = (\App\Support\Money::tryParse($merchandiseTotal) ?? \App\Support\Money::zero())->minus($this->selectedShipmentsCost()))
+            <div class="flex items-center justify-between max-w-xl text-sm">
+                <span>{{ __('Écart avec les coûts soumis (avant taxes)') }}</span>
+                @if ($shipmentsVariance->isZero())
+                    <flux:badge color="green" size="sm">{{ __('Aucun') }}</flux:badge>
+                @else
+                    <flux:badge color="amber" size="sm">{{ $shipmentsVariance->format() }}</flux:badge>
+                @endif
+            </div>
+            <flux:text class="text-xs text-zinc-400">{{ __('À l\'enregistrement : le montant avant taxes va au compte « Frais d\'expédition et transport », chaque taxe à son compte « à recevoir », et le total aux comptes fournisseurs.') }}</flux:text>
+        @else
         <div class="grid gap-4 sm:grid-cols-5">
             <flux:field>
                 <flux:label>{{ __('Montant avant frais et taxes') }}</flux:label>
@@ -61,6 +110,7 @@
                 <flux:error name="invoiceTotal" />
             </flux:field>
         </div>
+        @endif
 
         @if ($totals)
             <div class="max-w-xl rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">

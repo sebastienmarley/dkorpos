@@ -16,9 +16,11 @@ beforeEach(function () {
 it('crée les comptes système sans toucher à ceux que le comptable a modifiés', function () {
     expect(LedgerAccount::orderBy('code')->pluck('system_key', 'code')->all())->toBe([
         '1300' => LedgerAccount::INVENTORY,
+        '2100' => LedgerAccount::ACCOUNTS_PAYABLE,
         '3900' => LedgerAccount::OPENING_BALANCE,
         '5110' => LedgerAccount::INVENTORY_SHRINKAGE,
         '5120' => LedgerAccount::INVENTORY_COUNT_VARIANCE,
+        '5200' => LedgerAccount::SHIPPING_EXPENSE,
         '5400' => LedgerAccount::STORE_SUPPLIES,
     ]);
 
@@ -26,7 +28,7 @@ it('crée les comptes système sans toucher à ceux que le comptable a modifiés
 
     $this->seed(ReferenceDataSeeder::class);
 
-    expect(LedgerAccount::count())->toBe(5)
+    expect(LedgerAccount::count())->toBe(7)
         ->and(LedgerAccount::forKey(LedgerAccount::INVENTORY))
         ->code->toBe('1350')
         ->name->toBe('Stocks')

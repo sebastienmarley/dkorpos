@@ -25,6 +25,7 @@ enum InventoryMovementType: string
     case DeliveryLoaded = 'delivery_loaded';
     case DeliveryRefused = 'delivery_refused';
     case CustomerDelivery = 'customer_delivery';
+    case CustomerShipment = 'customer_shipment';
 
     public function label(): string
     {
@@ -50,6 +51,7 @@ enum InventoryMovementType: string
             self::DeliveryLoaded => __('Chargement de livraison'),
             self::DeliveryRefused => __('Refusé à la livraison'),
             self::CustomerDelivery => __('Livraison client'),
+            self::CustomerShipment => __('Expédition client'),
         };
     }
 }

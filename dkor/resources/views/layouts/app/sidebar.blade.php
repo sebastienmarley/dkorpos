@@ -93,6 +93,12 @@
                     </flux:sidebar.item>
                 @endcan
 
+                @can('shipments.manage')
+                    <flux:sidebar.item icon="paper-airplane" :href="route('shipments.index')" :current="request()->routeIs('shipments.*')" wire:navigate>
+                        {{ __('Expéditions') }}
+                    </flux:sidebar.item>
+                @endcan
+
                 @can('deliveries.view')
                     <flux:sidebar.item icon="map-pin" :href="route('deliveries.index')" :current="request()->routeIs('deliveries.index')" wire:navigate>
                         {{ __('Livraisons') }}

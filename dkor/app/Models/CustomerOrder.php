@@ -2156,6 +2156,124 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Envoie une expédition à faire par son transporteur (issue #95) : la quantité envoyée de chaque ligne passe
+     * « Expédié » (séparée au besoin) et sort de l'inventaire (premier entré, premier sorti), l'expédition passe
+     * « Expédiée » avec son numéro de suivi. Ce qui n'est pas envoyé (pas encore en main) reste une nouvelle
+     * expédition à faire, sans nouveaux frais. Les frais d'expédition sont complétés au dernier envoi.
+     *
+     * @param  array<int, int>  $quantities  quantité envoyée par ligne d'expédition
+     * @return CustomerOrderDelivery|null l'expédition qui reste à faire, s'il y a lieu
+     *
+     * @throws DomainException si l'expédition n'est pas à faire, sans transporteur, sans numéro de suivi, si rien
+     *                         n'est envoyé, si une quantité n'est pas en main ou si l'envoi n'est pas payé.
+     */
+    public function shipDelivery(CustomerOrderDelivery $shipment, array $quantities, string $trackingNumber): ?CustomerOrderDelivery
+    {
+        return DB::transaction(function () use ($shipment, $quantities, $trackingNumber): ?CustomerOrderDelivery {
+            $shipment = CustomerOrderDelivery::query()->whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+
+            if ($shipment->customer_order_id !== $this->id || $shipment->method !== DeliveryMethod::Shipping || $shipment->status !== DeliveryStatus::Scheduled) {
+                throw new DomainException(__('Seule une expédition à faire peut être envoyée.'));
+            }
+
+            if ($shipment->shipping_supplier_id === null || $shipment->shipping_cost === null) {
+                throw new DomainException(__('Choisissez le transporteur et inscrivez le coût de sa soumission avant l\'envoi.'));
+            }
+
+            if (blank($trackingNumber)) {
+                throw new DomainException(__('Inscrivez le numéro de suivi du transporteur.'));
+            }
+
+            if (array_filter($quantities, fn (int $quantity): bool => $quantity > 0) === []) {
+                throw new DomainException(__('Choisissez au moins un article à envoyer.'));
+            }
+
+            $shipmentLines = $shipment->lines()->get();
+            $shippedByLine = [];
+            $remaining = [];
+
+            foreach ($shipmentLines as $shipmentLine) {
+                $quantity = $quantities[$shipmentLine->id] ?? 0;
+                $line = $this->lines()->lockForUpdate()->findOrFail($shipmentLine->customer_order_line_id);
+                $inHand = $line->status->isPickable() ? min($shipmentLine->quantity, $line->quantity_reserved) : 0;
+
+                if ($quantity < 0 || $quantity > $inHand) {
+                    throw new DomainException(__(':label : on peut envoyer au plus :count (en main pour le client).', ['label' => $line->label, 'count' => $inHand]));
+                }
+
+                if ($quantity > 0) {
+                    $shippedByLine[$line->id] = $quantity;
+                }
+
+                if ($quantity < $shipmentLine->quantity) {
+                    $remaining[$line->id] = $shipmentLine->quantity - $quantity;
+                }
+            }
+
+            foreach ($this->shippingFeeLines() as $feeLine) {
+                $shippedByLine[$feeLine->id] = $feeLine->quantity;
+            }
+
+            $required = $this->amountRequiredFor($shippedByLine);
+
+            if ($required->isPositive()) {
+                throw new DomainException(__('L\'envoi n\'est pas payé : :amount $ à percevoir avant d\'expédier.', ['amount' => $required->toDecimal()]));
+            }
+
+            foreach ($shipmentLines as $shipmentLine) {
+                $quantity = $quantities[$shipmentLine->id] ?? 0;
+
+                if ($quantity === 0) {
+                    $shipmentLine->delete();
+
+                    continue;
+                }
+
+                $line = $this->lines()->findOrFail($shipmentLine->customer_order_line_id);
+
+                if (! $line->isPart()) {
+                    InventoryMovement::record($line->product_id, InventoryStatus::ReservedCustomer, null, $quantity, InventoryMovementType::CustomerShipment, $this);
+                }
+
+                $shipped = $this->splitOff($line, $quantity, ['quantity_reserved' => 0, 'status' => CustomerOrderLineStatus::Shipped, 'delivered_at' => now()]);
+                $shipmentLine->update(['customer_order_line_id' => $shipped->id, 'quantity' => $quantity, 'accepted_quantity' => $quantity]);
+            }
+
+            $shipment->update([
+                'status' => DeliveryStatus::InTransit,
+                'tracking_number' => trim($trackingNumber),
+                'shipped_at' => now(),
+                'shipped_by' => auth()->id(),
+            ]);
+
+            $remainder = null;
+
+            if ($remaining !== []) {
+                $remainder = $this->deliveries()->create([
+                    ...$shipment->only([...CustomerOrderDelivery::ADDRESS_FIELDS, 'store_id', 'address_verified_by', 'address_verified_at', 'notes', 'requested_by']),
+                    'method' => DeliveryMethod::Shipping,
+                    'status' => DeliveryStatus::Scheduled,
+                    'rescheduled_from_id' => $shipment->id,
+                ]);
+
+                foreach ($remaining as $lineId => $quantity) {
+                    $remainder->lines()->create(['customer_order_line_id' => $lineId, 'quantity' => $quantity]);
+                }
+            }
+
+            if (! $this->deliveries()->active()->where('method', DeliveryMethod::Shipping)->where('status', DeliveryStatus::Scheduled)->exists()) {
+                foreach ($this->shippingFeeLines() as $feeLine) {
+                    $feeLine->update(['status' => CustomerOrderLineStatus::Completed, 'quantity_on_order' => 0, 'delivered_at' => now()]);
+                }
+            }
+
+            $this->refreshStatusFromLines();
+
+            return $remainder;
+        });
+    }
+
+    /**
      * Ferme une livraison en route sans rien remettre au client (issue #93) : client absent, ou articles tous refusés.
      * Toutes les lignes chargées retournent en stock client, avec le statut qu'elles avaient avant le chargement, et
      * la livraison passe « Non livrée ».

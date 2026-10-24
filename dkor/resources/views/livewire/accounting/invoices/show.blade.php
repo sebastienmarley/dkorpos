@@ -21,6 +21,9 @@
             <div class="flex justify-between"><dt>{{ __('Transport') }}</dt><dd>{{ $invoice->freight_fee->format() }}</dd></div>
             <div class="flex justify-between"><dt>{{ __('Douanes') }}</dt><dd>{{ $invoice->customs_fee->format() }}</dd></div>
             <div class="flex justify-between"><dt>{{ __('Taxes') }}</dt><dd>{{ $invoice->taxes->format() }}</dd></div>
+            @foreach ($invoice->taxLines as $taxLine)
+                <div class="flex justify-between ps-4 text-zinc-500"><dt>{{ $taxLine->tax_name }}</dt><dd>{{ $taxLine->amount->format() }}</dd></div>
+            @endforeach
             <div class="flex justify-between font-medium"><dt>{{ __('Total calculé') }}</dt><dd>{{ $invoice->computed_total->format() }}</dd></div>
             <div class="flex justify-between font-medium"><dt>{{ __('Montant de la facture') }}</dt><dd>{{ $invoice->invoice_total->format() }}</dd></div>
             <div class="flex justify-between">
@@ -41,4 +44,29 @@
             @endif
         </dl>
     </div>
+
+    @if ($invoice->shipments->isNotEmpty())
+        <div class="mt-6 max-w-xl rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <flux:heading size="sm" class="mb-2">{{ __('Envois couverts') }}</flux:heading>
+            <dl class="space-y-1 text-sm">
+                @foreach ($invoice->shipments as $shipment)
+                    <div wire:key="invoice-shipment-{{ $shipment->id }}" class="flex justify-between">
+                        <dt>{{ __(':date — commande #:order — suivi :tracking', ['date' => $shipment->shipped_at?->format('Y-m-d'), 'order' => $shipment->customer_order_id, 'tracking' => $shipment->tracking_number]) }}</dt>
+                        <dd>{{ $shipment->shipping_cost?->format() }}</dd>
+                    </div>
+                @endforeach
+                <div class="flex justify-between border-t border-zinc-200 pt-1 font-medium dark:border-zinc-700"><dt>{{ __('Coûts soumis') }}</dt><dd>{{ $invoice->shipmentsCost()->format() }}</dd></div>
+                <div class="flex justify-between">
+                    <dt>{{ __('Écart avec les coûts soumis (avant taxes)') }}</dt>
+                    <dd>
+                        @if ($invoice->shipmentsVariance()->isZero())
+                            <flux:badge color="green" size="sm">{{ __('Aucun') }}</flux:badge>
+                        @else
+                            <flux:badge color="amber" size="sm">{{ $invoice->shipmentsVariance()->format() }}</flux:badge>
+                        @endif
+                    </dd>
+                </div>
+            </dl>
+        </div>
+    @endif
 </div>

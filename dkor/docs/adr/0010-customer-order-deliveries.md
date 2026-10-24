@@ -2,7 +2,7 @@
 
 - **Statut :** Accepté
 - **Date :** 2026-10-18
-- **Issues liées :** #12 (livraison), #86 (expédition), #94 (menu du livreur), #93 (signature)
+- **Issues liées :** #12 (livraison), #86 (expédition), #94 (menu du livreur), #93 (signature), #95 (menu d'expédition)
 
 ## Contexte
 
@@ -180,6 +180,33 @@ Nous retenons l'**option C**.
   `refreshStatusFromLines()` passe la commande à « Livrée » quand tout est remis et qu'au moins une ligne est
   livrée ou expédiée, même si une autre a été ramassée.
 
+**Menu d'expédition (#95) :**
+
+- La page **Expéditions** (`shipments.index`, permission `shipments.manage` : commis d'entrepôt et directeurs)
+  remplace la liste sous la grille des livraisons. L'avis « Nouvelle expédition à faire » y mène. On y voit
+  d'abord les expéditions dont tout est en main, puis celles qui attendent des articles, et les envois des 30
+  derniers jours. Chaque article montre ses dimensions et les avertissements de taille.
+- **Le transporteur** (un fournisseur de type Expédition) et le coût de sa soumission se choisissent sur
+  l'expédition à faire (`CustomerOrderDelivery::chooseCarrier()`). Ils sont exigés pour l'envoi.
+- **L'envoi** (`CustomerOrder::shipDelivery()`, appelé par l'Action `ShipShipment`) se fait avec le numéro de
+  suivi :
+  - la quantité envoyée passe « Expédié », séparée par `splitOff()`, et sort de l'inventaire en premier entré,
+    premier sorti (`CustomerShipment`) ;
+  - l'expédition passe « Expédiée » (`InTransit`), et la commande « Livrée » quand tout est remis ;
+  - le paiement des articles et des frais est revérifié.
+- **Envoi partiel :** ce qui n'est pas en main reste une nouvelle expédition à faire, sans nouveaux frais
+  (`rescheduled_from_id` : l'envoi d'origine). L'entrepôt est avisé quand ce reste est en main. Les frais
+  d'expédition passent « Complété » quand il ne reste plus d'expédition à faire.
+- **Facture du transporteur** : la facture libre (Comptabilité > Facturation) passe en mode transporteur quand
+  le fournisseur est de type Expédition.
+  - On coche ses envois partis et pas encore facturés : le montant avant taxes reprend la somme de leurs coûts
+    soumis, et l'écart s'affiche.
+  - On saisit chaque taxe en vigueur dans la province des magasins des envois.
+  - `SupplierInvoice::recordForShipments()` relie les envois (un envoi n'est facturé qu'une fois) et détaille les
+    taxes (`supplier_invoice_taxes`). Il passe l'écriture au grand livre : Frais d'expédition et transport
+    (5200) au débit pour le total moins les taxes, un compte « TPS à recevoir », « TVQ à recevoir »… par taxe
+    (1410 et suivants) au débit, et Comptes fournisseurs (2100) au crédit pour le total.
+
 ## Conséquences
 
 **Positives**
@@ -217,8 +244,8 @@ Nous retenons l'**option C**.
 
 ## Questions ouvertes
 
-- Expédier depuis le menu d'expédition (#95) : réutiliser `splitOff()` pour les lignes « Expédié » et compléter
-  les frais d'expédition.
+- Une facture de transporteur ne porte que des envois : un autre achat chez ce fournisseur passerait par une facture
+  libre ordinaire, ce que le mode transporteur ne permet plus.
 
 ## Références
 
@@ -228,6 +255,8 @@ Nous retenons l'**option C**.
 - `database/migrations/2026_10_24_193306_add_driver_tracking_to_customer_order_deliveries.php`
 - `app/Actions/CompleteDelivery.php`, `app/Actions/ReorderDeliveryRoute.php`, `app/Livewire/Deliveries/Mine.php`
 - `database/migrations/2026_10_24_200559_add_signature_to_customer_order_deliveries.php`
+- `database/migrations/2026_10_24_203637_add_shipment_sending_to_customer_order_deliveries.php`
+- `app/Actions/ShipShipment.php`, `app/Livewire/Shipments/Index.php`, `SupplierInvoice::recordForShipments()`
 - `app/Actions/FailDelivery.php`, `app/Actions/NotifyDeliverySalespeople.php`, `app/Actions/PurgeDeliverySignatures.php`,
   `app/Http/Controllers/DeliverySignatureController.php`, `config/deliveries.php`
 - `app/Actions/RequestShipment.php`, `app/Actions/NotifyShipmentReady.php`, `app/Actions/NotifyDeliveryTeam.php`
