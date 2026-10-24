@@ -1,8 +1,8 @@
 # Modèle de données
 
-Schéma de la base au 2026-10-24 (177 migrations, 71 tables métier). La source exacte du schéma est
+Schéma de la base au 2026-10-24 (178 migrations, 72 tables métier). La source exacte du schéma est
 le dump SQL [`database/schema/sqlite-schema.sql`](../database/schema/sqlite-schema.sql), à jour avec
-les 177 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
+les 178 migrations (`php artisan schema:dump`). Les conventions (montants, statuts, règles de suppression, données de référence)
 sont expliquées dans l'[ADR 0006](adr/0006-database.md).
 
 ## Comment lire les diagrammes
@@ -619,6 +619,13 @@ erDiagram
   destination, une réception le magasin qui reçoit, et une écriture d'inventaire son magasin (vide pour les
   écritures du bureau chef). Une commande client est servie par le stock de l'entrepôt de son magasin.
 - `inventory_stocks` : quantités courantes par état, une ligne par produit et par magasin (`UK product_id, store_id`).
+- `store_transfers` (issue #103) : transfert d'un produit d'un magasin (`from_store_id`) à un autre (`to_store_id`, qui
+  le demande), pour son stock ou pour une ligne de commande client (`customer_order_line_id`). Il part de « En stock »
+  (ou « En démo », pour un client) : `source_status`. Son statut va de « Demandé » à « En transit », puis « Reçu »
+  (avec `quantity_received`), ou il se ferme « Refusé » ou « Annulé » (`refusal_reason`). La marchandise reste dans
+  le stock du magasin qui expédie (« En transfert » puis « En transit », ou « Client en transfert » puis « Client en
+  transit ») jusqu'à la réception : les unités FIFO passent alors au magasin qui reçoit, à leur coût, et un écart y
+  devient « Perdu ».
 - `inventory_movements` : journal en ajout seulement, qui ne se modifie ni ne se supprime. Sa source
   est une référence **polymorphe** (`reference_type`, `reference_id`), sans clé étrangère : elle ne
   paraît donc pas dans le diagramme.
@@ -655,6 +662,9 @@ erDiagram
 erDiagram
     products ||--o{ inventory_stocks : "product_id · cascade"
     stores |o--o{ inventory_stocks : "store_id · restrict"
+    stores ||--o{ store_transfers : "from_store_id / to_store_id · restrict"
+    products ||--o{ store_transfers : "product_id · restrict"
+    customer_order_lines |o--o{ store_transfers : "customer_order_line_id · null"
     products ||--o{ inventory_movements : "product_id · restrict"
     users |o--o{ inventory_movements : "user_id · null"
     reception_lines |o--o{ inventory_units : "reception_line_id · null"
@@ -702,6 +712,10 @@ erDiagram
         int quantity_defective_stock
         int quantity_defective_shipped
         int quantity_lost
+        int quantity_in_transfer
+        int quantity_in_transit
+        int quantity_customer_in_transfer
+        int quantity_customer_in_transit
         datetime created_at
         datetime updated_at
     }
@@ -729,6 +743,28 @@ erDiagram
         int cost "cents"
         date inserted_at
         date delivered_at "sortie · nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    store_transfers {
+        int id PK
+        int from_store_id FK
+        int to_store_id FK
+        int product_id FK
+        int customer_order_line_id FK "nullable"
+        int quantity
+        int quantity_received "nullable"
+        string source_status "InventoryStatus"
+        string status "StoreTransferStatus"
+        string refusal_reason "nullable"
+        int requested_by FK "nullable"
+        datetime requested_at
+        int accepted_by FK "nullable"
+        datetime accepted_at "nullable"
+        int received_by FK "nullable"
+        datetime received_at "nullable"
+        int closed_by FK "nullable"
+        datetime closed_at "nullable"
         datetime created_at
         datetime updated_at
     }

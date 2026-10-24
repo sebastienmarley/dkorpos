@@ -177,6 +177,115 @@ class InventoryMovement extends Model
     }
 
     /**
+     * Fait passer une quantité d'un magasin à un autre (réception d'un transfert, issue #103) : elle sort de l'état
+     * donné du magasin qui expédie et entre dans les états d'arrivée du magasin qui reçoit. Les mêmes unités FIFO
+     * changent de magasin, à leur coût (les plus anciennes d'abord); la sortie et les entrées sont consignées au
+     * journal, appariées par leur référence et du même montant.
+     *
+     * @param  array<string, int>  $arrivals  quantité par état d'arrivée (valeur de InventoryStatus), dans l'ordre où les unités y vont
+     * @return array{out: InventoryMovement, in: list<InventoryMovement>}
+     *
+     * @throws DomainException si la quantité est invalide ou insuffisante, ou si le stock d'un des magasins est gelé.
+     */
+    public static function moveBetweenStores(
+        Product|int $product,
+        Store|int $fromStore,
+        InventoryStatus $from,
+        Store|int $toStore,
+        array $arrivals,
+        InventoryMovementType $outType,
+        InventoryMovementType $inType,
+        Model $reference,
+        int|string|null $userId = null,
+    ): array {
+        $productId = $product instanceof Product ? $product->id : $product;
+        $fromStoreId = $fromStore instanceof Store ? $fromStore->id : $fromStore;
+        $toStoreId = $toStore instanceof Store ? $toStore->id : $toStore;
+        $arrivals = array_filter($arrivals, fn (int $quantity): bool => $quantity > 0);
+        $quantity = array_sum($arrivals);
+
+        if ($quantity < 1) {
+            throw new DomainException(__('La quantité à déplacer doit être d\'au moins 1.'));
+        }
+
+        if ($fromStoreId === $toStoreId) {
+            throw new DomainException(__('Le magasin qui expédie et celui qui reçoit doivent être différents.'));
+        }
+
+        return DB::transaction(function () use ($productId, $fromStoreId, $from, $toStoreId, $arrivals, $quantity, $outType, $inType, $reference, $userId): array {
+            foreach ([$fromStoreId, $toStoreId] as $storeId) {
+                if (InventoryCount::stockIsFrozen($storeId)) {
+                    throw new DomainException(__('Le stock d\'un des magasins est gelé pour une prise d\'inventaire : le transfert attend sa finalisation.'));
+                }
+            }
+
+            $origin = InventoryStock::query()->lockForUpdate()->firstOrCreate(['product_id' => $productId, 'store_id' => $fromStoreId]);
+            $available = $origin->quantityFor($from);
+
+            if ($available < $quantity) {
+                throw new DomainException(__('Quantité insuffisante « :status » (:available disponible, :quantity demandé).', ['status' => $from->label(), 'available' => $available, 'quantity' => $quantity]));
+            }
+
+            $origin->{$from->column()} = $available - $quantity;
+            $origin->save();
+
+            $destination = InventoryStock::query()->lockForUpdate()->firstOrCreate(['product_id' => $productId, 'store_id' => $toStoreId]);
+
+            foreach ($arrivals as $status => $arrived) {
+                $column = InventoryStatus::from($status)->column();
+                $destination->{$column} = (int) $destination->{$column} + $arrived;
+            }
+
+            $destination->save();
+
+            $units = InventoryUnit::query()->where('product_id', $productId)->where('store_id', $fromStoreId)->inHand()->fifo()->limit($quantity)->get();
+            $productCost = self::productCost($productId);
+
+            // Stock entré avant le suivi des unités : les unités manquantes sont créées au coût du produit.
+            for ($i = $units->count(); $i < $quantity; $i++) {
+                $units->push(InventoryUnit::create(['store_id' => $fromStoreId, 'product_id' => $productId, 'cost' => $productCost, 'inserted_at' => today()]));
+            }
+
+            InventoryUnit::whereKey($units->modelKeys())->update(['store_id' => $toStoreId]);
+
+            $userId ??= auth()->id();
+            $out = static::create([
+                'store_id' => $fromStoreId,
+                'product_id' => $productId,
+                'from_status' => $from,
+                'to_status' => null,
+                'quantity' => $quantity,
+                'value' => self::unitsValue($units),
+                'type' => $outType,
+                'reference_type' => $reference->getMorphClass(),
+                'reference_id' => $reference->getKey(),
+                'user_id' => $userId,
+            ]);
+
+            $in = [];
+            $offset = 0;
+
+            foreach ($arrivals as $status => $arrived) {
+                $in[] = static::create([
+                    'store_id' => $toStoreId,
+                    'product_id' => $productId,
+                    'from_status' => null,
+                    'to_status' => InventoryStatus::from($status),
+                    'quantity' => $arrived,
+                    'value' => self::unitsValue($units->slice($offset, $arrived)),
+                    'type' => $inType,
+                    'reference_type' => $reference->getMorphClass(),
+                    'reference_id' => $reference->getKey(),
+                    'user_id' => $userId,
+                ]);
+                $offset += $arrived;
+            }
+
+            return ['out' => $out, 'in' => $in];
+        });
+    }
+
+    /**
      * Prévoit le changement d'unités d'un mouvement : sa valeur, et ce qu'il faut faire une fois le mouvement créé
      * (sortir des unités demande son id). Rien ne change entre deux états valorisés ou deux états non valorisés.
      *

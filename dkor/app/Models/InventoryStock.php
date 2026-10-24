@@ -25,11 +25,15 @@ use Illuminate\Support\Carbon;
  * @property int $quantity_defective_stock
  * @property int $quantity_defective_shipped
  * @property int $quantity_lost
+ * @property int $quantity_in_transfer
+ * @property int $quantity_in_transit
+ * @property int $quantity_customer_in_transfer
+ * @property int $quantity_customer_in_transit
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Product $product
  */
-#[Fillable(['store_id', 'product_id', 'quantity_in_stock', 'quantity_on_order', 'quantity_in_demo', 'quantity_reserved', 'quantity_customer_order', 'quantity_in_delivery', 'quantity_defective_stock', 'quantity_defective_shipped', 'quantity_lost'])]
+#[Fillable(['store_id', 'product_id', 'quantity_in_stock', 'quantity_on_order', 'quantity_in_demo', 'quantity_reserved', 'quantity_customer_order', 'quantity_in_delivery', 'quantity_defective_stock', 'quantity_defective_shipped', 'quantity_lost', 'quantity_in_transfer', 'quantity_in_transit', 'quantity_customer_in_transfer', 'quantity_customer_in_transit'])]
 class InventoryStock extends Model
 {
     /** @use HasFactory<InventoryStockFactory> */
@@ -45,6 +49,10 @@ class InventoryStock extends Model
         'quantity_defective_stock' => 'integer',
         'quantity_defective_shipped' => 'integer',
         'quantity_lost' => 'integer',
+        'quantity_in_transfer' => 'integer',
+        'quantity_in_transit' => 'integer',
+        'quantity_customer_in_transfer' => 'integer',
+        'quantity_customer_in_transit' => 'integer',
     ];
 
     protected static function booted(): void

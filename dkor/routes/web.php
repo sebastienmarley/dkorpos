@@ -31,6 +31,7 @@ use App\Livewire\Inventory\CountSheets as InventoryCountSheets;
 use App\Livewire\Inventory\CountShow as InventoryCountShow;
 use App\Livewire\Inventory\Movements as InventoryMovements;
 use App\Livewire\Inventory\MyCountSheets;
+use App\Livewire\Inventory\Transfers as InventoryTransfers;
 use App\Livewire\Labels\Index as LabelsIndex;
 use App\Livewire\Orders\Index as SupplierOrdersIndex;
 use App\Livewire\Orders\Show as SupplierOrderShow;
@@ -91,6 +92,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('receptions/{reception}', ReceptionShow::class)->middleware('can:receptions.view')->name('receptions.show');
 
     Route::get('inventory/movements', InventoryMovements::class)->middleware('can:inventory.view')->name('inventory.movements');
+    Route::get('inventory/transfers', InventoryTransfers::class)->name('inventory.transfers'); // transfers.* : vérifié par le composant
     Route::get('inventory/adjustments', InventoryAdjustments::class)->middleware('can:inventory.adjust')->name('inventory.adjustments');
     Route::get('inventory/counts', InventoryCounts::class)->middleware('can:inventory.count')->name('inventory.counts');
     Route::get('inventory/counts/{count}', InventoryCountShow::class)->middleware('can:inventory.count')->name('inventory.counts.show');

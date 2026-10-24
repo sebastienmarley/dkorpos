@@ -26,6 +26,11 @@ enum InventoryMovementType: string
     case DeliveryRefused = 'delivery_refused';
     case CustomerDelivery = 'customer_delivery';
     case CustomerShipment = 'customer_shipment';
+    case TransferRequested = 'transfer_requested';
+    case TransferAccepted = 'transfer_accepted';
+    case TransferReturned = 'transfer_returned';
+    case TransferSent = 'transfer_sent';
+    case TransferReceived = 'transfer_received';
 
     public function label(): string
     {
@@ -52,6 +57,11 @@ enum InventoryMovementType: string
             self::DeliveryRefused => __('Refusé à la livraison'),
             self::CustomerDelivery => __('Livraison client'),
             self::CustomerShipment => __('Expédition client'),
+            self::TransferRequested => __('Transfert demandé'),
+            self::TransferAccepted => __('Transfert accepté (en transit)'),
+            self::TransferReturned => __('Transfert refusé ou annulé'),
+            self::TransferSent => __('Transfert sorti du magasin'),
+            self::TransferReceived => __('Transfert reçu'),
         };
     }
 }

@@ -1171,6 +1171,10 @@ CREATE TABLE "inventory_stocks"(
   "quantity_defective_shipped" integer not null default('0'),
   "quantity_lost" integer not null default('0'),
   "store_id" integer,
+  "quantity_in_transfer" integer not null default '0',
+  "quantity_in_transit" integer not null default '0',
+  "quantity_customer_in_transfer" integer not null default '0',
+  "quantity_customer_in_transit" integer not null default '0',
   foreign key("product_id") references products("id") on delete cascade on update no action,
   foreign key("store_id") references "stores"("id") on delete restrict
 );
@@ -1347,6 +1351,44 @@ CREATE INDEX "ledger_entries_reference_type_reference_id_index" on "ledger_entri
 CREATE UNIQUE INDEX "inventory_stocks_product_id_store_id_unique" on "inventory_stocks"(
   "product_id",
   "store_id"
+);
+CREATE TABLE "store_transfers"(
+  "id" integer primary key autoincrement not null,
+  "from_store_id" integer not null,
+  "to_store_id" integer not null,
+  "product_id" integer not null,
+  "customer_order_line_id" integer,
+  "quantity" integer not null,
+  "quantity_received" integer,
+  "source_status" varchar not null,
+  "status" varchar not null,
+  "refusal_reason" varchar,
+  "requested_by" integer,
+  "requested_at" datetime not null,
+  "accepted_by" integer,
+  "accepted_at" datetime,
+  "received_by" integer,
+  "received_at" datetime,
+  "closed_by" integer,
+  "closed_at" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("from_store_id") references "stores"("id") on delete restrict,
+  foreign key("to_store_id") references "stores"("id") on delete restrict,
+  foreign key("product_id") references "products"("id") on delete restrict,
+  foreign key("customer_order_line_id") references "customer_order_lines"("id") on delete set null,
+  foreign key("requested_by") references "users"("id") on delete set null,
+  foreign key("accepted_by") references "users"("id") on delete set null,
+  foreign key("received_by") references "users"("id") on delete set null,
+  foreign key("closed_by") references "users"("id") on delete set null
+);
+CREATE INDEX "store_transfers_from_store_id_status_index" on "store_transfers"(
+  "from_store_id",
+  "status"
+);
+CREATE INDEX "store_transfers_to_store_id_status_index" on "store_transfers"(
+  "to_store_id",
+  "status"
 );
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
@@ -1526,3 +1568,4 @@ INSERT INTO migrations VALUES(195,'2026_10_24_200559_add_signature_to_customer_o
 INSERT INTO migrations VALUES(196,'2026_10_24_203637_add_shipment_sending_to_customer_order_deliveries',26);
 INSERT INTO migrations VALUES(198,'2026_10_24_211857_create_inventory_locations_table',27);
 INSERT INTO migrations VALUES(200,'2026_10_24_214309_add_store_to_inventory',28);
+INSERT INTO migrations VALUES(201,'2026_10_24_234353_create_store_transfers_table',29);

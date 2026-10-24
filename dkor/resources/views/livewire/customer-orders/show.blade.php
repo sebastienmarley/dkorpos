@@ -126,6 +126,9 @@
                                 @if ($line->note)
                                     <div class="max-w-xs truncate text-xs font-normal text-zinc-400">{{ $line->note }}</div>
                                 @endif
+                                @foreach ($line->transfers->filter(fn ($transfer) => $transfer->status->isOpen()) as $transfer)
+                                    <div class="text-xs font-normal text-cyan-700 dark:text-cyan-400">{{ __('Transfert de :store — :status', ['store' => $transfer->fromStore->name, 'status' => mb_strtolower($transfer->status->label())]) }}</div>
+                                @endforeach
                                 @if ($line->location)
                                     <div class="text-xs font-normal text-sky-700 dark:text-sky-400">{{ __('Emplacement : :location', ['location' => $line->location->label()]) }}</div>
                                 @endif
@@ -381,6 +384,12 @@
                         <livewire:line-placement :line-id="$editingLine->id" :key="'placement-'.$editingLine->id" />
                     </div>
                 @endunless
+
+                @if ($editingLine->product_id && ! $editingLine->is_custom)
+                    <div class="mt-4">
+                        <livewire:customer-orders.line-transfer :line-id="$editingLine->id" :key="'transfer-'.$editingLine->id" />
+                    </div>
+                @endif
 
                 <form wire:submit="saveLine" class="mt-6 space-y-4">
                     @php($editable = $editingLine->status->isEditable())

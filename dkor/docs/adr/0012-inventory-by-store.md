@@ -2,7 +2,7 @@
 
 - **Statut :** Accepté
 - **Date :** 2026-10-24
-- **Issue liée :** #100
+- **Issues liées :** #100 (stock par magasin), #103 (transferts)
 - **Remplace en partie :** [ADR 0011](0011-inventory-movements-and-adjustments.md) (« le stock est un total pour
   l'entreprise »), [ADR 0009](0009-price-labels.md) (stock en démo)
 
@@ -82,6 +82,39 @@ Nous retenons l'**option B**.
 
 **Les ajustements et les changements d'état manuels** se font dans le magasin choisi, par défaut celui de l'usager.
 
+**Les transferts entre magasins (#103) :**
+
+- Le **magasin qui reçoit** demande toujours le transfert (`RequestStoreTransfer`). Le magasin qui expédie l'accepte
+  ou le refuse avec une raison (`AcceptStoreTransfer`, `CloseStoreTransfer`). Le demandeur peut l'annuler tant qu'il
+  n'est pas en transit. Le magasin qui reçoit confirme la quantité reçue (`ReceiveStoreTransfer`). Chacun n'agit que
+  pour son magasin ; un usager sans magasin (bureau chef) agit pour tous.
+- **Pour le stock**, la marchandise part de « En stock » : « En transfert », puis « En transit », puis « En stock »
+  chez le magasin qui reçoit. Un démonstrateur ne se transfère pas pour devenir démo ailleurs.
+- **Pour un client**, elle part de « En stock », ou de « En démo » (la dernière unité) : « Client en transfert »,
+  puis « Client en transit », puis « Réservé client » chez le magasin qui reçoit.
+  - La quantité est séparée de la ligne en une ligne « En commande », sans ligne fournisseur, qui affiche « Transfert
+    de [magasin] » et ne se modifie plus (`CustomerOrder::takeLineForTransfer()`).
+  - À la réception, la ligne passe « Transfert reçu » (`CustomerOrderLineStatus::TransferReceived`), qui se ramasse,
+    se livre et s'expédie comme « Reçu ».
+  - Une ligne dont la commande fournisseur est déjà envoyée ne se transfère pas : il faut d'abord l'annuler chez le
+    fournisseur.
+  - Un transfert pour un client refusé ou annulé fait commander la ligne au fournisseur, et les vendeurs sont avisés
+    pour prévenir le client du délai.
+- **Les unités FIFO** restent au magasin qui expédie jusqu'à la réception. `InventoryMovement::moveBetweenStores()`
+  fait alors passer les mêmes unités au magasin qui reçoit, à leur coût, avec une sortie (`TransferSent`) et une ou
+  plusieurs entrées (`TransferReceived`) appariées et du même montant.
+- **Un écart à la réception** devient « Perdu » chez le magasin qui reçoit. Pour un client, le manquant est commandé
+  au fournisseur.
+- Les défectueux et les pièces ne se transfèrent pas. Aucun transfert ne bouge pendant le gel du stock de l'un des
+  deux magasins.
+- **Les avis** (cloche, `StoreTransferNotice`) vont au magasin qui expédie (demande, annulation), au magasin qui reçoit
+  (en route), au demandeur, et aux vendeurs pour un client.
+- **Permissions :**
+  - `transfers.request` : vendeurs et directeurs ;
+  - `transfers.accept` et `transfers.receive` : commis d'entrepôt et directeurs.
+- **Page :** Inventaire > Transferts (`inventory.transfers`). La commande client montre, dans le modal de la ligne, les
+  magasins qui ont l'article.
+
 **Données existantes** : la migration attribue le stock, les unités, le journal, les ajustements, les prises, les
 commandes fournisseurs et les réceptions existants au premier magasin physique. L'application n'est pas encore en
 production : la base est rebâtie par `migrate:fresh --seed`.
@@ -95,7 +128,7 @@ production : la base est rebâtie par `migrate:fresh --seed`.
 
 **Négatives / limitations**
 
-- Il n'y a pas encore de transfert entre magasins : la marchandise d'un magasin ne sert pas les ventes d'un autre.
+- Un transfert couvre un seul produit : plusieurs articles demandent plusieurs transferts.
 - Si l'entrepôt d'un magasin change pendant qu'une commande a des articles réservés, ces articles restent dans le
   stock de l'ancien entrepôt.
 - Un usager sans magasin (bureau chef) reçoit les commandes de tous les magasins.
@@ -109,11 +142,7 @@ production : la base est rebâtie par `migrate:fresh --seed`.
 
 ## Questions ouvertes
 
-- **Transferts entre magasins** (story à venir). Le stock du magasin qui expédie passerait « En transfert », puis
-  « En transit » une fois le transfert accepté. Pour une commande client, ce serait « Client en transfert », puis
-  « Client en transit » une fois confirmé. À la confirmation de la réception par le magasin qui reçoit, la ligne
-  passerait « Transfert reçu » dans la commande client, et l'inventaire « En stock » ou « Réservé client ».
-  - Chaque étape serait un mouvement apparié : les unités FIFO garderaient leur coût d'un magasin à l'autre.
+- Le transport entre magasins (camion, bordereau, coût) et le réapprovisionnement automatique restent à faire.
 
 ## Références
 
@@ -121,3 +150,6 @@ production : la base est rebâtie par `migrate:fresh --seed`.
 - `app/Models/InventoryMovement.php`, `app/Models/InventoryCount.php`, `app/Models/CustomerOrder.php` (`stockStoreId()`)
 - `app/Models/Store.php` (`stockStoreId()`, `defaultIdFor()`), `config/inventory.php`
 - `tests/Feature/InventoryByStoreTest.php`
+- `database/migrations/2026_10_24_234353_create_store_transfers_table.php`, `app/Models/StoreTransfer.php`
+- `app/Actions/RequestStoreTransfer.php`, `AcceptStoreTransfer.php`, `CloseStoreTransfer.php`, `ReceiveStoreTransfer.php`
+- `app/Livewire/Inventory/Transfers.php`, `app/Livewire/CustomerOrders/LineTransfer.php`, `tests/Feature/StoreTransfersTest.php`

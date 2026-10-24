@@ -123,6 +123,12 @@
                     </flux:sidebar.item>
                 @endcan
 
+                @canany(['transfers.request', 'transfers.accept', 'transfers.receive'])
+                    <flux:sidebar.item icon="arrows-right-left" :href="route('inventory.transfers')" :current="request()->routeIs('inventory.transfers')" wire:navigate>
+                        {{ __('Transferts') }}
+                    </flux:sidebar.item>
+                @endcanany
+
                 @can('inventory.view')
                     <flux:sidebar.item icon="clipboard-document-list" :href="route('inventory.movements')" :current="request()->routeIs('inventory.movements')" wire:navigate>
                         {{ __('Journal d\'inventaire') }}
