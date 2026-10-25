@@ -2,12 +2,14 @@
 
 namespace App\Livewire\Orders;
 
+use App\Enums\StoreType;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
 use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\SupplierOrder;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -22,7 +24,13 @@ class Index extends Component
 
     public string $statusFilter = '';
 
+    /** Magasin de destination affiché (vide : tous), offert seulement avec stores.all (ADR 0013). */
+    public string $storeFilter = '';
+
     public bool $showCreate = false;
+
+    /** Magasin de destination de la nouvelle commande : celui de l'usager, ou un autre au choix avec stores.all. */
+    public string $newStoreId = '';
 
     public string $newType = 'product';
 
@@ -43,6 +51,11 @@ class Index extends Component
         $this->resetPage();
     }
 
+    public function updatedStoreFilter(): void
+    {
+        $this->resetPage();
+    }
+
     public function updatedNewType(): void
     {
         $this->newSupplierId = '';
@@ -54,6 +67,7 @@ class Index extends Component
 
         $this->reset('newSupplierId');
         $this->newType = SupplierType::Product->value;
+        $this->newStoreId = $this->defaultNewStoreId();
         $this->resetValidation();
         $this->showCreate = true;
     }
@@ -61,6 +75,10 @@ class Index extends Component
     public function create(): void
     {
         $this->authorize('supplier_orders.create');
+
+        if ($this->newStoreId === '') {
+            $this->newStoreId = $this->defaultNewStoreId();
+        }
 
         $this->validate([
             'newType' => ['required', Rule::in([SupplierType::Product->value, SupplierType::Service->value])],
@@ -72,21 +90,47 @@ class Index extends Component
                     ->where('is_active', true)
                     ->where('orderable', true),
             ],
+            'newStoreId' => ['required', 'integer', Rule::in($this->getStores()->modelKeys())],
         ]);
 
-        if (SupplierOrder::hasDraftFor($this->newSupplierId, Store::defaultIdFor(auth()->user()))) {
-            $this->addError('newSupplierId', __('Une commande en brouillon existe déjà pour ce fournisseur.'));
+        if (SupplierOrder::hasDraftFor($this->newSupplierId, (int) $this->newStoreId)) {
+            $this->addError('newSupplierId', __('Une commande en brouillon existe déjà pour ce fournisseur et ce magasin.'));
 
             return;
         }
 
         $order = SupplierOrder::create([
+            'store_id' => (int) $this->newStoreId,
             'type' => $this->newType,
             'supplier_id' => $this->newSupplierId,
             'created_by' => auth()->id(),
         ]);
 
         $this->redirectRoute('supplier-orders.show', $order, navigate: true);
+    }
+
+    /**
+     * Magasins de destination offerts : les magasins physiques actifs accessibles à l'usager.
+     *
+     * @return Collection<int, Store>
+     */
+    public function getStores(): Collection
+    {
+        return Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
+    }
+
+    /** Magasin proposé : celui du filtre, sinon celui de l'usager (ADR 0012), s'il est offert. */
+    private function defaultNewStoreId(): string
+    {
+        $stores = $this->getStores();
+
+        foreach ([$this->storeFilter, Store::defaultIdFor(auth()->user())] as $candidate) {
+            if (filled($candidate) && $stores->contains('id', (int) $candidate)) {
+                return (string) $candidate;
+            }
+        }
+
+        return (string) ($stores->first()->id ?? '');
     }
 
     /** @return array<int, SupplierType> */
@@ -97,8 +141,12 @@ class Index extends Component
 
     public function render(): View
     {
+        $user = auth()->user();
+
         $orders = SupplierOrder::query()
-            ->with(['supplier', 'lines'])
+            ->accessibleTo($user)
+            ->with(['supplier', 'lines', 'store'])
+            ->when($this->storeFilter !== '' && $user->hasAllStores(), fn ($query) => $query->where('store_id', (int) $this->storeFilter))
             ->when(filled($this->typeFilter), fn ($query) => $query->where('type', $this->typeFilter))
             ->when(filled($this->statusFilter), fn ($query) => $query->where('status', $this->statusFilter))
             ->when(filled($this->search), function ($query) {
@@ -114,6 +162,7 @@ class Index extends Component
         return view('livewire.orders.index', [
             'orders' => $orders,
             'statuses' => SupplierOrderStatus::cases(),
+            'stores' => $this->getStores(),
             'creatableSuppliers' => Supplier::query()
                 ->where('type', $this->newType)
                 ->where('is_active', true)

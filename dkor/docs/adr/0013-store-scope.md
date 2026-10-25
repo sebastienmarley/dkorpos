@@ -82,6 +82,7 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
 | **Rendez-vous** | Le sélecteur d'employés n'offre que les employés actifs de son magasin (`Schedules\Appointments`). | Sélecteur de magasin, puis d'employé de ce magasin. |
 | **Livraisons et expéditions** | Livraisons, Mes livraisons et Expéditions de son magasin. | Sélecteur de magasin. |
 | **Inventaire** | Ajustements, déplacements d'état et prises d'inventaire dans son magasin (listes, formulaires, fiche d'une prise et feuilles de compte). Zones et emplacements de son magasin. | Tous les magasins. |
+| **Commandes fournisseurs** | Liste et fiche des commandes destinées à son magasin. Une nouvelle commande est destinée à son magasin. | Toutes les commandes, filtre par magasin de destination (colonne du tableau). Choix du magasin de destination à la création ; le brouillon unique par fournisseur se vérifie dans ce magasin. |
 | **Réceptions** | Liste, fiche et réception des commandes destinées à son magasin. | Tous les magasins. |
 | **Transferts** | Agit pour son magasin (`StoreTransferGuard::actingFor()`). Pour un client, le magasin de la commande demande, même si son entrepôt reçoit. | Agit pour chaque magasin, avec le sélecteur. |
 
@@ -102,13 +103,12 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
 - Un usager n'a qu'un magasin : un directeur de deux magasins demande `stores.all`, qui ouvre tous les magasins.
 - Un ancien employé d'un autre magasin qui revient n'est pas proposé à un directeur : le propriétaire doit le
   réactiver et changer son magasin.
-- Les commandes fournisseurs, la paie et le badge « rendez-vous à couvrir » du menu ne sont pas encore limités au
-  magasin.
+- La paie et le badge « rendez-vous à couvrir » du menu ne sont pas encore limités au magasin.
 
 **Protections mises en place**
 
-- La fiche d'un usager d'un autre magasin répond 404 ; une commande client, une réception ou une prise d'inventaire
-  d'un autre magasin répond 403, comme une action sur l'horaire d'un employé d'un autre magasin.
+- La fiche d'un usager d'un autre magasin répond 404 ; une commande client, une commande fournisseur, une réception
+  ou une prise d'inventaire d'un autre magasin répond 403, comme une action sur l'horaire d'un employé d'un autre magasin.
 - Les formulaires valident le magasin choisi contre les magasins accessibles, et non seulement contre les magasins
   existants.
 - `StoreAccessTest` et les tests des usagers, des transferts et de l'inventaire par magasin vérifient la règle. Par
@@ -117,8 +117,7 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
 
 ## Questions ouvertes
 
-- Limiter au magasin les commandes fournisseurs (aujourd'hui surtout utilisées par la comptabilité), la paie et le
-  badge « rendez-vous à couvrir ».
+- Limiter au magasin la paie et le badge « rendez-vous à couvrir ».
 - Accès à quelques magasins seulement (table pivot usager ↔ magasins) si un poste régional apparaît.
 
 ## Références
@@ -127,5 +126,6 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
 - `app/Models/User.php` (`hasAllStores()`, `canActForStore()`, `visibleTo()`), `app/Policies/UserPolicy.php`
 - `app/Models/Store.php` (`accessibleTo()`, `defaultIdFor()`), `app/Concerns/BelongsToStore.php`,
   `app/Concerns/ChoosesStore.php`
-- `app/Livewire/Schedules/ScheduleEdit.php`, `app/Livewire/Schedules/Appointments.php`, `app/Actions/StoreTransferGuard.php`
+- `app/Livewire/Orders/Index.php` (commandes fournisseurs), `app/Livewire/Schedules/ScheduleEdit.php`,
+  `app/Livewire/Schedules/Appointments.php`, `app/Actions/StoreTransferGuard.php`
 - `tests/Feature/StoreAccessTest.php`

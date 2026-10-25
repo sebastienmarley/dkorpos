@@ -1,9 +1,11 @@
 <?php
 
 use App\Enums\ScheduleStatus;
+use App\Enums\SupplierType;
 use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
 use App\Livewire\Deliveries\Index as DeliveriesIndex;
 use App\Livewire\Inventory\Adjustments;
+use App\Livewire\Orders\Index as SupplierOrdersIndex;
 use App\Livewire\Schedules\Appointments;
 use App\Livewire\Schedules\ScheduleEdit;
 use App\Models\customer;
@@ -12,6 +14,8 @@ use App\Models\InventoryCount;
 use App\Models\Product;
 use App\Models\Schedule;
 use App\Models\Store;
+use App\Models\Supplier;
+use App\Models\SupplierOrder;
 use App\Models\User;
 use Database\Seeders\TaxSeeder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -205,5 +209,80 @@ describe('rendez-vous', function () {
             ->set('storeId', (string) $this->gaspe->id)
             ->assertSet('selectedUserId', $this->elsewhere->id)
             ->assertViewHas('users', fn ($users): bool => $users->modelKeys() === [$this->elsewhere->id]);
+    });
+});
+
+describe('commandes fournisseurs', function () {
+    beforeEach(function () {
+        $this->supplier = Supplier::factory()->create(['type' => SupplierType::Product]);
+        $this->clerk = User::factory()->withRole('warehouse')->create(['store_id' => $this->rimouski->id]);
+        $this->clerk->givePermissionTo('supplier_orders.create');
+    });
+
+    it('montre au commis seulement les commandes destinées à son magasin', function () {
+        $mine = SupplierOrder::factory()->create(['store_id' => $this->rimouski->id]);
+        $other = SupplierOrder::factory()->create(['store_id' => $this->gaspe->id]);
+
+        $this->actingAs($this->clerk);
+
+        Livewire::test(SupplierOrdersIndex::class)
+            ->assertViewHas('orders', fn (LengthAwarePaginator $orders): bool => listedOrderIds($orders) === [$mine->id])
+            ->assertDontSee('Tous les magasins');
+
+        $this->get(route('supplier-orders.show', $mine))->assertOk();
+        $this->get(route('supplier-orders.show', $other))->assertForbidden();
+    });
+
+    it('refuse au commis une commande pour un autre magasin', function () {
+        $this->actingAs($this->clerk);
+
+        Livewire::test(SupplierOrdersIndex::class)
+            ->call('openCreate')
+            ->assertSet('newStoreId', (string) $this->rimouski->id)
+            ->set('newSupplierId', (string) $this->supplier->id)
+            ->set('newStoreId', (string) $this->gaspe->id)
+            ->call('create')
+            ->assertHasErrors(['newStoreId' => 'in']);
+
+        expect(SupplierOrder::count())->toBe(0);
+    });
+
+    it('laisse le propriétaire créer et filtrer les commandes du magasin de son choix', function () {
+        $this->actingAs($this->owner);
+
+        Livewire::test(SupplierOrdersIndex::class)
+            ->set('storeFilter', (string) $this->gaspe->id)
+            ->call('openCreate')
+            ->assertSet('newStoreId', (string) $this->gaspe->id)
+            ->set('newSupplierId', (string) $this->supplier->id)
+            ->call('create')
+            ->assertHasNoErrors();
+
+        $order = SupplierOrder::sole();
+        expect($order->store_id)->toBe($this->gaspe->id);
+
+        Livewire::test(SupplierOrdersIndex::class)
+            ->set('storeFilter', (string) $this->rimouski->id)
+            ->assertViewHas('orders', fn (LengthAwarePaginator $orders): bool => listedOrderIds($orders) === [])
+            ->set('storeFilter', '')
+            ->assertViewHas('orders', fn (LengthAwarePaginator $orders): bool => listedOrderIds($orders) === [$order->id]);
+    });
+
+    it('vérifie le brouillon unique dans le magasin choisi', function () {
+        SupplierOrder::factory()->create(['supplier_id' => $this->supplier->id, 'store_id' => $this->gaspe->id]);
+
+        $this->actingAs($this->owner);
+
+        Livewire::test(SupplierOrdersIndex::class)
+            ->call('openCreate')
+            ->set('newSupplierId', (string) $this->supplier->id)
+            ->set('newStoreId', (string) $this->gaspe->id)
+            ->call('create')
+            ->assertHasErrors('newSupplierId')
+            ->set('newStoreId', (string) $this->rimouski->id)
+            ->call('create')
+            ->assertHasNoErrors();
+
+        expect(SupplierOrder::where('store_id', $this->rimouski->id)->count())->toBe(1);
     });
 });

@@ -28,6 +28,17 @@
             </flux:select>
         </div>
 
+        @if (auth()->user()->hasAllStores())
+            <div class="w-52">
+                <flux:select wire:model.live="storeFilter">
+                    <flux:select.option value="">{{ __('Tous les magasins') }}</flux:select.option>
+                    @foreach ($stores as $store)
+                        <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            </div>
+        @endif
+
         <div class="w-52">
             <flux:select wire:model.live="statusFilter">
                 <flux:select.option value="">{{ __('Tous les statuts') }}</flux:select.option>
@@ -43,7 +54,7 @@
         <flux:table :paginate="$orders">
             <flux:table.columns>
                 <flux:table.column>{{ __('Numéro') }}</flux:table.column>
-                <flux:table.column>{{ __('Quote #') }}</flux:table.column>
+                <flux:table.column>{{ __('Magasin de destination') }}</flux:table.column>
                 <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
                 <flux:table.column>{{ __('Type') }}</flux:table.column>
                 <flux:table.column>{{ __('Statut') }}</flux:table.column>
@@ -61,7 +72,7 @@
                             </flux:link>
                         </flux:table.cell>
 
-                        <flux:table.cell>{{ $order->quote_number ?: '—' }}</flux:table.cell>
+                        <flux:table.cell>{{ $order->store?->name ?? '—' }}</flux:table.cell>
 
                         <flux:table.cell>{{ $order->supplier->name }}</flux:table.cell>
 
@@ -84,7 +95,7 @@
                         <flux:table.cell colspan="8" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="truck" class="h-8 w-8 text-zinc-300" />
-                                @if (filled($search) || filled($typeFilter) || filled($statusFilter))
+                                @if (filled($search) || filled($typeFilter) || filled($statusFilter) || filled($storeFilter))
                                     <flux:text class="text-zinc-400">{{ __('Aucune commande trouvée pour ces critères.') }}</flux:text>
                                 @else
                                     <flux:text class="text-zinc-400">{{ __('Aucune commande. Cliquez sur « Nouvelle commande » pour commencer.') }}</flux:text>
@@ -113,6 +124,13 @@
                     <flux:select.option :value="$type->value">{{ $type->label() }}</flux:select.option>
                 @endforeach
             </flux:select>
+
+            <flux:select wire:model="newStoreId" :label="__('Magasin de destination')" :disabled="! auth()->user()->hasAllStores()">
+                @foreach ($stores as $store)
+                    <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:error name="newStoreId" />
 
             <flux:select wire:model="newSupplierId" :label="__('Fournisseur')" :placeholder="__('Choisir un fournisseur…')">
                 @foreach ($creatableSuppliers as $supplier)
