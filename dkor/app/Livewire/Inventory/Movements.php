@@ -32,6 +32,9 @@ class Movements extends Component
 
     public string $typeFilter = '';
 
+    /** Magasin affiché (vide : tous), offert seulement avec stores.all (ADR 0013). */
+    public string $storeFilter = '';
+
     public bool $showMove = false;
 
     public string $productSearch = '';
@@ -60,6 +63,11 @@ class Movements extends Component
     }
 
     public function updatedTypeFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedStoreFilter(): void
     {
         $this->resetPage();
     }
@@ -139,7 +147,7 @@ class Movements extends Component
         $movements = InventoryMovement::query()
             ->accessibleTo(auth()->user())
             ->with([
-                'product', 'user',
+                'product', 'user', 'store',
                 'reference' => fn (Relation $relation) => $relation instanceof MorphTo
                     ? $relation->morphWith([
                         SupplierOrderLine::class => ['order'],
@@ -152,6 +160,7 @@ class Movements extends Component
                 $q->where('from_status', $this->statusFilter)->orWhere('to_status', $this->statusFilter);
             }))
             ->when(filled($this->typeFilter), fn ($query) => $query->where('type', $this->typeFilter))
+            ->when(filled($this->storeFilter) && auth()->user()->hasAllStores(), fn ($query) => $query->where('store_id', (int) $this->storeFilter))
             ->latest('id')
             ->paginate(15);
 

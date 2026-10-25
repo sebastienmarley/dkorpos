@@ -18,6 +18,16 @@
     </div>
 
     <div class="mb-4 flex gap-3">
+        @if (auth()->user()->hasAllStores())
+            <div class="w-56">
+                <flux:select wire:model.live="storeFilter">
+                    <flux:select.option value="">{{ __('Tous les magasins') }}</flux:select.option>
+                    @foreach ($stores as $store)
+                        <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            </div>
+        @endif
         <div class="w-56">
             <flux:select wire:model.live="statusFilter">
                 <flux:select.option value="">{{ __('Tous les états') }}</flux:select.option>
@@ -40,6 +50,7 @@
         <flux:table :paginate="$movements">
             <flux:table.columns>
                 <flux:table.column>{{ __('Date') }}</flux:table.column>
+                <flux:table.column>{{ __('Magasin') }}</flux:table.column>
                 <flux:table.column>{{ __('Produit') }}</flux:table.column>
                 <flux:table.column>{{ __('De') }}</flux:table.column>
                 <flux:table.column>{{ __('Vers') }}</flux:table.column>
@@ -53,6 +64,7 @@
                 @forelse ($movements as $movement)
                     <flux:table.row :key="$movement->id">
                         <flux:table.cell>{{ $movement->created_at->format('Y-m-d H:i') }}</flux:table.cell>
+                        <flux:table.cell>{{ $movement->store?->name ?? '—' }}</flux:table.cell>
                         <flux:table.cell variant="strong">
                             <flux:link :href="route('products.show', $movement->product)" wire:navigate>{{ $movement->product->display_name }}</flux:link>
                         </flux:table.cell>
@@ -96,7 +108,7 @@
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="8" class="py-12 text-center">
+                        <flux:table.cell colspan="9" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="clipboard-document-list" class="h-8 w-8 text-zinc-300" />
                                 <flux:text class="text-zinc-400">{{ __('Aucun mouvement d\'inventaire.') }}</flux:text>

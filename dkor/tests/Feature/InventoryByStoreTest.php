@@ -7,6 +7,7 @@ use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
 use App\Livewire\Inventory\Adjustments;
 use App\Livewire\Inventory\Counts;
+use App\Livewire\Inventory\Movements;
 use App\Livewire\Products\Show as ProductShow;
 use App\Livewire\Receptions\Create as ReceptionCreate;
 use App\Models\CustomerOrder;
@@ -68,6 +69,26 @@ it('montre les quantités du produit par magasin et le total de l\'entreprise', 
         ->and($this->product->totalQuantity(InventoryStatus::InStock))->toBe(4);
 
     expectInventoryIntegrity($this->product);
+});
+
+it('indique le magasin de chaque mouvement du journal, limité au magasin de l\'usager et filtrable avec stores.all', function () {
+    stockIn($this->product, $this->rimouski, 3);
+    stockIn($this->product, $this->gaspe, 2);
+
+    Livewire::actingAs(User::factory()->withRole('salesman')->create(['store_id' => $this->rimouski->id]))
+        ->test(Movements::class)
+        ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->unique()->all() === [$this->rimouski->id])
+        ->assertSee('Rimouski')
+        ->assertDontSee('Gaspé')
+        ->assertDontSee('Tous les magasins')
+        ->set('storeFilter', (string) $this->gaspe->id)
+        ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->unique()->all() === [$this->rimouski->id]);
+
+    Livewire::actingAs($this->owner)->test(Movements::class)
+        ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->sort()->values()->all() === [$this->rimouski->id, $this->gaspe->id])
+        ->assertSee('Gaspé')
+        ->set('storeFilter', (string) $this->gaspe->id)
+        ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->unique()->all() === [$this->gaspe->id]);
 });
 
 describe('réception par magasin', function () {
