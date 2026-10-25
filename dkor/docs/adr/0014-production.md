@@ -22,7 +22,7 @@ L'application devient donc un système fermé ([ADR 0002](0002-auth.md)) joignab
 surtout historiques (commandes, paiements, factures, journal d'inventaire, paie) et contiennent des renseignements
 personnels sur les clients et les employés : elles ne doivent ni se perdre ni fuir.
 
-État actuel relevé dans le code :
+État relevé dans le code au moment de la décision :
 
 - `.env.example` : `APP_ENV=local`, `APP_DEBUG=true`, `MAIL_MAILER=log`, `FILESYSTEM_DISK=local`,
   `QUEUE_CONNECTION=database`, `SESSION_DRIVER=database`, `CACHE_STORE=database`.
@@ -109,13 +109,23 @@ en amont (Cloudflare Access) reste possible plus tard sans toucher au code.
 - Pourquoi PostgreSQL plutôt que MySQL :
   - les migrations sont **transactionnelles** : une migration qui échoue au déploiement est annulée en entier, au
     lieu de laisser un schéma à moitié modifié ;
-  - les comparaisons de texte sont sensibles à la casse, **comme en SQLite** : les tests et la production se
-    comportent pareil (la recherche passe déjà par `search_name` et `LOWER()`) ;
   - c'est le moteur le plus rigoureux (types, contraintes) de l'ADR 0006.
 - Les verrous par ligne (`lockForUpdate()`) deviennent réels : plusieurs caisses et téléphones écrivent en même temps
   sans bloquer toute la base.
-- Le développement et les tests restent sur SQLite (ADR 0006). Une **seconde tâche de CI** exécute les migrations et
-  la suite de tests sur PostgreSQL, pour attraper ce que SQLite tolère (types, `GROUP BY`, comparaisons de booléens).
+- Le développement et les tests restent sur SQLite (ADR 0006). Une **seconde tâche de CI** (`tests-pgsql` dans
+  `laravel-ci.yml`, service PostgreSQL 18) exécute les commandes de déploiement puis la suite sur PostgreSQL, pour
+  attraper ce que SQLite tolère. En local, la même suite roule sur PostgreSQL (DBngin) en passant les variables `DB_*`
+  à `php artisan test --parallel --processes=4`.
+- Ce que la suite a révélé sur PostgreSQL, et les règles qui en découlent (ajoutées à la portabilité de l'ADR 0006) :
+
+  | Écart avec SQLite | Règle |
+  |---|---|
+  | `LIKE` respecte la casse | Rechercher avec `whereLike()` / `orWhereLike()`, traduits en `ilike` sur PostgreSQL |
+  | Une colonne `time` est rendue avec les secondes (`17:00:00`) | Caster les heures avec `App\Casts\TimeOfDay`, qui garde `HH:MM` |
+  | Comparer `''` à une colonne entière est une erreur | Ignorer un filtre vide (`filled()`) ou le caster (`(int)`) |
+  | Sans `orderBy`, l'ordre des lignes change d'une requête à l'autre | Trier explicitement quand l'ordre compte (lignes d'une commande) |
+  | Une erreur annule toute la transaction en cours | Isoler une écriture qui peut échouer dans `DB::transaction()` (point de sauvegarde) |
+  | Les longueurs `varchar` et les `CHECK` des `enum()` sont appliquées | `text` pour un texte long ; chaînes simples plutôt qu'`enum()` |
 
 ### Accès et sécurité
 
@@ -124,13 +134,23 @@ en amont (Cloudflare Access) reste possible plus tard sans toucher au code.
     `stores.all` ([ADR 0013](0013-store-scope.md)). Tant qu'il ne l'a pas activée, l'usager est redirigé vers son
     activation ;
   - **offerte** aux autres usagers.
+  - Les rôles visés sont dans `config/access.php` (`two_factor.roles`) ; `User::requiresTwoFactor()` y ajoute
+    `stores.all`. Le middleware `EnsureTwoFactorIsEnabled` (groupe `web`) renvoie l'usager vers
+    **Réglages > Authentification à deux facteurs** (`two-factor.edit`), y compris pour une action Livewire d'une page
+    restée ouverte. `TWO_FACTOR_ENFORCED=false` lève l'obligation (tests, développement local).
+  - La page demande le mot de passe (`password.confirm`). Pendant l'activation imposée, elle s'affiche sans la
+    navigation de l'application, avec **Se déconnecter** et, une fois la 2FA confirmée, **Continuer**. Un usager pour
+    qui la 2FA est obligatoire ne peut pas la désactiver.
   - Codes de récupération à la configuration. Comme pour le mot de passe (ADR 0002), seul un superviseur
-    réinitialise la 2FA d'un usager qui a perdu son téléphone.
+    réinitialise la 2FA d'un usager qui a perdu son téléphone, depuis sa fiche (même autorisation que le mot de
+    passe). L'usager la réactive à sa connexion suivante.
 - **Limite de tentatives** : on garde celle de Fortify (5 par minute par nom d'usager et IP, et 5 par minute pour le
   code 2FA).
 - **Sessions** : en base (`SESSION_DRIVER=database`), `SESSION_SECURE_COOKIE=true`, durée de 120 minutes
-  d'inactivité. Aujourd'hui, un usager désactivé (`is_active`) garde sa session ouverte : un middleware le
-  déconnectera à sa prochaine requête.
+  d'inactivité.
+- **Usagers désactivés** (`is_active`) : la connexion les refuse (`Fortify::authenticateUsing()`, même message qu'un
+  mauvais mot de passe), et le middleware `EnsureUserIsActive` déconnecte à sa requête suivante un usager désactivé
+  pendant que sa session était ouverte.
 - **HTTPS forcé** en production (`URL::forceHttps()`).
 
 ### Courriel
@@ -182,23 +202,41 @@ en amont (Cloudflare Access) reste possible plus tard sans toucher au code.
 
 Avant le **premier** déploiement en production, une seule fois :
 
-1. **Migrations de départ.** Les 178 migrations sont remplacées par des migrations de structure seulement, qui
-   recréent le schéma actuel. Les migrations de données (rôles, permissions, `migrate_user_roles_to_permission_tables`)
-   disparaissent : ce sont les seeders qui s'en chargent (ADR 0007). C'est permis parce qu'aucune base à conserver ne
-   les a encore exécutées. On n'utilise pas `schema:dump --prune` : le dump est propre au moteur
-   (`sqlite-schema.sql`) et ne servirait pas à PostgreSQL. Le dump SQLite est refait à partir des nouvelles
-   migrations.
-2. **`Relation::enforceMorphMap()`** dans `AppServiceProvider`, avec un alias pour chaque modèle référencé :
-   sources du journal d'inventaire et des écritures, destinataires des avis (`User`), modèles des rôles de
-   `spatie/laravel-permission`. Renommer un modèle ne brise plus les données.
+1. **Migrations de départ (fait le 2026-10-25).** Les 179 migrations sont remplacées par **79 migrations de
+   structure seulement, une par table** (`2026_10_25_000001_…` à `…000079_…`), dans l'ordre des clés étrangères.
+   - Elles ont été générées à partir d'une base PostgreSQL bâtie par les anciennes migrations, puis comparées
+     colonne par colonne (type, nullable, défaut), index par index et clé étrangère par clé étrangère, sur PostgreSQL
+     et sur SQLite : le schéma est identique, sauf les trois corrections ci-dessous.
+   - Les migrations de données (rôles, permissions, conversions) disparaissent : ce sont les seeders qui s'en
+     chargent (ADR 0007). C'est permis parce qu'aucune base à conserver ne les avait encore exécutées.
+   - On n'utilise pas `schema:dump --prune` : le dump est propre au moteur et ne servirait pas à PostgreSQL. Le dump
+     SQLite (`sqlite-schema.sql`) est refait à partir des nouvelles migrations.
+   - **Trois corrections de schéma**, révélées par PostgreSQL :
+     - `permissions.description` passe en `text` : la description de `stores.all` dépasse 255 caractères, et
+       `ReferenceDataSeeder` aurait échoué au premier déploiement ;
+     - `suppliers.type` et `stores.type` deviennent des chaînes simples : les anciennes migrations laissaient sur
+       PostgreSQL une contrainte `CHECK` qui n'acceptait que `product` et `service`, et refusait donc les
+       fournisseurs `shipping`.
+2. **`Relation::enforceMorphMap()`** dans `AppServiceProvider` (`configureMorphMap()`) : chacun des 65 modèles de
+   `app/Models` a un alias stable, son nom en minuscules séparées par des `_` (`user`, `reception_line`,
+   `inventory_adjustment`…). Le journal d'inventaire, les écritures, les avis et les rôles enregistrent cet alias au
+   lieu du nom de la classe : renommer un modèle ne brise plus les données. Un alias ne change plus une fois en
+   production, et tout nouveau modèle reçoit le sien (`MorphMapTest` échoue sinon).
 3. **Permissions** : la production part d'une base neuve, qui reçoit exactement `config/access.php`. Il n'y a rien à
    réaligner (question de l'ADR 0007, sans objet en production).
-4. **Premier administrateur** : une commande `app:create-admin` demande le nom, le magasin et le mot de passe,
-   sans les écrire dans l'historique du terminal. Aucune donnée de démo : seul `ReferenceDataSeeder` roule.
+4. **Premier administrateur** : `php artisan app:create-admin`, lancé une fois après le premier déploiement.
+   - Elle demande le prénom, le nom, le magasin d'appartenance et le mot de passe, sans écho : il n'apparaît ni à
+     l'écran ni dans l'historique du terminal. Le mot de passe suit `Password::defaults()` (12 caractères, casse
+     mixte, chiffres, symboles et absent des fuites connues en production).
+   - Si aucun magasin n'existe, elle crée le premier, comme magasin physique.
+   - Elle refuse de rouler si le rôle `admin` n'existe pas (seeder pas encore exécuté) ou si un administrateur
+     existe déjà ; tout se fait dans une transaction.
+   - Aucune donnée de démo : seul `ReferenceDataSeeder` roule. Les autres comptes, dont le propriétaire, se créent
+     ensuite dans l'application (un rôle de même niveau peut s'attribuer).
 
 Après ce premier déploiement, la règle de l'ADR 0006 s'applique sans exception : une migration fusionnée dans
-`develop` ne se modifie plus (la préproduction l'a déjà exécutée), et chaque changement de schéma est une nouvelle migration. `migrate:fresh` ne sert plus qu'en local ;
-`DB::prohibitDestructiveCommands()` l'interdit en production.
+`develop` ne se modifie plus (la préproduction l'a déjà exécutée), et chaque changement de schéma est une nouvelle
+migration. `migrate:fresh` ne sert plus qu'en local ; `DB::prohibitDestructiveCommands()` l'interdit en production.
 
 ### Sauvegardes et restauration
 
@@ -236,8 +274,10 @@ Après ce premier déploiement, la règle de l'ADR 0006 s'applique sans exceptio
 - Quatre nouveaux paquets à approuver (Postmark, http-client, S3, Nightwatch).
 - Exposée sur Internet, l'application dépend de mots de passe solides et de la 2FA des comptes sensibles.
 - Les usagers sans 2FA obligatoire (vendeurs, livreurs) n'ont que leur mot de passe.
-- Le remplacement des migrations est un gros changement fait une seule fois : chaque base de développement doit être
-  rebâtie (`migrate:fresh --seed`).
+- Le remplacement des migrations et la carte des alias sont des changements faits une seule fois : chaque base de
+  développement doit être rebâtie (`migrate:fresh --seed`).
+- Les relations `hasMany` n'ont pas d'ordre par défaut : sur PostgreSQL, une liste dont l'ordre compte doit être
+  triée explicitement. Seules les lignes de commande client ont été vérifiées.
 
 **Protections mises en place**
 
@@ -249,8 +289,10 @@ Après ce premier déploiement, la règle de l'ADR 0006 s'applique sans exceptio
 - `enforceMorphMap()` lance une exception si un modèle sans alias est enregistré dans une référence polymorphe.
 - Déploiement seulement après des tests verts, en préproduction (`develop`) avant la production (`main`).
 - Restaurations essayées, pas seulement sauvegardes prises.
-- Tests Pest : 2FA obligatoire selon le rôle et `stores.all`, `app:create-admin`, `enforceMorphMap`, seeders relancés
-  sur une base à jour, fuseau des tâches planifiées.
+- La suite roule sur SQLite et sur PostgreSQL dans la CI.
+- Tests Pest : `TwoFactorAuthenticationTest` (2FA obligatoire selon le rôle et `stores.all`, activation, défi à la
+  connexion, page sans navigation), réinitialisation de la 2FA dans `Users/ShowTest`, usagers désactivés dans
+  `AuthenticationTest`, `CreateAdminCommandTest`, `MorphMapTest`, `ScheduledTasksTimezoneTest`.
 
 ## Questions ouvertes
 
@@ -267,10 +309,15 @@ Après ce premier déploiement, la règle de l'ADR 0006 s'applique sans exceptio
 
 - `.env.example`, `config/app.php` (`timezone`), `config/fortify.php`, `config/session.php`,
   `config/filesystems.php`, `config/mail.php`, `config/deliveries.php`
-- `app/Providers/FortifyServiceProvider.php`, `app/Providers/AppServiceProvider.php`
-- `routes/console.php`, `.github/workflows/laravel-ci.yml` (racine du dépôt)
-- `database/migrations/`, `database/schema/sqlite-schema.sql`, `database/seeders/ReferenceDataSeeder.php`
-- `database/migrations/2026_10_01_234108_migrate_user_roles_to_permission_tables.php`
+- `config/access.php` (`two_factor`), `phpunit.xml` (`TWO_FACTOR_ENFORCED=false`)
+- `app/Providers/FortifyServiceProvider.php`, `app/Providers/AppServiceProvider.php` (`configureMorphMap()`)
+- `app/Http/Middleware/EnsureUserIsActive.php`, `app/Http/Middleware/EnsureTwoFactorIsEnabled.php`, `bootstrap/app.php`
+- `app/Livewire/Settings/TwoFactor.php`, `resources/views/livewire/settings/two-factor.blade.php`,
+  `resources/views/livewire/auth/two-factor-challenge.blade.php`, `app/Livewire/Users/Show.php` (`resetTwoFactor()`)
+- `app/Console/Commands/CreateAdmin.php`, `app/Casts/TimeOfDay.php`
+- `routes/console.php`, `.github/workflows/laravel-ci.yml` (racine du dépôt, tâches `tests` et `tests-pgsql`)
+- `database/migrations/` (79 migrations de départ), `database/schema/sqlite-schema.sql`,
+  `database/seeders/ReferenceDataSeeder.php`
 - [ADR 0002](0002-auth.md), [ADR 0006](0006-database.md), [ADR 0007](0007-reference-data-seeders.md),
   [ADR 0012](0012-inventory-by-store.md), [ADR 0013](0013-store-scope.md)
 - Laravel Cloud : https://cloud.laravel.com/docs
