@@ -71,6 +71,61 @@ it('montre les quantités du produit par magasin et le total de l\'entreprise', 
 });
 
 describe('réception par magasin', function () {
+    it('n\'offre pas au commis le fournisseur ni les lignes d\'une commande d\'un autre magasin', function () {
+        $line = sentOrderFor($this->gaspe, $this->product, 1);
+        $clerk = User::factory()->withRole('warehouse')->create(['store_id' => $this->rimouski->id]);
+
+        Livewire::actingAs($clerk)->test(ReceptionCreate::class)
+            ->assertViewHas('suppliers', fn ($suppliers): bool => ! $suppliers->contains('id', $line->order->supplier_id))
+            ->set('supplierId', (string) $line->order->supplier_id)
+            ->set("selected.{$line->id}", true)
+            ->assertSet('selected', [])
+            ->assertSet('showStoreConfirm', false);
+    });
+
+    it('demande confirmation avant de recevoir la commande d\'un autre magasin avec stores.all', function () {
+        $line = sentOrderFor($this->gaspe, $this->product, 2);
+
+        Livewire::test(ReceptionCreate::class)
+            ->set('supplierId', (string) $line->order->supplier_id)
+            ->set('orderSearch', $line->order->number)
+            ->assertSee('Magasin : Gaspé')
+            ->set("selected.{$line->id}", true)
+            ->assertSet('selected', [])
+            ->assertSet('showStoreConfirm', true)
+            ->assertSee('est celle du magasin Gaspé')
+            ->call('confirmOtherStore')
+            ->assertSet("selected.{$line->id}", true)
+            ->assertSet("quantities.{$line->id}", '2')
+            ->call('start');
+
+        expect(Reception::sole()->store_id)->toBe($this->gaspe->id);
+    });
+
+    it('ne coche pas la ligne quand l\'usager annule la confirmation', function () {
+        $line = sentOrderFor($this->gaspe, $this->product, 2);
+
+        Livewire::test(ReceptionCreate::class)
+            ->set('supplierId', (string) $line->order->supplier_id)
+            ->set("selected.{$line->id}", true)
+            ->call('cancelOtherStore')
+            ->assertSet('selected', [])
+            ->assertSet('showStoreConfirm', false)
+            ->call('start');
+
+        expect(Reception::count())->toBe(0);
+    });
+
+    it('ne demande pas de confirmation pour une commande de son magasin', function () {
+        $line = sentOrderFor($this->rimouski, $this->product, 1);
+
+        Livewire::test(ReceptionCreate::class)
+            ->set('supplierId', (string) $line->order->supplier_id)
+            ->set("selected.{$line->id}", true)
+            ->assertSet('showStoreConfirm', false)
+            ->assertSet("selected.{$line->id}", true);
+    });
+
     it('laisse un usager qui a accès à tous les magasins recevoir pour un autre magasin', function () {
         $line = sentOrderFor($this->gaspe, $this->product, 2);
 

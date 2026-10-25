@@ -83,7 +83,7 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
 | **Livraisons et expéditions** | Livraisons, Mes livraisons et Expéditions de son magasin. | Sélecteur de magasin. |
 | **Inventaire** | Ajustements, déplacements d'état et prises d'inventaire dans son magasin (listes, formulaires, fiche d'une prise et feuilles de compte). Zones et emplacements de son magasin. | Tous les magasins. |
 | **Commandes fournisseurs** | Liste et fiche des commandes destinées à son magasin. Une nouvelle commande est destinée à son magasin. | Toutes les commandes, filtre par magasin de destination (colonne du tableau). Choix du magasin de destination à la création ; le brouillon unique par fournisseur se vérifie dans ce magasin. |
-| **Réceptions** | Liste, fiche et réception des commandes destinées à son magasin. | Tous les magasins. |
+| **Réceptions** | Liste, fiche et réception des commandes destinées à son magasin : la nouvelle réception n'offre ni les fournisseurs ni les lignes des autres magasins, et `Reception::start()` refuse un receveur d'un autre magasin. | Tous les magasins. La première ligne cochée d'une commande d'un autre magasin que le sien demande une confirmation (« La commande … est celle du magasin …. Êtes-vous certain ? »). |
 | **Transferts** | Agit pour son magasin (`StoreTransferGuard::actingFor()`). Pour un client, le magasin de la commande demande, même si son entrepôt reçoit. | Agit pour chaque magasin, avec le sélecteur. |
 
 **Restent communs à tous les magasins :** le catalogue, les clients, le stock des autres magasins en consultation
