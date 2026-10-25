@@ -79,6 +79,7 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
 | **Usagers** | Ne voit et ne gère que les employés de son magasin (`User::visibleTo()`, `UserPolicy`). Embauche dans son magasin seulement. Ne change pas le magasin d'appartenance (`UserPolicy::changeStore()`). | Tous les employés, filtre par magasin. Embauche dans n'importe quel magasin et change le magasin d'appartenance. |
 | **Commandes clients** | Liste et fiche limitées à son magasin. Une nouvelle commande est créée dans son magasin. | Toutes les commandes, filtre par magasin. Choix du magasin à la création. |
 | **Gestion des horaires** | Grille, remplissage, publication, réassignation et rendez-vous à couvrir des employés actifs de son magasin (`ScheduleEdit`). | Sélecteur de magasin : chaque magasin publie sa semaine. |
+| **Rendez-vous** | Le sélecteur d'employés n'offre que les employés actifs de son magasin (`Schedules\Appointments`). | Sélecteur de magasin, puis d'employé de ce magasin. |
 | **Livraisons et expéditions** | Livraisons, Mes livraisons et Expéditions de son magasin. | Sélecteur de magasin. |
 | **Inventaire** | Ajustements, déplacements d'état et prises d'inventaire dans son magasin (listes, formulaires, fiche d'une prise et feuilles de compte). Zones et emplacements de son magasin. | Tous les magasins. |
 | **Réceptions** | Liste, fiche et réception des commandes destinées à son magasin. | Tous les magasins. |
@@ -126,5 +127,5 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
 - `app/Models/User.php` (`hasAllStores()`, `canActForStore()`, `visibleTo()`), `app/Policies/UserPolicy.php`
 - `app/Models/Store.php` (`accessibleTo()`, `defaultIdFor()`), `app/Concerns/BelongsToStore.php`,
   `app/Concerns/ChoosesStore.php`
-- `app/Livewire/Schedules/ScheduleEdit.php`, `app/Actions/StoreTransferGuard.php`
+- `app/Livewire/Schedules/ScheduleEdit.php`, `app/Livewire/Schedules/Appointments.php`, `app/Actions/StoreTransferGuard.php`
 - `tests/Feature/StoreAccessTest.php`

@@ -2,26 +2,35 @@
 
 namespace App\Livewire\Schedules;
 
+use App\Concerns\ChoosesStore;
 use App\Concerns\SearchesCustomers;
 use App\Enums\ScheduleType;
 use App\Models\Appointment;
 use App\Models\customer;
 use App\Models\Holiday;
 use App\Models\Schedule;
+use App\Models\Store;
 use App\Models\User;
 use App\Support\AppointmentBooking;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
+/**
+ * Rendez-vous d'un employé (ADR 0013) : les employés actifs du magasin choisi, le sien par défaut, un autre magasin
+ * seulement avec stores.all.
+ */
 class Appointments extends Component
 {
+    use ChoosesStore;
     use SearchesCustomers;
 
     /** Taille d'une case de la grille, en minutes (15 ou 30). */
@@ -32,6 +41,9 @@ class Appointments extends Component
     public const DAY_END_MINUTE = AppointmentBooking::DAY_END_MINUTE;
 
     public string $weekStart;
+
+    #[Url(as: 'store')]
+    public string $storeId = '';
 
     public ?int $selectedUserId = null;
 
@@ -58,8 +70,26 @@ class Appointments extends Component
     {
         $this->weekStart = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
 
-        $firstUser = User::query()->where('is_active', true)->orderBy('id')->first();
-        $this->selectedUserId = $firstUser?->id;
+        $this->keepAccessibleStore();
+        $this->keepStoreEmployee();
+    }
+
+    public function updatedStoreId(): void
+    {
+        $this->keepAccessibleStore();
+        $this->closeModal();
+        $this->keepStoreEmployee();
+    }
+
+    public function updatedSelectedUserId(): void
+    {
+        $this->keepStoreEmployee();
+    }
+
+    /** @return EloquentCollection<int, Store> */
+    public function getStores(): EloquentCollection
+    {
+        return Store::query()->accessibleTo(auth()->user())->where('is_active', true)->orderBy('name')->get();
     }
 
     public function previousWeek(): void
@@ -79,6 +109,8 @@ class Appointments extends Component
 
     public function openCell(string $date, int $startMinute): void
     {
+        $this->ensureStoreEmployee();
+
         if (! $this->canBookAt($date, $startMinute)) {
             return;
         }
@@ -131,6 +163,7 @@ class Appointments extends Component
     public function save(): void
     {
         $this->authorize($this->editingAppointmentId ? 'appointments.edit' : 'appointments.create');
+        $this->ensureStoreEmployee();
 
         if (! $this->editingDate || ! $this->canBookAt($this->editingDate, $this->editingStartMinute)) {
             $this->addError('title', __('Ce créneau n\'est pas disponible.'));
@@ -199,6 +232,7 @@ class Appointments extends Component
     public function updateAppointmentTime(int $id, string $date, int $startMinute, int $durationMinutes, int $version): void
     {
         $this->authorize('appointments.edit');
+        $this->ensureStoreEmployee();
 
         $appointment = $this->employeeAppointments()->find($id);
 
@@ -294,6 +328,7 @@ class Appointments extends Component
     public function deleteAppointment(): void
     {
         $this->authorize('appointments.delete');
+        $this->ensureStoreEmployee();
 
         if ($this->editingAppointmentId) {
             $this->employeeAppointments()->whereKey($this->editingAppointmentId)->delete();
@@ -309,6 +344,32 @@ class Appointments extends Component
         $this->resetValidation();
         $this->editingStartMinute = self::DAY_START_MINUTE;
         $this->durationMinutes = self::SLOT_MINUTES;
+    }
+
+    /**
+     * Employés actifs du magasin choisi.
+     *
+     * @return Builder<User>
+     */
+    private function storeEmployees(): Builder
+    {
+        return User::query()->where('is_active', true)->where('store_id', (int) $this->storeId);
+    }
+
+    /** Garde l'employé choisi dans le magasin choisi, sinon prend le premier employé du magasin. */
+    private function keepStoreEmployee(): void
+    {
+        if ($this->selectedUserId !== null && $this->storeEmployees()->whereKey($this->selectedUserId)->exists()) {
+            return;
+        }
+
+        $this->selectedUserId = $this->storeEmployees()->orderBy('id')->value('id');
+    }
+
+    /** Refuse d'agir sur les rendez-vous d'un employé qui n'est pas du magasin choisi (requête trafiquée). */
+    private function ensureStoreEmployee(): void
+    {
+        abort_unless($this->selectedUserId !== null && $this->storeEmployees()->whereKey($this->selectedUserId)->exists(), 403);
     }
 
     /**
@@ -359,7 +420,7 @@ class Appointments extends Component
 
         $timeSlots = range(self::DAY_START_MINUTE, self::DAY_END_MINUTE - self::SLOT_MINUTES, self::SLOT_MINUTES);
 
-        $users = User::query()->where('is_active', true)->orderBy('id')->get();
+        $users = $this->storeEmployees()->orderBy('id')->get();
 
         $appointments = $this->selectedUserId
             ? Appointment::query()
@@ -478,6 +539,7 @@ class Appointments extends Component
 
         return view('livewire.schedules.appointments', [
             'editingAppointment' => $editingAppointment,
+            'stores' => $this->getStores(),
             'users' => $users,
             'days' => $days,
             'timeSlots' => $timeSlots,

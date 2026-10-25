@@ -4,6 +4,7 @@ use App\Enums\ScheduleStatus;
 use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
 use App\Livewire\Deliveries\Index as DeliveriesIndex;
 use App\Livewire\Inventory\Adjustments;
+use App\Livewire\Schedules\Appointments;
 use App\Livewire\Schedules\ScheduleEdit;
 use App\Models\customer;
 use App\Models\CustomerOrder;
@@ -178,5 +179,31 @@ describe('horaires', function () {
 
         expect($other->fresh()->status)->toBe(ScheduleStatus::Published)
             ->and($mine->fresh()->status)->toBe(ScheduleStatus::Draft);
+    });
+});
+
+describe('rendez-vous', function () {
+    beforeEach(function () {
+        $this->colleague = User::factory()->create(['firstname' => 'Cora', 'lastname' => 'Collegue', 'store_id' => $this->rimouski->id]);
+        $this->elsewhere = User::factory()->create(['firstname' => 'Elie', 'lastname' => 'Ailleurs', 'store_id' => $this->gaspe->id]);
+    });
+
+    it('n\'offre au vendeur que les employés de son magasin, sans sélecteur de magasin', function () {
+        $this->actingAs(User::factory()->withRole('salesman')->create(['store_id' => $this->rimouski->id]));
+
+        Livewire::test(Appointments::class)
+            ->assertViewHas('users', fn ($users): bool => ! $users->contains('id', $this->elsewhere->id) && $users->contains('id', $this->colleague->id))
+            ->assertDontSee('Gaspé')
+            ->set('selectedUserId', $this->elsewhere->id)
+            ->assertNotSet('selectedUserId', $this->elsewhere->id);
+    });
+
+    it('laisse le propriétaire choisir le magasin, puis un employé de ce magasin', function () {
+        $this->actingAs($this->owner);
+
+        Livewire::test(Appointments::class)
+            ->set('storeId', (string) $this->gaspe->id)
+            ->assertSet('selectedUserId', $this->elsewhere->id)
+            ->assertViewHas('users', fn ($users): bool => $users->modelKeys() === [$this->elsewhere->id]);
     });
 });
