@@ -196,9 +196,15 @@ en amont (Cloudflare Access) reste possible plus tard sans toucher au code.
   - **`develop`** se déploie en **préproduction** ;
   - **`main`** se déploie en **production**. Elle ne reçoit que des fusions de `develop`, par une PR, une fois la
     préproduction validée.
-- Le déploiement automatique à chaque poussée de Laravel Cloud est **désactivé**. C'est la CI qui déploie : quand
-  les tests passent sur `develop`, elle appelle le crochet de déploiement de la préproduction ; quand ils passent
-  sur `main`, celui de la production. Un commit dont les tests échouent n'est jamais déployé.
+- Le déploiement automatique à chaque poussée de Laravel Cloud est **désactivé**. C'est la CI qui déploie : la tâche
+  `deploy` de `laravel-ci.yml` attend les tâches `tests` (SQLite, Pint, PHPStan) et `tests-pgsql`, puis appelle le
+  crochet de déploiement (deploy hook) de l'environnement :
+  - poussée sur `develop` → `LARAVEL_CLOUD_STAGING_DEPLOY_HOOK` (préproduction) ; si le secret est vide, la tâche
+    avertit et ne déploie rien ;
+  - poussée sur `main` → `LARAVEL_CLOUD_PRODUCTION_DEPLOY_HOOK` (production) ; si le secret est vide, la tâche échoue.
+  - Un commit dont les tests échouent n'est jamais déployé. Deux déploiements d'une même branche ne se chevauchent
+    pas (`concurrency`).
+  - Les URL des crochets sont des secrets GitHub (Actions) : quiconque les connaît peut déclencher un déploiement.
 - La CI roule aussi sur chaque PR vers `develop` et `main`.
 - **Construction :** `composer install --no-dev --optimize-autoloader`, `npm ci && npm run build`,
   `php artisan optimize`.

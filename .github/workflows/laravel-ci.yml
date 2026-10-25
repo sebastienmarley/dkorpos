@@ -128,3 +128,37 @@ jobs:
 
       - name: Run tests on PostgreSQL
         run: php artisan test --compact --parallel --processes=4
+
+  deploy:
+    # Le déploiement automatique de Laravel Cloud est désactivé (ADR 0014) : seule cette tâche déploie, et seulement
+    # quand les deux suites passent. develop → préproduction, main → production.
+    needs: [tests, tests-pgsql]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-${{ github.ref_name }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Trigger Laravel Cloud deployment
+        env:
+          BRANCH: ${{ github.ref_name }}
+          PRODUCTION_DEPLOY_HOOK: ${{ secrets.LARAVEL_CLOUD_PRODUCTION_DEPLOY_HOOK }}
+          STAGING_DEPLOY_HOOK: ${{ secrets.LARAVEL_CLOUD_STAGING_DEPLOY_HOOK }}
+        run: |
+          if [ "$BRANCH" = "main" ]; then
+            hook="$PRODUCTION_DEPLOY_HOOK"
+            if [ -z "$hook" ]; then
+              echo "::error::Le secret LARAVEL_CLOUD_PRODUCTION_DEPLOY_HOOK est vide : la production n'est pas déployée."
+              exit 1
+            fi
+          else
+            hook="$STAGING_DEPLOY_HOOK"
+            if [ -z "$hook" ]; then
+              echo "::warning::Le secret LARAVEL_CLOUD_STAGING_DEPLOY_HOOK est vide : aucune préproduction n'est déployée."
+              exit 0
+            fi
+          fi
+
+          curl --fail --silent --show-error --request POST "$hook"
+          echo "Déploiement de $BRANCH demandé à Laravel Cloud (commit $GITHUB_SHA)."
