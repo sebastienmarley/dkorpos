@@ -3,6 +3,7 @@
 use App\Enums\StoreType;
 use App\Models\Store;
 use App\Models\User;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 
 it('crée le premier administrateur et le premier magasin d\'une installation neuve', function () {
@@ -61,4 +62,38 @@ it('ne crée rien si la confirmation du mot de passe diffère', function () {
 
     expect(User::count())->toBe(0)
         ->and(Store::count())->toBe(0);
+});
+
+it('crée l\'administrateur sans terminal interactif, avec un mot de passe généré affiché une seule fois', function () {
+    Artisan::call('app:create-admin', [
+        '--firstname' => 'Marie',
+        '--lastname' => 'Gagnon',
+        '--store' => 'Bureau chef',
+        '--no-interaction' => true,
+    ]);
+
+    preg_match('/Mot de passe \(affiché une seule fois\) : (\S+)/', Artisan::output(), $matches);
+    $admin = User::role('admin')->sole();
+
+    expect($matches)->toHaveKey(1)
+        ->and(Hash::check($matches[1], $admin->password))->toBeTrue()
+        ->and($admin->store->name)->toBe('Bureau chef');
+});
+
+it('exige les options sans terminal interactif', function () {
+    $this->artisan('app:create-admin', ['--firstname' => 'Marie', '--lastname' => 'Gagnon', '--no-interaction' => true])
+        ->assertFailed();
+
+    expect(User::count())->toBe(0)
+        ->and(Store::count())->toBe(0);
+});
+
+it('refuse un magasin inconnu quand des magasins existent', function () {
+    Store::factory()->create(['name' => 'Laval']);
+
+    $this->artisan('app:create-admin', ['--firstname' => 'Marie', '--lastname' => 'Gagnon', '--store' => 'Montréal', '--no-interaction' => true])
+        ->assertFailed();
+
+    expect(User::role('admin')->count())->toBe(0)
+        ->and(Store::count())->toBe(1);
 });

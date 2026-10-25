@@ -85,7 +85,9 @@ Nous retenons l'**option A, Laravel Cloud**.
 - Deux environnements, chacun avec sa base, son stockage et ses variables :
   - **préproduction** : sert à valider chaque livraison et à essayer les restaurations ;
   - **production** : sous un sous-domaine de l'entreprise, HTTPS obligatoire.
-- Région au Canada, pour garder les renseignements personnels au pays.
+- **Région :** Laravel Cloud n'offre pas PostgreSQL au Canada. La base de production est donc aux **États-Unis
+  (Virginie, `aws-us-east-1`)**. Les renseignements personnels des clients et des employés sont hébergés hors du
+  Québec : voir la question ouverte « Région et loi 25 ».
 - `APP_ENV=production`, `APP_DEBUG=false`, `APP_LOCALE=fr`, `APP_URL` en `https://`.
 
 ### Fuseau horaire : `America/Toronto`
@@ -105,7 +107,7 @@ en amont (Cloudflare Access) reste possible plus tard sans toucher au code.
 
 ### Base de données de production : PostgreSQL
 
-- **PostgreSQL**, géré par Laravel Cloud, **sans mise en veille** en production.
+- **PostgreSQL**, géré par Laravel Cloud, **sans mise en veille** en production, en Virginie (`aws-us-east-1`).
 - Pourquoi PostgreSQL plutôt que MySQL :
   - les migrations sont **transactionnelles** : une migration qui échoue au déploiement est annulée en entier, au
     lieu de laisser un schéma à moitié modifié ;
@@ -238,10 +240,21 @@ Avant le **premier** déploiement en production, une seule fois :
 3. **Permissions** : la production part d'une base neuve, qui reçoit exactement `config/access.php`. Il n'y a rien à
    réaligner (question de l'ADR 0007, sans objet en production).
 4. **Premier administrateur** : `php artisan app:create-admin`, lancé une fois après le premier déploiement.
-   - Elle demande le prénom, le nom, le magasin d'appartenance et le mot de passe, sans écho : il n'apparaît ni à
-     l'écran ni dans l'historique du terminal. Le mot de passe suit `Password::defaults()` (12 caractères, casse
-     mixte, chiffres, symboles et absent des fuites connues en production).
-   - Si aucun magasin n'existe, elle crée le premier, comme magasin physique.
+   - **Dans un terminal**, elle demande le prénom, le nom, le magasin d'appartenance et le mot de passe, sans écho :
+     il n'apparaît ni à l'écran ni dans l'historique du terminal.
+   - **Sans terminal interactif** (exécuteur de commandes de Laravel Cloud, `-n`), les options sont obligatoires et
+     le mot de passe est généré, puis affiché une seule fois :
+
+     ```bash
+     php artisan app:create-admin --firstname=Marie --lastname=Gagnon --store="Bureau chef"
+     ```
+
+     La sortie reste dans l'historique des commandes de Laravel Cloud : un autre administrateur ou le propriétaire
+     réinitialise ce mot de passe après la première connexion. `--generate-password` force ce mode dans un terminal.
+   - Le mot de passe suit `Password::defaults()` (12 caractères, casse mixte, chiffres, symboles et absent des
+     fuites connues en production). Un mot de passe généré qui ne la respecte pas est regénéré.
+   - `--store` désigne un magasin actif par son nom. Si aucun magasin n'existe, elle crée le premier, comme magasin
+     physique ; un nom inconnu alors que des magasins existent est refusé.
    - Elle refuse de rouler si le rôle `admin` n'existe pas (seeder pas encore exécuté) ou si un administrateur
      existe déjà ; tout se fait dans une transaction.
    - Aucune donnée de démo : seul `ReferenceDataSeeder` roule. Les autres comptes, dont le propriétaire, se créent
@@ -310,8 +323,18 @@ migration. `migrate:fresh` ne sert plus qu'en local ; `DB::prohibitDestructiveCo
 
 ## Questions ouvertes
 
-- **Région et loi 25** : confirmer qu'une région canadienne est offerte par Laravel Cloud. Si les données sont
-  hébergées hors du Québec, faire l'évaluation des facteurs relatifs à la vie privée exigée par la loi 25.
+- **Région et loi 25** : la base PostgreSQL est en Virginie, faute de région canadienne pour PostgreSQL chez Laravel
+  Cloud. Avant le lancement, faire l'évaluation des facteurs relatifs à la vie privée exigée par la loi 25 pour des
+  données hébergées hors du Québec. **Si l'hébergement aux États-Unis est un enjeu, il faut passer à MySQL, offert
+  dans une région canadienne, avant le lancement**, tant que la base ne contient aucune donnée réelle. Ce passage
+  demande :
+  - une tâche de CI sur MySQL à la place de `tests-pgsql`, et les écarts qu'elle révélera (comparaisons de texte
+    insensibles à la casse et `unique` qui ne distingue plus les majuscules, `GROUP BY` plus permissif, migrations
+    non transactionnelles) ;
+  - de revoir cette décision et la section « Base de données de production ».
+
+  Les migrations de départ sont écrites avec le schéma de Laravel, sans SQL propre à PostgreSQL : elles devraient
+  s'appliquer à MySQL telles quelles, mais ce n'est pas encore vérifié.
 - **2FA pour tous** : l'étendre aux vendeurs et livreurs si un incident ou l'assurance l'exige.
 - **Copie hors fournisseur** : un export chiffré de la base, gardé ailleurs que chez Laravel Cloud ?
 - **PWA et mode hors-ligne** pour les livreurs en zone sans réseau.
