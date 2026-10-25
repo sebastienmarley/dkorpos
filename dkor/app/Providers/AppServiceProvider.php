@@ -5,8 +5,11 @@ namespace App\Providers;
 use App\Models;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -28,6 +31,29 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureMorphMap();
+        $this->guardRealRecipients();
+    }
+
+    /**
+     * Tant qu'aucune adresse de redirection (MAIL_ALWAYS_TO) n'est réglée, un service d'envoi réel n'envoie rien : un
+     * oubli de configuration ne peut pas écrire à un vrai fournisseur ou client (ADR 0014). Les mailers log et array
+     * n'envoient rien de toute façon.
+     */
+    protected function guardRealRecipients(): void
+    {
+        Event::listen(function (MessageSending $event): ?bool {
+            if (filled(config('mail.to.address'))
+                || config('mail.allow_real_recipients')
+                || in_array(config('mail.default'), ['log', 'array'], true)) {
+                return null;
+            }
+
+            Log::warning('Courriel non envoyé : MAIL_ALWAYS_TO est vide et MAIL_ALLOW_REAL_RECIPIENTS est faux.', [
+                'subject' => $event->message->getSubject(),
+            ]);
+
+            return false;
+        });
     }
 
     /**

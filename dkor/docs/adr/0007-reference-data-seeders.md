@@ -78,9 +78,10 @@ Nous retenons l'**option D**.
   rôles (`RoleSeeder`, qui appelle `PermissionSeeder`) et le mode de paiement « Comptant ».
 - `DatabaseSeeder` l'appelle, puis ajoute les données de démo.
 - Les tests l'exécutent après les migrations (`$seed` et `$seeder` dans `tests/TestCase.php`).
-- Les migrations ne contiennent plus que la structure. Les anciennes migrations de données restent
-  en place, puisqu'une migration partagée ne se modifie pas ([ADR 0006](0006-database.md)). Le dump
-  les marque comme déjà passées sur une installation neuve.
+- Les migrations ne contiennent plus que la structure. Les anciennes migrations de données sont
+  d'abord restées en place, puisqu'une migration partagée ne se modifie pas ([ADR 0006](0006-database.md)),
+  et le dump les marquait comme déjà passées. Elles ont disparu avec les migrations de départ de
+  l'[ADR 0014](0014-production.md), avant la mise en production.
 
 **Comportement de `RoleSeeder`**
 
@@ -114,20 +115,22 @@ php artisan db:seed --class=ReferenceDataSeeder --force
 **Positives**
 
 - Ajouter une permission se fait à un seul endroit : `config/access.php`.
-- Le dump du schéma est à jour (129 migrations), et on pourra regrouper les migrations avant la mise
-  en production.
+- Le dump du schéma est à jour, et les migrations ont pu être regroupées avant la mise en production
+  (79 migrations de départ, [ADR 0014](0014-production.md)).
 - Une installation neuve donne exactement les accès prévus par la config.
 - Relancer le seeder sur une base à jour ne change rien.
 
 **Négatives / limitations**
 
 - **Bases existantes :** une base migrée avant cette décision garde la matrice élargie des anciennes
-  migrations. Le seeder ne retire rien, donc il ne la corrige pas.
+  migrations. Le seeder ne retire rien, donc il ne la corrige pas. Sans objet en production, qui part
+  d'une base neuve (ADR 0014).
 - **Renommer ou supprimer** une permission ou un rôle demande encore une migration ponctuelle. Une
   permission retirée de la config reste en base.
 - **Permission dont le nom existe déjà :** une permission retirée de la config puis remise n'est pas
   « nouvelle ». Elle n'est donc accordée à aucun rôle existant.
 - **Déploiement en deux commandes :** oublier la seconde laisse les nouvelles permissions sans rôle.
+  Les deux sont dans les commandes de déploiement de Laravel Cloud et dans la CI (ADR 0014).
 
 **Protections mises en place**
 
