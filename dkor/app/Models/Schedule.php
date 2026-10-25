@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Actions\CalculateVacationBalance;
+use App\Casts\TimeOfDay;
 use App\Enums\ScheduleStatus;
 use App\Enums\ScheduleType;
 use Database\Factories\ScheduleFactory;
@@ -88,6 +89,8 @@ class Schedule extends Model
         return [
             'status' => ScheduleStatus::class,
             'type' => ScheduleType::class,
+            'start_time' => TimeOfDay::class,
+            'end_time' => TimeOfDay::class,
         ];
     }
 

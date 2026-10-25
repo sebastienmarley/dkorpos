@@ -1402,7 +1402,7 @@ class CustomerOrder extends Model
     {
         $delivering = $this->deliveringQuantities();
 
-        return $this->lines()->get()
+        return $this->lines()->orderBy('id')->get()
             ->filter(fn (CustomerOrderLine $line): bool => $line->status->isPickable())
             ->mapWithKeys(fn (CustomerOrderLine $line): array => [$line->id => min($line->quantity_reserved, $line->quantity - ($delivering[$line->id] ?? 0))])
             ->filter(fn (int $quantity): bool => $quantity > 0)

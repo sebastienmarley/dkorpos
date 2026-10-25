@@ -143,7 +143,7 @@ class Show extends Component
         return Product::query()
             ->where('supplier_id', $this->reception->supplier_id)
             ->where('is_custom', false)
-            ->where(fn ($query) => $query->where('model', 'like', '%'.$term.'%')->orWhere('supplier_model', 'like', '%'.$term.'%'))
+            ->where(fn ($query) => $query->whereLike('model', '%'.$term.'%')->orWhereLike('supplier_model', '%'.$term.'%'))
             ->orderBy('model')
             ->limit(8)
             ->get();

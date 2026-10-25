@@ -23,6 +23,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Str;
+use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
 
 /**
@@ -80,7 +81,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasSearchName, Notifiable;
+    use HasFactory, HasSearchName, Notifiable, TwoFactorAuthenticatable;
 
     use HasRoles {
         HasRoles::hasPermissionTo as traitHasPermissionTo;
@@ -107,6 +108,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'two_factor_confirmed_at' => 'datetime',
             'first_day' => 'date',
             'last_day' => 'date',
             'last_modified' => 'datetime:Y-m-d H:i',
@@ -398,6 +400,14 @@ class User extends Authenticatable
     public function hasAllStores(): bool
     {
         return $this->can('stores.all');
+    }
+
+    /**
+     * La 2FA est obligatoire pour les rôles sensibles et pour tout usager qui a stores.all (ADR 0014).
+     */
+    public function requiresTwoFactor(): bool
+    {
+        return $this->hasAnyRole(config('access.two_factor.roles')) || $this->hasAllStores();
     }
 
     /**

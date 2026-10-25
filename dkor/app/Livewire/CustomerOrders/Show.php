@@ -754,9 +754,9 @@ class Show extends Component
                 fn ($query) => $query
                     ->where('supplier_id', $this->productSupplierId)
                     ->where(fn ($q) => $q
-                        ->where('model', 'like', '%'.$term.'%')
-                        ->orWhere('supplier_model', 'like', '%'.$term.'%')
-                        ->orWhere('collection', 'like', '%'.$term.'%')
+                        ->whereLike('model', '%'.$term.'%')
+                        ->orWhereLike('supplier_model', '%'.$term.'%')
+                        ->orWhereLike('collection', '%'.$term.'%')
                         ->when(ctype_digit($term), fn ($q) => $q->orWhere('id', (int) $term))),
                 fn ($query) => ctype_digit($term) ? $query->whereKey((int) $term) : $query->whereRaw('0 = 1'),
             )
@@ -777,8 +777,8 @@ class Show extends Component
         return PriceListItem::query()
             ->inActiveLists((int) $this->productSupplierId)
             ->where(fn ($query) => $query
-                ->where('model', 'like', '%'.$term.'%')
-                ->orWhere('collection', 'like', '%'.$term.'%'))
+                ->whereLike('model', '%'.$term.'%')
+                ->orWhereLike('collection', '%'.$term.'%'))
             ->orderBy('model')
             ->limit(10)
             ->get();
@@ -1326,7 +1326,7 @@ class Show extends Component
         $customProduct = $this->customProductId ? Product::with('supplier')->find($this->customProductId) : null;
         $defectiveLine = $this->defectiveLineId ? $this->order->lines()->with('product.supplier')->find($this->defectiveLineId) : null;
 
-        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines.product.supplier', 'lines.product.inventoryStocks', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.transfers.fromStore', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines' => fn ($query) => $query->orderBy('id'), 'lines.product.supplier', 'lines.product.inventoryStocks', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.transfers.fromStore', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),

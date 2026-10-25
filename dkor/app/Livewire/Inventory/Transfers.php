@@ -184,7 +184,7 @@ class Transfers extends Component
         }
 
         return Product::query()
-            ->where('model', 'like', '%'.trim($this->productSearch).'%')
+            ->whereLike('model', '%'.trim($this->productSearch).'%')
             ->whereHas('inventoryStocks', fn (Builder $stock) => $stock->where('store_id', '!=', (int) $this->storeId)->where('quantity_in_stock', '>', 0))
             ->orderBy('model')
             ->limit(10)

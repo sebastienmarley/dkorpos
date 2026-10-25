@@ -40,7 +40,7 @@ personnels sur les clients et les employés : elles ne doivent ni se perdre ni f
   s'exécuteraient et redonneraient la matrice élargie (un vendeur pourrait supprimer des factures).
 - Les références polymorphes stockent le nom de la classe (`inventory_movements.reference_type`,
   `ledger_entries`, `notifications.notifiable_type`, `model_has_roles.model_type`).
-- La CI (`.github/workflows/tests.yml`) lance les tests ; aucun déploiement n'est automatisé.
+- La CI (`.github/workflows/laravel-ci.yml`, à la racine du dépôt) lance les tests ; aucun déploiement n'est automatisé.
 
 ## Options considérées
 
@@ -158,9 +158,15 @@ en amont (Cloudflare Access) reste possible plus tard sans toucher au code.
 
 ### Déploiement
 
-- Le déploiement automatique à chaque poussée est **désactivé**. Quand les tests passent sur `main`, la CI appelle
-  le crochet de déploiement de la **préproduction**. La **production** est déployée à la main
-  (`cloud deploy`), avec un commit déjà validé en préproduction.
+- **Branches :**
+  - les branches de travail (une par issue) sont fusionnées dans **`develop`** par une PR ;
+  - **`develop`** se déploie en **préproduction** ;
+  - **`main`** se déploie en **production**. Elle ne reçoit que des fusions de `develop`, par une PR, une fois la
+    préproduction validée.
+- Le déploiement automatique à chaque poussée de Laravel Cloud est **désactivé**. C'est la CI qui déploie : quand
+  les tests passent sur `develop`, elle appelle le crochet de déploiement de la préproduction ; quand ils passent
+  sur `main`, celui de la production. Un commit dont les tests échouent n'est jamais déployé.
+- La CI roule aussi sur chaque PR vers `develop` et `main`.
 - **Construction :** `composer install --no-dev --optimize-autoloader`, `npm ci && npm run build`,
   `php artisan optimize`.
 - **Déploiement**, dans l'ordre :
@@ -190,8 +196,8 @@ Avant le **premier** déploiement en production, une seule fois :
 4. **Premier administrateur** : une commande `app:create-admin` demande le nom, le magasin et le mot de passe,
    sans les écrire dans l'historique du terminal. Aucune donnée de démo : seul `ReferenceDataSeeder` roule.
 
-Après ce premier déploiement, la règle de l'ADR 0006 s'applique sans exception : une migration poussée sur `main` ne
-se modifie plus, et chaque changement de schéma est une nouvelle migration. `migrate:fresh` ne sert plus qu'en local ;
+Après ce premier déploiement, la règle de l'ADR 0006 s'applique sans exception : une migration fusionnée dans
+`develop` ne se modifie plus (la préproduction l'a déjà exécutée), et chaque changement de schéma est une nouvelle migration. `migrate:fresh` ne sert plus qu'en local ;
 `DB::prohibitDestructiveCommands()` l'interdit en production.
 
 ### Sauvegardes et restauration
@@ -241,7 +247,7 @@ se modifie plus, et chaque changement de schéma est une nouvelle migration. `mi
 - `DB::prohibitDestructiveCommands()` en production : `migrate:fresh`, `db:wipe` et `migrate:reset` refusent de
   rouler.
 - `enforceMorphMap()` lance une exception si un modèle sans alias est enregistré dans une référence polymorphe.
-- Déploiement seulement après des tests verts, en préproduction d'abord.
+- Déploiement seulement après des tests verts, en préproduction (`develop`) avant la production (`main`).
 - Restaurations essayées, pas seulement sauvegardes prises.
 - Tests Pest : 2FA obligatoire selon le rôle et `stores.all`, `app:create-admin`, `enforceMorphMap`, seeders relancés
   sur une base à jour, fuseau des tâches planifiées.
@@ -262,7 +268,7 @@ se modifie plus, et chaque changement de schéma est une nouvelle migration. `mi
 - `.env.example`, `config/app.php` (`timezone`), `config/fortify.php`, `config/session.php`,
   `config/filesystems.php`, `config/mail.php`, `config/deliveries.php`
 - `app/Providers/FortifyServiceProvider.php`, `app/Providers/AppServiceProvider.php`
-- `routes/console.php`, `.github/workflows/tests.yml`
+- `routes/console.php`, `.github/workflows/laravel-ci.yml` (racine du dépôt)
 - `database/migrations/`, `database/schema/sqlite-schema.sql`, `database/seeders/ReferenceDataSeeder.php`
 - `database/migrations/2026_10_01_234108_migrate_user_roles_to_permission_tables.php`
 - [ADR 0002](0002-auth.md), [ADR 0006](0006-database.md), [ADR 0007](0007-reference-data-seeders.md),

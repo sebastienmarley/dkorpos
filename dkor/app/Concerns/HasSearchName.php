@@ -34,7 +34,7 @@ trait HasSearchName
     public function scopeMatchingName(Builder $query, string $term): void
     {
         foreach (array_filter(explode(' ', self::normalizeForSearch($term))) as $word) {
-            $query->where('search_name', 'like', '%'.addcslashes($word, '%_\\').'%');
+            $query->whereLike('search_name', '%'.addcslashes($word, '%_\\').'%');
         }
     }
 }

@@ -122,6 +122,17 @@ it('réinitialise le mot de passe et affiche le nouveau en clair', function () {
     expect(Hash::check($component->get('generatedPassword'), $user->password))->toBeTrue();
 });
 
+it('réinitialise la 2FA d\'un usager qui a perdu son téléphone', function () {
+    $user = User::factory()->withRole('salesman')->withTwoFactor()->create();
+
+    $this->actingAs(User::factory()->withRole('admin')->create());
+
+    Livewire::test(Show::class, ['user' => $user])->call('resetTwoFactor');
+
+    expect($user->fresh()->two_factor_secret)->toBeNull()
+        ->and($user->fresh()->two_factor_confirmed_at)->toBeNull();
+});
+
 // ── Autorisations par rôle ─────────────────────────────────────────────────
 
 it('interdit l\'accès à la fiche aux rôles qui ne gèrent pas les utilisateurs', function () {
