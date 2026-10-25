@@ -51,7 +51,7 @@ dans le code ne doit empêcher de passer à MySQL ou PostgreSQL en production.
 
 - Créées avec `php artisan make:migration`. Chaque changement est une nouvelle migration
   (`add_<colonne>_to_<table>_table`), avec une méthode `down()` qui l'annule.
-- Une migration déjà partagée (poussée sur `main`) ne se modifie plus.
+- Une migration déjà partagée (fusionnée dans `develop`) ne se modifie plus.
 - Une migration qui ajoute une colonne calculée remplit aussi les lignes existantes (ex. :
   `search_name` des clients).
 
