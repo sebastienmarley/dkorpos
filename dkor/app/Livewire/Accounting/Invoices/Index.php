@@ -53,10 +53,10 @@ class Index extends Component
             ->with(['supplier', 'invoice', 'invoiceableLines.orderLine.order'])
             ->when(! $this->includeInvoiced, fn ($query) => $query->whereDoesntHave('invoice'))
             ->when($term !== '', fn ($query) => $query->where(function ($q) use ($term) {
-                $q->where('number', 'like', '%'.$term.'%')
+                $q->whereLike('number', '%'.$term.'%')
                     ->orWhereHas('lines.orderLine.order', fn ($order) => $order
-                        ->where('number', 'like', '%'.$term.'%')
-                        ->orWhere('quote_number', 'like', '%'.$term.'%'));
+                        ->whereLike('number', '%'.$term.'%')
+                        ->orWhereLike('quote_number', '%'.$term.'%'));
             }))
             ->latest('id')
             ->limit(self::MAX_PER_SOURCE)
@@ -92,8 +92,8 @@ class Index extends Component
                 : [SupplierOrderStatus::Received])
             ->with(['supplier', 'supplierInvoice', 'lines'])
             ->when($term !== '', fn ($query) => $query->where(function ($q) use ($term) {
-                $q->where('number', 'like', '%'.$term.'%')
-                    ->orWhere('quote_number', 'like', '%'.$term.'%');
+                $q->whereLike('number', '%'.$term.'%')
+                    ->orWhereLike('quote_number', '%'.$term.'%');
             }))
             ->latest('id')
             ->limit(self::MAX_PER_SOURCE)
@@ -129,9 +129,9 @@ class Index extends Component
             ->whereNull('supplier_order_id')
             ->with('supplier')
             ->when($term !== '', fn ($query) => $query->where(function ($q) use ($term) {
-                $q->where('invoice_number', 'like', '%'.$term.'%')
-                    ->orWhere('description', 'like', '%'.$term.'%')
-                    ->orWhereHas('supplier', fn ($supplier) => $supplier->where('name', 'like', '%'.$term.'%'));
+                $q->whereLike('invoice_number', '%'.$term.'%')
+                    ->orWhereLike('description', '%'.$term.'%')
+                    ->orWhereHas('supplier', fn ($supplier) => $supplier->whereLike('name', '%'.$term.'%'));
             }))
             ->latest('id')
             ->limit(self::MAX_PER_SOURCE)

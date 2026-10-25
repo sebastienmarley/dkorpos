@@ -62,12 +62,12 @@ class Part extends Model
         $cleanTerm = UniqueCleanProductModel::clean($term);
 
         $query->where(function (Builder $query) use ($term, $cleanTerm): void {
-            $query->where('model', 'like', '%'.$term.'%')
-                ->orWhere('description', 'like', '%'.$term.'%')
-                ->when($cleanTerm !== '', fn (Builder $query) => $query->orWhere('clean_model', 'like', '%'.$cleanTerm.'%'))
+            $query->whereLike('model', '%'.$term.'%')
+                ->orWhereLike('description', '%'.$term.'%')
+                ->when($cleanTerm !== '', fn (Builder $query) => $query->orWhereLike('clean_model', '%'.$cleanTerm.'%'))
                 ->orWhereHas('products', fn (Builder $query) => $query
-                    ->where('model', 'like', '%'.$term.'%')
-                    ->orWhere('supplier_model', 'like', '%'.$term.'%'));
+                    ->whereLike('model', '%'.$term.'%')
+                    ->orWhereLike('supplier_model', '%'.$term.'%'));
         });
     }
 

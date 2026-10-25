@@ -87,8 +87,8 @@ class ProductForm extends Component
         return PriceListItem::query()
             ->inActiveLists((int) $this->supplierId)
             ->where(fn ($query) => $query
-                ->where('model', 'like', '%'.$term.'%')
-                ->orWhere('collection', 'like', '%'.$term.'%'))
+                ->whereLike('model', '%'.$term.'%')
+                ->orWhereLike('collection', '%'.$term.'%'))
             ->orderBy('model')
             ->limit(10)
             ->get();

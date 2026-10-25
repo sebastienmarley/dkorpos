@@ -33,7 +33,7 @@ class Index extends Component
     {
         $stores = Store::query()
             ->when(! $this->showInactive, fn ($query) => $query->where('is_active', true))
-            ->when(filled($this->search), fn ($query) => $query->where('name', 'like', '%'.$this->search.'%'))
+            ->when(filled($this->search), fn ($query) => $query->whereLike('name', '%'.$this->search.'%'))
             ->orderBy('name')
             ->paginate(10);
 

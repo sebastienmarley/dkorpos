@@ -52,9 +52,9 @@ class Index extends Component
         return Product::with(['supplier', 'category.department'])
             ->when(filled($this->search), function ($query) {
                 $query->where(function ($q) {
-                    $q->where('model', 'like', '%'.$this->search.'%')
-                        ->orWhere('supplier_model', 'like', '%'.$this->search.'%')
-                        ->orWhereHas('supplier', fn ($s) => $s->where('name', 'like', '%'.$this->search.'%'));
+                    $q->whereLike('model', '%'.$this->search.'%')
+                        ->orWhereLike('supplier_model', '%'.$this->search.'%')
+                        ->orWhereHas('supplier', fn ($s) => $s->whereLike('name', '%'.$this->search.'%'));
                 });
             })
             ->when(filled($this->supplierId), fn ($q) => $q->where('supplier_id', $this->supplierId))
@@ -79,6 +79,10 @@ class Index extends Component
     /** @return Collection<int, Category> */
     public function getCategories(): Collection
     {
+        if (blank($this->departmentId)) {
+            return new Collection;
+        }
+
         return Category::where('department_id', $this->departmentId)->orderBy('name')->get();
     }
 

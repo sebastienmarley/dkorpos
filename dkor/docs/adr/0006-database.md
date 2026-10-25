@@ -51,7 +51,7 @@ dans le code ne doit empêcher de passer à MySQL ou PostgreSQL en production.
 
 - Créées avec `php artisan make:migration`. Chaque changement est une nouvelle migration
   (`add_<colonne>_to_<table>_table`), avec une méthode `down()` qui l'annule.
-- Une migration déjà partagée (poussée sur `main`) ne se modifie plus.
+- Une migration déjà partagée (fusionnée dans `develop`) ne se modifie plus.
 - Une migration qui ajoute une colonne calculée remplit aussi les lignes existantes (ex. :
   `search_name` des clients).
 
@@ -72,8 +72,10 @@ taux ou une mesure de la liste permise.
 
 - Une colonne `string` et un enum PHP « backed » dans `app/Enums/`, casté dans le modèle
   (`'status' => CustomerOrderLineStatus::class`).
-- Pas de `$table->enum()` pour un nouveau statut : ajouter une valeur ne doit pas exiger de modifier
-  le schéma. Les trois colonnes `type` qui utilisent `enum()` sont antérieures à cette décision.
+- Pas de `$table->enum()` : ajouter une valeur ne doit pas exiger de modifier le schéma. Les
+  dernières colonnes `enum()` (`suppliers.type`, `stores.type`) sont devenues des chaînes simples avec
+  les migrations de départ de l'[ADR 0014](0014-production.md) : sur PostgreSQL, leur contrainte
+  `CHECK` refusait les fournisseurs `shipping`.
 
 **Clés étrangères**
 
@@ -117,6 +119,20 @@ que de dépendre d'une collation propre à un moteur.
 - Passer par Eloquent ou le query builder.
 - Le SQL brut (`whereRaw`) est limité à des expressions standard (`LOWER()`, arithmétique).
   Aucune fonction propre à SQLite.
+- La production roule sur PostgreSQL ([ADR 0014](0014-production.md)), et la CI y fait rouler la
+  suite. Ce que SQLite tolère et que PostgreSQL refuse :
+  - **Recherche :** `whereLike()` / `orWhereLike()`, jamais `where($colonne, 'like', …)` : `LIKE`
+    respecte la casse sur PostgreSQL, `whereLike()` y devient `ilike`.
+  - **Heures :** une colonne `time` est castée avec `App\Casts\TimeOfDay` (« HH:MM ») ; PostgreSQL
+    ajoute les secondes.
+  - **Filtres vides :** ne jamais comparer `''` à une colonne entière ; ignorer le filtre
+    (`filled()`) ou le caster (`(int)`).
+  - **Ordre :** trier explicitement (`orderBy()`) dès que l'ordre compte ; PostgreSQL ne garantit
+    aucun ordre sans lui.
+  - **Erreur dans une transaction :** elle annule toute la transaction en cours. Une écriture qui
+    peut échouer (une suppression refusée par une clé étrangère) passe par `DB::transaction()`, qui
+    pose un point de sauvegarde.
+  - **Longueurs :** `string` est limité à 255 caractères ; un texte long est en `text`.
 
 **Données de départ**
 
@@ -129,7 +145,10 @@ que de dépendre d'une collation propre à un moteur.
 - Les tests exécutent `ReferenceDataSeeder` après les migrations (`$seed` dans `tests/TestCase.php`).
 - Chaque modèle a une factory, utilisée par les tests.
 - Le dump `database/schema/sqlite-schema.sql` est tenu à jour avec `php artisan schema:dump`
-  (sans `--prune`). Laravel le charge avant les migrations.
+  (sans `--prune`). Laravel le charge avant les migrations, sur SQLite seulement ; PostgreSQL exécute
+  les migrations.
+- Les migrations de départ (79, une par table, 2026-10-25) remplacent l'historique des migrations
+  de développement ([ADR 0014](0014-production.md)).
 - **Installation neuve :** `php artisan migrate --seed` (ou
   `php artisan db:seed --class=ReferenceDataSeeder` sans les données de démo).
 - **Déploiement :** chaque déploiement exécute, dans l'ordre :
@@ -161,11 +180,11 @@ que de dépendre d'une collation propre à un moteur.
 
 **Négatives / limitations**
 
-- **Concurrence :** en SQLite, `lockForUpdate()` n'a aucun effet. Les transactions restent sûres
-  parce que la base n'accepte qu'un écrivain à la fois, mais les verrous par ligne ne serviront qu'en
-  passant à MySQL ou PostgreSQL.
-- **Références polymorphes :** sans `morphMap`, `reference_type` stocke le nom complet de la classe
-  (`App\Models\Reception`). Renommer un modèle briserait les mouvements existants.
+- **Concurrence :** en SQLite (développement et tests), `lockForUpdate()` n'a aucun effet. Les
+  transactions restent sûres parce que la base n'accepte qu'un écrivain à la fois ; les verrous par
+  ligne jouent en production, sur PostgreSQL.
+- **Références polymorphes :** réglé par `Relation::enforceMorphMap()` ([ADR 0014](0014-production.md)) :
+  `reference_type` stocke un alias stable (`reception_line`), plus le nom de la classe.
 
 **Protections mises en place**
 
@@ -193,6 +212,8 @@ Les questions suivantes sont réglées par l'[ADR 0014](0014-production.md) (mis
 ## Références
 
 - `.env` / `.env.example` (`DB_CONNECTION=sqlite`), `phpunit.xml` (`DB_DATABASE=:memory:`)
+- `.github/workflows/laravel-ci.yml` (racine du dépôt) : tâche `tests-pgsql` sur PostgreSQL
+- `app/Casts/TimeOfDay.php`
 - [Modèle de données](../data-model.md) : diagrammes entité-relation par domaine
 - `database/schema/sqlite-schema.sql` : dump SQL du schéma (`php artisan schema:dump`)
 - `database/seeders/ReferenceDataSeeder.php`, `config/access.php`

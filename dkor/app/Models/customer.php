@@ -70,9 +70,9 @@ class customer extends Model
 
         $query->where(function (Builder $query) use ($term): void {
             $query->where(fn (Builder $query) => $query->matchingName($term))
-                ->orWhere('email', 'like', '%'.$term.'%')
-                ->orWhere('phone', 'like', '%'.$term.'%')
-                ->orWhere('cellphone', 'like', '%'.$term.'%');
+                ->orWhereLike('email', '%'.$term.'%')
+                ->orWhereLike('phone', '%'.$term.'%')
+                ->orWhereLike('cellphone', '%'.$term.'%');
         });
     }
 }

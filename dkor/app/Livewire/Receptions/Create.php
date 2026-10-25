@@ -165,7 +165,7 @@ class Create extends Component
             ->whereIn('status', [SupplierOrderLineStatus::Active, SupplierOrderLineStatus::CancellationRequested])
             ->whereColumn('quantity_received', '<', 'quantity')
             ->whereHas('order', fn ($query) => $query
-                ->where('supplier_id', $this->supplierId)
+                ->where('supplier_id', (int) $this->supplierId)
                 ->accessibleTo(auth()->user())
                 ->where('type', SupplierType::Product)
                 ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived]))
@@ -187,13 +187,13 @@ class Create extends Component
         $term = trim($this->orderSearch);
 
         return SupplierOrder::query()
-            ->where('supplier_id', $this->supplierId)
+            ->where('supplier_id', (int) $this->supplierId)
             ->accessibleTo(auth()->user())
             ->where('type', SupplierType::Product)
             ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived])
             ->where(fn ($query) => $query
-                ->where('number', 'like', '%'.$term.'%')
-                ->orWhere('quote_number', 'like', '%'.$term.'%'))
+                ->whereLike('number', '%'.$term.'%')
+                ->orWhereLike('quote_number', '%'.$term.'%'))
             ->with(['lines' => fn ($query) => $query
                 ->whereIn('status', [SupplierOrderLineStatus::Active, SupplierOrderLineStatus::CancellationRequested])
                 ->whereColumn('quantity_received', '<', 'quantity'),

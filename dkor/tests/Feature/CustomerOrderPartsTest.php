@@ -16,6 +16,7 @@ use App\Models\SupplierOrderLine;
 use App\Models\User;
 use App\Support\Money;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 
@@ -157,7 +158,7 @@ it('empêche de supprimer une pièce liée à une commande client', function () 
     $line = $this->order->addPart($this->part);
     $line->supplierOrderLine->delete();
 
-    expect(fn () => $this->part->delete())->toThrow(QueryException::class);
+    expect(fn () => DB::transaction(fn () => $this->part->delete()))->toThrow(QueryException::class);
 
     $this->assertModelExists($this->part);
 });
@@ -165,7 +166,7 @@ it('empêche de supprimer une pièce liée à une commande client', function () 
 it('empêche de supprimer une pièce liée à une commande fournisseur', function () {
     SupplierOrderLine::factory()->create(['part_id' => $this->part->id]);
 
-    expect(fn () => $this->part->delete())->toThrow(QueryException::class);
+    expect(fn () => DB::transaction(fn () => $this->part->delete()))->toThrow(QueryException::class);
 
     $this->assertModelExists($this->part);
 });

@@ -144,6 +144,10 @@ return [
 
     'features' => [
         // Password reset is disabled for this app.
+        Features::twoFactorAuthentication([
+            'confirm' => true,
+            'confirmPassword' => true,
+        ]),
     ],
 
 ];

@@ -55,7 +55,7 @@ return [
 
         'postmark' => [
             'transport' => 'postmark',
-            // 'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),
+            'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),
             // 'client' => [
             //     'timeout' => 5,
             // ],
@@ -114,5 +114,24 @@ return [
         'address' => env('MAIL_FROM_ADDRESS', 'no-reply@dkor.ca'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Redirection de tous les courriels (ADR 0014)
+    |--------------------------------------------------------------------------
+    |
+    | Avec MAIL_ALWAYS_TO, chaque courriel (fournisseurs, avis) part à cette
+    | seule adresse, sans copie ni copie cachée : aucun vrai destinataire de la
+    | base n'est jamais joint. Sans elle, un service d'envoi réel (postmark,
+    | smtp…) n'envoie rien, sauf si MAIL_ALLOW_REAL_RECIPIENTS=true.
+    |
+    */
+
+    'to' => [
+        'address' => env('MAIL_ALWAYS_TO'),
+        'name' => env('MAIL_ALWAYS_TO_NAME', 'Redirection DKOR'),
+    ],
+
+    'allow_real_recipients' => (bool) env('MAIL_ALLOW_REAL_RECIPIENTS', false),
 
 ];

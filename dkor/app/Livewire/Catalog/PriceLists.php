@@ -67,7 +67,7 @@ class PriceLists extends Component
                 ->with('supplier')
                 ->whereHas('supplier', fn ($query) => $query
                     ->where('type', SupplierType::Product)
-                    ->where('name', 'like', '%'.$this->search.'%'))
+                    ->whereLike('name', '%'.$this->search.'%'))
                 ->orderBy('starts_on')
                 ->get()
                 ->sortBy(fn (PriceList $list) => $list->supplier->name)

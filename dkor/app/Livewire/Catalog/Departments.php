@@ -97,7 +97,7 @@ class Departments extends Component
             'categoryDepartmentId' => ['required', 'exists:departments,id'],
             'categoryName' => [
                 'required', 'string', 'max:255',
-                Rule::unique('categories', 'name')->where('department_id', $this->categoryDepartmentId)->ignore($this->editingCategoryId),
+                Rule::unique('categories', 'name')->where('department_id', (int) $this->categoryDepartmentId)->ignore($this->editingCategoryId),
             ],
         ]);
 

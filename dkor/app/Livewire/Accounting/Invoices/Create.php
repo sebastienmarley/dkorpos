@@ -139,7 +139,7 @@ class Create extends Component
             'supplierId' => ['required', 'integer', Rule::exists('suppliers', 'id')->where('is_active', 1)],
             'invoiceNumber' => [
                 'required', 'string', 'max:100',
-                Rule::unique('supplier_invoices', 'invoice_number')->where('supplier_id', $this->supplierId),
+                Rule::unique('supplier_invoices', 'invoice_number')->where('supplier_id', (int) $this->supplierId),
             ],
             'invoiceDate' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:500'],
@@ -176,7 +176,7 @@ class Create extends Component
         $this->validate([
             'invoiceNumber' => [
                 'required', 'string', 'max:100',
-                Rule::unique('supplier_invoices', 'invoice_number')->where('supplier_id', $this->supplierId),
+                Rule::unique('supplier_invoices', 'invoice_number')->where('supplier_id', (int) $this->supplierId),
             ],
             'invoiceDate' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:500'],

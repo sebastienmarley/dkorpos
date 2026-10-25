@@ -162,7 +162,7 @@ class Services extends Component
         return view('livewire.catalog.services', [
             'services' => Service::query()
                 ->with('suppliers')
-                ->when(filled($this->search), fn ($query) => $query->where('name', 'like', '%'.trim($this->search).'%'))
+                ->when(filled($this->search), fn ($query) => $query->whereLike('name', '%'.trim($this->search).'%'))
                 ->orderByDesc('is_active')
                 ->orderBy('name')
                 ->get(),
