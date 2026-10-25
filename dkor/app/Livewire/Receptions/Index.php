@@ -25,9 +25,9 @@ class Index extends Component
             ->with(['supplier', 'receiver', 'lines'])
             ->when(filled($this->search), function ($query) {
                 $query->where(function ($q) {
-                    $q->where('number', 'like', '%'.$this->search.'%')
-                        ->orWhere('reference', 'like', '%'.$this->search.'%')
-                        ->orWhereHas('supplier', fn ($s) => $s->where('name', 'like', '%'.$this->search.'%'));
+                    $q->whereLike('number', '%'.$this->search.'%')
+                        ->orWhereLike('reference', '%'.$this->search.'%')
+                        ->orWhereHas('supplier', fn ($s) => $s->whereLike('name', '%'.$this->search.'%'));
                 });
             })
             ->latest('id')

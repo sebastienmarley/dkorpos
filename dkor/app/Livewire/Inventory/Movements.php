@@ -134,8 +134,8 @@ class Movements extends Component
     {
         return Product::query()
             ->when(filled($this->productSearch), fn ($query) => $query->where(function ($q) {
-                $q->where('model', 'like', '%'.$this->productSearch.'%')
-                    ->orWhere('supplier_model', 'like', '%'.$this->productSearch.'%');
+                $q->whereLike('model', '%'.$this->productSearch.'%')
+                    ->orWhereLike('supplier_model', '%'.$this->productSearch.'%');
             }))
             ->orderBy('model')
             ->limit(10)

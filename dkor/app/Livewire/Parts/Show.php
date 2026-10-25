@@ -47,7 +47,7 @@ class Show extends Component
                 'required', 'string', 'max:255',
                 function (string $attribute, mixed $value, Closure $fail): void {
                     $duplicate = Part::query()
-                        ->where('supplier_id', $this->supplierId)
+                        ->where('supplier_id', (int) $this->supplierId)
                         ->where('clean_model', UniqueCleanProductModel::clean((string) $value))
                         ->whereKeyNot($this->part->id)
                         ->exists();
@@ -104,8 +104,8 @@ class Show extends Component
             ->with('supplier')
             ->whereNotIn('id', $this->part->products()->pluck('products.id'))
             ->where(fn (Builder $query) => $query
-                ->where('model', 'like', '%'.$term.'%')
-                ->orWhere('supplier_model', 'like', '%'.$term.'%'))
+                ->whereLike('model', '%'.$term.'%')
+                ->orWhereLike('supplier_model', '%'.$term.'%'))
             ->orderBy('model')
             ->limit(10)
             ->get();

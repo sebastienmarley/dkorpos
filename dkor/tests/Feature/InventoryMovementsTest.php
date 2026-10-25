@@ -13,6 +13,7 @@ use App\Models\SupplierOrderLine;
 use App\Models\User;
 use App\Support\Money;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 
@@ -190,7 +191,7 @@ it('ne laisse ni modifier ni supprimer le journal', function () {
 it('refuse de supprimer un produit qui a un journal, sans effacer ses mouvements', function () {
     $movement = InventoryMovement::factory()->create();
 
-    expect(fn () => $movement->product->delete())->toThrow(QueryException::class);
+    expect(fn () => DB::transaction(fn () => $movement->product->delete()))->toThrow(QueryException::class);
 
     $this->assertModelExists($movement->product);
     $this->assertModelExists($movement);

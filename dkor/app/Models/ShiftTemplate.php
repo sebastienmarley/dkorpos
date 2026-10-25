@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\TimeOfDay;
 use Database\Factories\ShiftTemplateFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,6 +24,14 @@ class ShiftTemplate extends Model
 {
     /** @use HasFactory<ShiftTemplateFactory> */
     use HasFactory;
+
+    protected function casts(): array
+    {
+        return [
+            'start_time' => TimeOfDay::class,
+            'end_time' => TimeOfDay::class,
+        ];
+    }
 
     /** @return HasMany<WeekTemplateEntry, $this> */
     public function entries(): HasMany

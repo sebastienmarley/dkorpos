@@ -79,7 +79,7 @@ class Index extends Component
             ->when($term !== '', fn (Builder $query) => $query->where(fn (Builder $query) => $query
                 ->whereHas('part', fn (Builder $part) => $part->matching($term))
                 ->orWhereHas('order.customer', fn (Builder $customer) => $customer->matching($term))
-                ->orWhereHas('supplierOrderLine.order', fn (Builder $order) => $order->where('number', 'like', '%'.$term.'%'))
+                ->orWhereHas('supplierOrderLine.order', fn (Builder $order) => $order->whereLike('number', '%'.$term.'%'))
                 ->when(ctype_digit($term), fn (Builder $query) => $query->orWhere('customer_order_id', (int) $term))))
             ->latest('id')
             ->paginate(10, pageName: 'ordersPage');

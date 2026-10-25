@@ -515,8 +515,8 @@ class Show extends Component
 
         return $this->orderableProducts()
             ->where(function ($query) use ($term) {
-                $query->where('model', 'like', '%'.$term.'%')
-                    ->orWhere('supplier_model', 'like', '%'.$term.'%');
+                $query->whereLike('model', '%'.$term.'%')
+                    ->orWhereLike('supplier_model', '%'.$term.'%');
 
                 if (ctype_digit($term)) {
                     $query->orWhere('id', (int) $term);
@@ -575,8 +575,8 @@ class Show extends Component
             'substituteResults' => $substituting && ! $this->substituteProductId
                 ? $this->substitutionCandidates()
                     ->when(filled($this->substituteSearch), fn ($query) => $query->where(function ($q) {
-                        $q->where('model', 'like', '%'.$this->substituteSearch.'%')
-                            ->orWhere('supplier_model', 'like', '%'.$this->substituteSearch.'%');
+                        $q->whereLike('model', '%'.$this->substituteSearch.'%')
+                            ->orWhereLike('supplier_model', '%'.$this->substituteSearch.'%');
 
                         if (ctype_digit(trim($this->substituteSearch))) {
                             $q->orWhere('id', (int) trim($this->substituteSearch));

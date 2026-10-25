@@ -70,6 +70,6 @@ it('stocke chaque montant casté en Money dans une colonne entière', function (
     expect($moneyColumns)->toHaveCount(43);
 
     foreach ($moneyColumns as [$table, $column]) {
-        expect(Schema::getColumnType($table, $column))->toBe('integer', "{$table}.{$column}");
+        expect(Schema::getColumnType($table, $column))->toBeIn(['integer', 'int4'], "{$table}.{$column}");
     }
 });

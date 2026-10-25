@@ -151,9 +151,9 @@ class Index extends Component
             ->when(filled($this->statusFilter), fn ($query) => $query->where('status', $this->statusFilter))
             ->when(filled($this->search), function ($query) {
                 $query->where(function ($q) {
-                    $q->where('number', 'like', '%'.$this->search.'%')
-                        ->orWhere('quote_number', 'like', '%'.$this->search.'%')
-                        ->orWhereHas('supplier', fn ($s) => $s->where('name', 'like', '%'.$this->search.'%'));
+                    $q->whereLike('number', '%'.$this->search.'%')
+                        ->orWhereLike('quote_number', '%'.$this->search.'%')
+                        ->orWhereHas('supplier', fn ($s) => $s->whereLike('name', '%'.$this->search.'%'));
                 });
             })
             ->latest('id')
