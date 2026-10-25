@@ -239,7 +239,7 @@ it('permet à un rôle personnalisé de gérer selon son niveau', function () {
 it('cache à un directeur la fiche d\'un employé d\'un autre magasin', function () {
     $this->actingAs(User::factory()->withRole('manager')->create());
 
-    $this->get(route('users.show', employeComplet()))->assertNotFound();
+    $this->get(route('users.show', employeComplet(['store_id' => Store::factory()->create()->id])))->assertNotFound();
 });
 
 it('empêche un directeur de changer le magasin d\'appartenance d\'un employé', function () {

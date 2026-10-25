@@ -9,6 +9,14 @@
         </div>
 
         <div class="flex items-center gap-2">
+            @if ($this->canChooseStore())
+                <flux:select wire:model.live="storeId" size="sm" class="w-56">
+                    @foreach ($stores as $store)
+                        <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
+
             @can('schedule_management.edit')
                 <flux:dropdown align="end">
                     <flux:button size="sm" variant="ghost" icon="document-duplicate" icon-trailing="chevron-down">

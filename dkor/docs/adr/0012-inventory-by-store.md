@@ -87,7 +87,7 @@ Nous retenons l'**option B**.
 - Le **magasin qui reçoit** demande toujours le transfert (`RequestStoreTransfer`). Le magasin qui expédie l'accepte
   ou le refuse avec une raison (`AcceptStoreTransfer`, `CloseStoreTransfer`). Le demandeur peut l'annuler tant qu'il
   n'est pas en transit. Le magasin qui reçoit confirme la quantité reçue (`ReceiveStoreTransfer`). Chacun n'agit que
-  pour son magasin ; un usager qui a `stores.all` (bureau chef) agit pour tous ([ADR 0001](0001-permissions.md)).
+  pour son magasin ; un usager qui a `stores.all` (bureau chef) agit pour tous ([ADR 0013](0013-store-scope.md)).
 - **Pour le stock**, la marchandise part de « En stock » : « En transfert », puis « En transit », puis « En stock »
   chez le magasin qui reçoit. Un démonstrateur ne se transfère pas pour devenir démo ailleurs.
 - **Pour un client**, elle part de « En stock », ou de « En démo » (la dernière unité) : « Client en transfert »,

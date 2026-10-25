@@ -13,7 +13,7 @@ use DomainException;
  */
 class StoreTransferGuard
 {
-    /** L'usager agit pour son magasin; avec stores.all (bureau chef), il agit pour tous (ADR 0001). */
+    /** L'usager agit pour son magasin; avec stores.all (bureau chef), il agit pour tous (ADR 0013). */
     public static function actingFor(User $user, int $storeId, string $message): void
     {
         if (! $user->canActForStore($storeId)) {

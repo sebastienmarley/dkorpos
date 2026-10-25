@@ -30,7 +30,7 @@ class UserPolicy
     }
 
     /**
-     * Changer le magasin d'appartenance d'un usager exige l'accès à tous les magasins (ADR 0001).
+     * Changer le magasin d'appartenance d'un usager exige l'accès à tous les magasins (ADR 0013).
      */
     public function changeStore(User $user, User $model): bool
     {

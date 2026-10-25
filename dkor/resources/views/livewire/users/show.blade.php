@@ -405,13 +405,20 @@
                                         $viaRole = in_array($permission->name, $fromRole, true);
                                         $isDenied = $denied->contains($permission->name);
                                     @endphp
-                                    <flux:checkbox
-                                        wire:model="selectedPermissions"
-                                        :value="$permission->name"
-                                        :label="$permission->displayName()"
-                                        :description="$viaRole ? ($isDenied ? __('Retirée à cet utilisateur (fournie par le rôle)') : __('Fournie par le rôle')) : $permission->description"
-                                        :disabled="! in_array($permission->name, $grantable, true)"
-                                    />
+                                    <div class="flex items-start gap-1.5">
+                                        <flux:checkbox
+                                            wire:model="selectedPermissions"
+                                            :value="$permission->name"
+                                            :label="$permission->displayName()"
+                                            :description="$viaRole ? ($isDenied ? __('Retirée à cet utilisateur (fournie par le rôle)') : __('Fournie par le rôle')) : null"
+                                            :disabled="! in_array($permission->name, $grantable, true)"
+                                        />
+                                        @if ($permission->description)
+                                            <flux:tooltip :content="$permission->description">
+                                                <flux:icon name="information-circle" variant="mini" class="mt-0.5 shrink-0 text-zinc-400" />
+                                            </flux:tooltip>
+                                        @endif
+                                    </div>
                                 @endforeach
                             </div>
                         </div>

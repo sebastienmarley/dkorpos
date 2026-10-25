@@ -1231,6 +1231,8 @@ erDiagram
   elles n'ont pas de clé étrangère vers `users`, donc ce lien n'est pas dessiné.
 - `user_denied_permissions` : permissions retirées à la pièce à un usager. Elles priment sur celles
   de son rôle et sur ses permissions directes.
+- `users.store_id` : magasin d'appartenance de l'usager. Sans la permission `stores.all`, il ne voit
+  et n'agit que pour ce magasin ([ADR 0013](adr/0013-store-scope.md)).
 - `notifications` : notifications de Laravel (canal `database`) affichées par la cloche. Elle est
   **polymorphe** (`notifiable_type`, `notifiable_id`) et n'a pas de clé étrangère vers `users`, donc
   ce lien n'est pas dessiné. `data` (JSON) contient `title`, `body`, `url` et `icon`; `type` identifie

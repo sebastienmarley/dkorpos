@@ -55,7 +55,7 @@ it('ouvre au superviseur d\'inventaire seulement l\'onglet des zones et emplacem
 it('refuse au superviseur d\'inventaire la fiche d\'un autre magasin', function () {
     $store = Store::factory()->create();
 
-    $this->actingAs(User::factory()->withRole('manager')->create());
+    $this->actingAs(User::factory()->withRole('manager')->create(['store_id' => Store::factory()->create()->id]));
 
     $this->get(route('stores.show', $store))->assertForbidden();
 });

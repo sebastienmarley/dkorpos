@@ -393,7 +393,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Accès à tous les magasins (bureau chef, ADR 0001). Sans lui, l'usager n'agit que pour son magasin d'appartenance.
+     * Accès à tous les magasins (bureau chef, ADR 0013). Sans lui, l'usager n'agit que pour son magasin d'appartenance.
      */
     public function hasAllStores(): bool
     {

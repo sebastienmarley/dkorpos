@@ -1,20 +1,24 @@
 <?php
 
+use App\Enums\ScheduleStatus;
 use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
 use App\Livewire\Deliveries\Index as DeliveriesIndex;
 use App\Livewire\Inventory\Adjustments;
+use App\Livewire\Schedules\ScheduleEdit;
 use App\Models\customer;
 use App\Models\CustomerOrder;
 use App\Models\InventoryCount;
 use App\Models\Product;
+use App\Models\Schedule;
 use App\Models\Store;
 use App\Models\User;
 use Database\Seeders\TaxSeeder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
 /*
- * Magasin d'appartenance (ADR 0001) : sans stores.all, l'usager ne voit et n'agit que pour son magasin.
+ * Magasin d'appartenance (ADR 0013) : sans stores.all, l'usager ne voit et n'agit que pour son magasin.
  */
 
 beforeEach(function () {
@@ -129,5 +133,50 @@ describe('inventaire', function () {
 
         $this->actingAs($this->manager)->get(route('inventory.counts.show', $count))->assertForbidden();
         $this->actingAs($this->owner)->get(route('inventory.counts.show', $count))->assertOk();
+    });
+});
+
+describe('horaires', function () {
+    beforeEach(function () {
+        $this->manager->givePermissionTo(['schedule_management.view', 'schedule_management.edit', 'schedule_management.publish']);
+        $this->colleague = User::factory()->create(['firstname' => 'Cora', 'lastname' => 'Collegue', 'store_id' => $this->rimouski->id]);
+        $this->elsewhere = User::factory()->create(['firstname' => 'Elie', 'lastname' => 'Ailleurs', 'store_id' => $this->gaspe->id]);
+        $this->weekStart = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+    });
+
+    it('montre au directeur seulement les employés de son magasin, sans sélecteur', function () {
+        $this->actingAs($this->manager);
+
+        Livewire::withQueryParams(['store' => $this->gaspe->id])
+            ->test(ScheduleEdit::class)
+            ->assertSet('storeId', (string) $this->rimouski->id)
+            ->assertSee($this->colleague->fullName())
+            ->assertDontSee($this->elsewhere->fullName())
+            ->assertDontSee('Gaspé');
+    });
+
+    it('refuse au directeur l\'horaire d\'un employé d\'un autre magasin', function () {
+        $this->actingAs($this->manager);
+
+        Livewire::test(ScheduleEdit::class)
+            ->call('openCell', $this->elsewhere->id, $this->weekStart)
+            ->assertForbidden();
+    });
+
+    it('publie seulement la semaine du magasin choisi par le propriétaire', function () {
+        $mine = Schedule::factory()->forDate($this->weekStart)->create(['user_id' => $this->colleague->id]);
+        $other = Schedule::factory()->forDate($this->weekStart)->create(['user_id' => $this->elsewhere->id]);
+
+        $this->actingAs($this->owner);
+
+        Livewire::test(ScheduleEdit::class)
+            ->assertSet('storeId', (string) $this->rimouski->id)
+            ->set('storeId', (string) $this->gaspe->id)
+            ->assertSee($this->elsewhere->fullName())
+            ->assertDontSee($this->colleague->fullName())
+            ->call('publishWeek');
+
+        expect($other->fresh()->status)->toBe(ScheduleStatus::Published)
+            ->and($mine->fresh()->status)->toBe(ScheduleStatus::Draft);
     });
 });

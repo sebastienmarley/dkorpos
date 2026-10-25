@@ -4,6 +4,7 @@ namespace App\Livewire\Schedules;
 
 use App\Actions\FillWeekSchedules;
 use App\Actions\ReassignAppointment;
+use App\Concerns\ChoosesStore;
 use App\Enums\ScheduleStatus;
 use App\Enums\ScheduleType;
 use App\Models\Appointment;
@@ -11,6 +12,7 @@ use App\Models\Holiday;
 use App\Models\PayrollPeriod;
 use App\Models\Schedule;
 use App\Models\ShiftTemplate;
+use App\Models\Store;
 use App\Models\User;
 use App\Models\WeekTemplate;
 use App\Support\AppointmentBooking;
@@ -18,16 +20,27 @@ use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
+/**
+ * Gestion des horaires d'un magasin (ADR 0013) : les employés actifs du magasin choisi, le sien par défaut, un autre
+ * seulement avec stores.all.
+ */
 class ScheduleEdit extends Component
 {
+    use ChoosesStore;
+
     public string $weekStart;
+
+    #[Url(as: 'store')]
+    public string $storeId = '';
 
     public bool $showModal = false;
 
@@ -80,8 +93,23 @@ class ScheduleEdit extends Component
 
     public function mount(): void
     {
+        $this->keepAccessibleStore();
         $this->weekStart = Carbon::now()->startOfWeek(Carbon::SUNDAY)->toDateString();
         $this->syncWeekSnapshot();
+    }
+
+    public function updatedStoreId(): void
+    {
+        $this->keepAccessibleStore();
+        $this->closeModal();
+        $this->closeReassignModal();
+        $this->syncWeekSnapshot();
+    }
+
+    /** @return EloquentCollection<int, Store> */
+    public function getStores(): EloquentCollection
+    {
+        return Store::query()->accessibleTo(auth()->user())->where('is_active', true)->orderBy('name')->get();
     }
 
     public function previousWeek(): void
@@ -124,6 +152,7 @@ class ScheduleEdit extends Component
     public function openCell(int $userId, string $date): void
     {
         $this->authorize('schedule_management.edit');
+        $this->ensureStoreEmployee($userId);
 
         if (PayrollPeriod::isDateLocked($date)) {
             Flux::toast(text: __('Cette journée fait partie d\'une période de paie verrouillée.'), heading: __('Horaire verrouillé'), variant: 'danger');
@@ -177,6 +206,7 @@ class ScheduleEdit extends Component
         $planned = Schedule::query()
             ->where('date', '>=', $start->copy()->subWeek()->toDateString())
             ->where('date', '<', $start->toDateString())
+            ->whereIn('user_id', $this->storeEmployees()->select('id'))
             ->where('type', ScheduleType::Work->value)
             ->whereNotNull('start_time')
             ->whereNotNull('end_time')
@@ -210,7 +240,7 @@ class ScheduleEdit extends Component
         $this->authorize('schedule_management.edit');
 
         $weekTemplate = WeekTemplate::query()->find($weekTemplateId);
-        $employee = User::query()->find($userId);
+        $employee = $this->storeEmployees()->find($userId);
 
         if (! $weekTemplate || ! $employee) {
             return;
@@ -279,7 +309,7 @@ class ScheduleEdit extends Component
     {
         $start = Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY);
 
-        $uncoveredCount = AppointmentBooking::uncoveredAppointments($start->toDateString(), $start->copy()->addDays(6)->toDateString())
+        $uncoveredCount = AppointmentBooking::uncoveredAppointments($start->toDateString(), $start->copy()->addDays(6)->toDateString(), $this->storeEmployeeIds())
             ->filter(fn (array $row): bool => $row['coverage']->blocksPublication())
             ->count();
 
@@ -351,6 +381,7 @@ class ScheduleEdit extends Component
     public function deleteSchedule(): void
     {
         $this->authorize('schedule_management.edit');
+        $this->ensureStoreEmployee((int) $this->editingUserId);
 
         $weekWasCurrent = $this->isWeekSnapshotCurrent();
 
@@ -406,6 +437,7 @@ class ScheduleEdit extends Component
     public function save(): void
     {
         $this->authorize('schedule_management.edit');
+        $this->ensureStoreEmployee((int) $this->editingUserId);
 
         if (PayrollPeriod::isDateLocked($this->editingDate)) {
             $this->addError('editingDate', __('Cette journée fait partie d\'une période de paie verrouillée.'));
@@ -614,7 +646,7 @@ class ScheduleEdit extends Component
     {
         $this->authorize('appointments.edit');
 
-        $appointment = Appointment::query()->find($appointmentId);
+        $appointment = Appointment::query()->whereIn('user_id', $this->storeEmployees()->select('id'))->find($appointmentId);
 
         if (! $appointment) {
             Flux::toast(text: __('Ce rendez-vous a été supprimé par un autre usager.'), heading: __('Réassignation impossible'), variant: 'danger');
@@ -639,12 +671,12 @@ class ScheduleEdit extends Component
         $this->authorize('appointments.edit');
 
         $this->validate([
-            'reassignUserId' => ['required', 'integer', Rule::exists('users', 'id')->where('is_active', true)],
+            'reassignUserId' => ['required', 'integer', Rule::in($this->storeEmployeeIds())],
             'reassignDate' => ['required', 'date_format:Y-m-d'],
             'reassignStartMinute' => ['required', 'integer', 'min:'.AppointmentBooking::DAY_START_MINUTE, 'max:'.(AppointmentBooking::DAY_END_MINUTE - AppointmentBooking::SLOT_MINUTES)],
         ]);
 
-        $appointment = Appointment::query()->find($this->reassigningAppointmentId);
+        $appointment = Appointment::query()->whereIn('user_id', $this->storeEmployees()->select('id'))->find($this->reassigningAppointmentId);
 
         if (! $appointment) {
             $this->addError('reassignUserId', __('Ce rendez-vous a été supprimé par un autre usager.'));
@@ -793,7 +825,29 @@ class ScheduleEdit extends Component
     /** Sérialise les actions sur toute la semaine avec les écritures quart par quart (verrou par employé). */
     private function lockActiveEmployees(): void
     {
-        User::query()->where('is_active', true)->orderBy('id')->lockForUpdate()->get();
+        $this->storeEmployees()->orderBy('id')->lockForUpdate()->get();
+    }
+
+    /**
+     * Employés actifs du magasin choisi.
+     *
+     * @return Builder<User>
+     */
+    private function storeEmployees(): Builder
+    {
+        return User::query()->where('is_active', true)->where('store_id', (int) $this->storeId);
+    }
+
+    /** @return array<int, int> */
+    private function storeEmployeeIds(): array
+    {
+        return $this->storeEmployees()->pluck('id')->all();
+    }
+
+    /** Refuse d'agir sur l'horaire d'un employé qui n'est pas du magasin choisi (requête trafiquée). */
+    private function ensureStoreEmployee(int $userId): void
+    {
+        abort_unless($this->storeEmployees()->whereKey($userId)->exists(), 403);
     }
 
     private function conflictMessage(int $count): string
@@ -812,7 +866,7 @@ class ScheduleEdit extends Component
     }
 
     /**
-     * Quarts de la semaine affichée, pour les employés actifs seulement.
+     * Quarts de la semaine affichée, pour les employés actifs du magasin choisi seulement.
      *
      * @return Builder<Schedule>
      */
@@ -821,7 +875,7 @@ class ScheduleEdit extends Component
         $start = Carbon::parse($this->weekStart)->startOfWeek(Carbon::SUNDAY);
 
         return Schedule::query()
-            ->whereIn('user_id', User::query()->where('is_active', true)->select('id'))
+            ->whereIn('user_id', $this->storeEmployees()->select('id'))
             ->where('date', '>=', $start->toDateString())
             ->where('date', '<', $start->copy()->addDays(7)->toDateString());
     }
@@ -854,7 +908,7 @@ class ScheduleEdit extends Component
             ->get()
             ->keyBy('user_id');
 
-        $candidates = User::query()->where('is_active', true)->orderBy('id')->get()
+        $candidates = $this->storeEmployees()->orderBy('id')->get()
             ->map(function (User $user) use ($shifts): array {
                 $shift = $shifts->get($user->id);
 
@@ -885,7 +939,7 @@ class ScheduleEdit extends Component
 
         $days = Collection::times(7, fn ($i) => $start->copy()->addDays($i - 1));
 
-        $userIds = User::query()->where('is_active', true)->orderBy('id')->pluck('id');
+        $userIds = $this->storeEmployees()->orderBy('id')->pluck('id');
 
         $schedules = Schedule::query()
             ->whereIn('user_id', $userIds)
@@ -895,7 +949,7 @@ class ScheduleEdit extends Component
             ->groupBy('user_id')
             ->map(fn ($rows) => $rows->keyBy(fn ($s) => Carbon::parse($s->date)->toDateString()));
 
-        $users = User::query()->where('is_active', true)->orderBy('id')->get();
+        $users = $this->storeEmployees()->orderBy('id')->get();
 
         $totalHours = $schedules->map(function ($userSchedules) {
             return $userSchedules->sum(function ($schedule) {
@@ -927,10 +981,11 @@ class ScheduleEdit extends Component
             ->get()
             ->groupBy(fn (Appointment $appointment): string => $appointment->user_id.'|'.$appointment->date);
 
-        $uncoveredAppointments = AppointmentBooking::uncoveredAppointments($start->toDateString(), $start->copy()->addDays(6)->toDateString());
+        $uncoveredAppointments = AppointmentBooking::uncoveredAppointments($start->toDateString(), $start->copy()->addDays(6)->toDateString(), $userIds->all());
 
         return view('livewire.schedules.schedule-edit', [
             'holidays' => $holidays,
+            'stores' => $this->getStores(),
             'scheduleTypes' => ScheduleType::cases(),
             'shiftTemplates' => ShiftTemplate::query()->orderBy('name')->get(),
             'weekTemplates' => WeekTemplate::query()->withCount('entries')->orderBy('name')->get(),

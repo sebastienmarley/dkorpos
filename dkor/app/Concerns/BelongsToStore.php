@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Enregistrement qui appartient à un magasin (`store_id`), visible seulement par les usagers de ce magasin ou par ceux
- * qui ont accès à tous les magasins (ADR 0001).
+ * qui ont accès à tous les magasins (ADR 0013).
  */
 trait BelongsToStore
 {

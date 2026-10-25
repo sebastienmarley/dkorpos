@@ -84,12 +84,19 @@
                             <flux:text class="mb-1 text-xs font-medium uppercase text-zinc-500">{{ \Illuminate\Support\Str::headline($group) }}</flux:text>
                             <div class="space-y-2">
                                 @foreach ($groupPermissions as $permission)
-                                    <flux:checkbox
-                                        wire:model="permissions"
-                                        :value="$permission->name"
-                                        :label="$permission->displayName()"
-                                        :disabled="! in_array($permission->name, $grantable, true)"
-                                    />
+                                    <div class="flex items-start gap-1.5">
+                                        <flux:checkbox
+                                            wire:model="permissions"
+                                            :value="$permission->name"
+                                            :label="$permission->displayName()"
+                                            :disabled="! in_array($permission->name, $grantable, true)"
+                                        />
+                                        @if ($permission->description)
+                                            <flux:tooltip :content="$permission->description">
+                                                <flux:icon name="information-circle" variant="mini" class="mt-0.5 shrink-0 text-zinc-400" />
+                                            </flux:tooltip>
+                                        @endif
+                                    </div>
                                 @endforeach
                             </div>
                         </div>

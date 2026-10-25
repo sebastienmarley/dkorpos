@@ -192,11 +192,13 @@ class AppointmentBooking
     }
 
     /**
-     * Rendez-vous à venir, entre deux dates incluses, qui ne sont pas couverts par un quart publié.
+     * Rendez-vous à venir, entre deux dates incluses, qui ne sont pas couverts par un quart publié, limités aux
+     * employés donnés s'il y a lieu (ceux d'un magasin).
      *
+     * @param  array<int, int>|null  $userIds
      * @return Collection<int, array{appointment: Appointment, coverage: AppointmentCoverage}>
      */
-    public static function uncoveredAppointments(string $from, string $to): Collection
+    public static function uncoveredAppointments(string $from, string $to, ?array $userIds = null): Collection
     {
         $from = max($from, Carbon::today()->toDateString());
         $toExclusive = Carbon::parse($to)->addDay()->toDateString();
@@ -204,6 +206,7 @@ class AppointmentBooking
         $appointments = Appointment::query()
             ->where('date', '>=', $from)
             ->where('date', '<', $toExclusive)
+            ->when($userIds !== null, fn (Builder $query) => $query->whereIn('user_id', $userIds))
             ->with(['user', 'customer'])
             ->orderBy('date')
             ->orderBy('start_minute')

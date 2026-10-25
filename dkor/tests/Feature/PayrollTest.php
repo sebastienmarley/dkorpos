@@ -166,7 +166,7 @@ it('paie la maladie selon le maximum du magasin pour l\'année de maladie', func
     quart($tempsPartiel, '2026-01-05', ScheduleType::Sick);
     quart($tempsPartiel, '2026-01-06', ScheduleType::Sick);
 
-    $sansMagasin = User::factory()->create();
+    $sansMagasin = User::factory()->create(['store_id' => Store::factory()->create()->id]);
     quart($sansMagasin, '2026-01-05', ScheduleType::Sick);
 
     // Le 15 décembre appartient à l'année de maladie précédente : 2 jours payés sur 3 en janvier.
@@ -235,7 +235,7 @@ it('prend le début de l\'année de vacances dans le magasin de l\'employé', fu
     $calculator = app(CalculateVacationBalance::class);
 
     expect($calculator->referenceYearStart(Carbon::parse('2026-10-31'), $user->fresh())->toDateString())->toBe('2026-01-01')
-        ->and($calculator->referenceYearStart(Carbon::parse('2026-10-31'), User::factory()->create())->toDateString())->toBe('2026-05-01');
+        ->and($calculator->referenceYearStart(Carbon::parse('2026-10-31'), User::factory()->create(['store_id' => Store::factory()->create()->id]))->toDateString())->toBe('2026-05-01');
 });
 
 it('assigne le magasin de l\'employé sur sa fiche', function () {

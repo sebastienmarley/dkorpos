@@ -44,7 +44,7 @@ class Locations extends Component
         $this->store = $store;
     }
 
-    /** Gérer les zones exige inventory.supervise, pour son magasin seulement sans stores.all (ADR 0001). */
+    /** Gérer les zones exige inventory.supervise, pour son magasin seulement sans stores.all (ADR 0013). */
     private function authorizeSupervise(): void
     {
         $this->authorize('inventory.supervise');

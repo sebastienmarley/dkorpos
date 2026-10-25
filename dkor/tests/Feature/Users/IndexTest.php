@@ -493,7 +493,7 @@ it('ne révèle pas un Admin ou un Owner à un Manager lors de la création', fu
 it('montre à un directeur seulement les employés de son magasin', function () {
     $manager = User::factory()->withRole('manager')->create();
     $collegue = User::factory()->create(['firstname' => 'Cora', 'lastname' => 'Collegue', 'store_id' => $manager->store_id]);
-    $ailleurs = User::factory()->create(['firstname' => 'Elie', 'lastname' => 'Ailleurs']);
+    $ailleurs = User::factory()->create(['firstname' => 'Elie', 'lastname' => 'Ailleurs', 'store_id' => Store::factory()->create()->id]);
 
     $this->actingAs($manager);
 
@@ -505,7 +505,7 @@ it('montre à un directeur seulement les employés de son magasin', function () 
 
 it('montre au propriétaire les employés de tous ses magasins, avec un filtre par magasin', function () {
     $collegue = User::factory()->create(['firstname' => 'Cora', 'lastname' => 'Collegue']);
-    $ailleurs = User::factory()->create(['firstname' => 'Elie', 'lastname' => 'Ailleurs']);
+    $ailleurs = User::factory()->create(['firstname' => 'Elie', 'lastname' => 'Ailleurs', 'store_id' => Store::factory()->create()->id]);
 
     $this->actingAs(User::factory()->withRole('owner')->create());
 

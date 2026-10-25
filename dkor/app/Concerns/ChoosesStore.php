@@ -6,7 +6,7 @@ use App\Models\Store;
 use Illuminate\Database\Eloquent\Collection;
 
 /**
- * Page Livewire dont le contenu dépend du magasin choisi (`$storeId`, ADR 0001). Le magasin d'appartenance est
+ * Page Livewire dont le contenu dépend du magasin choisi (`$storeId`, ADR 0013). Le magasin d'appartenance est
  * choisi par défaut; un autre magasin ne peut l'être qu'avec stores.all. Un magasin inaccessible (lien modifié,
  * requête trafiquée) est ramené au magasin par défaut.
  *

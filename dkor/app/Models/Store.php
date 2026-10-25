@@ -87,7 +87,7 @@ class Store extends Model
     }
 
     /**
-     * Magasins pour lesquels l'usager peut agir (ADR 0001) : tous avec stores.all, sinon son magasin d'appartenance.
+     * Magasins pour lesquels l'usager peut agir (ADR 0013) : tous avec stores.all, sinon son magasin d'appartenance.
      *
      * @param  Builder<Store>  $query
      */
