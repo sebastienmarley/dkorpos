@@ -8,11 +8,13 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-            <flux:select wire:model.live="storeId" class="w-56">
-                @foreach ($stores as $store)
-                    <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            @if ($this->canChooseStore())
+                <flux:select wire:model.live="storeId" class="w-56">
+                    @foreach ($stores as $store)
+                        <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
             <flux:button.group>
                 <flux:button icon="chevron-left" wire:click="previousWeek" :label="__('Semaine précédente')" />
                 <flux:button wire:click="goToCurrentWeek">{{ __('Cette semaine') }}</flux:button>

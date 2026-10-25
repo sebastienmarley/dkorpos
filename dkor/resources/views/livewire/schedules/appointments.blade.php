@@ -16,7 +16,15 @@
                 </flux:button>
             @endcan
 
-            {{-- Sélecteur d'employé --}}
+            {{-- Sélecteur de magasin (stores.all) et d'employé du magasin --}}
+            @if ($this->canChooseStore())
+                <flux:select wire:model.live="storeId" class="w-48">
+                    @foreach ($stores as $store)
+                        <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
+
             <flux:select wire:model.live="selectedUserId" class="w-48">
                 @foreach ($users as $user)
                     <flux:select.option value="{{ $user->id }}">{{ $user->fullName() }}</flux:select.option>

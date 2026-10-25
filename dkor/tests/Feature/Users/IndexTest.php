@@ -120,6 +120,7 @@ it('exige un magasin à la création d\'un utilisateur', function () {
         ->set('firstname', 'Marie')
         ->set('lastname', 'Cote')
         ->set('cellphone', '(514)555-1234')
+        ->set('storeId', null)
         ->call('save')
         ->assertHasErrors(['storeId' => 'required']);
 });
@@ -350,8 +351,40 @@ it('interdit la création aux rôles qui ne gèrent pas les utilisateurs', funct
         ->assertForbidden();
 })->with(['salesman', 'design', 'accounting', 'thirdkey']);
 
-it('permet à Admin, Owner et Manager de créer un utilisateur', function (string $role) {
-    $this->actingAs(User::factory()->withRole($role)->create());
+it('permet à Admin, Owner et Manager de créer un utilisateur dans leur magasin', function (string $role) {
+    $actor = User::factory()->withRole($role)->create();
+    $this->actingAs($actor);
+
+    Livewire::test(Index::class)
+        ->call('openCreateModal')
+        ->assertSet('storeId', $actor->store_id)
+        ->set('firstname', 'Marie')
+        ->set('lastname', 'Cote')
+        ->set('cellphone', '(514)555-1234')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(User::where('email', 'mariecote@dkor.ca')->value('store_id'))->toBe($actor->store_id);
+})->with(['admin', 'owner', 'manager']);
+
+it('laisse le propriétaire embaucher dans n\'importe lequel de ses magasins', function () {
+    $store = Store::factory()->create();
+    $this->actingAs(User::factory()->withRole('owner')->create());
+
+    Livewire::test(Index::class)
+        ->call('openCreateModal')
+        ->set('firstname', 'Marie')
+        ->set('lastname', 'Cote')
+        ->set('cellphone', '(514)555-1234')
+        ->set('storeId', $store->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(User::where('email', 'mariecote@dkor.ca')->value('store_id'))->toBe($store->id);
+});
+
+it('empêche un directeur d\'embaucher dans un autre magasin', function () {
+    $this->actingAs(User::factory()->withRole('manager')->create());
 
     Livewire::test(Index::class)
         ->call('openCreateModal')
@@ -360,10 +393,10 @@ it('permet à Admin, Owner et Manager de créer un utilisateur', function (strin
         ->set('cellphone', '(514)555-1234')
         ->set('storeId', Store::factory()->create()->id)
         ->call('save')
-        ->assertHasNoErrors();
+        ->assertHasErrors(['storeId' => 'in']);
 
-    expect(User::where('email', 'mariecote@dkor.ca')->exists())->toBeTrue();
-})->with(['admin', 'owner', 'manager']);
+    expect(User::where('email', 'mariecote@dkor.ca')->exists())->toBeFalse();
+});
 
 it('interdit à un Manager de créer un Admin ou un Owner', function (string $cible) {
     $this->actingAs(User::factory()->withRole('manager')->create());
@@ -422,7 +455,7 @@ it('cache les Admin et Owner dans la liste d\'un Manager', function () {
     $owner = User::factory()->withRole('owner')->create(['firstname' => 'Otto', 'lastname' => 'Owner']);
     $vendeur = User::factory()->create(['firstname' => 'Vera', 'lastname' => 'Vendeuse']);
 
-    $this->actingAs(User::factory()->withRole('manager')->create());
+    $this->actingAs(User::factory()->withRole('manager')->create(['store_id' => $vendeur->store_id]));
 
     Livewire::test(Index::class)
         ->assertSee($vendeur->fullName())
@@ -456,3 +489,30 @@ it('ne révèle pas un Admin ou un Owner à un Manager lors de la création', fu
         ->set('lastname', 'Roy')
         ->assertSet('inactiveMatchIds', []);
 })->with(['admin', 'owner']);
+
+it('montre à un directeur seulement les employés de son magasin', function () {
+    $manager = User::factory()->withRole('manager')->create();
+    $collegue = User::factory()->create(['firstname' => 'Cora', 'lastname' => 'Collegue', 'store_id' => $manager->store_id]);
+    $ailleurs = User::factory()->create(['firstname' => 'Elie', 'lastname' => 'Ailleurs', 'store_id' => Store::factory()->create()->id]);
+
+    $this->actingAs($manager);
+
+    Livewire::test(Index::class)
+        ->assertSee($collegue->fullName())
+        ->assertDontSee($ailleurs->fullName())
+        ->assertDontSee('Tous les magasins');
+});
+
+it('montre au propriétaire les employés de tous ses magasins, avec un filtre par magasin', function () {
+    $collegue = User::factory()->create(['firstname' => 'Cora', 'lastname' => 'Collegue']);
+    $ailleurs = User::factory()->create(['firstname' => 'Elie', 'lastname' => 'Ailleurs', 'store_id' => Store::factory()->create()->id]);
+
+    $this->actingAs(User::factory()->withRole('owner')->create());
+
+    Livewire::test(Index::class)
+        ->assertSee($collegue->fullName())
+        ->assertSee($ailleurs->fullName())
+        ->set('storeFilter', (string) $collegue->store_id)
+        ->assertSee($collegue->fullName())
+        ->assertDontSee($ailleurs->fullName());
+});

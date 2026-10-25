@@ -44,7 +44,7 @@ class Counts extends Component
 
         $this->validate([
             'countedOn' => ['required', 'date'],
-            'storeId' => ['required', 'integer', Rule::exists('stores', 'id')->where('type', StoreType::Physical->value)],
+            'storeId' => ['required', 'integer', Rule::exists('stores', 'id')->where('type', StoreType::Physical->value)->whereIn('id', Store::query()->accessibleTo(auth()->user())->pluck('id')->all())],
         ]);
 
         try {
@@ -61,11 +61,11 @@ class Counts extends Component
     public function render(): View
     {
         return view('livewire.inventory.counts', [
-            'counts' => InventoryCount::query()->with(['starter', 'finalizer', 'store'])->withCount('lines')->latest('id')->paginate(15),
-            'inProgress' => InventoryCount::query()->with('store')->where('status', InventoryCountStatus::InProgress)->orderBy('id')->get(),
-            'fiscalYear' => InventoryCount::fiscalYearStatus(),
+            'counts' => InventoryCount::query()->accessibleTo(auth()->user())->with(['starter', 'finalizer', 'store'])->withCount('lines')->latest('id')->paginate(15),
+            'inProgress' => InventoryCount::query()->accessibleTo(auth()->user())->with('store')->where('status', InventoryCountStatus::InProgress)->orderBy('id')->get(),
+            'fiscalYear' => InventoryCount::fiscalYearStatus()->filter(fn (array $row): bool => auth()->user()->canActForStore($row['store']->id))->values(),
             'fiscalYearStart' => InventoryCount::fiscalYearStart(),
-            'stores' => Store::query()->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get(),
+            'stores' => Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get(),
         ])->layout('layouts.app', ['title' => __('Prises d\'inventaire')]);
     }
 }

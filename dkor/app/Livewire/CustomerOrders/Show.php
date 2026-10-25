@@ -173,6 +173,8 @@ class Show extends Component
 
     public function mount(CustomerOrder $order): void
     {
+        abort_unless($order->isAccessibleTo(auth()->user()), 403);
+
         $this->order = $order;
     }
 

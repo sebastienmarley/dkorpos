@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BelongsToStore;
 use App\Enums\InventoryCountPass;
 use App\Enums\InventoryCountResultSource;
 use App\Enums\InventoryCountStatus;
@@ -59,6 +60,8 @@ use LogicException;
 #[Fillable(['store_id', 'counted_on', 'status', 'stock_frozen_at', 'started_by', 'finalized_at', 'finalized_by', 'abandoned_at'])]
 class InventoryCount extends Model
 {
+    use BelongsToStore;
+
     /** @use HasFactory<InventoryCountFactory> */
     use HasFactory;
 

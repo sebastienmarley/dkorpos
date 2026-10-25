@@ -7,6 +7,7 @@ use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
 use App\Livewire\Inventory\Adjustments;
 use App\Livewire\Inventory\Counts;
+use App\Livewire\Inventory\Movements;
 use App\Livewire\Products\Show as ProductShow;
 use App\Livewire\Receptions\Create as ReceptionCreate;
 use App\Models\CustomerOrder;
@@ -70,7 +71,91 @@ it('montre les quantités du produit par magasin et le total de l\'entreprise', 
     expectInventoryIntegrity($this->product);
 });
 
+it('indique le magasin de chaque mouvement du journal, limité au magasin de l\'usager et filtrable avec stores.all', function () {
+    stockIn($this->product, $this->rimouski, 3);
+    stockIn($this->product, $this->gaspe, 2);
+
+    Livewire::actingAs(User::factory()->withRole('salesman')->create(['store_id' => $this->rimouski->id]))
+        ->test(Movements::class)
+        ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->unique()->all() === [$this->rimouski->id])
+        ->assertSee('Rimouski')
+        ->assertDontSee('Gaspé')
+        ->assertDontSee('Tous les magasins')
+        ->set('storeFilter', (string) $this->gaspe->id)
+        ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->unique()->all() === [$this->rimouski->id]);
+
+    Livewire::actingAs($this->owner)->test(Movements::class)
+        ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->sort()->values()->all() === [$this->rimouski->id, $this->gaspe->id])
+        ->assertSee('Gaspé')
+        ->set('storeFilter', (string) $this->gaspe->id)
+        ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->unique()->all() === [$this->gaspe->id]);
+});
+
 describe('réception par magasin', function () {
+    it('n\'offre pas au commis le fournisseur ni les lignes d\'une commande d\'un autre magasin', function () {
+        $line = sentOrderFor($this->gaspe, $this->product, 1);
+        $clerk = User::factory()->withRole('warehouse')->create(['store_id' => $this->rimouski->id]);
+
+        Livewire::actingAs($clerk)->test(ReceptionCreate::class)
+            ->assertViewHas('suppliers', fn ($suppliers): bool => ! $suppliers->contains('id', $line->order->supplier_id))
+            ->set('supplierId', (string) $line->order->supplier_id)
+            ->set("selected.{$line->id}", true)
+            ->assertSet('selected', [])
+            ->assertSet('showStoreConfirm', false);
+    });
+
+    it('demande confirmation avant de recevoir la commande d\'un autre magasin avec stores.all', function () {
+        $line = sentOrderFor($this->gaspe, $this->product, 2);
+
+        Livewire::test(ReceptionCreate::class)
+            ->set('supplierId', (string) $line->order->supplier_id)
+            ->set('orderSearch', $line->order->number)
+            ->assertSee('Magasin : Gaspé')
+            ->set("selected.{$line->id}", true)
+            ->assertSet('selected', [])
+            ->assertSet('showStoreConfirm', true)
+            ->assertSee('est celle du magasin Gaspé')
+            ->call('confirmOtherStore')
+            ->assertSet("selected.{$line->id}", true)
+            ->assertSet("quantities.{$line->id}", '2')
+            ->call('start');
+
+        expect(Reception::sole()->store_id)->toBe($this->gaspe->id);
+    });
+
+    it('ne coche pas la ligne quand l\'usager annule la confirmation', function () {
+        $line = sentOrderFor($this->gaspe, $this->product, 2);
+
+        Livewire::test(ReceptionCreate::class)
+            ->set('supplierId', (string) $line->order->supplier_id)
+            ->set("selected.{$line->id}", true)
+            ->call('cancelOtherStore')
+            ->assertSet('selected', [])
+            ->assertSet('showStoreConfirm', false)
+            ->call('start');
+
+        expect(Reception::count())->toBe(0);
+    });
+
+    it('ne demande pas de confirmation pour une commande de son magasin', function () {
+        $line = sentOrderFor($this->rimouski, $this->product, 1);
+
+        Livewire::test(ReceptionCreate::class)
+            ->set('supplierId', (string) $line->order->supplier_id)
+            ->set("selected.{$line->id}", true)
+            ->assertSet('showStoreConfirm', false)
+            ->assertSet("selected.{$line->id}", true);
+    });
+
+    it('laisse un usager qui a accès à tous les magasins recevoir pour un autre magasin', function () {
+        $line = sentOrderFor($this->gaspe, $this->product, 2);
+
+        Reception::start($line->order->supplier, [$line->id => ['quantity' => 2]], ['received_by' => $this->owner->id])->complete();
+
+        expect(Reception::sole()->store_id)->toBe($this->gaspe->id)
+            ->and($this->product->stockAt($this->gaspe->id)->quantity_in_stock)->toBe(2);
+    });
+
     it('fait entrer la marchandise dans le stock du magasin de destination de la commande', function () {
         $line = sentOrderFor($this->rimouski, $this->product, 4);
 
@@ -85,11 +170,12 @@ describe('réception par magasin', function () {
 
     it('refuse de recevoir une commande destinée à un autre magasin', function () {
         $line = sentOrderFor($this->gaspe, $this->product, 1);
+        $clerk = User::factory()->withRole('warehouse')->create(['store_id' => $this->rimouski->id]);
 
-        expect(fn () => Reception::start($line->order->supplier, [$line->id => ['quantity' => 1]], ['received_by' => $this->owner->id]))
+        expect(fn () => Reception::start($line->order->supplier, [$line->id => ['quantity' => 1]], ['received_by' => $clerk->id]))
             ->toThrow(DomainException::class, 'Cette commande est destinée à un autre magasin');
 
-        Livewire::test(ReceptionCreate::class)
+        Livewire::actingAs($clerk)->test(ReceptionCreate::class)
             ->set('supplierId', (string) $line->order->supplier_id)
             ->set('orderSearch', $line->order->number)
             ->assertDontSee($line->order->number);

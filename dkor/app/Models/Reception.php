@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BelongsToStore;
 use App\Enums\ReceptionStatus;
 use App\Enums\SupplierType;
 use App\Mail\ReceptionDiscrepancyReported;
@@ -41,6 +42,8 @@ use Throwable;
 #[Fillable(['store_id', 'number', 'supplier_id', 'status', 'received_by', 'received_at', 'completed_at', 'reference', 'notes'])]
 class Reception extends Model
 {
+    use BelongsToStore;
+
     /** @use HasFactory<ReceptionFactory> */
     use HasFactory;
 
@@ -152,9 +155,9 @@ class Reception extends Model
             }
 
             $storeId = $storeIds->first();
-            $receiverStoreId = isset($details['received_by']) ? User::query()->whereKey($details['received_by'])->value('store_id') : null;
+            $receiver = isset($details['received_by']) ? User::query()->find($details['received_by']) : null;
 
-            if ($receiverStoreId !== null && $receiverStoreId !== $storeId) {
+            if ($receiver !== null && ! $receiver->canActForStore($storeId)) {
                 throw new DomainException(__('Cette commande est destinée à un autre magasin : vous ne pouvez pas la recevoir.'));
             }
 

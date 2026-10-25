@@ -85,6 +85,8 @@ class Show extends Component
 
     public function mount(SupplierOrder $order): void
     {
+        abort_unless($order->isAccessibleTo(auth()->user()), 403);
+
         $this->order = $order;
         $this->quoteNumber = $order->quote_number ?? '';
         $this->notes = $order->notes ?? '';

@@ -6,6 +6,7 @@ use App\Actions\AcceptStoreTransfer;
 use App\Actions\CloseStoreTransfer;
 use App\Actions\ReceiveStoreTransfer;
 use App\Actions\RequestStoreTransfer;
+use App\Concerns\ChoosesStore;
 use App\Enums\InventoryStatus;
 use App\Enums\StoreTransferStatus;
 use App\Enums\StoreType;
@@ -28,6 +29,8 @@ use Livewire\Component;
  */
 class Transfers extends Component
 {
+    use ChoosesStore;
+
     /** Nombre de jours pendant lesquels un transfert fermé reste affiché. */
     public const int RECENT_DAYS = 30;
 
@@ -59,9 +62,6 @@ class Transfers extends Component
     public function mount(): void
     {
         abort_unless(Gate::any(['transfers.request', 'transfers.accept', 'transfers.receive']), 403);
-
-        $user = auth()->user();
-        $this->storeId = (string) ($user->store_id ?? ($this->storeId !== '' ? $this->storeId : Store::defaultIdFor($user)) ?? '');
     }
 
     public function openRequest(): void
@@ -91,7 +91,7 @@ class Transfers extends Component
         ]);
 
         try {
-            $requestTransfer->handle(auth()->user(), Product::findOrFail($this->requestProductId), (int) $this->fromStoreId, (int) $this->quantity);
+            $requestTransfer->handle(auth()->user(), Product::findOrFail($this->requestProductId), (int) $this->fromStoreId, (int) $this->quantity, toStoreId: (int) $this->storeId);
         } catch (DomainException $exception) {
             $this->addError('quantity', $exception->getMessage());
 
@@ -194,7 +194,7 @@ class Transfers extends Component
     /** @return Collection<int, Store> */
     public function getStores(): Collection
     {
-        return Store::query()->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
+        return Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
     }
 
     /** @return Collection<int, StoreTransfer> */

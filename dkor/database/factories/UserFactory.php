@@ -30,7 +30,9 @@ class UserFactory extends Factory
             'lastname' => fake()->lastName(),
             'username' => fake()->unique()->userName(),
             'email' => fake()->unique()->safeEmail(),
-            'store_id' => Store::factory(),
+            // Les employés partagent le premier magasin, comme dans une entreprise d'un seul magasin : un test qui porte
+            // sur la séparation des magasins (ADR 0013) crée et attribue ses magasins explicitement.
+            'store_id' => fn (): int => Store::query()->orderBy('id')->value('id') ?? Store::factory()->create()->id,
             'is_active' => true,
             'first_day' => now()->subMonths(6)->toDateString(),
             'last_day' => null,

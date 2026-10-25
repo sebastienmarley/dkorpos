@@ -95,7 +95,7 @@ class Show extends Component
      */
     public function mount(Store $store): void
     {
-        abort_unless(Gate::any(['stores.view', 'inventory.supervise']), 403);
+        abort_unless(Gate::allows('stores.view') || (Gate::allows('inventory.supervise') && auth()->user()->canActForStore($store->id)), 403);
 
         $this->store = $store;
         $this->fillFromModel();

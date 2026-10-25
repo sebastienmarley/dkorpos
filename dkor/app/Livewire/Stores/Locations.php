@@ -44,9 +44,17 @@ class Locations extends Component
         $this->store = $store;
     }
 
-    public function openZone(?int $zoneId = null): void
+    /** Gérer les zones exige inventory.supervise, pour son magasin seulement sans stores.all (ADR 0013). */
+    private function authorizeSupervise(): void
     {
         $this->authorize('inventory.supervise');
+
+        abort_unless(auth()->user()->canActForStore($this->store->id), 403);
+    }
+
+    public function openZone(?int $zoneId = null): void
+    {
+        $this->authorizeSupervise();
 
         $zone = $zoneId === null ? null : $this->store->inventoryZones()->findOrFail($zoneId);
 
@@ -59,7 +67,7 @@ class Locations extends Component
 
     public function saveZone(): void
     {
-        $this->authorize('inventory.supervise');
+        $this->authorizeSupervise();
 
         $this->zoneName = trim($this->zoneName);
 
@@ -76,7 +84,7 @@ class Locations extends Component
 
     public function toggleZone(int $zoneId): void
     {
-        $this->authorize('inventory.supervise');
+        $this->authorizeSupervise();
 
         $zone = $this->store->inventoryZones()->findOrFail($zoneId);
         $zone->update(['is_active' => ! $zone->is_active]);
@@ -84,7 +92,7 @@ class Locations extends Component
 
     public function openLocation(?int $zoneId = null, ?int $locationId = null): void
     {
-        $this->authorize('inventory.supervise');
+        $this->authorizeSupervise();
 
         $location = $locationId === null ? null : InventoryLocation::query()->ofStore($this->store->id)->findOrFail($locationId);
 
@@ -98,7 +106,7 @@ class Locations extends Component
 
     public function saveLocation(): void
     {
-        $this->authorize('inventory.supervise');
+        $this->authorizeSupervise();
 
         $this->locationCode = mb_strtoupper(trim($this->locationCode));
 
@@ -120,7 +128,7 @@ class Locations extends Component
 
     public function toggleLocation(int $locationId): void
     {
-        $this->authorize('inventory.supervise');
+        $this->authorizeSupervise();
 
         $location = InventoryLocation::query()->ofStore($this->store->id)->findOrFail($locationId);
         $location->update(['is_active' => ! $location->is_active]);

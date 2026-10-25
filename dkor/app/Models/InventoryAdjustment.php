@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BelongsToStore;
 use App\Enums\InventoryAdjustmentReason;
 use App\Enums\InventoryStatus;
 use Database\Factories\InventoryAdjustmentFactory;
@@ -36,6 +37,8 @@ use LogicException;
 #[Fillable(['store_id', 'product_id', 'reason', 'status', 'is_entry', 'quantity', 'note', 'user_id'])]
 class InventoryAdjustment extends Model
 {
+    use BelongsToStore;
+
     /** @use HasFactory<InventoryAdjustmentFactory> */
     use HasFactory;
 

@@ -37,6 +37,8 @@ class Show extends Component
 
     public function mount(Reception $reception): void
     {
+        abort_unless($reception->isAccessibleTo(auth()->user()), 403);
+
         $this->reception = $reception;
         $this->fillFromModel();
     }

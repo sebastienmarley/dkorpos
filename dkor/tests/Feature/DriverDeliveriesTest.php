@@ -307,7 +307,7 @@ it('accorde le menu des livraisons aux livreurs et aux directeurs, pas aux vende
 describe('signature du client (#93)', function () {
     /** Livraison en route, payée, d'une ligne de 2 unités et d'une ligne d'une unité. */
     beforeEach(function () {
-        $this->salesperson = User::factory()->withRole('salesman')->create();
+        $this->salesperson = User::factory()->withRole('salesman')->create(['store_id' => $this->order->store_id]);
         $this->order->syncSalespeople([['user_id' => $this->salesperson->id, 'percent' => 100]]);
         $this->pair = journaledLine($this->order, 2, 2);
         $this->single = journaledLine($this->order, 1, 1);

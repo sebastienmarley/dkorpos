@@ -27,10 +27,14 @@
                         @foreach ($permissions as $permission)
                             <flux:table.row :key="$permission->id">
                                 <flux:table.cell variant="strong">
-                                    {{ $permission->displayName() }}
-                                    @if ($permission->description)
-                                        <div class="text-xs font-normal text-zinc-500">{{ $permission->description }}</div>
-                                    @endif
+                                    <div class="flex items-center gap-1.5">
+                                        {{ $permission->displayName() }}
+                                        @if ($permission->description)
+                                            <flux:tooltip :content="$permission->description">
+                                                <flux:icon name="information-circle" variant="mini" class="shrink-0 text-zinc-400" />
+                                            </flux:tooltip>
+                                        @endif
+                                    </div>
                                 </flux:table.cell>
                                 <flux:table.cell><code class="text-xs">{{ $permission->name }}</code></flux:table.cell>
                                 <flux:table.cell>

@@ -71,6 +71,7 @@ $warehouseAccess = [
 ];
 
 $accountingAccess = [
+    'stores.all',
     'services.view',
     'services.create',
     'services.edit',
@@ -215,6 +216,7 @@ return [
         'payroll.lock' => ['Verrouiller — paie', 'Verrouiller et déverrouiller les horaires d\'une période de paie.'],
         'roles.manage' => ['Gérer les rôles', 'Créer et modifier les rôles et leurs permissions.'],
         'permissions.manage' => ['Gérer les permissions', 'Créer et modifier les permissions.'],
+        'stores.all' => ['Tous les magasins', 'Voir et agir pour tous les magasins (bureau chef) : choisir le magasin dans les pages, gérer les employés et les commandes de tous les magasins, et changer le magasin d\'appartenance d\'un employé. Sans cette permission, l\'usager n\'agit que pour son magasin.'],
         'stores.view' => ['Voir — magasins', 'Accéder à la page : magasins.'],
         'stores.create' => ['Créer — magasins', 'Créer dans : magasins.'],
         'stores.edit' => ['Modifier — magasins', 'Modifier dans : magasins.'],

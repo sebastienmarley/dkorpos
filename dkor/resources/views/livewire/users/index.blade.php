@@ -32,6 +32,17 @@
             </flux:select>
         </div>
 
+        @if (auth()->user()->hasAllStores())
+            <div class="w-56">
+                <flux:select wire:model.live="storeFilter">
+                    <flux:select.option value="">{{ __('Tous les magasins') }}</flux:select.option>
+                    @foreach ($this->stores() as $storeOption)
+                        <flux:select.option :value="$storeOption->id">{{ $storeOption->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            </div>
+        @endif
+
         <div class="w-44">
             <flux:select wire:model.live="statusFilter">
                 <flux:select.option value="active">{{ __('Actifs') }}</flux:select.option>
@@ -48,6 +59,9 @@
                 <flux:table.column>{{ __('Nom') }}</flux:table.column>
                 <flux:table.column>{{ __('Position') }}</flux:table.column>
                 <flux:table.column>{{ __('Rôle') }}</flux:table.column>
+                @if (auth()->user()->hasAllStores())
+                    <flux:table.column>{{ __('Magasin') }}</flux:table.column>
+                @endif
             </flux:table.columns>
 
             <flux:table.rows>
@@ -70,10 +84,14 @@
                                 {{ $user->role?->displayName() }}
                             </flux:badge>
                         </flux:table.cell>
+
+                        @if (auth()->user()->hasAllStores())
+                            <flux:table.cell>{{ $user->store?->name ?? '—' }}</flux:table.cell>
+                        @endif
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="3" class="py-12 text-center">
+                        <flux:table.cell :colspan="auth()->user()->hasAllStores() ? 4 : 3" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="users" class="h-8 w-8 text-zinc-300" />
                                 <flux:text class="text-zinc-400">{{ __('Aucun utilisateur trouvé.') }}</flux:text>
@@ -198,7 +216,7 @@
 
             <flux:field>
                 <flux:label>{{ __('Magasin') }}</flux:label>
-                <flux:select wire:model="storeId" required>
+                <flux:select wire:model="storeId" required :disabled="! auth()->user()->hasAllStores()">
                     <flux:select.option value="">{{ __('Choisir un magasin') }}</flux:select.option>
                     @foreach ($this->stores() as $store)
                         <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>

@@ -284,7 +284,7 @@ it('montre à chaque compteur ses feuilles et le fait compter sur la page mobile
 
 it('réserve la supervision des feuilles à inventory.supervise et y attribue les comptes', function () {
     $count = InventoryCount::start(today(), $this->owner, testStoreId());
-    $manager = User::factory()->withRole('manager')->create();
+    $manager = User::factory()->withRole('manager')->create(['store_id' => $count->store_id]);
 
     $this->actingAs($this->counterA)->get(route('inventory.counts.sheets', $count))->assertForbidden();
     $this->actingAs($manager)->get(route('inventory.counts.sheets', $count))->assertOk();

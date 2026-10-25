@@ -32,6 +32,9 @@ class Movements extends Component
 
     public string $typeFilter = '';
 
+    /** Magasin affiché (vide : tous), offert seulement avec stores.all (ADR 0013). */
+    public string $storeFilter = '';
+
     public bool $showMove = false;
 
     public string $productSearch = '';
@@ -64,6 +67,11 @@ class Movements extends Component
         $this->resetPage();
     }
 
+    public function updatedStoreFilter(): void
+    {
+        $this->resetPage();
+    }
+
     public function openMove(): void
     {
         $this->authorize('inventory.move');
@@ -91,7 +99,7 @@ class Movements extends Component
         $movable = collect(InventoryStatus::cases())->filter->isManuallyMovable()->map->value->all();
 
         $this->validate([
-            'storeId' => ['required', 'integer', Rule::exists('stores', 'id')->where('type', StoreType::Physical->value)],
+            'storeId' => ['required', 'integer', Rule::exists('stores', 'id')->where('type', StoreType::Physical->value)->whereIn('id', Store::query()->accessibleTo(auth()->user())->pluck('id')->all())],
             'moveProductId' => ['required', 'integer', 'exists:products,id'],
             'fromStatus' => ['required', Rule::in($movable)],
             'toStatus' => ['required', Rule::in($movable), 'different:fromStatus'],
@@ -137,8 +145,9 @@ class Movements extends Component
     public function render(): View
     {
         $movements = InventoryMovement::query()
+            ->accessibleTo(auth()->user())
             ->with([
-                'product', 'user',
+                'product', 'user', 'store',
                 'reference' => fn (Relation $relation) => $relation instanceof MorphTo
                     ? $relation->morphWith([
                         SupplierOrderLine::class => ['order'],
@@ -151,6 +160,7 @@ class Movements extends Component
                 $q->where('from_status', $this->statusFilter)->orWhere('to_status', $this->statusFilter);
             }))
             ->when(filled($this->typeFilter), fn ($query) => $query->where('type', $this->typeFilter))
+            ->when(filled($this->storeFilter) && auth()->user()->hasAllStores(), fn ($query) => $query->where('store_id', (int) $this->storeFilter))
             ->latest('id')
             ->paginate(15);
 
@@ -163,7 +173,7 @@ class Movements extends Component
             'types' => InventoryMovementType::cases(),
             'filteredProduct' => filled($this->productFilter) ? Product::find($this->productFilter) : null,
             'selectedProduct' => $selectedProduct,
-            'stores' => Store::query()->where('type', StoreType::Physical)->orderBy('name')->get(),
+            'stores' => Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->orderBy('name')->get(),
             'productResults' => $this->showMove && ! $this->moveProductId ? $this->searchProducts() : collect(),
         ])->layout('layouts.app', ['title' => __('Journal d\'inventaire')]);
     }

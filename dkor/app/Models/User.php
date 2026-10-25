@@ -393,7 +393,25 @@ class User extends Authenticatable
     }
 
     /**
-     * Limite la requête aux usagers que le visiteur a le droit de voir.
+     * Accès à tous les magasins (bureau chef, ADR 0013). Sans lui, l'usager n'agit que pour son magasin d'appartenance.
+     */
+    public function hasAllStores(): bool
+    {
+        return $this->can('stores.all');
+    }
+
+    /**
+     * Indique si l'usager peut voir ou agir pour ce magasin : le sien, ou n'importe lequel avec stores.all.
+     * Ce qui n'a pas de magasin n'est accessible qu'avec stores.all.
+     */
+    public function canActForStore(?int $storeId): bool
+    {
+        return $this->hasAllStores() || ($storeId !== null && $this->store_id !== null && $storeId === (int) $this->store_id);
+    }
+
+    /**
+     * Limite la requête aux usagers que le visiteur a le droit de voir : ceux des rôles qu'il peut gérer (ou de tous les
+     * rôles), et de son magasin s'il n'a pas accès à tous les magasins.
      *
      * @param  Builder<User>  $query
      */
@@ -404,6 +422,18 @@ class User extends Authenticatable
 
         $query->where(fn (Builder $q) => $q->whereHas('roles', fn (Builder $r) => $r->whereIn('roles.id', $roleIds))
             ->orWhereDoesntHave('roles'));
+
+        if (! $viewer->hasAllStores()) {
+            $query->whereIn($this->qualifyColumn('store_id'), array_filter([$viewer->store_id]));
+        }
+    }
+
+    /**
+     * Indique si le visiteur peut voir la fiche de cet usager (son rôle et son magasin).
+     */
+    public function isVisibleTo(self $viewer): bool
+    {
+        return $viewer->canSeeRole($this->role) && $viewer->canActForStore($this->store_id);
     }
 
     /** @return BelongsTo<Store, $this> */

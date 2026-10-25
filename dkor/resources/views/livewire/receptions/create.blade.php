@@ -36,7 +36,12 @@
                                     <flux:text class="text-sm text-zinc-500">{{ __('Quote #') }} {{ $order->quote_number }}</flux:text>
                                 @endif
                             </div>
-                            <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label($order->type) }}</flux:badge>
+                            <div class="flex items-center gap-2">
+                                @if ($order->store_id !== auth()->user()->store_id)
+                                    <flux:badge color="amber" size="sm" icon="building-storefront">{{ __('Magasin : :store', ['store' => $order->store?->name ?? '—']) }}</flux:badge>
+                                @endif
+                                <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label($order->type) }}</flux:badge>
+                            </div>
                         </div>
 
                         <flux:table>
@@ -112,4 +117,23 @@
             </div>
         @endif
     </form>
+
+    {{-- Confirmation : commande destinée à un autre magasin (stores.all) --}}
+    <flux:modal wire:model="showStoreConfirm" class="w-full max-w-md">
+        @if ($pendingLine)
+            <div class="space-y-6">
+                <div>
+                    <flux:heading size="lg">{{ __('Commande d\'un autre magasin') }}</flux:heading>
+                    <flux:text class="mt-2">
+                        {{ __('La commande :number est celle du magasin :store. Êtes-vous certain de vouloir la recevoir ?', ['number' => $pendingLine->order->number, 'store' => $pendingLine->order->store?->name ?? '—']) }}
+                    </flux:text>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <flux:button type="button" variant="ghost" wire:click="cancelOtherStore">{{ __('Annuler') }}</flux:button>
+                    <flux:button type="button" variant="primary" wire:click="confirmOtherStore">{{ __('Oui, la recevoir') }}</flux:button>
+                </div>
+            </div>
+        @endif
+    </flux:modal>
 </div>

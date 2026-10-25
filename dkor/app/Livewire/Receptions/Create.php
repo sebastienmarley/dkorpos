@@ -19,6 +19,9 @@ use Livewire\Component;
 /**
  * Première étape d'une réception: on cherche des bons de commande (numéro ou quote #), on choisit les lignes à
  * recevoir avec leurs quantités, puis on commence la réception qui contient alors tous ces articles.
+ *
+ * Seules les commandes destinées au magasin de l'usager sont offertes (ADR 0013). Avec stores.all, les autres magasins
+ * le sont aussi, mais la première ligne cochée d'une commande d'un autre magasin demande une confirmation.
  */
 class Create extends Component
 {
@@ -33,9 +36,17 @@ class Create extends Component
     /** @var array<int, string> */
     public array $quantities = [];
 
+    /** @var array<int, int> Commandes d'un autre magasin dont la réception a été confirmée. */
+    public array $confirmedOrderIds = [];
+
+    /** Ligne cochée qui attend la confirmation « commande d'un autre magasin ». */
+    public ?int $pendingLineId = null;
+
+    public bool $showStoreConfirm = false;
+
     public function updatedSupplierId(): void
     {
-        $this->reset('selected', 'quantities', 'orderSearch');
+        $this->reset('selected', 'quantities', 'orderSearch', 'confirmedOrderIds', 'pendingLineId', 'showStoreConfirm');
         $this->resetValidation();
     }
 
@@ -49,7 +60,11 @@ class Create extends Component
             $id = (int) $key;
             $line = ($this->selected[$id] ?? false) ? $this->receivableLine($id) : null;
 
-            if ($line) {
+            if ($line && $this->needsStoreConfirmation($line)) {
+                unset($this->selected[$id], $this->quantities[$id]);
+                $this->pendingLineId = $id;
+                $this->showStoreConfirm = true;
+            } elseif ($line) {
                 $this->quantities[$id] ??= (string) $line->quantity_outstanding;
 
                 if ($key === $lineId && ($shipment = $line->activeShipment()) !== null) {
@@ -69,6 +84,33 @@ class Create extends Component
         }
     }
 
+    /** L'usager confirme recevoir la commande d'un autre magasin : la ligne en attente est cochée. */
+    public function confirmOtherStore(): void
+    {
+        $line = $this->pendingLineId !== null ? $this->receivableLine($this->pendingLineId) : null;
+        $this->cancelOtherStore();
+
+        if ($line === null) {
+            return;
+        }
+
+        $this->confirmedOrderIds[] = $line->supplier_order_id;
+        $this->selected[$line->id] = true;
+        $this->updatedSelected(true, (string) $line->id);
+    }
+
+    public function cancelOtherStore(): void
+    {
+        $this->pendingLineId = null;
+        $this->showStoreConfirm = false;
+    }
+
+    /** Commande destinée à un autre magasin que celui de l'usager, pas encore confirmée. */
+    private function needsStoreConfirmation(SupplierOrderLine $line): bool
+    {
+        return $line->order->store_id !== auth()->user()->store_id && ! in_array($line->supplier_order_id, $this->confirmedOrderIds, true);
+    }
+
     public function removeSelected(int $lineId): void
     {
         unset($this->selected[$lineId], $this->quantities[$lineId]);
@@ -86,6 +128,14 @@ class Create extends Component
         $receipts = [];
 
         foreach (array_keys(array_filter($this->selected)) as $lineId) {
+            $line = $this->receivableLine((int) $lineId);
+
+            if ($line === null || $this->needsStoreConfirmation($line)) {
+                Flux::toast(text: __('Une ligne choisie n\'est plus à recevoir pour votre magasin : vérifiez la sélection.'), variant: 'danger');
+
+                return;
+            }
+
             $receipts[(int) $lineId] = ['quantity' => (int) ($this->quantities[$lineId] ?? 0)];
         }
 
@@ -110,20 +160,20 @@ class Create extends Component
         }
 
         return SupplierOrderLine::query()
-            ->with(['order', 'product'])
+            ->with(['order.store', 'product'])
             ->whereKey($lineId)
             ->whereIn('status', [SupplierOrderLineStatus::Active, SupplierOrderLineStatus::CancellationRequested])
             ->whereColumn('quantity_received', '<', 'quantity')
             ->whereHas('order', fn ($query) => $query
                 ->where('supplier_id', $this->supplierId)
-                ->when(auth()->user()->store_id !== null, fn ($query) => $query->where('store_id', auth()->user()->store_id))
+                ->accessibleTo(auth()->user())
                 ->where('type', SupplierType::Product)
                 ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived]))
             ->first();
     }
 
     /**
-     * Commandes ouvertes du fournisseur, destinées au magasin de l'usager (ADR 0012), dont le numéro ou le quote #
+     * Commandes ouvertes du fournisseur, destinées au magasin de l'usager (ADR 0013), dont le numéro ou le quote #
      * correspond à la recherche (rien sans recherche).
      *
      * @return Collection<int, SupplierOrder>
@@ -138,7 +188,7 @@ class Create extends Component
 
         return SupplierOrder::query()
             ->where('supplier_id', $this->supplierId)
-            ->when(auth()->user()->store_id !== null, fn ($query) => $query->where('store_id', auth()->user()->store_id))
+            ->accessibleTo(auth()->user())
             ->where('type', SupplierType::Product)
             ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived])
             ->where(fn ($query) => $query
@@ -148,6 +198,7 @@ class Create extends Component
                 ->whereIn('status', [SupplierOrderLineStatus::Active, SupplierOrderLineStatus::CancellationRequested])
                 ->whereColumn('quantity_received', '<', 'quantity'),
                 'lines.product',
+                'store',
             ])
             ->orderBy('id')
             ->limit(10)
@@ -159,15 +210,18 @@ class Create extends Component
     public function render(): View
     {
         $selectedIds = array_keys(array_filter($this->selected));
+        $pendingLine = $this->pendingLineId !== null ? $this->receivableLine($this->pendingLineId) : null;
 
         return view('livewire.receptions.create', [
             'suppliers' => Supplier::query()
                 ->where('type', SupplierType::Product)
                 ->whereHas('orders', fn ($query) => $query
+                    ->accessibleTo(auth()->user())
                     ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived]))
                 ->orderBy('name')
                 ->get(),
             'orders' => $this->matchingOrders(),
+            'pendingLine' => $pendingLine,
             'selectedLines' => $selectedIds === []
                 ? new Collection
                 : SupplierOrderLine::with(['order', 'product'])->whereKey($selectedIds)->get(),

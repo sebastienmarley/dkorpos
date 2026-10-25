@@ -6,6 +6,7 @@ use App\Livewire\Users\Show;
 use App\Models\Permission;
 use App\Models\Position;
 use App\Models\Role;
+use App\Models\Store;
 use App\Models\User;
 use App\Support\Money;
 use Illuminate\Support\Arr;
@@ -138,7 +139,7 @@ it('cache la fiche d\'un Admin ou d\'un Owner à un Manager', function (string $
 it('permet à un Manager de modifier un autre rôle mais sans attribuer Admin ou Owner', function () {
     $user = employeComplet();
 
-    $this->actingAs(User::factory()->withRole('manager')->create());
+    $this->actingAs(User::factory()->withRole('manager')->create(['store_id' => $user->store_id]));
 
     Livewire::test(Show::class, ['user' => $user])
         ->set('role', 'design')
@@ -231,8 +232,42 @@ it('permet à un rôle personnalisé de gérer selon son niveau', function () {
 
     $this->actingAs($superviseur);
 
-    $this->get(route('users.show', employeComplet()))->assertOk();
-    $this->get(route('users.show', employeComplet(['role' => 'manager'])))->assertNotFound();
+    $this->get(route('users.show', employeComplet(['store_id' => $superviseur->store_id])))->assertOk();
+    $this->get(route('users.show', employeComplet(['role' => 'manager', 'store_id' => $superviseur->store_id])))->assertNotFound();
+});
+
+it('cache à un directeur la fiche d\'un employé d\'un autre magasin', function () {
+    $this->actingAs(User::factory()->withRole('manager')->create());
+
+    $this->get(route('users.show', employeComplet(['store_id' => Store::factory()->create()->id])))->assertNotFound();
+});
+
+it('empêche un directeur de changer le magasin d\'appartenance d\'un employé', function () {
+    $manager = User::factory()->withRole('manager')->create();
+    $user = employeComplet(['store_id' => $manager->store_id]);
+
+    $this->actingAs($manager);
+
+    Livewire::test(Show::class, ['user' => $user])
+        ->set('storeId', Store::factory()->create()->id)
+        ->call('saveIdentification')
+        ->assertHasErrors(['storeId' => 'in']);
+
+    expect($user->fresh()->store_id)->toBe($manager->store_id);
+});
+
+it('laisse un usager qui a accès à tous les magasins changer le magasin d\'appartenance', function () {
+    $user = employeComplet();
+    $store = Store::factory()->create();
+
+    $this->actingAs(User::factory()->withRole('owner')->create());
+
+    Livewire::test(Show::class, ['user' => $user])
+        ->set('storeId', $store->id)
+        ->call('saveIdentification')
+        ->assertHasNoErrors();
+
+    expect($user->fresh()->store_id)->toBe($store->id);
 });
 
 it('permet l\'édition de sa propre fiche avec users.edit_self', function () {
@@ -276,7 +311,7 @@ it('retire une permission supplémentaire', function () {
 it('n\'accorde pas une permission que l\'acteur ne possède pas', function () {
     $user = employeComplet();
 
-    $acteur = User::factory()->withRole('manager')->create();
+    $acteur = User::factory()->withRole('manager')->create(['store_id' => $user->store_id]);
     $acteur->givePermissionTo('users.assign_permissions');
 
     $this->actingAs($acteur);
@@ -291,7 +326,7 @@ it('n\'accorde pas une permission que l\'acteur ne possède pas', function () {
 it('interdit l\'onglet Accès sans users.assign_permissions', function () {
     $user = employeComplet();
 
-    $this->actingAs(User::factory()->withRole('manager')->create());
+    $this->actingAs(User::factory()->withRole('manager')->create(['store_id' => $user->store_id]));
 
     Livewire::test(Show::class, ['user' => $user])
         ->call('saveAccess')
@@ -407,7 +442,7 @@ it('ne retire pas une permission que l\'acteur ne possède pas', function () {
 
     $user = User::factory()->withRole('lead')->create();
 
-    $acteur = User::factory()->withRole('manager')->create();
+    $acteur = User::factory()->withRole('manager')->create(['store_id' => $user->store_id]);
     $acteur->givePermissionTo('users.assign_permissions');
 
     $this->actingAs($acteur);
@@ -632,7 +667,7 @@ it('donne la permission RH à la comptabilité, à l\'administrateur et au propr
 it('ne montre pas l\'onglet RH ni ses données à un directeur', function () {
     $user = employeComplet(['hourly_rate' => Money::parse('31.75'), 'commission_rate' => '4.50']);
 
-    $this->actingAs(User::factory()->withRole('manager')->create());
+    $this->actingAs(User::factory()->withRole('manager')->create(['store_id' => $user->store_id]));
 
     $this->get(route('users.show', $user))
         ->assertOk()

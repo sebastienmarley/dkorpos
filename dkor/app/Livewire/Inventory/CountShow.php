@@ -44,6 +44,8 @@ class CountShow extends Component
     {
         $this->authorize('inventory.count');
 
+        abort_unless($count->isAccessibleTo(auth()->user()), 403);
+
         $this->count = $count;
         $this->fillInputs();
     }

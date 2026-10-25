@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BelongsToStore;
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\DefectiveResolution;
 use App\Enums\InventoryMovementType;
@@ -64,6 +65,8 @@ use Throwable;
 #[Fillable(['store_id', 'number', 'quote_number', 'type', 'supplier_id', 'status', 'is_collect', 'shipping_supplier_id', 'is_drop_ship', 'drop_ship_name', 'drop_ship_address_civic', 'drop_ship_address_apartment', 'drop_ship_address_street', 'drop_ship_address_city', 'drop_ship_address_province', 'drop_ship_address_country', 'drop_ship_address_postal_code', 'notes', 'sent_at', 'last_emailed_at', 'received_at', 'created_by'])]
 class SupplierOrder extends Model
 {
+    use BelongsToStore;
+
     /** @use HasFactory<SupplierOrderFactory> */
     use HasFactory;
 
