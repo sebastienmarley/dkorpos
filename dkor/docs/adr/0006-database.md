@@ -176,19 +176,19 @@ que de dépendre d'une collation propre à un moteur.
 
 ## Questions ouvertes
 
-- **Moteur de production :** SQLite (fichier unique, sauvegarde simple) ou MySQL / PostgreSQL
-  (plusieurs postes de caisse qui écrivent en même temps) ? À décider avant le déploiement, dans un
-  ADR distinct.
-- **`Relation::enforceMorphMap()`** pour découpler le journal des noms de classes.
-- **Regrouper les migrations** (`php artisan schema:dump --prune`) avant la mise en production ?
-  C'est maintenant possible : les données de référence ne dépendent plus des migrations. Les
-  anciennes migrations de données (`add_*_permissions`…) sont restées en place, puisqu'une
-  migration partagée ne se modifie pas. Elles ne s'exécutent plus sur une installation neuve, car
-  le dump les marque comme déjà passées.
-- **Écart de permissions sur les bases existantes :** ces anciennes migrations accordaient chaque
-  nouvelle permission à **tous** les rôles. Une base migrée avant le 2026-10-10 donne donc plus
-  d'accès que `config/access.php` (ex. : un vendeur peut supprimer des factures et des commandes
-  fournisseurs). Faut-il réaligner les rôles existants sur la configuration ?
+Les questions suivantes sont réglées par l'[ADR 0014](0014-production.md) (mise en production) :
+
+- **Moteur de production :** PostgreSQL. Le développement et les tests restent sur SQLite, et une
+  tâche de CI fait aussi rouler la suite sur PostgreSQL.
+- **`Relation::enforceMorphMap()`** : activé avant le premier déploiement, avec un alias pour chaque
+  modèle référencé.
+- **Regrouper les migrations :** pas de `schema:dump --prune`, puisque le dump est propre à SQLite.
+  Les migrations sont remplacées une seule fois, avant le premier déploiement, par des migrations de
+  structure seulement. Ensuite, la règle « une migration partagée ne se modifie plus » s'applique
+  sans exception.
+- **Écart de permissions sur les bases existantes :** sans objet en production, qui part d'une base
+  neuve alignée sur `config/access.php`. Les bases de développement sont rebâties par
+  `migrate:fresh --seed`.
 
 ## Références
 

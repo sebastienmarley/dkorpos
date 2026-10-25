@@ -1,6 +1,6 @@
 # ADR 0014 — Mise en production : hébergement, base de données et accès de partout
 
-- **Statut :** Proposé
+- **Statut :** Accepté
 - **Date :** 2026-10-25
 - **Issue liée :** #107
 - **Règle :** les questions ouvertes de l'[ADR 0006](0006-database.md) (moteur de production, `enforceMorphMap()`,

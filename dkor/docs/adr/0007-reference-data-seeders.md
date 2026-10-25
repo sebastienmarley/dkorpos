@@ -142,9 +142,13 @@ php artisan db:seed --class=ReferenceDataSeeder --force
 
 ## Questions ouvertes
 
-- **Réaligner les bases existantes** sur `config/access.php` par une migration ponctuelle ?
-- **Ajouter la seconde commande au script de déploiement** dès qu'il existera (ex. : commandes de
-  déploiement de Laravel Cloud).
+Les questions suivantes sont réglées par l'[ADR 0014](0014-production.md) (mise en production) :
+
+- **Réaligner les bases existantes :** sans objet. La production part d'une base neuve qui reçoit
+  exactement `config/access.php`, et les migrations de données sont retirées des migrations de
+  départ.
+- **Seconde commande au script de déploiement :** les commandes de déploiement de Laravel Cloud
+  exécutent `migrate --force` puis `db:seed --class=ReferenceDataSeeder --force`.
 
 ## Références
 
