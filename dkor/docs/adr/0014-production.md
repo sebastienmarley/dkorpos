@@ -255,8 +255,10 @@ Avant le **premier** déploiement en production, une seule fois :
      fuites connues en production). Un mot de passe généré qui ne la respecte pas est regénéré.
    - `--store` désigne un magasin actif par son nom. Si aucun magasin n'existe, elle crée le premier, comme magasin
      physique ; un nom inconnu alors que des magasins existent est refusé.
-   - Elle refuse de rouler si le rôle `admin` n'existe pas (seeder pas encore exécuté) ou si un administrateur
-     existe déjà ; tout se fait dans une transaction.
+   - Elle refuse de rouler si le rôle `admin` n'existe pas (seeder pas encore exécuté) ou dès qu'**un usager existe**,
+     quel que soit son rôle et même désactivé : elle ne sert qu'au premier compte d'une base vide. Les comptes
+     suivants se créent dans l'application, où les permissions et la portée par magasin s'appliquent. Tout se fait
+     dans une transaction.
    - Aucune donnée de démo : seul `ReferenceDataSeeder` roule. Les autres comptes, dont le propriétaire, se créent
      ensuite dans l'application (un rôle de même niveau peut s'attribuer).
 

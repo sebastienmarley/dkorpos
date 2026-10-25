@@ -43,13 +43,19 @@ it('rattache l\'administrateur à un magasin existant', function () {
         ->and(Store::count())->toBe(2);
 });
 
-it('refuse de créer un second administrateur', function () {
-    User::factory()->withRole('admin')->create();
+it('refuse de rouler dès qu\'un usager existe, administrateur ou non, actif ou non', function (string $role, bool $isActive) {
+    User::factory()->withRole($role)->create(['is_active' => $isActive]);
 
-    $this->artisan('app:create-admin')->assertFailed();
+    $this->artisan('app:create-admin', ['--firstname' => 'Marie', '--lastname' => 'Gagnon', '--store' => 'Bureau chef', '--no-interaction' => true])
+        ->assertFailed();
 
-    expect(User::role('admin')->count())->toBe(1);
-});
+    expect(User::count())->toBe(1)
+        ->and(User::role('admin')->count())->toBe($role === 'admin' ? 1 : 0);
+})->with([
+    'un administrateur' => ['admin', true],
+    'un administrateur désactivé' => ['admin', false],
+    'un propriétaire seulement' => ['owner', true],
+]);
 
 it('ne crée rien si la confirmation du mot de passe diffère', function () {
     $this->artisan('app:create-admin')

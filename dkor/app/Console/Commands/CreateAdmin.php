@@ -43,13 +43,17 @@ class CreateAdmin extends Command
             return self::FAILURE;
         }
 
-        if (User::role('admin')->exists()) {
-            $this->error('Un administrateur existe déjà : créez les autres comptes dans l\'application.');
+        // Seulement pour une base sans aucun usager : dès qu'un compte existe (même désactivé ou sans le rôle admin),
+        // les comptes se créent dans l'application, où les permissions et la portée par magasin s'appliquent.
+        if (User::query()->exists()) {
+            $this->error('Des usagers existent déjà : cette commande ne sert qu\'au premier compte. Créez les autres dans l\'application.');
 
             return self::FAILURE;
         }
 
-        $interactive = $this->input->isInteractive();
+        // Même règle que Laravel pour Prompts : sans vrai terminal (STDIN), aucune question ne peut être posée, même si
+        // la commande n'a pas reçu -n (exécuteur de commandes de Laravel Cloud).
+        $interactive = $this->input->isInteractive() && ((defined('STDIN') && stream_isatty(STDIN)) || $this->laravel->runningUnitTests());
 
         $firstname = $this->option('firstname') ?: ($interactive ? text('Prénom', required: true) : null);
         $lastname = $this->option('lastname') ?: ($interactive ? text('Nom', required: true) : null);
