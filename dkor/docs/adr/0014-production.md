@@ -178,9 +178,19 @@ en amont (Cloudflare Access) reste possible plus tard sans toucher au code.
 ### Fichiers
 
 - **Laravel Cloud Object Storage** (Cloudflare R2) : un compartiment **privé**, disque par défaut de l'environnement.
-  Ajoute `league/flysystem-aws-s3-v3` (à approuver).
+  Ajoute `league/flysystem-aws-s3-v3`.
 - `DELIVERY_SIGNATURE_DISK` pointe vers ce disque. Les signatures restent servies par
   `DeliverySignatureController`, après vérification des droits ; aucun fichier n'est public.
+- **Préparé, pas encore activé**, pour ne pas payer un stockage inutilisé :
+  - le code des signatures (`CompleteDelivery`, `DeliverySignatureController`, `PurgeDeliverySignatures`) passe
+    par le disque configuré et fonctionne tel quel sur un disque S3 (test « range et sert la signature sur le
+    disque configuré » dans `DriverDeliveriesTest`) ;
+  - le bloc est en commentaire dans `.env.example` : le paquet à installer, le compartiment privé à rattacher et
+    `DELIVERY_SIGNATURE_DISK=s3`.
+- **Limite tant que R2 n'est pas activé** : en production, les signatures vont sur le disque de l'instance, qui est
+  effacé à chaque déploiement et n'est pas partagé entre instances. La livraison se termine normalement et garde le
+  nom du signataire, la date et les articles, mais l'image de la signature disparaît au déploiement suivant (sa page
+  répond alors 404). Activer R2 avant que les livreurs fassent signer de vrais clients.
 
 ### Files d'attente et planificateur
 
