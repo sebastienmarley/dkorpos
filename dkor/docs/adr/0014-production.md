@@ -155,10 +155,23 @@ en amont (Cloudflare Access) reste possible plus tard sans toucher au code.
 
 ### Courriel
 
-- **Postmark**, par le mailer `postmark` de Laravel. Ajoute les paquets `symfony/postmark-mailer` et
-  `symfony/http-client` (changement de dépendances à approuver).
-- Expéditeur sur le domaine de l'entreprise, avec SPF, DKIM et DMARC configurés.
-- En préproduction, `MAIL_MAILER=log` : aucun courriel ne part vers un vrai client.
+- **Aucun courriel ne part à un vrai destinataire** tant que ce n'est pas décidé explicitement. L'application écrit
+  déjà aux fournisseurs (commande envoyée, demande d'annulation, écart de réception) : avec de vraies données, une
+  commande partirait chez un vrai fournisseur.
+  - **Redirection (`MAIL_ALWAYS_TO`)** : l'adresse globale `to` de `config/mail.php` fait appeler `alwaysTo()` par
+    Laravel. Chaque courriel, avis compris, part à cette seule boîte, sans copie ni copie cachée.
+  - **Garde** : sans adresse de redirection, un service d'envoi réel (`postmark`, `smtp`…) n'envoie rien et le
+    journal l'indique (`AppServiceProvider::guardRealRecipients()`). Envoyer aux vrais destinataires demande
+    `MAIL_ALLOW_REAL_RECIPIENTS=true`. Les mailers `log` et `array` ne sont pas touchés.
+- **Pour l'instant, `MAIL_MAILER=log`** partout : aucun service d'envoi n'est configuré.
+- **Postmark** est prévu pour la suite, par le mailer `postmark` de Laravel, mais pas encore installé :
+  - le bloc est préparé en commentaire dans `.env.example` (`MAIL_MAILER=postmark`, `POSTMARK_API_KEY`,
+    `POSTMARK_MESSAGE_STREAM_ID`) ;
+  - à la création du compte : `composer require symfony/postmark-mailer symfony/http-client`, puis
+    `MAIL_ALWAYS_TO` réglé avant `MAIL_MAILER=postmark`.
+  - Alternatives écartées pour l'instant : Amazon SES (région Canada, mise en place plus lourde), Resend, Mailgun,
+    SMTP de Microsoft 365 ou Google Workspace (limites d'envoi, aucun suivi des rebonds).
+- Expéditeur sur le domaine de l'entreprise, avec SPF, DKIM et DMARC configurés, le jour où l'envoi réel est activé.
 
 ### Fichiers
 
@@ -271,7 +284,7 @@ migration. `migrate:fresh` ne sert plus qu'en local ; `DB::prohibitDestructiveCo
   fois. Deux événements de cette heure-là peuvent sembler mal ordonnés ; le magasin est alors fermé. Un magasin dans
   un autre fuseau demanderait de revoir cette décision.
 - Coût mensuel récurrent (calcul, base, stockage, Postmark, Nightwatch).
-- Quatre nouveaux paquets à approuver (Postmark, http-client, S3, Nightwatch).
+- Quatre nouveaux paquets à approuver (Postmark et http-client à la création du compte Postmark, S3, Nightwatch).
 - Exposée sur Internet, l'application dépend de mots de passe solides et de la 2FA des comptes sensibles.
 - Les usagers sans 2FA obligatoire (vendeurs, livreurs) n'ont que leur mot de passe.
 - Le remplacement des migrations et la carte des alias sont des changements faits une seule fois : chaque base de
@@ -282,6 +295,7 @@ migration. `migrate:fresh` ne sert plus qu'en local ; `DB::prohibitDestructiveCo
 **Protections mises en place**
 
 - `APP_DEBUG=false`, HTTPS forcé, cookies de session sécurisés.
+- Courriels redirigés vers `MAIL_ALWAYS_TO`, ou bloqués sans elle (`MailRedirectionTest`).
 - 2FA obligatoire pour les comptes qui voient tous les magasins ou l'argent ; limite de tentatives sur la connexion
   et le code.
 - `DB::prohibitDestructiveCommands()` en production : `migrate:fresh`, `db:wipe` et `migrate:reset` refusent de
