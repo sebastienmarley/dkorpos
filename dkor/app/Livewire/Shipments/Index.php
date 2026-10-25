@@ -3,6 +3,7 @@
 namespace App\Livewire\Shipments;
 
 use App\Actions\ShipShipment;
+use App\Concerns\ChoosesStore;
 use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryStatus;
 use App\Enums\StoreType;
@@ -28,6 +29,8 @@ use Livewire\Component;
  */
 class Index extends Component
 {
+    use ChoosesStore;
+
     /** Nombre de jours pendant lesquels un envoi reste dans la liste des envois récents. */
     public const int RECENT_DAYS = 30;
 
@@ -44,13 +47,6 @@ class Index extends Component
 
     /** @var array<int, int|string> quantité envoyée par ligne d'expédition */
     public array $sendQuantities = [];
-
-    public function mount(): void
-    {
-        if ($this->storeId === '') {
-            $this->storeId = (string) (auth()->user()->store_id ?? $this->getStores()->first()->id ?? '');
-        }
-    }
 
     public function open(int $shipmentId): void
     {
@@ -134,7 +130,7 @@ class Index extends Component
     /** @return Collection<int, Store> */
     public function getStores(): Collection
     {
-        return Store::query()->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
+        return Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
     }
 
     /** @return Collection<int, Supplier> */

@@ -13,6 +13,10 @@ class DeliverySignatureController extends Controller
 {
     public function __invoke(CustomerOrderDelivery $delivery): StreamedResponse
     {
+        $user = request()->user();
+
+        abort_unless($delivery->isAccessibleTo($user) || $delivery->order->isAccessibleTo($user), 403);
+
         $disk = Storage::disk(config('deliveries.signature_disk'));
 
         abort_if($delivery->signature_path === null || ! $disk->exists($delivery->signature_path), 404);

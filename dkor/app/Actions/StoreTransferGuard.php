@@ -13,10 +13,10 @@ use DomainException;
  */
 class StoreTransferGuard
 {
-    /** L'usager agit pour son magasin; un usager sans magasin (bureau chef) agit pour tous. */
+    /** L'usager agit pour son magasin; avec stores.all (bureau chef), il agit pour tous (ADR 0001). */
     public static function actingFor(User $user, int $storeId, string $message): void
     {
-        if ($user->store_id !== null && $user->store_id !== $storeId) {
+        if (! $user->canActForStore($storeId)) {
             throw new DomainException($message);
         }
     }

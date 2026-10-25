@@ -91,7 +91,7 @@ class Movements extends Component
         $movable = collect(InventoryStatus::cases())->filter->isManuallyMovable()->map->value->all();
 
         $this->validate([
-            'storeId' => ['required', 'integer', Rule::exists('stores', 'id')->where('type', StoreType::Physical->value)],
+            'storeId' => ['required', 'integer', Rule::exists('stores', 'id')->where('type', StoreType::Physical->value)->whereIn('id', Store::query()->accessibleTo(auth()->user())->pluck('id')->all())],
             'moveProductId' => ['required', 'integer', 'exists:products,id'],
             'fromStatus' => ['required', Rule::in($movable)],
             'toStatus' => ['required', Rule::in($movable), 'different:fromStatus'],
@@ -137,6 +137,7 @@ class Movements extends Component
     public function render(): View
     {
         $movements = InventoryMovement::query()
+            ->accessibleTo(auth()->user())
             ->with([
                 'product', 'user',
                 'reference' => fn (Relation $relation) => $relation instanceof MorphTo
@@ -163,7 +164,7 @@ class Movements extends Component
             'types' => InventoryMovementType::cases(),
             'filteredProduct' => filled($this->productFilter) ? Product::find($this->productFilter) : null,
             'selectedProduct' => $selectedProduct,
-            'stores' => Store::query()->where('type', StoreType::Physical)->orderBy('name')->get(),
+            'stores' => Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->orderBy('name')->get(),
             'productResults' => $this->showMove && ! $this->moveProductId ? $this->searchProducts() : collect(),
         ])->layout('layouts.app', ['title' => __('Journal d\'inventaire')]);
     }

@@ -21,6 +21,7 @@ class Index extends Component
     public function render(): View
     {
         $receptions = Reception::query()
+            ->accessibleTo(auth()->user())
             ->with(['supplier', 'receiver', 'lines'])
             ->when(filled($this->search), function ($query) {
                 $query->where(function ($q) {

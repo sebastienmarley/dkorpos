@@ -150,7 +150,7 @@ describe('depuis la commande fournisseur', function () {
 describe('annulation avec frais', function () {
     beforeEach(function () {
         $this->user->givePermissionTo(['customer_orders.view', 'customer_orders.edit']);
-        $this->order->update(['store_id' => Store::factory()->create(['cancellation_fee_percent' => 15])->id]);
+        $this->order->store->update(['cancellation_fee_percent' => 15]);
         $this->order->refresh();
     });
 

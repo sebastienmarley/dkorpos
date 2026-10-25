@@ -6,7 +6,7 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-            @if (! auth()->user()->store_id)
+            @if ($this->canChooseStore())
                 <flux:select wire:model.live="storeId" class="w-56">
                     @foreach ($stores as $store)
                         <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>

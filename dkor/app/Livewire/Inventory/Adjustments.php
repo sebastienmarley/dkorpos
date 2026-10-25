@@ -103,7 +103,7 @@ class Adjustments extends Component
             'status' => ['required', Rule::enum(InventoryStatus::class)],
             'quantity' => ['required', 'integer', 'min:1', 'max:99999'],
             'note' => ['required', 'string', 'max:255'],
-            'storeId' => ['required', 'integer', Rule::exists('stores', 'id')->where('type', StoreType::Physical->value)],
+            'storeId' => ['required', 'integer', Rule::exists('stores', 'id')->where('type', StoreType::Physical->value)->whereIn('id', Store::query()->accessibleTo(auth()->user())->pluck('id')->all())],
         ]);
 
         try {
@@ -148,6 +148,7 @@ class Adjustments extends Component
 
         return view('livewire.inventory.adjustments', [
             'adjustments' => InventoryAdjustment::query()
+                ->accessibleTo(auth()->user())
                 ->with(['product', 'user', 'movement', 'ledgerEntry'])
                 ->latest('id')
                 ->paginate(15),
@@ -155,7 +156,7 @@ class Adjustments extends Component
             'selectedReason' => $reason,
             'reasonStatuses' => $reason->statuses(),
             'selectedProduct' => $this->adjustProductId ? Product::with('inventoryStocks')->find($this->adjustProductId) : null,
-            'stores' => Store::query()->where('type', StoreType::Physical)->orderBy('name')->get(),
+            'stores' => Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->orderBy('name')->get(),
             'productResults' => $this->showAdjust && ! $this->adjustProductId ? $this->searchProducts() : collect(),
         ])->layout('layouts.app', ['title' => __('Ajustements d\'inventaire')]);
     }

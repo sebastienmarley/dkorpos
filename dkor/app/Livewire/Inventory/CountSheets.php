@@ -42,6 +42,8 @@ class CountSheets extends Component
     {
         $this->authorize('inventory.supervise');
 
+        abort_unless($count->isAccessibleTo(auth()->user()), 403);
+
         $this->count = $count;
         $this->fillAssignments();
     }

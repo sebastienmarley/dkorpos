@@ -119,7 +119,7 @@
 
                     <flux:field>
                         <flux:label>{{ __('Magasin') }}</flux:label>
-                        <flux:select wire:model="storeId" required>
+                        <flux:select wire:model="storeId" required :disabled="auth()->user()->cannot('changeStore', $user)">
                             <flux:select.option value="">{{ __('Choisir un magasin') }}</flux:select.option>
                             @foreach ($this->getStores() as $store)
                                 <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>

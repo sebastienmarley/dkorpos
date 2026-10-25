@@ -5,11 +5,13 @@
             <flux:text class="mt-1 text-zinc-500">{{ __('Expéditions à faire et envois des :days derniers jours', ['days' => \App\Livewire\Shipments\Index::RECENT_DAYS]) }}</flux:text>
         </div>
 
-        <flux:select wire:model.live="storeId" class="w-56">
-            @foreach ($stores as $store)
-                <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
-            @endforeach
-        </flux:select>
+        @if ($this->canChooseStore())
+            <flux:select wire:model.live="storeId" class="w-56">
+                @foreach ($stores as $store)
+                    <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        @endif
     </div>
 
     <flux:heading size="lg" class="mb-2">{{ __('À faire') }}</flux:heading>

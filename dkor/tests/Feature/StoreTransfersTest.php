@@ -142,6 +142,17 @@ describe('transfert de stock', function () {
             ->and(fn () => app(CloseStoreTransfer::class)->handle($this->salesman, $transfer, false))->toThrow(DomainException::class, 'pas encore en transit');
     });
 
+    it('laisse un usager qui a accès à tous les magasins agir pour chacun', function () {
+        $owner = User::factory()->withRole('owner')->create(['store_id' => $this->rimouski->id]);
+        stockAtStore($this->product, $this->gaspe, 1);
+        $transfer = app(RequestStoreTransfer::class)->handle($this->salesman, $this->product, $this->gaspe->id, 1);
+
+        app(AcceptStoreTransfer::class)->handle($owner, $transfer);
+        app(ReceiveStoreTransfer::class)->handle($owner, $transfer, 1);
+
+        expect($transfer->fresh()->status)->toBe(StoreTransferStatus::Received);
+    });
+
     it('attend la fin du gel du stock d\'un des deux magasins', function () {
         stockAtStore($this->product, $this->gaspe, 1);
         InventoryCount::start(today(), User::factory()->withRole('owner')->create(['store_id' => $this->gaspe->id]), $this->gaspe)->freezeStock($this->clerkGaspe);
@@ -237,6 +248,16 @@ describe('transfert pour un client', function () {
             ->and(stockOf($this->product, $this->rimouski, InventoryStatus::Lost))->toBe(1);
 
         expectInventoryIntegrity($this->product);
+    });
+
+    it('laisse le vendeur demander pour la commande de son magasin, même si l\'entrepôt reçoit', function () {
+        $warehouse = Store::factory()->create(['name' => 'Entrepôt']);
+        $this->rimouski->update(['warehouse_store_id' => $warehouse->id]);
+        stockAtStore($this->product, $this->gaspe, 1);
+
+        $transfer = app(RequestStoreTransfer::class)->handle($this->salesman, $this->product, $this->gaspe->id, 1, $this->line->fresh());
+
+        expect($transfer->to_store_id)->toBe($warehouse->id);
     });
 
     it('n\'offre pas de transfert pour une ligne déjà commandée chez le fournisseur', function () {

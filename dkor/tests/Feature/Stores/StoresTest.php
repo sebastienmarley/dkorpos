@@ -41,7 +41,7 @@ it('refuse les autres rôles', function (string $role) {
 it('ouvre au superviseur d\'inventaire seulement l\'onglet des zones et emplacements de la fiche', function () {
     $store = Store::factory()->create();
 
-    $this->actingAs(User::factory()->withRole('manager')->create());
+    $this->actingAs(User::factory()->withRole('manager')->create(['store_id' => $store->id]));
 
     $this->get(route('stores.index'))->assertForbidden();
     $this->get(route('stores.show', $store))->assertOk()->assertSee('Zones et emplacements')->assertDontSee('Comptabilité');
@@ -50,6 +50,14 @@ it('ouvre au superviseur d\'inventaire seulement l\'onglet des zones et emplacem
         ->assertSet('activeTab', 'locations')
         ->call('saveIdentification')
         ->assertForbidden();
+});
+
+it('refuse au superviseur d\'inventaire la fiche d\'un autre magasin', function () {
+    $store = Store::factory()->create();
+
+    $this->actingAs(User::factory()->withRole('manager')->create());
+
+    $this->get(route('stores.show', $store))->assertForbidden();
 });
 
 it('crée un magasin avec son nom et son type', function () {

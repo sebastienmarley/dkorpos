@@ -5,6 +5,7 @@ namespace App\Livewire\Deliveries;
 use App\Actions\CompleteDelivery;
 use App\Actions\FailDelivery;
 use App\Actions\ReorderDeliveryRoute;
+use App\Concerns\ChoosesStore;
 use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryPeriod;
 use App\Enums\DeliveryStatus;
@@ -32,6 +33,8 @@ use Livewire\Component;
  */
 class Mine extends Component
 {
+    use ChoosesStore;
+
     #[Url]
     public string $date = '';
 
@@ -69,10 +72,6 @@ class Mine extends Component
     public function mount(): void
     {
         $this->date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $this->date) ? $this->date : Carbon::today()->toDateString();
-
-        if ($this->storeId === '') {
-            $this->storeId = (string) (auth()->user()->store_id ?? $this->getStores()->first()->id ?? '');
-        }
     }
 
     public function previousDay(): void
@@ -356,7 +355,7 @@ class Mine extends Component
     /** @return Collection<int, Store> */
     public function getStores(): Collection
     {
-        return Store::query()->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
+        return Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
     }
 
     /**

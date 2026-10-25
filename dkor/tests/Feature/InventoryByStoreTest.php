@@ -71,6 +71,15 @@ it('montre les quantités du produit par magasin et le total de l\'entreprise', 
 });
 
 describe('réception par magasin', function () {
+    it('laisse un usager qui a accès à tous les magasins recevoir pour un autre magasin', function () {
+        $line = sentOrderFor($this->gaspe, $this->product, 2);
+
+        Reception::start($line->order->supplier, [$line->id => ['quantity' => 2]], ['received_by' => $this->owner->id])->complete();
+
+        expect(Reception::sole()->store_id)->toBe($this->gaspe->id)
+            ->and($this->product->stockAt($this->gaspe->id)->quantity_in_stock)->toBe(2);
+    });
+
     it('fait entrer la marchandise dans le stock du magasin de destination de la commande', function () {
         $line = sentOrderFor($this->rimouski, $this->product, 4);
 
@@ -85,11 +94,12 @@ describe('réception par magasin', function () {
 
     it('refuse de recevoir une commande destinée à un autre magasin', function () {
         $line = sentOrderFor($this->gaspe, $this->product, 1);
+        $clerk = User::factory()->withRole('warehouse')->create(['store_id' => $this->rimouski->id]);
 
-        expect(fn () => Reception::start($line->order->supplier, [$line->id => ['quantity' => 1]], ['received_by' => $this->owner->id]))
+        expect(fn () => Reception::start($line->order->supplier, [$line->id => ['quantity' => 1]], ['received_by' => $clerk->id]))
             ->toThrow(DomainException::class, 'Cette commande est destinée à un autre magasin');
 
-        Livewire::test(ReceptionCreate::class)
+        Livewire::actingAs($clerk)->test(ReceptionCreate::class)
             ->set('supplierId', (string) $line->order->supplier_id)
             ->set('orderSearch', $line->order->number)
             ->assertDontSee($line->order->number);

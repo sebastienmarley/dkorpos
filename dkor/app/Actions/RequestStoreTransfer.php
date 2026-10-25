@@ -28,11 +28,13 @@ class RequestStoreTransfer
     /**
      * @throws DomainException
      */
-    public function handle(User $user, Product $product, int $fromStoreId, int $quantity, ?CustomerOrderLine $line = null, InventoryStatus $source = InventoryStatus::InStock): StoreTransfer
+    public function handle(User $user, Product $product, int $fromStoreId, int $quantity, ?CustomerOrderLine $line = null, InventoryStatus $source = InventoryStatus::InStock, ?int $toStoreId = null): StoreTransfer
     {
-        $toStoreId = $line !== null ? $line->order()->firstOrFail()->stockStoreId() : Store::defaultIdFor($user);
+        $order = $line?->order()->firstOrFail();
+        $toStoreId = $order !== null ? $order->stockStoreId() : ($toStoreId ?? Store::defaultIdFor($user));
 
-        if ($toStoreId === null || ($user->store_id !== null && $user->store_id !== $toStoreId)) {
+        // Pour un client, c'est le magasin de la commande qui demande, même si son entrepôt reçoit (ADR 0012).
+        if ($toStoreId === null || ! $user->canActForStore($order !== null ? $order->store_id : $toStoreId)) {
             throw new DomainException(__('Seul le magasin qui reçoit la marchandise demande un transfert.'));
         }
 

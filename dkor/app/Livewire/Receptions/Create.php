@@ -116,7 +116,7 @@ class Create extends Component
             ->whereColumn('quantity_received', '<', 'quantity')
             ->whereHas('order', fn ($query) => $query
                 ->where('supplier_id', $this->supplierId)
-                ->when(auth()->user()->store_id !== null, fn ($query) => $query->where('store_id', auth()->user()->store_id))
+                ->accessibleTo(auth()->user())
                 ->where('type', SupplierType::Product)
                 ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived]))
             ->first();
@@ -138,7 +138,7 @@ class Create extends Component
 
         return SupplierOrder::query()
             ->where('supplier_id', $this->supplierId)
-            ->when(auth()->user()->store_id !== null, fn ($query) => $query->where('store_id', auth()->user()->store_id))
+            ->accessibleTo(auth()->user())
             ->where('type', SupplierType::Product)
             ->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived])
             ->where(fn ($query) => $query

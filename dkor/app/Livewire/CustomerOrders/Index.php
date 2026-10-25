@@ -6,6 +6,7 @@ use App\Concerns\SearchesCustomers;
 use App\Enums\CustomerOrderStatus;
 use App\Models\customer;
 use App\Models\CustomerOrder;
+use App\Models\Store;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -23,7 +24,13 @@ class Index extends Component
 
     public string $statusFilter = '';
 
+    /** Magasin affiché (vide : tous), offert seulement avec stores.all. */
+    public string $storeFilter = '';
+
     public bool $showCreate = false;
+
+    /** Magasin de la nouvelle commande : celui de l'usager, ou un autre au choix avec stores.all. */
+    public string $createStoreId = '';
 
     public function updatedSearch(): void
     {
@@ -35,28 +42,39 @@ class Index extends Component
         $this->resetPage();
     }
 
+    public function updatedStoreFilter(): void
+    {
+        $this->resetPage();
+    }
+
     public function openCreate(): void
     {
         $this->authorize('customer_orders.create');
 
         $this->customerSearch = '';
+        $this->createStoreId = (string) ($this->storeFilter !== '' ? $this->storeFilter : (auth()->user()->store_id ?? ''));
         $this->showCreate = true;
     }
 
     /**
-     * Crée une commande pour le client choisi, avec l'utilisateur connecté comme vendeur à 100 %.
+     * Crée une commande pour le client choisi, dans le magasin de l'usager (ou celui choisi avec stores.all),
+     * avec l'utilisateur connecté comme vendeur à 100 %.
      */
     public function create(int $customerId): void
     {
         $this->authorize('customer_orders.create');
 
         $customer = customer::findOrFail($customerId);
+        $user = auth()->user();
+        $storeId = $user->hasAllStores() && $this->createStoreId !== '' ? (int) $this->createStoreId : $user->store_id;
+
+        abort_unless($storeId === null || $user->canActForStore($storeId), 403);
 
         try {
-            $order = DB::transaction(function () use ($customer): CustomerOrder {
+            $order = DB::transaction(function () use ($customer, $storeId): CustomerOrder {
                 $order = CustomerOrder::create([
                     'customer_id' => $customer->id,
-                    'store_id' => auth()->user()?->store_id,
+                    'store_id' => $storeId,
                     'created_by' => auth()->id(),
                 ]);
 
@@ -85,8 +103,12 @@ class Index extends Component
     {
         $term = trim($this->search);
 
+        $user = auth()->user();
+
         $orders = CustomerOrder::query()
-            ->with(['customer', 'salespeople'])
+            ->accessibleTo($user)
+            ->with(['customer', 'salespeople', 'store'])
+            ->when($this->storeFilter !== '' && $user->hasAllStores(), fn ($query) => $query->where('store_id', (int) $this->storeFilter))
             ->when(filled($this->statusFilter), fn ($query) => $query->where('status', $this->statusFilter))
             ->when($term !== '', function ($query) use ($term) {
                 $query->where(function ($q) use ($term) {
@@ -101,6 +123,7 @@ class Index extends Component
             'orders' => $orders,
             'statuses' => CustomerOrderStatus::cases(),
             'customerResults' => $this->getCustomerResults(),
+            'stores' => $user->hasAllStores() ? Store::query()->orderBy('name')->get() : collect(),
         ])->layout('layouts.app', ['title' => __('Commandes clients')]);
     }
 }

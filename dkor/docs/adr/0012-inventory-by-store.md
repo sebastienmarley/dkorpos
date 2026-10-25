@@ -51,7 +51,7 @@ Nous retenons l'**option B**.
 - Une commande fournisseur a un **magasin de destination** (`supplier_orders.store_id`), par défaut celui de l'usager
   (`Store::defaultIdFor()` : son magasin, sinon le premier magasin physique, le bureau chef). Un fournisseur a au plus
   un brouillon **par magasin**.
-- Une réception a le magasin qui reçoit, celui de la commande. Un usager rattaché à un magasin ne voit et ne reçoit
+- Une réception a le magasin qui reçoit, celui de la commande. Un usager sans `stores.all` ne voit et ne reçoit
   que les commandes destinées à son magasin. Une réception ne couvre qu'un magasin.
 
 **Les ventes :**
@@ -87,7 +87,7 @@ Nous retenons l'**option B**.
 - Le **magasin qui reçoit** demande toujours le transfert (`RequestStoreTransfer`). Le magasin qui expédie l'accepte
   ou le refuse avec une raison (`AcceptStoreTransfer`, `CloseStoreTransfer`). Le demandeur peut l'annuler tant qu'il
   n'est pas en transit. Le magasin qui reçoit confirme la quantité reçue (`ReceiveStoreTransfer`). Chacun n'agit que
-  pour son magasin ; un usager sans magasin (bureau chef) agit pour tous.
+  pour son magasin ; un usager qui a `stores.all` (bureau chef) agit pour tous ([ADR 0001](0001-permissions.md)).
 - **Pour le stock**, la marchandise part de « En stock » : « En transfert », puis « En transit », puis « En stock »
   chez le magasin qui reçoit. Un démonstrateur ne se transfère pas pour devenir démo ailleurs.
 - **Pour un client**, elle part de « En stock », ou de « En démo » (la dernière unité) : « Client en transfert »,
@@ -131,7 +131,7 @@ production : la base est rebâtie par `migrate:fresh --seed`.
 - Un transfert couvre un seul produit : plusieurs articles demandent plusieurs transferts.
 - Si l'entrepôt d'un magasin change pendant qu'une commande a des articles réservés, ces articles restent dans le
   stock de l'ancien entrepôt.
-- Un usager sans magasin (bureau chef) reçoit les commandes de tous les magasins.
+- Un usager qui a `stores.all` (bureau chef) reçoit les commandes de tous les magasins.
 
 **Protections mises en place**
 

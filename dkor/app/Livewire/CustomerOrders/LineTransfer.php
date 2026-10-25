@@ -11,6 +11,7 @@ use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
@@ -20,6 +21,7 @@ use Livewire\Component;
  */
 class LineTransfer extends Component
 {
+    #[Locked]
     public int $lineId;
 
     /** Choix « magasin:état » (ex. : 3:in_stock). */

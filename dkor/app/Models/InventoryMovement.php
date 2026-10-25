@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Casts\MoneyCast;
+use App\Concerns\BelongsToStore;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
 use App\Support\Money;
@@ -46,6 +47,8 @@ use LogicException;
 #[Fillable(['store_id', 'product_id', 'from_status', 'to_status', 'quantity', 'value', 'type', 'reference_type', 'reference_id', 'user_id', 'note'])]
 class InventoryMovement extends Model
 {
+    use BelongsToStore;
+
     /** @use HasFactory<InventoryMovementFactory> */
     use HasFactory;
 

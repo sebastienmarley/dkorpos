@@ -10,6 +10,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 class Index extends Component
@@ -17,6 +18,9 @@ class Index extends Component
     public string $sortRole = '';
 
     public string $search = '';
+
+    /** Magasin affiché (vide : tous), offert seulement avec stores.all. */
+    public string $storeFilter = '';
 
     /** Valeurs possibles : active, inactive, all. */
     public string $statusFilter = 'active';
@@ -128,6 +132,7 @@ class Index extends Component
 
         $this->reset(['firstname', 'lastname', 'role', 'positionId', 'storeId', 'first_day', 'username', 'generatedEmail', 'personalEmail', 'cellphone', 'showDuplicatePrompt', 'existingUser', 'inactiveMatchIds', 'employeeChoice']);
         $this->role = $this->defaultRole();
+        $this->storeId = $this->defaultStoreId();
         $this->showCreateModal = true;
     }
 
@@ -140,7 +145,7 @@ class Index extends Component
             'lastname' => ['required', 'string', 'max:255'],
             'role' => ['required', 'string', 'in:'.$this->assignableRoles()->pluck('name')->implode(',')],
             'positionId' => ['nullable', 'integer', 'exists:positions,id'],
-            'storeId' => ['required', 'integer', 'exists:stores,id'],
+            'storeId' => ['required', 'integer', Rule::in($this->stores()->modelKeys())],
             'first_day' => ['nullable', 'date'],
             'personalEmail' => ['nullable', 'email', 'max:255'],
             'cellphone' => ['required', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
@@ -228,10 +233,22 @@ class Index extends Component
         return Auth::user()->visibleRoles();
     }
 
-    /** @return Collection<int, Store> */
+    /**
+     * Magasins où l'on peut embaucher : tous avec stores.all, sinon son propre magasin.
+     *
+     * @return Collection<int, Store>
+     */
     public function stores(): Collection
     {
-        return Store::query()->where('is_active', true)->orderBy('name')->get();
+        return Store::query()->accessibleTo(Auth::user())->where('is_active', true)->orderBy('name')->get();
+    }
+
+    /** Magasin proposé à l'embauche : celui de l'usager connecté s'il est offert. */
+    private function defaultStoreId(): ?int
+    {
+        $stores = $this->stores();
+
+        return $stores->contains('id', Auth::user()->store_id) ? Auth::user()->store_id : ($stores->count() === 1 ? $stores->first()->id : null);
     }
 
     /** @return Collection<int, Position> */
@@ -249,7 +266,11 @@ class Index extends Component
 
     public function render(): View
     {
-        $query = User::query()->with(['roles', 'position'])->visibleTo(Auth::user());
+        $query = User::query()->with(['roles', 'position', 'store'])->visibleTo(Auth::user());
+
+        if ($this->storeFilter !== '' && Auth::user()->hasAllStores()) {
+            $query->where('store_id', (int) $this->storeFilter);
+        }
 
         match ($this->statusFilter) {
             'inactive' => $query->where('is_active', false),

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Deliveries;
 
+use App\Concerns\ChoosesStore;
 use App\Enums\DeliveryMethod;
 use App\Enums\StoreType;
 use App\Models\CustomerOrderDelivery;
@@ -19,6 +20,8 @@ use Livewire\Component;
  */
 class Index extends Component
 {
+    use ChoosesStore;
+
     /** Une date de la semaine affichée (la semaine commence le dimanche). */
     #[Url]
     public string $date = '';
@@ -29,10 +32,6 @@ class Index extends Component
     public function mount(): void
     {
         $this->date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $this->date) ? $this->date : Carbon::today()->toDateString();
-
-        if ($this->storeId === '') {
-            $this->storeId = (string) (auth()->user()->store_id ?? $this->getStores()->first()->id ?? '');
-        }
     }
 
     public function previousWeek(): void
@@ -58,7 +57,7 @@ class Index extends Component
     /** @return Collection<int, Store> */
     public function getStores(): Collection
     {
-        return Store::query()->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
+        return Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
     }
 
     /**

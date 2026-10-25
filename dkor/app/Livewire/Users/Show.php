@@ -108,7 +108,7 @@ class Show extends Component
             return;
         }
 
-        abort_unless($viewer->canSeeRole($user->role), 404);
+        abort_unless($user->isVisibleTo($viewer), 404);
 
         abort_unless($viewer->can('update', $user) || $viewer->can('viewHr', $user), 403);
 
@@ -130,7 +130,7 @@ class Show extends Component
             'lastname' => ['required', 'string', 'max:255'],
             'role' => ['required', 'string', 'in:'.$this->allowedRoleNames()->implode(',')],
             'positionId' => ['nullable', 'integer', 'exists:positions,id'],
-            'storeId' => ['required', 'integer', 'exists:stores,id'],
+            'storeId' => ['required', 'integer', Rule::in($this->getStores()->modelKeys())],
             'firstDay' => ['required', 'date'],
             'lastDay' => ['nullable', 'date', 'after_or_equal:firstDay'],
             'personalEmail' => ['nullable', 'email', 'max:255'],
@@ -347,9 +347,18 @@ class Show extends Component
         return Auth::user()->assignableRoles();
     }
 
-    /** @return Collection<int, Store> */
+    /**
+     * Magasins offerts : tous les magasins actifs si l'usager connecté peut changer le magasin d'appartenance,
+     * sinon seulement le magasin actuel de la fiche.
+     *
+     * @return Collection<int, Store>
+     */
     public function getStores(): Collection
     {
+        if (Auth::user()->cannot('changeStore', $this->user)) {
+            return Store::query()->whereKey(array_filter([$this->user->store_id]))->get();
+        }
+
         return Store::query()->where('is_active', true)->orWhere('id', $this->user->store_id)->orderBy('name')->get();
     }
 

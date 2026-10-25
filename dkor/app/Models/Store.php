@@ -6,6 +6,8 @@ use App\Enums\Province;
 use App\Enums\StoreType;
 use Database\Factories\StoreFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -82,6 +84,19 @@ class Store extends Model
     public static function defaultIdFor(?User $user): ?int
     {
         return $user->store_id ?? static::query()->where('type', StoreType::Physical)->orderBy('id')->value('id');
+    }
+
+    /**
+     * Magasins pour lesquels l'usager peut agir (ADR 0001) : tous avec stores.all, sinon son magasin d'appartenance.
+     *
+     * @param  Builder<Store>  $query
+     */
+    #[Scope]
+    protected function accessibleTo(Builder $query, User $user): void
+    {
+        if (! $user->hasAllStores()) {
+            $query->whereKey(array_filter([$user->store_id]));
+        }
     }
 
     /**

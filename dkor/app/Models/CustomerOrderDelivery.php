@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Casts\MoneyCast;
+use App\Concerns\BelongsToStore;
 use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryPeriod;
 use App\Enums\DeliveryStatus;
@@ -85,6 +86,8 @@ use Illuminate\Support\Carbon;
 ])]
 class CustomerOrderDelivery extends Model
 {
+    use BelongsToStore;
+
     /** @use HasFactory<CustomerOrderDeliveryFactory> */
     use HasFactory;
 

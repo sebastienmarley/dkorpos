@@ -173,7 +173,7 @@ it('refuse de finaliser sans gel, avec une ligne à compter ou un écart dans le
 it('laisse compter avec inventory.count, mais réserve le démarrage, le gel et la finalisation à inventory.adjust', function () {
     receiveProduct($this->product, 1, 5);
     $count = InventoryCount::start(today(), $this->owner, testStoreId());
-    $manager = User::factory()->withRole('manager')->create();
+    $manager = User::factory()->withRole('manager')->create(['store_id' => $count->store_id]);
     $line = countLine($count, $this->product, InventoryStatus::InStock);
 
     $this->actingAs($manager)->get(route('inventory.counts.show', $count))->assertOk();

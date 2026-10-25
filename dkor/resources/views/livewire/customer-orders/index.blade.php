@@ -19,6 +19,17 @@
             <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher par numéro, client ou téléphone…') }}" icon="magnifying-glass" />
         </div>
 
+        @if ($stores->isNotEmpty())
+            <div class="w-52">
+                <flux:select wire:model.live="storeFilter">
+                    <flux:select.option value="">{{ __('Tous les magasins') }}</flux:select.option>
+                    @foreach ($stores as $store)
+                        <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            </div>
+        @endif
+
         <div class="w-52">
             <flux:select wire:model.live="statusFilter">
                 <flux:select.option value="">{{ __('Tous les statuts') }}</flux:select.option>
@@ -35,6 +46,9 @@
             <flux:table.columns>
                 <flux:table.column>{{ __('Numéro') }}</flux:table.column>
                 <flux:table.column>{{ __('Client') }}</flux:table.column>
+                @if ($stores->isNotEmpty())
+                    <flux:table.column>{{ __('Magasin') }}</flux:table.column>
+                @endif
                 <flux:table.column>{{ __('Vendeur(s)') }}</flux:table.column>
                 <flux:table.column>{{ __('Statut') }}</flux:table.column>
                 <flux:table.column align="end">{{ __('Solde à payer') }}</flux:table.column>
@@ -48,6 +62,9 @@
                             <flux:link :href="route('customer-orders.show', $order)" wire:navigate>#{{ $order->id }}</flux:link>
                         </flux:table.cell>
                         <flux:table.cell>{{ $order->customer->firstname }} {{ $order->customer->lastname }}</flux:table.cell>
+                        @if ($stores->isNotEmpty())
+                            <flux:table.cell>{{ $order->store?->name ?? '—' }}</flux:table.cell>
+                        @endif
                         <flux:table.cell>{{ $order->salespeople->map(fn ($salesperson) => $salesperson->fullName())->join(', ') ?: '—' }}</flux:table.cell>
                         <flux:table.cell>
                             <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label() }}</flux:badge>
@@ -57,7 +74,7 @@
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="6" class="py-12 text-center">
+                        <flux:table.cell :colspan="$stores->isNotEmpty() ? 7 : 6" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="shopping-cart" class="h-8 w-8 text-zinc-300" />
                                 @if (filled($search) || filled($statusFilter))
@@ -84,6 +101,14 @@
         <flux:modal wire:model="showCreate" class="w-full max-w-lg">
             <flux:heading class="mb-1">{{ __('Nouvelle commande client') }}</flux:heading>
             <flux:text class="text-zinc-500">{{ __('Choisissez ou créez le client de la commande.') }}</flux:text>
+
+            @if ($stores->isNotEmpty())
+                <flux:select wire:model="createStoreId" :label="__('Magasin')" class="mt-6">
+                    @foreach ($stores as $store)
+                        <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
 
             <div class="mt-6">
                 <x-customer-search :results="$customerResults" :search="$customerSearch" select="create" />

@@ -6,6 +6,7 @@ use App\Actions\NotifyDeliveryItemsReceived;
 use App\Actions\NotifyDeliveryTeam;
 use App\Actions\NotifyShipmentReady;
 use App\Casts\MoneyCast;
+use App\Concerns\BelongsToStore;
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
@@ -58,6 +59,8 @@ use Illuminate\Support\Str;
 #[Fillable(['customer_id', 'store_id', 'status', 'subtotal', 'total', 'amount_paid', 'balance_due', 'created_by'])]
 class CustomerOrder extends Model
 {
+    use BelongsToStore;
+
     /** @use HasFactory<CustomerOrderFactory> */
     use HasFactory;
 
