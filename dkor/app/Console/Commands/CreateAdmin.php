@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
@@ -82,7 +83,7 @@ class CreateAdmin extends Command
             $user->email = $username.'@dkor.ca';
             $user->store_id = $storeId;
             $user->is_active = true;
-            $user->first_day = today();
+            $user->first_day = Carbon::today();
             $user->password = $plainPassword;
             $user->save();
             $user->assignRole('admin');
