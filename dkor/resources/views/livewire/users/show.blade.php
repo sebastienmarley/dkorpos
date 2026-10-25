@@ -377,6 +377,24 @@
                                 </div>
                             </div>
                         @endif
+
+                        @if ($user->hasEnabledTwoFactorAuthentication())
+                            <div class="mt-5 flex items-center justify-between border-t border-zinc-200 pt-5 dark:border-zinc-700">
+                                <div>
+                                    <flux:heading size="sm">{{ __('Authentification à deux facteurs') }}</flux:heading>
+                                    <flux:text class="text-sm text-zinc-500">{{ __('À réinitialiser si l\'usager a perdu son téléphone') }}</flux:text>
+                                </div>
+                                <flux:button
+                                    type="button"
+                                    variant="danger"
+                                    icon="shield-exclamation"
+                                    wire:click="resetTwoFactor"
+                                    wire:confirm="{{ __('Réinitialiser l\'authentification à deux facteurs de cet utilisateur ?') }}"
+                                >
+                                    {{ __('Réinitialiser') }}
+                                </flux:button>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>

@@ -748,6 +748,9 @@ CREATE TABLE "users"(
   "vacation_balance_computed_at" datetime,
   "store_id" integer,
   "search_name" varchar,
+  "two_factor_secret" text,
+  "two_factor_recovery_codes" text,
+  "two_factor_confirmed_at" datetime,
   foreign key("store_id") references stores("id") on delete set null on update no action,
   foreign key("last_modified_by") references users("id") on delete set null on update no action,
   foreign key("position_id") references positions("id") on delete set null on update no action
@@ -1569,3 +1572,4 @@ INSERT INTO migrations VALUES(196,'2026_10_24_203637_add_shipment_sending_to_cus
 INSERT INTO migrations VALUES(198,'2026_10_24_211857_create_inventory_locations_table',27);
 INSERT INTO migrations VALUES(200,'2026_10_24_214309_add_store_to_inventory',28);
 INSERT INTO migrations VALUES(201,'2026_10_24_234353_create_store_transfers_table',29);
+INSERT INTO migrations VALUES(202,'2026_10_25_121109_add_two_factor_columns_to_users_table',30);

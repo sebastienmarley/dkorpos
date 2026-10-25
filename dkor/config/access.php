@@ -234,4 +234,13 @@ return [
         'accounting' => ['label' => 'Comptabilité', 'level' => 10, 'permissions' => [...$accountingAccess]],
         'thirdkey' => ['label' => 'Troisième clé', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
     ],
+
+    /*
+     * 2FA obligatoire (ADR 0014) : pour ces rôles et pour tout usager qui a stores.all.
+     * `enforced` permet de la désactiver dans les tests qui n'en traitent pas.
+     */
+    'two_factor' => [
+        'roles' => ['admin', 'owner', 'accounting'],
+        'enforced' => (bool) env('TWO_FACTOR_ENFORCED', true),
+    ],
 ];

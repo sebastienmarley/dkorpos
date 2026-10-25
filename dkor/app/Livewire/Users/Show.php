@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
@@ -296,6 +297,20 @@ class Show extends Component
         $this->user->markModifiedBy(Auth::user())->save();
 
         $this->generatedPassword = $plainPassword;
+    }
+
+    /**
+     * Comme pour le mot de passe (ADR 0002), seul un superviseur réinitialise la 2FA d'un usager qui a perdu son
+     * téléphone. L'usager la réactive à sa prochaine connexion (ADR 0014).
+     */
+    public function resetTwoFactor(DisableTwoFactorAuthentication $disable): void
+    {
+        $this->authorize('update', $this->user);
+
+        $disable($this->user);
+        $this->user->markModifiedBy(Auth::user())->save();
+
+        Flux::toast(text: __('Authentification à deux facteurs réinitialisée.'), variant: 'success');
     }
 
     public function saveAccess(): void
