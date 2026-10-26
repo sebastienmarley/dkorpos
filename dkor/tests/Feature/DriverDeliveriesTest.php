@@ -377,6 +377,21 @@ describe('signature du client (#93)', function () {
         expectInventoryIntegrity($this->single->product);
     });
 
+    it('range et sert la signature sur le disque configuré, comme le stockage objet de la production', function () {
+        config(['deliveries.signature_disk' => 's3']);
+        Storage::fake('s3');
+
+        app(CompleteDelivery::class)->handle($this->delivery, [$this->pairLine->id => 2, $this->singleLine->id => 1], [], 'Marie Tremblay', signaturePng());
+        $path = $this->delivery->fresh()->signature_path;
+
+        expect(Storage::disk('s3')->exists($path))->toBeTrue()
+            ->and(Storage::disk('local')->exists($path))->toBeFalse();
+
+        $this->actingAs($this->salesperson)
+            ->get(route('deliveries.signature', $this->delivery))
+            ->assertOk();
+    });
+
     it('refuse de terminer sans signature', function () {
         Livewire::test(Mine::class)
             ->call('open', $this->delivery->id)

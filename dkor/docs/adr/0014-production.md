@@ -178,9 +178,19 @@ en amont (Cloudflare Access) reste possible plus tard sans toucher au code.
 ### Fichiers
 
 - **Laravel Cloud Object Storage** (Cloudflare R2) : un compartiment **privé**, disque par défaut de l'environnement.
-  Ajoute `league/flysystem-aws-s3-v3` (à approuver).
+  Ajoute `league/flysystem-aws-s3-v3`.
 - `DELIVERY_SIGNATURE_DISK` pointe vers ce disque. Les signatures restent servies par
   `DeliverySignatureController`, après vérification des droits ; aucun fichier n'est public.
+- **Préparé, pas encore activé**, pour ne pas payer un stockage inutilisé :
+  - le code des signatures (`CompleteDelivery`, `DeliverySignatureController`, `PurgeDeliverySignatures`) passe
+    par le disque configuré et fonctionne tel quel sur un disque S3 (test « range et sert la signature sur le
+    disque configuré » dans `DriverDeliveriesTest`) ;
+  - le bloc est en commentaire dans `.env.example` : le paquet à installer, le compartiment privé à rattacher et
+    `DELIVERY_SIGNATURE_DISK=s3`.
+- **Limite tant que R2 n'est pas activé** : en production, les signatures vont sur le disque de l'instance, qui est
+  effacé à chaque déploiement et n'est pas partagé entre instances. La livraison se termine normalement et garde le
+  nom du signataire, la date et les articles, mais l'image de la signature disparaît au déploiement suivant (sa page
+  répond alors 404). Activer R2 avant que les livreurs fassent signer de vrais clients.
 
 ### Files d'attente et planificateur
 
@@ -274,10 +284,25 @@ migration. `migrate:fresh` ne sert plus qu'en local ; `DB::prohibitDestructiveCo
 
 ### Sauvegardes et restauration
 
-- Sauvegardes automatiques de la base gérée par Laravel Cloud, avec la rétention la plus longue offerte par le forfait
-  (au moins 7 jours).
-- Une **restauration est essayée en préproduction** avant la mise en production, puis chaque trimestre, et avant
-  toute migration qui transforme des données.
+- Sauvegardes automatiques de la base gérée par Laravel Cloud, avec la rétention la plus longue offerte par le forfait.
+  - **Aujourd'hui : 1 jour.** La base est sur l'offre de développement de Laravel Cloud, choisie parce que
+    l'application ne sert pas encore en production réelle.
+  - **Pour une vraie production : 7 jours**, avec un serveur PostgreSQL de production de Laravel Cloud.
+- **Copie indépendante de Laravel Cloud**, avec `pg_dump` (celui de DBngin), gardée hors du dépôt
+  (`~/Backups/dkor-production-AAAA-MM-JJ.dump`). Le mot de passe est saisi à l'invite, jamais dans la commande :
+
+  ```bash
+  /Users/Shared/DBngin/postgresql/18.4_arm/bin/pg_dump --host=<hôte> --port=5432 --username=<usager> --dbname=production --format=custom --no-owner --file="$HOME/Backups/dkor-production-$(date +%F).dump" --password
+  ```
+
+- **Restauration essayée le 2026-10-25** à partir de cette copie, dans une base PostgreSQL locale vide (DBngin) :
+  `pg_restore --no-owner --no-privileges --exit-on-error` termine sans erreur. La base restaurée a ses 80 tables,
+  les 79 migrations marquées passées (aucune en attente), les 2 usagers (propriétaire et administrateur, 2FA
+  activée), 1 magasin, 104 permissions, 9 rôles et 372 accès ; les rôles des usagers portent l'alias `user`.
+- **La clé `APP_KEY` fait partie de la sauvegarde** : les secrets et codes de récupération 2FA sont chiffrés avec
+  elle. Une base restaurée avec une autre clé garde ses données, mais aucune 2FA ne fonctionne plus. La clé de
+  production est gardée en lieu sûr (gestionnaire de mots de passe), séparément des copies de la base.
+- Une restauration est essayée de nouveau chaque trimestre, et avant toute migration qui transforme des données.
 - Les signatures du stockage objet ne sont pas sauvegardées à part : elles sont temporaires et purgées
   (`PurgeDeliverySignatures`).
 
@@ -344,7 +369,8 @@ migration. `migrate:fresh` ne sert plus qu'en local ; `DB::prohibitDestructiveCo
   Les migrations de départ sont écrites avec le schéma de Laravel, sans SQL propre à PostgreSQL : elles devraient
   s'appliquer à MySQL telles quelles, mais ce n'est pas encore vérifié.
 - **2FA pour tous** : l'étendre aux vendeurs et livreurs si un incident ou l'assurance l'exige.
-- **Copie hors fournisseur** : un export chiffré de la base, gardé ailleurs que chez Laravel Cloud ?
+- **Copie hors fournisseur** : la copie `pg_dump` est manuelle et n'est pas chiffrée. L'automatiser (chaque semaine) et
+  la chiffrer avant d'avoir des données réelles.
 - **PWA et mode hors-ligne** pour les livreurs en zone sans réseau.
 - **Impression portative** des devis et reçus.
 - **Import des données** de l'ancien système (produits, clients, historique) : issue distincte.
