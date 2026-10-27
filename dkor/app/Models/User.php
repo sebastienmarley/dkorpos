@@ -77,7 +77,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['firstname', 'lastname', 'position_id', 'store_id', 'email', 'personal_email', 'password', 'is_active', 'first_day', 'last_day', 'phone', 'cellphone', 'address_civic', 'address_apartment', 'address_street', 'address_city', 'address_province', 'address_country', 'address_postal_code', 'is_full_time', 'has_group_insurance', 'insurance_plan', 'is_salaried', 'hourly_rate', 'weekly_salary', 'has_commission', 'commission_rate', 'has_bonus', 'weekly_sales_target', 'bonus_amount', 'bonus_step', 'hours_per_day'])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'first_day', 'last_day', 'last_modified', 'last_modified_by', 'vacation_hours_available'])]
+#[Hidden(['password', 'pin', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'first_day', 'last_day', 'last_modified', 'last_modified_by', 'vacation_hours_available'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -130,6 +130,7 @@ class User extends Authenticatable
             'vacation_hours_available' => 'decimal:2',
             'vacation_balance_computed_at' => 'datetime',
             'password' => 'hashed',
+            'pin' => 'hashed',
         ];
     }
 

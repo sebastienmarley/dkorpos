@@ -334,6 +334,11 @@
                         <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
                             {{ __('Profil') }}
                         </flux:menu.item>
+                        @if (auth()->user()->pin !== null)
+                            <flux:menu.item as="button" icon="lock-closed" class="w-full cursor-pointer" x-on:click="$dispatch('lock-session')">
+                                {{ __('Verrouiller') }}
+                            </flux:menu.item>
+                        @endif
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
@@ -361,6 +366,8 @@
                 <flux:toast />
             </flux:toast.group>
         @endpersist
+
+        @include('partials.session-lock')
 
         @fluxScripts
     </body>
