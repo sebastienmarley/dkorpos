@@ -4,6 +4,7 @@ namespace App\Livewire\Users;
 
 use App\Actions\CalculateVacationBalance;
 use App\Actions\PurgeSchedulesAfterLastDay;
+use App\Actions\ResetUserPassword;
 use App\Enums\InsurancePlan;
 use App\Models\Permission;
 use App\Models\Position;
@@ -15,8 +16,6 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
 use Livewire\Attributes\Url;
@@ -287,16 +286,11 @@ class Show extends Component
         Flux::toast(text: __('Compte sauvegardé.'), variant: 'success');
     }
 
-    public function resetPassword(): void
+    public function resetPassword(ResetUserPassword $resetUserPassword): void
     {
         $this->authorize('update', $this->user);
 
-        $plainPassword = Str::password(12);
-
-        $this->user->password = Hash::make($plainPassword);
-        $this->user->markModifiedBy(Auth::user())->save();
-
-        $this->generatedPassword = $plainPassword;
+        $this->generatedPassword = $resetUserPassword->execute($this->user, Auth::user());
     }
 
     /**
