@@ -98,6 +98,12 @@ Nous retenons l'**option C**.
 
 - Le verrou est appliqué par le serveur, pas par l'écran du navigateur.
 - Une reconnexion par le témoin « Se souvenir de moi » arrive verrouillée : elle ne contourne pas le NIP.
+- Le bouton Précédent ne réaffiche pas une page déverrouillée. Les pages sont envoyées avec `Cache-Control: no-store`,
+  pour que le navigateur les redemande au serveur. Une page que `wire:navigate` ou le cache du navigateur (bfcache)
+  restaure sans requête redemande l'état du verrou au serveur, et affiche l'écran sans attendre si la session a été
+  verrouillée entre-temps.
+- L'écran superposé est un `<dialog>` ouvert par `showModal()` : il passe par-dessus les modals Flux ouverts et rend le
+  reste de la page inerte. Chrome laisse Échap le fermer ; il est rouvert tant que la session est verrouillée.
 - Déverrouiller par NIP ne remplace pas la confirmation du mot de passe : changer son NIP ou régénérer son mot de passe
   l'exige toujours.
 

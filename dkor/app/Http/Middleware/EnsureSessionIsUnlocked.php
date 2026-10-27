@@ -58,10 +58,23 @@ class EnsureSessionIsUnlocked
             return redirect()->route('session-lock.show');
         }
 
-        if (! Livewire::isLivewireRequest()) {
-            $this->sessionLock->touch();
+        if (Livewire::isLivewireRequest()) {
+            return $next($request);
         }
 
-        return $next($request);
+        $this->sessionLock->touch();
+
+        return $this->preventHistoryCache($next($request));
+    }
+
+    /**
+     * Le bouton Précédent réaffiche une page du cache sans la redemander au serveur, même avec no-cache : no-store
+     * l'en empêche, pour qu'une session verrouillée ne réaffiche pas une page déverrouillée.
+     */
+    private function preventHistoryCache(Response $response): Response
+    {
+        $response->headers->set('Cache-Control', 'no-store, private');
+
+        return $response;
     }
 }

@@ -5,6 +5,10 @@
  * ouverts, et verrouiller ou déverrouiller un onglet fait de même pour les autres. Le serveur reste la source de vérité :
  * il refuse les requêtes d'une session verrouillée, et l'activité sur une page déjà chargée lui est signalée par un
  * battement de cœur.
+ *
+ * Le bouton Précédent peut réafficher une page sans la redemander au serveur : wire:navigate la restaure de son cache
+ * en réinitialisant ses composants, et le navigateur la sort de son cache (bfcache). Une page restaurée redemande donc
+ * l'état du verrou au serveur, et affiche l'écran sans attendre si un onglet a verrouillé la session entre-temps.
  */
 const LAST_ACTIVITY_KEY = 'dkor.session-lock.last-activity';
 const STATE_KEY = 'dkor.session-lock.state';
@@ -54,14 +58,23 @@ document.addEventListener('alpine:init', () => {
         init() {
             this.onActivity = () => this.recordActivity();
             this.onStorage = (event) => this.syncFromOtherTab(event);
+            this.onPageShow = (event) => event.persisted && this.verifyWithServer();
 
             ACTIVITY_EVENTS.forEach((name) => window.addEventListener(name, this.onActivity, { passive: true }));
             window.addEventListener('storage', this.onStorage);
+            window.addEventListener('pageshow', this.onPageShow);
             this.checkInterval = setInterval(() => this.check(), CHECK_INTERVAL_MS);
 
-            if (this.locked) {
+            // La marque est gardée dans le cache de wire:navigate : elle distingue une page restaurée d'une page rendue.
+            const restored = this.$root.dataset.rendered !== undefined;
+            this.$root.dataset.rendered = '';
+
+            if (restored) {
+                this.verifyWithServer();
+            } else if (this.locked) {
                 this.showLock();
             } else {
+                this.shareState(false);
                 this.recordActivity();
             }
         },
@@ -69,7 +82,54 @@ document.addEventListener('alpine:init', () => {
         destroy() {
             ACTIVITY_EVENTS.forEach((name) => window.removeEventListener(name, this.onActivity));
             window.removeEventListener('storage', this.onStorage);
+            window.removeEventListener('pageshow', this.onPageShow);
             clearInterval(this.checkInterval);
+        },
+
+        sharedState() {
+            try {
+                return JSON.parse(readStorage(STATE_KEY)) ?? {};
+            } catch {
+                return {};
+            }
+        },
+
+        /**
+         * Une page rendue par le serveur fait foi : elle corrige l'état laissé par un déverrouillage pleine page.
+         */
+        shareState(locked) {
+            if (this.sharedState().locked !== locked) {
+                writeStorage(STATE_KEY, JSON.stringify({ locked, at: Date.now() }));
+            }
+        },
+
+        async verifyWithServer() {
+            if (this.sharedState().locked) {
+                this.showLock();
+            }
+
+            this.lastHeartbeatAt = Date.now();
+            const response = await this.post(config.heartbeatUrl);
+
+            if (response.status === 401 || response.status === 419) {
+                window.location.reload();
+
+                return;
+            }
+
+            if (!response.ok) {
+                return;
+            }
+
+            const { locked } = await response.json();
+
+            if (locked) {
+                this.showLock();
+            } else if (this.locked) {
+                this.markUnlocked();
+            }
+
+            this.shareState(locked);
         },
 
         recordActivity() {
@@ -125,6 +185,7 @@ document.addEventListener('alpine:init', () => {
 
             if (response.ok && (await response.json()).locked) {
                 this.showLock();
+                this.shareState(true);
             }
         },
 
@@ -144,7 +205,7 @@ document.addEventListener('alpine:init', () => {
 
         async lock() {
             this.showLock();
-            writeStorage(STATE_KEY, JSON.stringify({ locked: true, at: Date.now() }));
+            this.shareState(true);
 
             await this.post(config.lockUrl);
         },
@@ -163,7 +224,7 @@ document.addEventListener('alpine:init', () => {
 
                 if (response.ok) {
                     this.markUnlocked();
-                    writeStorage(STATE_KEY, JSON.stringify({ locked: false, at: Date.now() }));
+                    this.shareState(false);
                 } else if (body.redirect) {
                     window.location.href = body.redirect;
                 } else if (response.status === 419) {

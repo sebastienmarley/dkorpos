@@ -54,6 +54,12 @@ it('verrouille tout de suite à la demande de l\'usager', function () {
     $this->get(route('customers.index'))->assertRedirect(route('session-lock.show'));
 });
 
+it('empêche le bouton Précédent de réafficher une page du cache', function () {
+    $response = $this->actingAs(User::factory()->withPin()->create())->get(route('home'));
+
+    expect($response->headers->getCacheControlDirective('no-store'))->toBeTrue();
+});
+
 it('ne verrouille pas un usager qui n\'a pas de NIP', function () {
     leaveSessionIdle(User::factory()->create());
 
