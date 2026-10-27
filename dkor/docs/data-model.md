@@ -1257,6 +1257,7 @@ erDiagram
         string email UK
         datetime email_verified_at "nullable"
         string password
+        string pin "nullable · haché"
         string remember_token "nullable"
         bool is_active
         string firstname "nullable"
