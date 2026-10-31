@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Schedules;
 
+use App\Actions\ReassignAppointment;
 use App\Concerns\ChoosesStore;
 use App\Concerns\SearchesCustomers;
 use App\Enums\ScheduleType;
@@ -12,6 +13,7 @@ use App\Models\Schedule;
 use App\Models\Store;
 use App\Models\User;
 use App\Support\AppointmentBooking;
+use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -65,6 +67,9 @@ class Appointments extends Component
     public int $durationMinutes = self::SLOT_MINUTES;
 
     public ?int $selectedCustomerId = null;
+
+    /** Employé affecté au rendez-vous ouvert; un autre que l'employé de la grille le réassigne (gestion de l'horaire). */
+    public ?int $assignedUserId = null;
 
     public function mount(): void
     {
@@ -134,6 +139,7 @@ class Appointments extends Component
         $this->notes = $existing ? ($existing->notes ?? '') : '';
         $this->durationMinutes = $existing ? $existing->duration_minutes : self::SLOT_MINUTES;
         $this->selectedCustomerId = $existing?->customer_id;
+        $this->assignedUserId = $this->selectedUserId;
         $this->customerSearch = $existing?->customer
             ? $existing->customer->firstname.' '.$existing->customer->lastname
             : '';
@@ -164,6 +170,13 @@ class Appointments extends Component
     {
         $this->authorize($this->editingAppointmentId ? 'appointments.edit' : 'appointments.create');
         $this->ensureStoreEmployee();
+
+        $isReassigning = $this->editingAppointmentId !== null && $this->assignedUserId !== null && $this->assignedUserId !== $this->selectedUserId;
+
+        if ($isReassigning) {
+            $this->authorize('schedule_management.edit');
+            $this->validate(['assignedUserId' => ['integer', Rule::in($this->storeEmployees()->pluck('id'))]]);
+        }
 
         if (! $this->editingDate || ! $this->canBookAt($this->editingDate, $this->editingStartMinute)) {
             $this->addError('title', __('Ce créneau n\'est pas disponible.'));
@@ -223,7 +236,59 @@ class Appointments extends Component
             return;
         }
 
+        if ($isReassigning && ! $this->reassignToAssignedEmployee()) {
+            return;
+        }
+
         $this->closeModal();
+    }
+
+    /**
+     * Réassigne le rendez-vous ouvert, déjà enregistré, à l'employé choisi (même date, même heure). Un refus garde le
+     * modal ouvert avec le motif.
+     */
+    private function reassignToAssignedEmployee(): bool
+    {
+        $appointment = $this->employeeAppointments()->findOrFail($this->editingAppointmentId);
+
+        try {
+            $appointment = app(ReassignAppointment::class)->handle($appointment, (int) $this->assignedUserId, $this->editingDate, $this->editingStartMinute, $appointment->updated_at?->getTimestamp() ?? 0);
+        } catch (DomainException $exception) {
+            $this->editingVersion = $appointment->updated_at?->getTimestamp() ?? 0;
+            $this->addError('assignedUserId', $exception->getMessage());
+
+            return false;
+        }
+
+        Flux::toast(
+            text: __('Rendez-vous réassigné à :name.', ['name' => $appointment->user?->fullName()]),
+            heading: __('Rendez-vous réassigné'),
+            variant: 'success',
+        );
+
+        return true;
+    }
+
+    /**
+     * Employés du magasin qui peuvent prendre le rendez-vous ouvert : libres pendant toute sa durée, dans leur quart
+     * et les heures d'ouverture. L'employé de la grille y est toujours.
+     *
+     * @return EloquentCollection<int, User>
+     */
+    private function availableEmployees(): EloquentCollection
+    {
+        if (! $this->showModal || $this->editingAppointmentId === null || ! $this->editingDate) {
+            return new EloquentCollection;
+        }
+
+        return $this->storeEmployees()
+            ->orderBy('firstname')
+            ->orderBy('lastname')
+            ->get()
+            ->filter(fn (User $employee): bool => $employee->id === $this->selectedUserId
+                || (AppointmentBooking::canBookAt($employee->id, $this->editingDate, $this->editingStartMinute)
+                    && AppointmentBooking::maxDurationMinutes($employee->id, $this->editingDate, $this->editingStartMinute) >= $this->durationMinutes))
+            ->values();
     }
 
     /**
@@ -340,7 +405,7 @@ class Appointments extends Component
     public function closeModal(): void
     {
         $this->showModal = false;
-        $this->reset(['editingDate', 'title', 'notes', 'editingAppointmentId', 'editingVersion', 'selectedCustomerId', 'customerSearch']);
+        $this->reset(['editingDate', 'title', 'notes', 'editingAppointmentId', 'editingVersion', 'selectedCustomerId', 'customerSearch', 'assignedUserId']);
         $this->resetValidation();
         $this->editingStartMinute = self::DAY_START_MINUTE;
         $this->durationMinutes = self::SLOT_MINUTES;
@@ -546,6 +611,7 @@ class Appointments extends Component
 
         return view('livewire.schedules.appointments', [
             'editingAppointment' => $editingAppointment,
+            'availableEmployees' => $this->availableEmployees(),
             'stores' => $this->getStores(),
             'users' => $users,
             'days' => $days,

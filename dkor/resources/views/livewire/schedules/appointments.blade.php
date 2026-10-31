@@ -361,7 +361,7 @@
 
                 <flux:field>
                     <flux:label>{{ __('Durée') }}</flux:label>
-                    <flux:select wire:model="durationMinutes">
+                    <flux:select wire:model.live="durationMinutes">
                         @for ($m = $slotMinutes; $m <= $maxDuration; $m += $slotMinutes)
                             <flux:select.option value="{{ $m }}">
                                 {{ $m >= 60 ? intdiv($m, 60).'h'.($m % 60 ? sprintf('%02d', $m % 60) : '') : $m.' min' }}
@@ -370,6 +370,26 @@
                     </flux:select>
                     <flux:error name="durationMinutes" />
                 </flux:field>
+
+                {{-- Réassignation à un employé du magasin libre pendant tout le rendez-vous --}}
+                @if ($editingAppointmentId)
+                    @can('schedule_management.edit')
+                        <flux:field>
+                            <div class="flex items-center gap-1.5">
+                                <flux:label>{{ __('Employé') }}</flux:label>
+                                <flux:tooltip :content="__('Seuls les employés du magasin libres pendant toute la durée du rendez-vous sont offerts.')">
+                                    <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                                </flux:tooltip>
+                            </div>
+                            <flux:select wire:model="assignedUserId">
+                                @foreach ($availableEmployees as $employee)
+                                    <flux:select.option :value="$employee->id">{{ $employee->fullName() }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                            <flux:error name="assignedUserId" />
+                        </flux:field>
+                    @endcan
+                @endif
             </div>
 
             {{-- Recherche client --}}

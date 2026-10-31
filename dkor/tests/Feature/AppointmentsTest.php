@@ -466,3 +466,59 @@ describe('heures d\'ouverture du magasin', function () {
         expect($appointment->fresh()->start_minute)->toBe(10 * 60);
     });
 });
+
+describe('réassignation à un autre employé', function () {
+    beforeEach(function () {
+        $this->colleague = User::factory()->create(['is_active' => true, 'store_id' => $this->employee->store_id]);
+        $this->appointment = Appointment::factory()->create([
+            'user_id' => $this->employee->id,
+            'date' => $this->futureDate,
+            'start_minute' => 10 * 60,
+            'duration_minutes' => 60,
+        ]);
+    });
+
+    it('réassigne le rendez-vous à un employé libre avec la gestion de l\'horaire', function () {
+        $this->actingAs(User::factory()->withRole('admin')->create(['store_id' => $this->employee->store_id]));
+
+        bookingComponent($this->employee, $this->futureDate, 10 * 60)
+            ->assertSet('assignedUserId', $this->employee->id)
+            ->assertViewHas('availableEmployees', fn ($employees): bool => $employees->contains('id', $this->colleague->id))
+            ->set('assignedUserId', $this->colleague->id)
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('showModal', false);
+
+        expect($this->appointment->fresh())->user_id->toBe($this->colleague->id)->start_minute->toBe(10 * 60);
+    });
+
+    it('n\'offre pas un employé déjà occupé pendant le rendez-vous', function () {
+        $this->actingAs(User::factory()->withRole('admin')->create(['store_id' => $this->employee->store_id]));
+        Appointment::factory()->create([
+            'user_id' => $this->colleague->id,
+            'date' => $this->futureDate,
+            'start_minute' => 10 * 60 + 30,
+            'duration_minutes' => 30,
+        ]);
+
+        bookingComponent($this->employee, $this->futureDate, 10 * 60)
+            ->assertViewHas('availableEmployees', fn ($employees): bool => ! $employees->contains('id', $this->colleague->id))
+            ->set('assignedUserId', $this->colleague->id)
+            ->call('save')
+            ->assertHasErrors('assignedUserId');
+
+        expect($this->appointment->fresh()->user_id)->toBe($this->employee->id);
+    });
+
+    it('refuse la réassignation sans la permission de la gestion de l\'horaire', function () {
+        expect($this->employee->can('schedule_management.edit'))->toBeFalse();
+
+        bookingComponent($this->employee, $this->futureDate, 10 * 60)
+            ->assertDontSee('Seuls les employés du magasin libres')
+            ->set('assignedUserId', $this->colleague->id)
+            ->call('save')
+            ->assertForbidden();
+
+        expect($this->appointment->fresh()->user_id)->toBe($this->employee->id);
+    });
+});
