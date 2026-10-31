@@ -226,7 +226,7 @@ it('conserve la sélection de plusieurs bons de commande puis commence la récep
         ->set("selected.{$lineA->id}", true)
         ->set('orderSearch', $orderB->number)
         ->set("selected.{$lineB->id}", true)
-        ->assertViewHas('selectedLines', fn ($lines) => $lines->pluck('id')->sort()->values()->all() === collect([$lineA->id, $lineB->id])->sort()->values()->all())
+        ->assertSet('expected', ['product-'.$lineA->product_id => 5, 'product-'.$lineB->product_id => 5])
         ->call('start')
         ->assertRedirect(route('receptions.show', Reception::first()));
 
@@ -408,6 +408,39 @@ it('regroupe les lignes d\'un même produit et les coche ensemble', function () 
         ->assertSee('8 / 8')
         ->call('toggleLines', [$line->id, $sameProduct->id])
         ->assertSet('selected', [$line->id => true, $sameProduct->id => true]);
+});
+
+it('attend la quantité prévue saisie, répartie aux clients d\'abord', function () {
+    [$order, [$stockLine, $customerLine]] = sameProductOrder([6, 2]);
+    CustomerOrderLine::factory()->create(['product_id' => $customerLine->product_id, 'supplier_order_line_id' => $customerLine->id, 'quantity' => 2]);
+    $groupKey = 'product-'.$stockLine->product_id;
+
+    Livewire::test(Create::class)
+        ->set('supplierId', (string) $order->supplier_id)
+        ->set('orderSearch', $order->number)
+        ->call('toggleLines', [$stockLine->id, $customerLine->id])
+        ->assertSet("expected.{$groupKey}", 8)
+        ->set("expected.{$groupKey}", '3')
+        ->call('start')
+        ->assertHasNoErrors();
+
+    $expected = Reception::first()->lines->pluck('quantity_expected', 'supplier_order_line_id')->all();
+
+    expect($expected)->toBe([$stockLine->id => 1, $customerLine->id => 2]);
+});
+
+it('refuse une quantité prévue supérieure à ce qui reste à recevoir', function () {
+    [$order, [$line]] = sentOrder(quantities: [4]);
+
+    Livewire::test(Create::class)
+        ->set('supplierId', (string) $order->supplier_id)
+        ->call('toggleLines', [$line->id])
+        ->set('expected.product-'.$line->product_id, '5')
+        ->call('start')
+        ->assertHasErrors('expected.product-'.$line->product_id)
+        ->assertNoRedirect();
+
+    expect(Reception::count())->toBe(0);
 });
 
 it('ne montre ni ne permet de modifier le coût unitaire pendant une réception', function () {

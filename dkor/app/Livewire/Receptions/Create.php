@@ -13,13 +13,14 @@ use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
  * Première étape d'une réception: on cherche des bons de commande (numéro ou quote #), on choisit les produits
- * attendus (les lignes d'un même produit sont regroupées), puis on commence la réception : tout ce qui reste à recevoir
- * y est attendu, et on compte ensuite ce qui est réellement reçu.
+ * attendus (les lignes d'un même produit sont regroupées) et on saisit la quantité prévue de chacun (bordereau du
+ * fournisseur), puis on commence la réception : on compte ensuite ce qui est réellement reçu.
  *
  * Seules les commandes destinées au magasin de l'usager sont offertes (ADR 0013). Avec stores.all, les autres magasins
  * le sont aussi, mais la première ligne cochée d'une commande d'un autre magasin demande une confirmation.
@@ -34,6 +35,12 @@ class Create extends Component
     /** @var array<int, bool> */
     public array $selected = [];
 
+    /** @var array<string, int|string> Quantité prévue par produit choisi (clé de groupe : product-X ou line-X). */
+    public array $expected = [];
+
+    /** @var array<string, int> Reste à recevoir de chaque produit choisi quand sa quantité prévue a été proposée. */
+    public array $expectedOutstanding = [];
+
     /** @var array<int, int> Commandes d'un autre magasin dont la réception a été confirmée. */
     public array $confirmedOrderIds = [];
 
@@ -44,7 +51,7 @@ class Create extends Component
 
     public function updatedSupplierId(): void
     {
-        $this->reset('selected', 'orderSearch', 'confirmedOrderIds', 'pendingLineId', 'showStoreConfirm');
+        $this->reset('selected', 'expected', 'expectedOutstanding', 'orderSearch', 'confirmedOrderIds', 'pendingLineId', 'showStoreConfirm');
         $this->resetValidation();
     }
 
@@ -63,9 +70,11 @@ class Create extends Component
             $this->updatedSelected(! $isChecked, (string) $id);
 
             if ($this->showStoreConfirm) {
-                return;
+                break;
             }
         }
+
+        $this->syncExpected();
     }
 
     /**
@@ -98,6 +107,8 @@ class Create extends Component
                 unset($this->selected[$id]);
             }
         }
+
+        $this->syncExpected();
     }
 
     /** L'usager confirme recevoir la commande d'un autre magasin : les lignes du produit en attente sont cochées. */
@@ -153,6 +164,50 @@ class Create extends Component
         foreach ($lineIds as $lineId) {
             unset($this->selected[(int) $lineId]);
         }
+
+        $this->syncExpected();
+    }
+
+    /**
+     * Chaque produit choisi a une quantité prévue, par défaut ce qui reste à recevoir (proposée de nouveau quand on coche
+     * ou décoche une ligne du produit); les produits retirés perdent la leur.
+     */
+    private function syncExpected(): void
+    {
+        $groups = $this->selectedGroups();
+
+        foreach ($groups as $groupKey => $lines) {
+            $outstanding = $lines->sum('quantity_outstanding');
+
+            if (($this->expectedOutstanding[$groupKey] ?? null) !== $outstanding) {
+                $this->expected[$groupKey] = $outstanding;
+                $this->expectedOutstanding[$groupKey] = $outstanding;
+            }
+        }
+
+        $this->expected = array_intersect_key($this->expected, $groups->all());
+        $this->expectedOutstanding = array_intersect_key($this->expectedOutstanding, $groups->all());
+    }
+
+    /**
+     * Lignes cochées regroupées par produit (la ligne seule sans produit), clients d'abord.
+     *
+     * @return SupportCollection<string, Collection<int, SupplierOrderLine>>
+     */
+    private function selectedGroups(): SupportCollection
+    {
+        $selectedIds = array_keys(array_filter($this->selected));
+
+        if ($selectedIds === []) {
+            return collect();
+        }
+
+        return SupplierOrderLine::with(['order', 'product', 'customerOrderLine'])
+            ->whereKey($selectedIds)
+            ->orderBy('id')
+            ->get()
+            ->sortBy(fn (SupplierOrderLine $line): int => $line->customerOrderLine !== null ? 0 : 1)
+            ->groupBy(fn (SupplierOrderLine $line): string => $line->product_id ? 'product-'.$line->product_id : 'line-'.$line->id);
     }
 
     public function start(): void
@@ -165,16 +220,29 @@ class Create extends Component
 
         $receipts = [];
 
-        foreach (array_keys(array_filter($this->selected)) as $lineId) {
-            $line = $this->receivableLine((int) $lineId);
+        foreach ($this->selectedGroups() as $groupKey => $lines) {
+            foreach ($lines as $line) {
+                if ($this->receivableLine($line->id) === null || $this->needsStoreConfirmation($line)) {
+                    Flux::toast(text: __('Une ligne choisie n\'est plus à recevoir pour votre magasin : vérifiez la sélection.'), variant: 'danger');
 
-            if ($line === null || $this->needsStoreConfirmation($line)) {
-                Flux::toast(text: __('Une ligne choisie n\'est plus à recevoir pour votre magasin : vérifiez la sélection.'), variant: 'danger');
-
-                return;
+                    return;
+                }
             }
 
-            $receipts[(int) $lineId] = ['quantity' => 0, 'expected' => $line->quantity_outstanding];
+            $outstanding = $lines->sum('quantity_outstanding');
+            $this->validate(
+                ["expected.{$groupKey}" => ['required', 'integer', 'min:0', 'max:'.$outstanding]],
+                ["expected.{$groupKey}.max" => __('Il reste :max à recevoir : ajoutez l\'excédent comme reçu en trop dans la réception.', ['max' => $outstanding])],
+                ["expected.{$groupKey}" => __('quantité prévue')],
+            );
+
+            $remaining = (int) $this->expected[$groupKey];
+
+            foreach ($lines as $line) {
+                $expected = min($remaining, $line->quantity_outstanding);
+                $remaining -= $expected;
+                $receipts[$line->id] = ['quantity' => 0, 'expected' => $expected];
+            }
         }
 
         try {
@@ -248,7 +316,6 @@ class Create extends Component
 
     public function render(): View
     {
-        $selectedIds = array_keys(array_filter($this->selected));
         $pendingLine = $this->pendingLineId !== null ? $this->receivableLine($this->pendingLineId) : null;
 
         return view('livewire.receptions.create', [
@@ -261,9 +328,7 @@ class Create extends Component
                 ->get(),
             'orders' => $this->matchingOrders(),
             'pendingLine' => $pendingLine,
-            'selectedLines' => $selectedIds === []
-                ? new Collection
-                : SupplierOrderLine::with(['order', 'product'])->whereKey($selectedIds)->get(),
+            'selectedGroups' => $this->selectedGroups(),
         ])->layout('layouts.app', ['title' => __('Nouvelle réception')]);
     }
 }

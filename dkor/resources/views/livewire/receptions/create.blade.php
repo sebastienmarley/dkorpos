@@ -2,7 +2,7 @@
     <div class="mb-6">
         <flux:link :href="route('receptions.index')" wire:navigate class="text-sm">← {{ __('Réceptions') }}</flux:link>
         <flux:heading level="1" size="xl" class="mt-1">{{ __('Nouvelle réception') }}</flux:heading>
-        <flux:text class="mt-1 text-zinc-500">{{ __('Choisissez un fournisseur, cherchez un bon de commande, cochez les produits attendus, puis commencez la réception : vous compterez ensuite ce qui est réellement reçu.') }}</flux:text>
+        <flux:text class="mt-1 text-zinc-500">{{ __('Choisissez un fournisseur, cherchez un bon de commande, cochez les produits attendus et saisissez leur quantité prévue (bordereau du fournisseur), puis commencez la réception : vous compterez ensuite ce qui est réellement reçu.') }}</flux:text>
     </div>
 
     <form wire:submit="start" class="space-y-6">
@@ -97,22 +97,24 @@
                 </div>
             @endif
 
-            {{-- Sélection courante, toutes recherches confondues --}}
-            @if ($selectedLines->isNotEmpty())
+            {{-- Sélection courante, toutes recherches confondues : quantité prévue selon le bordereau du fournisseur --}}
+            @if ($selectedGroups->isNotEmpty())
                 <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-                    @php
-                        $selectedGroups = $selectedLines->groupBy(fn ($line) => $line->product_id ? 'product-'.$line->product_id : 'line-'.$line->id);
-                    @endphp
                     <flux:heading size="lg">{{ __('À recevoir') }} ({{ $selectedGroups->count() }})</flux:heading>
+                    <flux:text class="mt-1 text-sm text-zinc-500">{{ __('Saisissez la quantité prévue de chaque produit selon le bordereau du fournisseur.') }}</flux:text>
                     <div class="mt-3 divide-y divide-zinc-200 dark:divide-zinc-700">
                         @foreach ($selectedGroups as $groupKey => $groupLines)
-                            <div class="flex items-center justify-between gap-3 py-2" wire:key="selected-{{ $groupKey }}">
-                                <div>
+                            <div class="flex flex-wrap items-center justify-between gap-3 py-2" wire:key="selected-{{ $groupKey }}">
+                                <div class="min-w-0">
                                     <flux:text class="font-medium">{{ $groupLines->first()->label }}</flux:text>
-                                    <flux:text class="text-xs text-zinc-400">{{ $groupLines->map(fn ($line) => $line->order->number)->unique()->join(', ') }}</flux:text>
+                                    <flux:text class="text-xs text-zinc-400">
+                                        {{ $groupLines->map(fn ($line) => $line->order->number)->unique()->join(', ') }}
+                                        · {{ __('En commande : :count', ['count' => $groupLines->sum('quantity_outstanding')]) }}
+                                    </flux:text>
+                                    <flux:error name="expected.{{ $groupKey }}" />
                                 </div>
-                                <div class="flex flex-wrap items-center gap-3">
-                                    <flux:text>× {{ $groupLines->sum('quantity_outstanding') }}</flux:text>
+                                <div class="flex items-center gap-2">
+                                    <flux:input type="number" min="0" :max="$groupLines->sum('quantity_outstanding')" size="sm" class="w-24" wire:model="expected.{{ $groupKey }}" :aria-label="__('Quantité prévue')" />
                                     <flux:button type="button" size="xs" variant="ghost" icon="x-mark" wire:click="removeSelected({{ json_encode($groupLines->pluck('id')->all()) }})" />
                                 </div>
                             </div>
@@ -123,7 +125,7 @@
 
             <div class="flex justify-end gap-3">
                 <flux:button :href="route('receptions.index')" wire:navigate variant="ghost">{{ __('Annuler') }}</flux:button>
-                <flux:button type="submit" variant="primary" icon="inbox-arrow-down" :disabled="$selectedLines->isEmpty()">{{ __('Commencer la réception') }}</flux:button>
+                <flux:button type="submit" variant="primary" icon="inbox-arrow-down" :disabled="$selectedGroups->isEmpty()">{{ __('Commencer la réception') }}</flux:button>
             </div>
         @endif
     </form>
