@@ -32,7 +32,7 @@
             @can('update', $user)
                 <button
                     type="button"
-                    @click="tab = 'identification'"
+                    @click="$wire.switchTab('identification')"
                     :class="tab === 'identification' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                     class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('Identification') }}</button>
@@ -41,7 +41,7 @@
             @can('viewHr', $user)
                 <button
                     type="button"
-                    @click="tab = 'hr'"
+                    @click="$wire.switchTab('hr')"
                     :class="tab === 'hr' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                     class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('RH') }}</button>
@@ -50,7 +50,7 @@
             @can('update', $user)
                 <button
                     type="button"
-                    @click="tab = 'address'"
+                    @click="$wire.switchTab('address')"
                     :class="tab === 'address' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                     class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('Adresse') }}</button>
@@ -59,7 +59,7 @@
             @can('update', $user)
                 <button
                     type="button"
-                    @click="tab = 'account'"
+                    @click="$wire.switchTab('account')"
                     :class="tab === 'account' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                     class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('Compte') }}</button>
@@ -68,7 +68,7 @@
             @can('assignPermissions', $user)
                 <button
                     type="button"
-                    @click="tab = 'access'"
+                    @click="$wire.switchTab('access')"
                     :class="tab === 'access' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                     class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('Accès') }}</button>
@@ -78,7 +78,7 @@
         @can('update', $user)
             {{-- Identification --}}
             <div x-show="tab === 'identification'">
-                <form wire:submit="saveIdentification" class="mt-6 max-w-2xl space-y-6">
+                <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>
                             <flux:label>{{ __('Prénom') }}</flux:label>
@@ -154,7 +154,7 @@
                     </div>
 
                     <div class="flex justify-end pt-2">
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     </div>
                 </form>
             </div>
@@ -163,7 +163,7 @@
         @can('viewHr', $user)
             {{-- RH --}}
             <div x-show="tab === 'hr'" x-cloak>
-                <form wire:submit="saveHr" class="mt-6 max-w-2xl space-y-6">
+                <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                     <fieldset @disabled(auth()->user()->cannot('editHr', $user)) class="space-y-6">
                     <flux:field variant="inline">
                         <flux:checkbox wire:model="isFullTime" :label="__('Temps plein')" />
@@ -291,7 +291,7 @@
 
                     @can('editHr', $user)
                         <div class="flex justify-end pt-2">
-                            <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                            <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                         </div>
                     @endcan
                 </form>
@@ -301,11 +301,11 @@
         @can('update', $user)
             {{-- Adresse --}}
             <div x-show="tab === 'address'" x-cloak>
-                <form wire:submit="saveAddress" class="mt-6 max-w-2xl space-y-6">
+                <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                     <x-address-input prefix="address" :current-country="$address['country'] ?? 'CA'" />
 
                     <div class="flex justify-end pt-2">
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     </div>
                 </form>
             </div>
@@ -326,14 +326,14 @@
                         </div>
                     </div>
 
-                    <form wire:submit="saveAccount" class="space-y-4">
+                    <form wire:submit="saveAndClose" class="space-y-4">
                         <flux:field>
                             <flux:checkbox wire:model="isActive" :label="__('Actif')" />
                             <flux:error name="isActive" />
                         </flux:field>
 
                         <div class="flex justify-end">
-                            <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                            <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                         </div>
                     </form>
 
@@ -403,7 +403,7 @@
         {{-- Accès --}}
         @can('assignPermissions', $user)
             <div x-show="tab === 'access'" x-cloak>
-                <form wire:submit="saveAccess" class="mt-6 max-w-2xl space-y-6">
+                <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                     <flux:text class="text-sm text-zinc-500">
                         {{ __('Les permissions du rôle sont cochées par défaut. Cochez pour ajouter une permission, décochez pour en retirer une, même si elle vient du rôle. Vous ne pouvez modifier que les permissions que vous possédez.') }}
                     </flux:text>
@@ -443,7 +443,7 @@
                     @endforeach
 
                     <div class="flex justify-end pt-2">
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     </div>
                 </form>
             </div>

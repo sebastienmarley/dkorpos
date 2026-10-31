@@ -131,6 +131,58 @@ it('sauvegarde l\'identification, la comptabilité et les paramètres', function
         ->and($store->is_active)->toBeFalse();
 });
 
+it('sauvegarde l\'onglet modifié en changeant d\'onglet', function () {
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    $store = Store::factory()->create();
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->set('name', 'Nouveau nom')
+        ->call('switchTab', 'accounting')
+        ->assertHasNoErrors()
+        ->assertSet('activeTab', 'accounting');
+
+    expect($store->fresh()->name)->toBe('Nouveau nom');
+});
+
+it('reste sur l\'onglet modifié quand sa sauvegarde est invalide', function () {
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    $store = Store::factory()->create(['name' => 'Ancien nom']);
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->set('name', '')
+        ->call('switchTab', 'accounting')
+        ->assertHasErrors('name')
+        ->assertSet('activeTab', 'identification');
+
+    expect($store->fresh()->name)->toBe('Ancien nom');
+});
+
+it('ne sauvegarde pas un onglet intact en changeant d\'onglet', function () {
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    $store = Store::factory()->create();
+
+    $component = Livewire::test(Show::class, ['store' => $store]);
+    $store->update(['name' => 'Modifié ailleurs']);
+
+    $component->call('switchTab', 'accounting')->assertSet('activeTab', 'accounting');
+
+    expect($store->fresh()->name)->toBe('Modifié ailleurs');
+});
+
+it('sauvegarde l\'onglet puis retourne à la liste', function () {
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    $store = Store::factory()->create();
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->call('switchTab', 'shipping')
+        ->set('shippingMaxWeight', '40')
+        ->call('saveAndClose')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('stores.index'));
+
+    expect($store->fresh()->shipping_max_weight)->toEqual(40);
+});
+
 it('sauvegarde les heures d\'ouverture', function () {
     $this->actingAs(User::factory()->withRole('owner')->create());
     $store = Store::factory()->create();

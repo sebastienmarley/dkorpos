@@ -112,12 +112,15 @@ $postalMaxlength = $isUs ? 5 : 6;
                 <flux:input wire:model="{{ $prefix }}.postal_code" type="text" maxlength="5" placeholder="{{ $postalPlaceholder }}" />
             </div>
         @else
-            {{-- Code postal canadien: lettres et chiffres en majuscule, 6 chars --}}
+            {{-- Code postal canadien: lettre et chiffre en alternance (A1A1A1), en majuscule --}}
             <div
                 x-data
                 x-on:input.capture="
                     const el = $event.target;
-                    const val = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 6);
+                    let val = '';
+                    for (const char of el.value.toUpperCase()) {
+                        if (val.length < 6 && (val.length % 2 === 0 ? /[A-Z]/ : /[0-9]/).test(char)) val += char;
+                    }
                     if (el.value !== val) el.value = val;
                 "
             >

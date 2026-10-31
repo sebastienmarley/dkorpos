@@ -2,9 +2,11 @@
 
 namespace App\Livewire\Suppliers;
 
+use App\Concerns\SavesTabsOnSwitch;
 use App\Enums\SupplierType;
 use App\Models\Currency;
 use App\Models\Supplier;
+use App\Rules\PostalCode;
 use App\Support\Money;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -13,6 +15,8 @@ use Livewire\Component;
 
 class Show extends Component
 {
+    use SavesTabsOnSwitch;
+
     public Supplier $supplier;
 
     public string $activeTab = 'identification';
@@ -98,6 +102,24 @@ class Show extends Component
         $this->paymentAddress['province'] = '';
     }
 
+    /**
+     * @return array<string, array{save: string, fields: array<int, string>}>
+     */
+    protected function tabForms(): array
+    {
+        return [
+            'identification' => ['save' => 'saveIdentification', 'fields' => ['type', 'name', 'address', 'phone', 'email', 'isActive']],
+            'accounting' => ['save' => 'saveAccounting', 'fields' => ['accountNumber', 'bankAccount', 'currencyId', 'earlyPaymentDiscountPercent', 'earlyPaymentDiscountDays', 'earlyPaymentNextMonth', 'paymentAddress', 'sameAsMainAddress']],
+            'transport' => ['save' => 'saveTransport', 'fields' => ['prepaidAmount', 'collect', 'defaultShippingSupplierId']],
+            'parameters' => ['save' => 'saveParameters', 'fields' => ['orderEmail', 'baseMultiplier', 'customsFee', 'shippingFee', 'orderable', 'customMade']],
+        ];
+    }
+
+    protected function closeRoute(): string
+    {
+        return 'suppliers.index';
+    }
+
     public function saveIdentification(): void
     {
         $this->authorize('suppliers.edit');
@@ -111,7 +133,7 @@ class Show extends Component
             'address.city' => ['nullable', 'string', 'max:100'],
             'address.province' => ['nullable', 'string', 'size:2'],
             'address.country' => ['nullable', 'string', 'in:CA,US'],
-            'address.postal_code' => ['nullable', 'string', 'max:6'],
+            'address.postal_code' => ['nullable', 'string', new PostalCode($this->address['country'] ?? null)],
             'phone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
             'email' => ['nullable', 'email', 'max:255'],
             'isActive' => ['boolean'],
@@ -159,7 +181,7 @@ class Show extends Component
             'paymentAddress.city' => ['nullable', 'string', 'max:100'],
             'paymentAddress.province' => ['nullable', 'string', 'size:2'],
             'paymentAddress.country' => ['nullable', 'string', 'in:CA,US'],
-            'paymentAddress.postal_code' => ['nullable', 'string', 'max:6'],
+            'paymentAddress.postal_code' => ['nullable', 'string', new PostalCode($this->paymentAddress['country'] ?? null)],
         ]);
 
         $this->supplier->fill([

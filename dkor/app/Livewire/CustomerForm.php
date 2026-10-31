@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\customer;
+use App\Rules\PostalCode;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
@@ -93,7 +94,7 @@ class CustomerForm extends Component
             'address.city' => ['nullable', 'string', 'max:100'],
             'address.province' => ['nullable', 'string', 'size:2'],
             'address.country' => ['nullable', 'string', 'in:CA,US'],
-            'address.postal_code' => ['nullable', 'string', 'max:6'],
+            'address.postal_code' => ['nullable', 'string', new PostalCode($this->address['country'] ?? null)],
         ]);
 
         $data = [
