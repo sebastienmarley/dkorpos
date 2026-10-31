@@ -190,9 +190,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         showLock() {
+            // Chaque requête refusée (un wire:poll, par exemple) réaffiche l'écran : on garde alors le NIP en cours de
+            // saisie, qui n'est vidé qu'au moment du verrouillage.
+            if (!this.locked) {
+                this.pin = '';
+                this.error = '';
+            }
+
             this.locked = true;
-            this.pin = '';
-            this.error = '';
 
             // Rouvert même s'il l'est déjà, pour repasser par-dessus un modal ouvert entre-temps.
             if (this.$root.open) {

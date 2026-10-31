@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 beforeEach(function () {
     config(['access.session_lock.idle_minutes' => 5, 'access.session_lock.max_attempts' => 5]);
@@ -14,6 +15,18 @@ function leaveSessionIdle(User $user): void
 {
     test()->actingAs($user)->get(route('home'))->assertOk();
     test()->travel(6)->minutes();
+}
+
+/**
+ * Rejoue l'écriture d'une requête concurrente (un wire:poll, par exemple) : lue avant l'action, elle réécrit à la fin
+ * la session telle qu'elle était.
+ *
+ * @param  array<string, mixed>  $staleSession
+ */
+function finishConcurrentRequest(array $staleSession): void
+{
+    session()->flush();
+    session()->put($staleSession);
 }
 
 // ── Verrouillage ──────────────────────────────────────────────────────────
@@ -33,10 +46,30 @@ it('garde la session ouverte tant que l\'usager est actif', function () {
     $this->get(route('home'))->assertOk();
 });
 
+it('garde un battement de cœur qu\'une requête concurrente réécrit dans la session', function () {
+    $this->actingAs(User::factory()->withPin()->create())->get(route('home'));
+    $this->travel(4)->minutes();
+
+    $staleSession = session()->all();
+    $this->postJson(route('session-lock.heartbeat'))->assertJson(['locked' => false]);
+    finishConcurrentRequest($staleSession);
+    $this->travel(4)->minutes();
+
+    $this->get(route('home'))->assertOk();
+});
+
 it('n\'ouvre pas une session déjà verrouillée par un battement de cœur', function () {
     leaveSessionIdle(User::factory()->withPin()->create());
 
     $this->postJson(route('session-lock.heartbeat'))->assertJson(['locked' => true]);
+    $this->get(route('home'))->assertRedirect(route('session-lock.show'));
+});
+
+it('verrouille une session dont l\'état a disparu du cache', function () {
+    $this->actingAs(User::factory()->withPin()->create())->get(route('home'))->assertOk();
+
+    Cache::flush();
+
     $this->get(route('home'))->assertRedirect(route('session-lock.show'));
 });
 
@@ -102,6 +135,16 @@ it('déverrouille l\'écran superposé à la page sans la recharger', function (
     leaveSessionIdle(User::factory()->withPin('1234')->create());
 
     $this->postJson(route('session-lock.unlock'), ['pin' => '1234'])->assertJson(['locked' => false]);
+    $this->getJson(route('home'))->assertOk();
+});
+
+it('garde le déverrouillage qu\'une requête concurrente réécrit dans la session', function () {
+    leaveSessionIdle(User::factory()->withPin('1234')->create());
+
+    $staleSession = session()->all();
+    $this->postJson(route('session-lock.unlock'), ['pin' => '1234'])->assertJson(['locked' => false]);
+    finishConcurrentRequest($staleSession);
+
     $this->getJson(route('home'))->assertOk();
 });
 
