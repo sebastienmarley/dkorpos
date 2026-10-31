@@ -72,7 +72,7 @@
                         <flux:button icon="paper-airplane" x-on:click="$dispatch('open-delivery-modal', { method: 'shipping' })">{{ __('Expédition') }}</flux:button>
                     @endif
                     @if ($order->balance_due->isPositive() || $order->lines->contains(fn ($line) => $line->status->isPickable() && $line->quantity_reserved > 0))
-                        <flux:button variant="primary" icon="hand-raised" wire:click="openPickupModal">{{ __('Ramasser') }}</flux:button>
+                        <flux:button variant="primary" icon="shopping-cart" wire:click="openPickupModal">{{ __('Poursuivre') }}</flux:button>
                     @endif
                 </div>
             </div>

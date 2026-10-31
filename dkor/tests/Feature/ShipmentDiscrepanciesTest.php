@@ -51,8 +51,10 @@ describe('articles manquants', function () {
         $receptionLine = $reception->lines()->sole();
 
         Livewire::test(ReceptionShow::class, ['reception' => $reception])
-            ->set("quantities.{$receptionLine->id}", '3')
-            ->set("short.{$receptionLine->id}", '2')
+            ->call('openGroup', $receptionLine->groupKey())
+            ->set('received', '3')
+            ->set('short', '2')
+            ->call('saveGroup')
             ->call('complete')
             ->assertHasNoErrors()
             ->assertSee('2 article(s) manquant(s)');

@@ -93,9 +93,11 @@ it('saisit les endommagés dans une réception en cours avant de la terminer', f
     $reception = Reception::start($order->supplier, [$line->id => ['quantity' => 4]]);
 
     Livewire::test(ReceptionShow::class, ['reception' => $reception])
+        ->call('openGroup', 'product-'.$product->id)
         ->assertSee('dont endommagé')
-        ->set('damaged.'.$reception->lines()->sole()->id, '1')
-        ->call('saveQuantities')
+        ->set('received', '4')
+        ->set('damaged', '1')
+        ->call('saveGroup')
         ->assertHasNoErrors()
         ->call('complete');
 

@@ -204,12 +204,12 @@ describe('modal de ramassage', function () {
             ->assertSet('pickupRequiredCents', 3449);
     });
 
-    it('propose les lignes avec du stock réservé, calcule le montant puis enregistre le ramassage', function () {
+    it('propose les lignes avec du stock réservé, calcule le montant, enregistre le ramassage puis revient à la liste', function () {
         $line = stockedLine($this->order, 1, 1, 100);
         stockedLine($this->order, 0, 1, 50);
 
         Livewire::test(Show::class, ['order' => $this->order])
-            ->assertSee('Ramasser')
+            ->assertSee('Poursuivre')
             ->call('openPickupModal')
             ->assertSet('pickupQuantities', [$line->id => 1])
             ->call('continueToPayment')
@@ -217,7 +217,7 @@ describe('modal de ramassage', function () {
             ->assertSet('pickupRequiredCents', 13223)
             ->call('confirmPickup')
             ->assertHasNoErrors()
-            ->assertSet('showPickupModal', false);
+            ->assertRedirect(route('customer-orders.index'));
 
         expect($line->fresh()->status)->toBe(CustomerOrderLineStatus::PickedUp)
             ->and($this->order->fresh()->amount_paid)->toBeMoney(13223);

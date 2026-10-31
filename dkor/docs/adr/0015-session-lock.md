@@ -1,7 +1,7 @@
 # ADR 0015 — Verrouillage de la session par NIP après inactivité
 
 - **Statut :** Accepté
-- **Date :** 2026-10-26
+- **Date :** 2026-10-26 (révisée le 2026-10-31 : état gardé dans le cache plutôt qu'en session)
 - **Issue liée :** #122
 - **Complète :** [ADR 0002](0002-auth.md) (limitation d'une session laissée ouverte) et [ADR 0014](0014-production.md)
   (création imposée à la connexion, sur le modèle de la 2FA)
@@ -33,9 +33,9 @@ Un écran superposé à la page après quelques minutes d'inactivité.
 - ✅ La page garde son état
 - ❌ Contourné en retirant l'écran avec les outils du navigateur, ou en ouvrant un nouvel onglet
 
-### Option C — Verrouillage gardé en session, déverrouillage par NIP ✔️
+### Option C — Verrouillage gardé côté serveur, déverrouillage par NIP ✔️
 
-Le serveur garde l'état verrouillé dans la session et refuse toute requête tant que le NIP n'est pas saisi. Le
+Le serveur garde l'état verrouillé et refuse toute requête tant que le NIP n'est pas saisi. Le
 navigateur affiche un écran superposé à la page pour que celle-ci garde son état.
 
 - ✅ La page et les formulaires gardent leur état ; l'usager reprend en quelques secondes
@@ -59,7 +59,14 @@ Nous retenons l'**option C**.
 
 **Verrouillage**
 
-- `App\Support\SessionLock` garde en session la dernière activité et l'état verrouillé.
+- `App\Support\SessionLock` garde la dernière activité et l'état verrouillé dans le cache, sous un jeton aléatoire
+  rangé dans la session (`session_lock.token`), pour la durée de la session (`session.lifetime`). Ils ne sont pas dans
+  la session elle-même : chaque requête réécrit la session entière telle qu'elle l'a lue, si bien qu'une requête
+  Livewire en cours (un `wire:poll`, par exemple) effaçait un battement de cœur, un verrouillage ou un déverrouillage
+  enregistré pendant ce temps. Le jeton, lui, ne change jamais : une copie périmée de la session le réécrit à
+  l'identique.
+- Une session sans jeton est neuve et démarre son activité. Une session qui a un jeton mais plus d'état dans le cache
+  (cache vidé au déploiement, par exemple) est verrouillée plutôt que rouverte.
 - `EnsureSessionIsUnlocked` verrouille la session inactive depuis `access.session_lock.idle_minutes` (5 par défaut,
   `SESSION_LOCK_IDLE_MINUTES`). Une session verrouillée reçoit une redirection vers l'écran de verrouillage pour une
   page, et un 423 pour une requête Livewire ou JSON. Seuls l'écran de verrouillage (`session-lock.*`) et la
@@ -69,7 +76,8 @@ Nous retenons l'**option C**.
   (`session-lock.heartbeat`), au plus toutes les 30 secondes.
 - Dans le navigateur (`resources/js/app.js`), l'inactivité est partagée entre les onglets par le `localStorage` :
   travailler dans un onglet garde les autres ouverts, et verrouiller ou déverrouiller un onglet fait de même pour les
-  autres. Un 423 reçu par Livewire affiche l'écran au lieu de la fenêtre d'erreur.
+  autres. Un 423 reçu par Livewire affiche l'écran au lieu de la fenêtre d'erreur. Chaque requête refusée réaffiche
+  l'écran par-dessus les modals ouverts entre-temps, sans effacer le NIP en cours de saisie.
 - « Verrouiller » dans le menu de l'usager verrouille tout de suite, pour un poste partagé.
 
 **Déverrouillage**
@@ -93,6 +101,8 @@ Nous retenons l'**option C**.
 - Le contenu déjà affiché reste dans la page, sous l'écran superposé : on peut le lire en retirant l'écran avec les
   outils du navigateur. Aucune action n'est possible, le serveur refusant les requêtes.
 - Un usager qui oublie son NIP doit se reconnecter avec son mot de passe, puis le changer dans ses paramètres.
+- Le verrou dépend du cache (`CACHE_STORE`) : chaque requête d'un usager qui a un NIP y lit son état. Vider le cache
+  verrouille toutes les sessions ouvertes.
 
 **Protections mises en place**
 

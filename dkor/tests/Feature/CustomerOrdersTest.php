@@ -34,13 +34,13 @@ beforeEach(function () {
 });
 
 describe('index', function () {
-    it('liste les commandes et cherche par numéro ou par client', function () {
+    it('n\'affiche les commandes qu\'après une recherche par numéro ou par client', function () {
         $tremblay = CustomerOrder::factory()->for(customer::factory()->state(['firstname' => 'Marguerite', 'lastname' => 'Tremblay']))->create();
         $gagnon = CustomerOrder::factory()->for(customer::factory()->state(['firstname' => 'Paul', 'lastname' => 'Gagnon']))->create();
 
         Livewire::test(Index::class)
-            ->assertSee('Tremblay')
-            ->assertSee('Gagnon')
+            ->assertDontSee('Tremblay')
+            ->assertDontSee('Gagnon')
             ->set('search', 'Tremb')
             ->assertSee('Tremblay')
             ->assertDontSee('Gagnon')

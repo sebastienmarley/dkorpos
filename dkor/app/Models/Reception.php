@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -117,14 +118,15 @@ class Reception extends Model
      * Commence une réception: elle contient les lignes de commande choisies et leur quantité, sans effet sur
      * l'inventaire tant qu'elle n'est pas terminée. Les quantités sont plafonnées à ce qui reste à recevoir; la
      * quantité endommagée (facultative) fait partie de la quantité reçue; la quantité manquante (facultative) est
-     * annoncée par le fournisseur, mais non reçue.
+     * annoncée par le fournisseur, mais non reçue. Avec une quantité attendue, la ligne reste à vérifier (on compte
+     * ensuite ce qui est reçu); sans elle, la quantité saisie est attendue et déjà vérifiée.
      *
-     * @param  array<int, array{quantity: int|string, damaged?: int|string|null, short?: int|string|null}>  $receipts  Indexé par id de ligne de commande.
+     * @param  array<int, array{quantity: int|string, expected?: int|string|null, damaged?: int|string|null, short?: int|string|null}>  $receipts  Indexé par id de ligne de commande.
      * @param  array{reference?: string|null, notes?: string|null, received_by?: int|string|null}  $details
      */
     public static function start(Supplier $supplier, array $receipts, array $details = []): Reception
     {
-        $receipts = array_filter($receipts, fn (array $receipt) => (int) $receipt['quantity'] + (int) ($receipt['short'] ?? 0) > 0);
+        $receipts = array_filter($receipts, fn (array $receipt) => (int) ($receipt['expected'] ?? 0) + (int) $receipt['quantity'] + (int) ($receipt['short'] ?? 0) > 0);
 
         if ($receipts === []) {
             throw new DomainException(__('Saisissez au moins une quantité à réceptionner.'));
@@ -134,6 +136,7 @@ class Reception extends Model
             $lines = SupplierOrderLine::query()
                 ->with('order')
                 ->whereIn('id', array_keys($receipts))
+                ->orderBy('id')
                 ->get();
 
             if ($lines->count() !== count($receipts)) {
@@ -174,14 +177,18 @@ class Reception extends Model
             foreach ($lines as $line) {
                 $quantity = min(max(0, (int) $receipts[$line->id]['quantity']), $line->quantity_outstanding);
                 $short = min(max(0, (int) ($receipts[$line->id]['short'] ?? 0)), $line->quantity_outstanding - $quantity);
+                $hasExpected = isset($receipts[$line->id]['expected']);
+                $expected = $hasExpected ? min(max(0, (int) $receipts[$line->id]['expected']), $line->quantity_outstanding) : 0;
 
-                if ($quantity + $short > 0) {
+                if ($expected + $quantity + $short > 0) {
                     $reception->lines()->create([
                         'supplier_order_line_id' => $line->id,
                         'product_id' => $line->product_id,
                         'quantity' => $quantity,
+                        'quantity_expected' => max($expected, $quantity + $short),
                         'quantity_damaged' => self::damagedQuantity($line, $quantity, $receipts[$line->id]['damaged'] ?? 0),
                         'quantity_short' => $short,
+                        'checked_at' => $hasExpected ? null : now(),
                         'unit_cost' => $line->unit_cost,
                     ]);
                 }
@@ -233,9 +240,169 @@ class Reception extends Model
 
         $line->update([
             'quantity' => $quantity,
+            'quantity_expected' => $orderLine->is_overship ? $quantity : max($line->quantity_expected, $quantity + $short),
             'quantity_damaged' => self::damagedQuantity($orderLine, $quantity, $damaged ?? $line->quantity_damaged),
             'quantity_short' => $short,
+            'checked_at' => now(),
         ]);
+    }
+
+    /**
+     * Lignes de la réception regroupées par produit (ReceptionLine::groupKey()), chaque groupe trié pour servir
+     * d'abord les articles commandés pour un client.
+     *
+     * @return SupportCollection<string, Collection<int, ReceptionLine>>
+     */
+    public function lineGroups(): SupportCollection
+    {
+        $this->loadMissing(['lines.orderLine.customerOrderLine', 'lines.orderLine.order']);
+
+        return $this->lines
+            ->sortBy(fn (ReceptionLine $line): array => [$line->isForCustomer() ? 0 : 1, $line->id])
+            ->groupBy(fn (ReceptionLine $line): string => $line->groupKey());
+    }
+
+    /**
+     * Enregistre ce qui est réellement reçu d'un produit de la réception en cours, toutes ses lignes ensemble, et le
+     * marque vérifié. Les unités en bon état servent d'abord les clients; les unités endommagées et les manquants
+     * vont d'abord aux lignes pour l'inventaire. Ce qui n'est ni reçu ni manquant reste en commande.
+     *
+     * @throws DomainException si une quantité est invalide.
+     */
+    public function receiveGroup(string $groupKey, int $received, int $damaged = 0, int $short = 0): void
+    {
+        DB::transaction(function () use ($groupKey, $received, $damaged, $short): void {
+            $this->refreshForUpdate();
+            $this->allocateGroup($this->groupOrFail($groupKey), $received, $damaged, $short, checked: true);
+        });
+
+        $this->unsetRelation('lines');
+    }
+
+    /**
+     * Compte une unité balayée (UPC) dans le produit attendu correspondant. Le produit devient vérifié quand tout ce
+     * qui est attendu est reçu ou déclaré manquant.
+     *
+     * @return Collection<int, ReceptionLine> les lignes du produit compté
+     *
+     * @throws DomainException si le code est inconnu, si le produit n'est pas attendu ou s'il est déjà entièrement reçu.
+     */
+    public function receiveScannedUpc(string $upc): Collection
+    {
+        $productIds = ProductUpc::query()->where('upc', trim($upc))->pluck('product_id');
+
+        if ($productIds->isEmpty()) {
+            throw new DomainException(__('Aucun produit ne porte le code « :upc ».', ['upc' => trim($upc)]));
+        }
+
+        return DB::transaction(function () use ($productIds, $upc): Collection {
+            $this->refreshForUpdate()->unsetRelation('lines');
+
+            if (! $this->isInProgress()) {
+                throw new DomainException(__('Cette réception est terminée.'));
+            }
+
+            $groupKey = $productIds->map(fn (int $productId): string => 'product-'.$productId)
+                ->first(fn (string $key): bool => $this->lineGroups()->has($key));
+
+            if ($groupKey === null) {
+                throw new DomainException(__('Le produit « :upc » n\'est pas attendu dans cette réception : ajoutez-le comme article reçu en trop.', ['upc' => trim($upc)]));
+            }
+
+            $lines = $this->lineGroups()->get($groupKey);
+            $received = $lines->sum('quantity') + 1;
+            $short = $lines->sum('quantity_short');
+
+            if ($received + $short > $lines->sum('quantity_expected')) {
+                throw new DomainException(__('Tout ce qui est attendu de :label est déjà compté : ajoutez le surplus comme article reçu en trop.', ['label' => $lines->first()->label]));
+            }
+
+            $checked = $received + $short === $lines->sum('quantity_expected') || $lines->every(fn (ReceptionLine $line): bool => $line->checked_at !== null);
+            $this->allocateGroup($lines, $received, $lines->sum('quantity_damaged'), $short, $checked);
+
+            return $lines->each->refresh();
+        });
+    }
+
+    /**
+     * @return Collection<int, ReceptionLine>
+     *
+     * @throws DomainException si le produit n'est pas dans la réception.
+     */
+    private function groupOrFail(string $groupKey): Collection
+    {
+        $this->unsetRelation('lines');
+        $lines = $this->lineGroups()->get($groupKey);
+
+        if ($lines === null || ! $this->isInProgress()) {
+            throw new DomainException(__('Ce produit ne peut plus être modifié.'));
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Répartit les quantités d'un produit sur ses lignes, dans la limite de ce qui est attendu de chacune.
+     *
+     * @param  Collection<int, ReceptionLine>  $lines  triées, clients d'abord
+     *
+     * @throws DomainException si une quantité est invalide.
+     */
+    private function allocateGroup(Collection $lines, int $received, int $damaged, int $short, bool $checked): void
+    {
+        if ($lines->count() === 1 && $lines->first()->orderLine->is_overship) {
+            $this->applyLineQuantity($lines->first(), $received, $damaged, 0);
+
+            return;
+        }
+
+        $expected = $lines->sum('quantity_expected');
+
+        if ($received < 0 || $short < 0 || $received + $short > $expected) {
+            throw new DomainException(__('La quantité reçue et la quantité manquante ne peuvent pas dépasser la quantité attendue (:max).', ['max' => $expected]));
+        }
+
+        if ($damaged < 0 || $damaged > $received) {
+            throw new DomainException(__('La quantité endommagée doit être entre 0 et la quantité reçue (:max).', ['max' => $received]));
+        }
+
+        $damaged = $lines->first()->product_id === null ? 0 : $damaged;
+        $remaining = $lines->mapWithKeys(fn (ReceptionLine $line): array => [$line->id => $line->quantity_expected])->all();
+        $customersFirst = $lines->pluck('id')->all();
+        $stockFirst = array_reverse($customersFirst);
+
+        $good = self::distribute($remaining, $customersFirst, $received - $damaged);
+        $damagedByLine = self::distribute($remaining, $stockFirst, $damaged);
+        $shortByLine = self::distribute($remaining, $stockFirst, $short);
+
+        foreach ($lines as $line) {
+            $line->update([
+                'quantity' => $good[$line->id] + $damagedByLine[$line->id],
+                'quantity_damaged' => $damagedByLine[$line->id],
+                'quantity_short' => $shortByLine[$line->id],
+                'checked_at' => $checked ? ($line->checked_at ?? now()) : null,
+            ]);
+        }
+    }
+
+    /**
+     * Prend une quantité dans ce qui reste à combler de chaque ligne, dans l'ordre donné.
+     *
+     * @param  array<int, int>  $remaining  reste par ligne, diminué de ce qui est pris
+     * @param  array<int, int>  $order  ids des lignes
+     * @return array<int, int> quantité prise par ligne
+     */
+    private static function distribute(array &$remaining, array $order, int $quantity): array
+    {
+        $taken = [];
+
+        foreach ($order as $lineId) {
+            $taken[$lineId] = min($quantity, $remaining[$lineId]);
+            $remaining[$lineId] -= $taken[$lineId];
+            $quantity -= $taken[$lineId];
+        }
+
+        return $taken;
     }
 
     /**
@@ -284,6 +451,8 @@ class Reception extends Model
                 'supplier_order_line_id' => $orderLine->id,
                 'product_id' => $product->id,
                 'quantity' => $quantity,
+                'quantity_expected' => $quantity,
+                'checked_at' => now(),
                 'unit_cost' => Money::zero(),
             ]);
 
@@ -363,6 +532,10 @@ class Reception extends Model
 
             if (! $this->isInProgress()) {
                 throw new DomainException(__('Cette réception est déjà terminée.'));
+            }
+
+            if ($this->lines()->whereNull('checked_at')->exists()) {
+                throw new DomainException(__('Vérifiez chaque produit avant de terminer la réception.'));
             }
 
             $lines = $this->lines()->with('orderLine.order')->get();

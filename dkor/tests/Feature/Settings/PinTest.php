@@ -2,6 +2,7 @@
 
 use App\Livewire\Settings\Pin;
 use App\Models\User;
+use App\Support\SessionLock;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
 
@@ -72,7 +73,9 @@ it('démarre le verrouillage à la création du NIP, même après une longue att
     config(['access.pin.enforced' => true]);
 
     $user = User::factory()->create();
-    $this->actingAs($user)->withSession(['session_lock.last_activity_at' => now()->subHour()->timestamp]);
+    $this->actingAs($user);
+    app(SessionLock::class)->touch();
+    $this->travel(1)->hour();
 
     Livewire::test(Pin::class)
         ->set('pin', '482913')

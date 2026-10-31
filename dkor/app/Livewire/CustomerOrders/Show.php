@@ -1247,9 +1247,9 @@ class Show extends Component
             return;
         }
 
-        $this->showPickupModal = false;
-        $this->reset(['pickupQuantities', 'pickupPayments', 'pickupRequiredCents', 'pickupCredit']);
         Flux::toast(text: $pickup === null ? __('Paiement enregistré.') : __('Ramassage enregistré.'), variant: 'success');
+
+        $this->redirectRoute('customer-orders.index', navigate: true);
     }
 
     /** Total reçu : modes de paiement et crédit client utilisé. */

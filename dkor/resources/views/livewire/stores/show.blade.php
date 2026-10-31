@@ -54,13 +54,17 @@
                 </div>
 
                 <flux:field>
-                    <flux:label>{{ __('Province (taxes)') }}</flux:label>
+                    <div class="flex items-center gap-1.5">
+                        <flux:label>{{ __('Province (taxes)') }}</flux:label>
+                        <flux:tooltip :content="__('Les taxes de la province s\'appliquent aux ventes du magasin.')">
+                            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                        </flux:tooltip>
+                    </div>
                     <flux:select wire:model="province">
                         @foreach ($provinces as $provinceOption)
                             <flux:select.option :value="$provinceOption->value">{{ $provinceOption->label() }}</flux:select.option>
                         @endforeach
                     </flux:select>
-                    <flux:description>{{ __('Les taxes de la province s\'appliquent aux ventes du magasin.') }}</flux:description>
                     <flux:error name="province" />
                 </flux:field>
 
@@ -111,8 +115,12 @@
                 </div>
 
                 <div>
-                    <flux:heading size="sm" class="mb-1">{{ __('Début de l\'accumulation') }}</flux:heading>
-                    <flux:text class="mb-4 text-sm text-zinc-500">{{ __('Jour de l\'année où commence l\'accumulation, sans année.') }}</flux:text>
+                    <div class="mb-4 flex items-center gap-1.5">
+                        <flux:heading size="sm">{{ __('Début de l\'accumulation') }}</flux:heading>
+                        <flux:tooltip :content="__('Jour de l\'année où commence l\'accumulation, sans année.')">
+                            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                        </flux:tooltip>
+                    </div>
 
                     <div class="grid gap-4 sm:grid-cols-2">
                         @foreach (['vacation' => __('Vacances'), 'sick' => __('Maladie')] as $kind => $kindLabel)
@@ -140,8 +148,12 @@
                 </div>
 
                 <div>
-                    <flux:heading size="sm" class="mb-1">{{ __('Jours de maladie payés') }}</flux:heading>
-                    <flux:text class="mb-4 text-sm text-zinc-500">{{ __('Maximum de jours de maladie payés disponibles par employé.') }}</flux:text>
+                    <div class="mb-4 flex items-center gap-1.5">
+                        <flux:heading size="sm">{{ __('Jours de maladie payés') }}</flux:heading>
+                        <flux:tooltip :content="__('Maximum de jours de maladie payés disponibles par employé.')">
+                            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                        </flux:tooltip>
+                    </div>
 
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>
@@ -160,20 +172,28 @@
                 </div>
 
                 <div>
-                    <flux:heading size="sm" class="mb-1">{{ __('Ventes') }}</flux:heading>
-                    <flux:text class="mb-4 text-sm text-zinc-500">{{ __('Frais facturés au client qui annule un article déjà commandé au fournisseur sans attendre sa confirmation (en % du prix vendant).') }}</flux:text>
+                    <flux:heading size="sm" class="mb-4">{{ __('Ventes') }}</flux:heading>
 
                     <div class="grid max-w-lg gap-4 sm:grid-cols-2">
                         <flux:field>
-                            <flux:label>{{ __('Frais d\'annulation (%)') }}</flux:label>
+                            <div class="flex items-center gap-1.5">
+                                <flux:label>{{ __('Frais d\'annulation (%)') }}</flux:label>
+                                <flux:tooltip :content="__('Frais facturés au client qui annule un article déjà commandé au fournisseur sans attendre sa confirmation (en % du prix vendant).')">
+                                    <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                                </flux:tooltip>
+                            </div>
                             <flux:input wire:model="cancellationFeePercent" type="number" step="0.01" min="0" max="100" />
                             <flux:error name="cancellationFeePercent" />
                         </flux:field>
 
                         <flux:field>
-                            <flux:label>{{ __('Dépôt sur mesure (%)') }}</flux:label>
+                            <div class="flex items-center gap-1.5">
+                                <flux:label>{{ __('Dépôt sur mesure (%)') }}</flux:label>
+                                <flux:tooltip :content="__('Exigé sur les articles sur mesure non encore remis.')">
+                                    <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                                </flux:tooltip>
+                            </div>
                             <flux:input wire:model="customDepositPercent" type="number" step="0.01" min="0" max="100" />
-                            <flux:description>{{ __('Exigé sur les articles sur mesure non encore remis.') }}</flux:description>
                             <flux:error name="customDepositPercent" />
                         </flux:field>
                     </div>
@@ -282,16 +302,24 @@
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
-                        <flux:label>{{ __('Plus grande dimension maximale') }}</flux:label>
+                        <div class="flex items-center gap-1.5">
+                            <flux:label>{{ __('Plus grande dimension maximale') }}</flux:label>
+                            <flux:tooltip :content="__('Longueur, largeur ou hauteur, dans l\'unité des fiches produits.')">
+                                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                            </flux:tooltip>
+                        </div>
                         <flux:input wire:model="shippingMaxLength" inputmode="decimal" />
-                        <flux:description>{{ __('Longueur, largeur ou hauteur, dans l\'unité des fiches produits.') }}</flux:description>
                         <flux:error name="shippingMaxLength" />
                     </flux:field>
 
                     <flux:field>
-                        <flux:label>{{ __('Poids maximal') }}</flux:label>
+                        <div class="flex items-center gap-1.5">
+                            <flux:label>{{ __('Poids maximal') }}</flux:label>
+                            <flux:tooltip :content="__('Dans l\'unité des fiches produits.')">
+                                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                            </flux:tooltip>
+                        </div>
                         <flux:input wire:model="shippingMaxWeight" inputmode="decimal" />
-                        <flux:description>{{ __('Dans l\'unité des fiches produits.') }}</flux:description>
                         <flux:error name="shippingMaxWeight" />
                     </flux:field>
                 </div>

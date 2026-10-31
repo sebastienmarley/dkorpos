@@ -1,11 +1,11 @@
 <div class="mx-auto max-w-2xl sm:p-6">
-    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <flux:heading level="1" size="xl">{{ __('Mes livraisons') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ ucfirst(\Illuminate\Support\Carbon::parse($date)->translatedFormat('l j F Y')) }}</flux:text>
         </div>
 
-        <flux:button.group>
+        <flux:button.group class="shrink-0">
             <flux:button icon="chevron-left" wire:click="previousDay" :label="__('Journée précédente')" />
             <flux:button wire:click="goToToday">{{ __('Aujourd\'hui') }}</flux:button>
             <flux:button icon="chevron-right" wire:click="nextDay" :label="__('Journée suivante')" />
