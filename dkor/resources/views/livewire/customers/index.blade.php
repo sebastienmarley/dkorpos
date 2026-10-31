@@ -26,13 +26,12 @@
                 <flux:table.column>{{ __('Courriel') }}</flux:table.column>
                 <flux:table.column>{{ __('Téléphone') }}</flux:table.column>
                 <flux:table.column>{{ __('Cellulaire') }}</flux:table.column>
-                <flux:table.column></flux:table.column>
             </flux:table.columns>
 
             <flux:table.rows>
                 @if (blank($search))
                     <flux:table.row>
-                        <flux:table.cell colspan="5" class="py-12 text-center">
+                        <flux:table.cell colspan="4" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="magnifying-glass" class="h-8 w-8 text-zinc-300" />
                                 <flux:text class="text-zinc-400">{{ __('Entrez un nom, courriel ou numéro pour rechercher un client.') }}</flux:text>
@@ -43,13 +42,17 @@
                     @forelse ($customers as $customer)
                         <flux:table.row :key="$customer->id">
                             <flux:table.cell variant="strong">
-                                <div class="flex items-center gap-3">
-                                    <flux:avatar
-                                        :name="$customer->firstname.' '.$customer->lastname"
-                                        size="sm"
-                                    />
+                                @can('customers.edit')
+                                    <button
+                                        type="button"
+                                        class="cursor-pointer text-left hover:underline"
+                                        x-on:click="$dispatch('open-customer-edit', { id: {{ $customer->id }} })"
+                                    >
+                                        {{ $customer->firstname }} {{ $customer->lastname }}
+                                    </button>
+                                @else
                                     {{ $customer->firstname }} {{ $customer->lastname }}
-                                </div>
+                                @endcan
                             </flux:table.cell>
 
                             <flux:table.cell>{{ $customer->email ?: '—' }}</flux:table.cell>
@@ -57,23 +60,10 @@
                             <flux:table.cell>{{ $customer->phone ?: '—' }}</flux:table.cell>
 
                             <flux:table.cell>{{ $customer->cellphone ?: '—' }}</flux:table.cell>
-
-                            <flux:table.cell align="end">
-                                @can('customers.edit')
-                                    <flux:button
-                                        size="sm"
-                                        variant="ghost"
-                                        icon="pencil-square"
-                                        x-on:click="$dispatch('open-customer-edit', { id: {{ $customer->id }} })"
-                                    >
-                                        {{ __('Modifier') }}
-                                    </flux:button>
-                                @endcan
-                            </flux:table.cell>
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="5" class="py-12 text-center">
+                            <flux:table.cell colspan="4" class="py-12 text-center">
                                 <div class="flex flex-col items-center gap-2">
                                     <flux:icon name="users" class="h-8 w-8 text-zinc-300" />
                                     <flux:text class="text-zinc-400">{{ __('Aucun client trouvé pour cette recherche.') }}</flux:text>

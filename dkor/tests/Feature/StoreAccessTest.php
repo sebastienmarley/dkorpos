@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\CustomerOrderStatus;
 use App\Enums\ScheduleStatus;
 use App\Enums\SupplierType;
 use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
@@ -50,6 +51,7 @@ describe('commandes clients', function () {
         $this->actingAs(User::factory()->withRole('salesman')->create(['store_id' => $this->rimouski->id]));
 
         Livewire::test(CustomerOrdersIndex::class)
+            ->set('statusFilter', CustomerOrderStatus::New->value)
             ->assertViewHas('orders', fn (LengthAwarePaginator $orders): bool => listedOrderIds($orders) === [$this->mine->id])
             ->assertDontSee('Tous les magasins');
     });
@@ -67,6 +69,7 @@ describe('commandes clients', function () {
         $this->get(route('customer-orders.show', $this->other))->assertOk();
 
         Livewire::test(CustomerOrdersIndex::class)
+            ->set('statusFilter', CustomerOrderStatus::New->value)
             ->assertViewHas('orders', fn (LengthAwarePaginator $orders): bool => listedOrderIds($orders) === [$this->other->id, $this->mine->id])
             ->set('storeFilter', (string) $this->gaspe->id)
             ->assertViewHas('orders', fn (LengthAwarePaginator $orders): bool => listedOrderIds($orders) === [$this->other->id]);

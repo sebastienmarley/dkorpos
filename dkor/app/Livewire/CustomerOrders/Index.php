@@ -10,6 +10,7 @@ use App\Models\Store;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -105,22 +106,30 @@ class Index extends Component
 
         $user = auth()->user();
 
-        $orders = CustomerOrder::query()
-            ->accessibleTo($user)
-            ->with(['customer', 'salespeople', 'store'])
-            ->when($this->storeFilter !== '' && $user->hasAllStores(), fn ($query) => $query->where('store_id', (int) $this->storeFilter))
-            ->when(filled($this->statusFilter), fn ($query) => $query->where('status', $this->statusFilter))
-            ->when($term !== '', function ($query) use ($term) {
-                $query->where(function ($q) use ($term) {
-                    $q->whereHas('customer', fn ($c) => $c->matching($term))
-                        ->when(ctype_digit($term), fn ($q) => $q->orWhere('id', (int) $term));
-                });
-            })
-            ->latest('id')
-            ->paginate(10);
+        $filtersByStore = $this->storeFilter !== '' && $user->hasAllStores();
+
+        /** Aucune commande n'est listée tant qu'aucun critère de recherche n'est saisi. */
+        $hasSearchCriteria = $term !== '' || filled($this->statusFilter) || $filtersByStore;
+
+        $orders = $hasSearchCriteria
+            ? CustomerOrder::query()
+                ->accessibleTo($user)
+                ->with(['customer', 'salespeople', 'store'])
+                ->when($filtersByStore, fn ($query) => $query->where('store_id', (int) $this->storeFilter))
+                ->when(filled($this->statusFilter), fn ($query) => $query->where('status', $this->statusFilter))
+                ->when($term !== '', function ($query) use ($term) {
+                    $query->where(function ($q) use ($term) {
+                        $q->whereHas('customer', fn ($c) => $c->matching($term))
+                            ->when(ctype_digit($term), fn ($q) => $q->orWhere('id', (int) $term));
+                    });
+                })
+                ->latest('id')
+                ->paginate(10)
+            : new LengthAwarePaginator([], 0, 10);
 
         return view('livewire.customer-orders.index', [
             'orders' => $orders,
+            'hasSearchCriteria' => $hasSearchCriteria,
             'statuses' => CustomerOrderStatus::cases(),
             'customerResults' => $this->getCustomerResults(),
             'stores' => $user->hasAllStores() ? Store::query()->orderBy('name')->get() : collect(),
