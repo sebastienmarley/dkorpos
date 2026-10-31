@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Products;
 
+use App\Concerns\SavesTabsOnSwitch;
 use App\Enums\StoreType;
 use App\Enums\SupplierType;
 use App\Models\Category;
@@ -26,6 +27,8 @@ use Livewire\Component;
 
 class Show extends Component
 {
+    use SavesTabsOnSwitch;
+
     public Product $product;
 
     public string $activeTab = 'general';
@@ -131,6 +134,22 @@ class Show extends Component
         if (filled($this->categoryId) && ! $this->getCategories()->contains('id', (int) $this->categoryId)) {
             $this->categoryId = '';
         }
+    }
+
+    /**
+     * @return array<string, array{save: string, fields: array<int, string>}>
+     */
+    protected function tabForms(): array
+    {
+        return [
+            'general' => ['save' => 'saveGeneral', 'fields' => ['supplierId', 'model', 'cleanModel', 'supplierModel', 'departmentId', 'categoryId', 'isDiscontinued', 'isNonOrderable', 'isTaxable', 'isCustom', 'cost']],
+            'description' => ['save' => 'saveDescription', 'fields' => ['colorId', 'styleId', 'imap', 'collection', 'description', 'length', 'width', 'height', 'weight']],
+        ];
+    }
+
+    protected function closeRoute(): string
+    {
+        return 'products.index';
     }
 
     public function saveGeneral(): void

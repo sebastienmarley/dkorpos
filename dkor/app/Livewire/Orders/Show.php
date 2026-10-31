@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierOrder;
+use App\Rules\PostalCode;
 use App\Support\Money;
 use DomainException;
 use Flux\Flux;
@@ -125,7 +126,7 @@ class Show extends Component
             'dropShipAddress.city' => [$required, 'nullable', 'string', 'max:100'],
             'dropShipAddress.province' => [$required, 'nullable', 'string', 'size:2'],
             'dropShipAddress.country' => [$required, 'nullable', 'string', 'in:CA,US'],
-            'dropShipAddress.postal_code' => [$required, 'nullable', 'string', 'max:6'],
+            'dropShipAddress.postal_code' => [$required, 'nullable', 'string', new PostalCode($this->dropShipAddress['country'])],
         ]);
 
         $this->runTransition(

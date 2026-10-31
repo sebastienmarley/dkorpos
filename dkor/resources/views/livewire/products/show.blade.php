@@ -39,28 +39,28 @@
         <div class="flex overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] dark:border-zinc-700">
             <button
                 type="button"
-                @click="tab = 'general'"
+                @click="$wire.switchTab('general')"
                 :class="tab === 'general' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                 class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Général') }}</button>
 
             <button
                 type="button"
-                @click="tab = 'description'"
+                @click="$wire.switchTab('description')"
                 :class="tab === 'description' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                 class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Description') }}</button>
 
             <button
                 type="button"
-                @click="tab = 'inventory'"
+                @click="$wire.switchTab('inventory')"
                 :class="tab === 'inventory' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                 class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Inventaire') }}</button>
 
             <button
                 type="button"
-                @click="tab = 'photos'"
+                @click="$wire.switchTab('photos')"
                 :class="tab === 'photos' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                 class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Photos') }}</button>
@@ -68,7 +68,7 @@
             @can('parts.view')
                 <button
                     type="button"
-                    @click="tab = 'parts'"
+                    @click="$wire.switchTab('parts')"
                     :class="tab === 'parts' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                     class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('Pièces') }} ({{ $parts->count() }})</button>
@@ -77,7 +77,7 @@
 
         {{-- Général --}}
         <div x-show="tab === 'general'" x-cloak>
-            <form wire:submit="saveGeneral" class="mt-6 max-w-2xl space-y-4">
+            <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-4">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
                         <flux:label>{{ __('Fournisseur') }}</flux:label>
@@ -153,7 +153,7 @@
 
                 <div class="flex justify-end pt-2">
                     @can('products.edit')
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     @endcan
                 </div>
             </form>
@@ -161,7 +161,7 @@
 
         {{-- Description --}}
         <div x-show="tab === 'description'" x-cloak>
-            <form wire:submit="saveDescription" class="mt-6 max-w-2xl space-y-4">
+            <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-4">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
                         <flux:label>{{ __('Couleur') }}</flux:label>
@@ -237,7 +237,7 @@
 
                 <div class="flex justify-end pt-2">
                     @can('products.edit')
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     @endcan
                 </div>
             </form>

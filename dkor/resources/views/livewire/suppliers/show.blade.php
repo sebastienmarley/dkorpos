@@ -23,14 +23,14 @@
         <div class="flex overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] dark:border-zinc-700">
             <button
                 type="button"
-                @click="tab = 'identification'"
+                @click="$wire.switchTab('identification')"
                 :class="tab === 'identification' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                 class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Identification') }}</button>
 
             <button
                 type="button"
-                @click="tab = 'accounting'"
+                @click="$wire.switchTab('accounting')"
                 :class="tab === 'accounting' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                 class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Comptabilité') }}</button>
@@ -38,7 +38,7 @@
             @if ($supplier->type === \App\Enums\SupplierType::Product)
                 <button
                     type="button"
-                    @click="tab = 'transport'"
+                    @click="$wire.switchTab('transport')"
                     :class="tab === 'transport' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                     class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('Transport') }}</button>
@@ -47,7 +47,7 @@
             @if ($supplier->type !== \App\Enums\SupplierType::Shipping)
                 <button
                     type="button"
-                    @click="tab = 'parameters'"
+                    @click="$wire.switchTab('parameters')"
                     :class="tab === 'parameters' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                     class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('Info commande') }}</button>
@@ -56,7 +56,7 @@
 
         {{-- Identification --}}
         <div x-show="tab === 'identification'" x-cloak>
-            <form wire:submit="saveIdentification" class="mt-6 max-w-2xl space-y-6">
+            <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
                         <div class="flex items-center gap-1.5">
@@ -107,7 +107,7 @@
 
                 <div class="flex justify-end pt-2">
                     @can('suppliers.edit')
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     @endcan
                 </div>
             </form>
@@ -115,7 +115,7 @@
 
         {{-- Comptabilité --}}
         <div x-show="tab === 'accounting'" x-cloak>
-            <form wire:submit="saveAccounting" class="mt-6 max-w-2xl space-y-6">
+            <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
                         <flux:label>{{ __('Numéro de compte') }}</flux:label>
@@ -185,7 +185,7 @@
 
                 <div class="flex justify-end pt-2">
                     @can('suppliers.edit')
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     @endcan
                 </div>
             </form>
@@ -194,7 +194,7 @@
         @if ($supplier->type === \App\Enums\SupplierType::Product)
             {{-- Transport --}}
             <div x-show="tab === 'transport'" x-cloak>
-                <form wire:submit="saveTransport" class="mt-6 max-w-2xl space-y-6">
+                <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                     <flux:field>
                         <div class="flex items-center gap-1.5">
                             <flux:label>{{ __('Montant prepaid') }}</flux:label>
@@ -226,7 +226,7 @@
 
                     <div class="flex justify-end pt-2">
                         @can('suppliers.edit')
-                            <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                            <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                         @endcan
                     </div>
                 </form>
@@ -236,7 +236,7 @@
         @if ($supplier->type !== \App\Enums\SupplierType::Shipping)
             {{-- Info commande --}}
             <div x-show="tab === 'parameters'" x-cloak>
-                <form wire:submit="saveParameters" class="mt-6 max-w-2xl space-y-4">
+                <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-4">
                     <flux:field>
                         <flux:label>{{ __('Courriel de commande') }}</flux:label>
                         <flux:input wire:model="orderEmail" type="email" />
@@ -296,7 +296,7 @@
 
                     <div class="flex justify-end pt-2">
                         @can('suppliers.edit')
-                            <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                            <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                         @endcan
                     </div>
                 </form>

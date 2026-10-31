@@ -5,12 +5,14 @@ namespace App\Livewire\Users;
 use App\Actions\CalculateVacationBalance;
 use App\Actions\PurgeSchedulesAfterLastDay;
 use App\Actions\ResetUserPassword;
+use App\Concerns\SavesTabsOnSwitch;
 use App\Enums\InsurancePlan;
 use App\Models\Permission;
 use App\Models\Position;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Rules\PostalCode;
 use App\Support\Money;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -23,6 +25,8 @@ use Livewire\Component;
 
 class Show extends Component
 {
+    use SavesTabsOnSwitch;
+
     public User $user;
 
     #[Url(as: 'tab')]
@@ -119,6 +123,25 @@ class Show extends Component
         }
 
         $this->fillFromModel();
+    }
+
+    /**
+     * @return array<string, array{save: string, fields: array<int, string>}>
+     */
+    protected function tabForms(): array
+    {
+        return [
+            'identification' => ['save' => 'saveIdentification', 'fields' => ['firstname', 'lastname', 'role', 'positionId', 'storeId', 'firstDay', 'lastDay', 'personalEmail', 'phone', 'cellphone']],
+            'hr' => ['save' => 'saveHr', 'fields' => ['isFullTime', 'hasGroupInsurance', 'insurancePlan', 'isSalaried', 'hourlyRate', 'weeklySalary', 'hasCommission', 'commissionRate', 'hasBonus', 'weeklySalesTarget', 'bonusAmount', 'bonusStep', 'hoursPerDay']],
+            'address' => ['save' => 'saveAddress', 'fields' => ['address']],
+            'account' => ['save' => 'saveAccount', 'fields' => ['isActive']],
+            'access' => ['save' => 'saveAccess', 'fields' => ['selectedPermissions']],
+        ];
+    }
+
+    protected function closeRoute(): string
+    {
+        return 'users.index';
     }
 
     public function saveIdentification(): void
@@ -260,7 +283,7 @@ class Show extends Component
             'address.city' => ['nullable', 'string', 'max:100'],
             'address.province' => ['nullable', 'string', 'size:2'],
             'address.country' => ['nullable', 'string', 'in:CA,US'],
-            'address.postal_code' => ['nullable', 'string', 'max:6'],
+            'address.postal_code' => ['nullable', 'string', new PostalCode($this->address['country'])],
         ]);
 
         $this->user->fill([

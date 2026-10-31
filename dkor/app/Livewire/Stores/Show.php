@@ -2,10 +2,12 @@
 
 namespace App\Livewire\Stores;
 
+use App\Concerns\SavesTabsOnSwitch;
 use App\Enums\Province;
 use App\Enums\StoreType;
 use App\Models\DeliveryTruck;
 use App\Models\Store;
+use App\Rules\PostalCode;
 use App\Support\DeliveryBooking;
 use Closure;
 use Flux\Flux;
@@ -18,6 +20,8 @@ use Livewire\Component;
 
 class Show extends Component
 {
+    use SavesTabsOnSwitch;
+
     public Store $store;
 
     #[Url(as: 'tab')]
@@ -128,6 +132,25 @@ class Show extends Component
         return $tabs;
     }
 
+    /**
+     * @return array<string, array{save: string, fields: array<int, string>}>
+     */
+    protected function tabForms(): array
+    {
+        return [
+            'identification' => ['save' => 'saveIdentification', 'fields' => ['name', 'type', 'province', 'address', 'phone', 'email']],
+            'accounting' => ['save' => 'saveAccounting', 'fields' => ['taxNumbers', 'bankAccount', 'vacationAccrualMonth', 'vacationAccrualDay', 'sickAccrualMonth', 'sickAccrualDay', 'sickDaysFullTime', 'sickDaysPartTime', 'cancellationFeePercent', 'customDepositPercent']],
+            'hours' => ['save' => 'saveOpeningHours', 'fields' => ['openingHours']],
+            'shipping' => ['save' => 'saveShippingLimits', 'fields' => ['shippingMaxLength', 'shippingMaxWeight']],
+            'parameters' => ['save' => 'saveParameters', 'fields' => ['warehouseStoreId', 'shippingWarehouseId', 'isActive']],
+        ];
+    }
+
+    protected function closeRoute(): string
+    {
+        return 'stores.index';
+    }
+
     public function updatedAddressCountry(): void
     {
         $this->address['province'] = '';
@@ -147,7 +170,7 @@ class Show extends Component
             'address.city' => ['nullable', 'string', 'max:100'],
             'address.province' => ['nullable', 'string', 'size:2'],
             'address.country' => ['nullable', 'string', 'in:CA,US'],
-            'address.postal_code' => ['nullable', 'string', 'max:6'],
+            'address.postal_code' => ['nullable', 'string', new PostalCode($this->address['country'])],
             'phone' => ['nullable', 'string', 'regex:/^\(\d{3}\)\d{3}-\d{4}$/'],
             'email' => ['nullable', 'email', 'max:255'],
         ]);

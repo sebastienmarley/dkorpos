@@ -3,9 +3,23 @@
     <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Rendez-vous') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">
-                {{ ucfirst($startDate->translatedFormat('d F')) }} – {{ $endDate->translatedFormat('d F Y') }}
-            </flux:text>
+            <div class="mt-1 flex items-center gap-1">
+                <flux:text class="text-zinc-500">
+                    {{ ucfirst($startDate->translatedFormat('d F')) }} – {{ $endDate->translatedFormat('d F Y') }}
+                </flux:text>
+
+                {{-- Sur téléphone, l'avertissement « Quart à confirmer » est une infobulle plutôt qu'un bandeau --}}
+                @if (! $isPastWeek && ! $reachesBeyondHorizon && $allowsUnscheduledThisWeek)
+                    <flux:tooltip toggleable class="sm:hidden">
+                        <button type="button" class="p-1" aria-label="{{ __('Quart à confirmer') }}">
+                            <flux:icon name="exclamation-triangle" variant="mini" class="text-amber-500" />
+                        </button>
+                        <flux:tooltip.content class="max-w-64">
+                            {{ __('Un rendez-vous pris un jour sans quart publié est marqué « Quart à confirmer » et signalé au gestionnaire de l\'horaire.') }}
+                        </flux:tooltip.content>
+                    </flux:tooltip>
+                @endif
+            </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
@@ -54,7 +68,7 @@
             {{ __('Après le :date, un rendez-vous se prend seulement pendant un quart publié de l\'employé.', ['date' => $horizonEnd->translatedFormat('d F')]) }}
         </flux:callout>
     @elseif ($allowsUnscheduledThisWeek)
-        <flux:callout icon="information-circle" color="amber" class="mb-4">
+        <flux:callout icon="information-circle" color="amber" class="mb-4 max-sm:hidden">
             {{ __('Un rendez-vous pris un jour sans quart publié est marqué « Quart à confirmer » et signalé au gestionnaire de l\'horaire.') }}
         </flux:callout>
     @endif
@@ -240,7 +254,7 @@
                                     'relative px-1 py-0.5 align-top transition-colors' => true,
                                     'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30' => $isClickable && ! $appointment,
                                     'cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/30' => $isClickable && $appointment,
-                                    'bg-zinc-50/60 dark:bg-zinc-800/40' => ! $isClickable && ! $appointment,
+                                    'bg-zinc-200 dark:bg-zinc-950' => ! $isClickable && ! $appointment,
                                     'opacity-40' => $isPast && ! $appointment,
                                 ])
                                 @if ($isClickable)
@@ -347,7 +361,7 @@
 
                 <flux:field>
                     <flux:label>{{ __('Durée') }}</flux:label>
-                    <flux:select wire:model="durationMinutes">
+                    <flux:select wire:model.live="durationMinutes">
                         @for ($m = $slotMinutes; $m <= $maxDuration; $m += $slotMinutes)
                             <flux:select.option value="{{ $m }}">
                                 {{ $m >= 60 ? intdiv($m, 60).'h'.($m % 60 ? sprintf('%02d', $m % 60) : '') : $m.' min' }}
@@ -356,6 +370,26 @@
                     </flux:select>
                     <flux:error name="durationMinutes" />
                 </flux:field>
+
+                {{-- Réassignation à un employé du magasin libre pendant tout le rendez-vous --}}
+                @if ($editingAppointmentId)
+                    @can('schedule_management.edit')
+                        <flux:field>
+                            <div class="flex items-center gap-1.5">
+                                <flux:label>{{ __('Employé') }}</flux:label>
+                                <flux:tooltip :content="__('Seuls les employés du magasin libres pendant toute la durée du rendez-vous sont offerts.')">
+                                    <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                                </flux:tooltip>
+                            </div>
+                            <flux:select wire:model="assignedUserId">
+                                @foreach ($availableEmployees as $employee)
+                                    <flux:select.option :value="$employee->id">{{ $employee->fullName() }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                            <flux:error name="assignedUserId" />
+                        </flux:field>
+                    @endcan
+                @endif
             </div>
 
             {{-- Recherche client --}}

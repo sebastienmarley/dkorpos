@@ -24,7 +24,7 @@
             @foreach ($this->getTabs() as $key => $label)
                 <button
                     type="button"
-                    @click="tab = '{{ $key }}'"
+                    @click="$wire.switchTab('{{ $key }}')"
                     :class="tab === '{{ $key }}' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
                     class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ $label }}</button>
@@ -34,7 +34,7 @@
         @can('stores.view')
         {{-- Identification --}}
         <div x-show="tab === 'identification'" x-cloak>
-            <form wire:submit="saveIdentification" class="mt-6 max-w-2xl space-y-6">
+            <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
                         <flux:label>{{ __('Nom de l\'emplacement') }}</flux:label>
@@ -85,7 +85,7 @@
 
                 <div class="flex justify-end pt-2">
                     @can('stores.edit')
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     @endcan
                 </div>
             </form>
@@ -93,7 +93,7 @@
 
         {{-- Comptabilité --}}
         <div x-show="tab === 'accounting'" x-cloak>
-            <form wire:submit="saveAccounting" class="mt-6 max-w-2xl space-y-6">
+            <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
                     @forelse ($taxNumbers as $index => $taxNumber)
                         <flux:field wire:key="tax-number-{{ $taxNumber['name'] }}">
@@ -201,7 +201,7 @@
 
                 <div class="flex justify-end pt-2">
                     @can('stores.edit')
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     @endcan
                 </div>
             </form>
@@ -209,7 +209,7 @@
 
         {{-- Heures d'ouverture --}}
         <div x-show="tab === 'hours'" x-cloak>
-            <form wire:submit="saveOpeningHours" class="mt-6 max-w-2xl space-y-4">
+            <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-4">
                 @foreach (['monday' => __('Lundi'), 'tuesday' => __('Mardi'), 'wednesday' => __('Mercredi'), 'thursday' => __('Jeudi'), 'friday' => __('Vendredi'), 'saturday' => __('Samedi'), 'sunday' => __('Dimanche')] as $day => $dayLabel)
                     <div class="grid grid-cols-[8rem_1fr] items-start gap-4 sm:grid-cols-[8rem_6rem_1fr]" wire:key="hours-{{ $day }}">
                         <flux:checkbox wire:model.live="openingHours.{{ $day }}.open" :label="$dayLabel" />
@@ -234,7 +234,7 @@
 
                 <div class="flex justify-end pt-2">
                     @can('stores.edit')
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     @endcan
                 </div>
             </form>
@@ -295,7 +295,7 @@
 
         {{-- Expédition --}}
         <div x-show="tab === 'shipping'" x-cloak>
-            <form wire:submit="saveShippingLimits" class="mt-6 max-w-2xl space-y-4">
+            <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-4">
                 <flux:text class="text-zinc-500">
                     {{ __('Taille d\'un article qui peut être expédié par un fournisseur d\'expédition. Un article plus grand, plus lourd ou sans dimensions est signalé à la demande d\'expédition, sans la bloquer. Laissez vide pour ne pas vérifier.') }}
                 </flux:text>
@@ -326,7 +326,7 @@
 
                 <div class="flex justify-end pt-2">
                     @can('stores.edit')
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     @endcan
                 </div>
             </form>
@@ -334,7 +334,7 @@
 
         {{-- Paramètres --}}
         <div x-show="tab === 'parameters'" x-cloak>
-            <form wire:submit="saveParameters" class="mt-6 max-w-2xl space-y-6">
+            <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                 <flux:field>
                     <flux:label>{{ __('Emplacement de l\'entrepôt') }}</flux:label>
                     <flux:select wire:model="warehouseStoreId">
@@ -364,7 +364,7 @@
 
                 <div class="flex justify-end pt-2">
                     @can('stores.edit')
-                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Sauvegarder et fermer') }}</flux:button>
                     @endcan
                 </div>
             </form>
