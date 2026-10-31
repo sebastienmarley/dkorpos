@@ -99,6 +99,6 @@ trait SavesTabsOnSwitch
 
     private function tabFingerprint(string $tab): string
     {
-        return md5(json_encode(array_map(fn (string $field): mixed => data_get($this, $field), $this->tabForms()[$tab]['fields'])));
+        return md5(json_encode(array_map(fn (string $field): mixed => data_get($this, $field), $this->tabForms()[$tab]['fields']), JSON_THROW_ON_ERROR));
     }
 }

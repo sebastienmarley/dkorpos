@@ -126,7 +126,7 @@ class Show extends Component
             'dropShipAddress.city' => [$required, 'nullable', 'string', 'max:100'],
             'dropShipAddress.province' => [$required, 'nullable', 'string', 'size:2'],
             'dropShipAddress.country' => [$required, 'nullable', 'string', 'in:CA,US'],
-            'dropShipAddress.postal_code' => [$required, 'nullable', 'string', new PostalCode($this->dropShipAddress['country'] ?? null)],
+            'dropShipAddress.postal_code' => [$required, 'nullable', 'string', new PostalCode($this->dropShipAddress['country'])],
         ]);
 
         $this->runTransition(

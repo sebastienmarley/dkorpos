@@ -103,7 +103,7 @@ class AppointmentBooking
 
         $hours = $store->opening_hours[strtolower(Carbon::parse($date)->englishDayOfWeek)] ?? null;
 
-        if (! ($hours['open'] ?? false) || blank($hours['from'] ?? null) || blank($hours['to'] ?? null)) {
+        if ($hours === null || ! $hours['open'] || blank($hours['from']) || blank($hours['to'])) {
             return [0, 0];
         }
 
