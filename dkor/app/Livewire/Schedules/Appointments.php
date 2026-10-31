@@ -180,7 +180,7 @@ class Appointments extends Component
             'durationMinutes' => ['required', 'integer', 'min:'.self::SLOT_MINUTES, 'max:'.$maxDuration, 'multiple_of:'.self::SLOT_MINUTES],
             'notes' => ['nullable', 'string', 'max:1000'],
         ], [
-            'durationMinutes.max' => __('La durée chevauche un autre rendez-vous ou dépasse l\'horaire de l\'employé.'),
+            'durationMinutes.max' => __('La durée chevauche un autre rendez-vous ou dépasse l\'horaire de l\'employé ou la fermeture du magasin.'),
         ]);
 
         $data = [
@@ -252,7 +252,7 @@ class Appointments extends Component
         }
 
         if (! $this->canBookAt($date, $startMinute)) {
-            $this->rejectMove(__('Ce créneau n\'est pas disponible : passé ou hors de l\'horaire de l\'employé.'));
+            $this->rejectMove(__('Ce créneau n\'est pas disponible : passé, hors des heures d\'ouverture du magasin ou de l\'horaire de l\'employé.'));
 
             return;
         }
@@ -268,7 +268,7 @@ class Appointments extends Component
         } elseif ($failure === 'stale') {
             $this->rejectMove($this->staleMessage($appointment->id));
         } elseif ($failure === 'taken') {
-            $this->rejectMove(__('Ce rendez-vous chevauche un autre rendez-vous ou dépasse l\'horaire de l\'employé.'));
+            $this->rejectMove(__('Ce rendez-vous chevauche un autre rendez-vous ou dépasse l\'horaire de l\'employé ou la fermeture du magasin.'));
         }
     }
 
@@ -473,6 +473,9 @@ class Appointments extends Component
             ->get()
             ->keyBy('date');
 
+        $store = Store::find((int) $this->storeId);
+        $openingWindows = $days->mapWithKeys(fn (Carbon $day): array => [$day->toDateString() => AppointmentBooking::openingWindowOf($store, $day->toDateString())]);
+
         $currentWeekEnd = Carbon::now()->startOfWeek(Carbon::SUNDAY)->addDays(6)->endOfDay();
         $horizonEnd = AppointmentBooking::unscheduledHorizonEnd();
 
@@ -486,6 +489,8 @@ class Appointments extends Component
 
             if ($absence) {
                 $dayNotes[$dateKey] = ['label' => $absence->type->label(), 'blocked' => true];
+            } elseif ($openingWindows[$dateKey] === [0, 0]) {
+                $dayNotes[$dateKey] = ['label' => __('Magasin fermé'), 'blocked' => true];
             } elseif ($holiday) {
                 $dayNotes[$dateKey] = ['label' => $holiday->name, 'blocked' => $holiday->is_closed && ! $worksThatDay];
             } elseif (! $worksThatDay && $day->gt($currentWeekEnd)) {
@@ -503,11 +508,13 @@ class Appointments extends Component
             $isBlockedDay = $dayNotes[$dateKey]['blocked'] ?? false;
             $window = $this->workShiftWindow($schedules->get($dateKey));
             $allowsUnscheduled = AppointmentBooking::allowsUnscheduledBooking($dateKey);
+            $opening = $openingWindows[$dateKey];
 
             foreach ($timeSlots as $slot) {
                 $inFuture = $day->copy()->startOfDay()->addMinutes($slot)->gte($now);
                 $inWindow = $window !== null ? $slot >= $window[0] && $slot < $window[1] : $allowsUnscheduled;
-                $openSlots[$dateKey][$slot] = $inFuture && $inWindow && ! $isBlockedDay;
+                $isStoreOpen = $opening === null || ($slot >= $opening[0] && $slot < $opening[1]);
+                $openSlots[$dateKey][$slot] = $inFuture && $inWindow && $isStoreOpen && ! $isBlockedDay;
             }
         }
 

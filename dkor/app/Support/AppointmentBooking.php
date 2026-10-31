@@ -8,6 +8,8 @@ use App\Enums\ScheduleType;
 use App\Models\Appointment;
 use App\Models\Holiday;
 use App\Models\Schedule;
+use App\Models\Store;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -16,6 +18,7 @@ use Illuminate\Support\Collection;
  * Règles de prise de rendez-vous, communes à la grille des rendez-vous et à la gestion des horaires.
  *
  * - Un rendez-vous est dans la grille (8 h à 19 h, par cases de 30 minutes) et dans le futur.
+ * - Il tient dans les heures d'ouverture du magasin de l'employé (jamais un jour où le magasin est fermé).
  * - Jamais pendant une absence, ni un férié fermé où l'employé n'a pas de quart publié.
  * - Si l'employé a un quart publié ce jour-là, le rendez-vous tient dans ce quart.
  * - Sans quart publié, le rendez-vous est permis seulement après la semaine en cours et jusqu'à la fin de
@@ -57,6 +60,12 @@ class AppointmentBooking
             return false;
         }
 
+        $opening = self::openingWindow($userId, $date);
+
+        if ($opening !== null && ($startMinute < $opening[0] || $startMinute >= $opening[1])) {
+            return false;
+        }
+
         if (self::blockReasonFor($userId, $date) !== null) {
             return false;
         }
@@ -68,6 +77,37 @@ class AppointmentBooking
         }
 
         return self::allowsUnscheduledBooking($date);
+    }
+
+    /**
+     * Heures d'ouverture du magasin de l'employé ce jour-là, en minutes depuis minuit.
+     *
+     * @return array{0: int, 1: int}|null
+     */
+    public static function openingWindow(int $userId, string $date): ?array
+    {
+        return self::openingWindowOf(User::query()->with('store')->find($userId)?->store, $date);
+    }
+
+    /**
+     * Heures d'ouverture d'un magasin un jour donné, en minutes depuis minuit : [0, 0] s'il est fermé ce jour-là,
+     * null s'il n'a pas d'heures d'ouverture (aucune restriction).
+     *
+     * @return array{0: int, 1: int}|null
+     */
+    public static function openingWindowOf(?Store $store, string $date): ?array
+    {
+        if ($store?->opening_hours === null) {
+            return null;
+        }
+
+        $hours = $store->opening_hours[strtolower(Carbon::parse($date)->englishDayOfWeek)] ?? null;
+
+        if (! ($hours['open'] ?? false) || blank($hours['from'] ?? null) || blank($hours['to'] ?? null)) {
+            return [0, 0];
+        }
+
+        return [self::minutesOf($hours['from']), self::minutesOf($hours['to'])];
     }
 
     /**
@@ -134,12 +174,22 @@ class AppointmentBooking
     }
 
     /**
-     * Durée maximale réservable depuis $startMinute : limitée par la fin de journée, la fin du quart
-     * publié et le prochain rendez-vous de l'employé.
+     * Durée maximale réservable depuis $startMinute : limitée par la fin de journée, la fermeture du magasin, la fin
+     * du quart publié et le prochain rendez-vous de l'employé.
      */
     public static function maxDurationMinutes(int $userId, string $date, int $startMinute, ?int $ignoreAppointmentId = null): int
     {
         $limit = self::DAY_END_MINUTE;
+
+        $opening = self::openingWindow($userId, $date);
+
+        if ($opening !== null) {
+            if ($startMinute < $opening[0]) {
+                return 0;
+            }
+
+            $limit = min($limit, $opening[1]);
+        }
 
         $window = self::workingWindow($userId, $date);
 
