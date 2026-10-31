@@ -136,6 +136,7 @@ class Reception extends Model
             $lines = SupplierOrderLine::query()
                 ->with('order')
                 ->whereIn('id', array_keys($receipts))
+                ->orderBy('id')
                 ->get();
 
             if ($lines->count() !== count($receipts)) {

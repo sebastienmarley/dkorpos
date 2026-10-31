@@ -502,7 +502,8 @@ it('ajuste les quantités et retire des lignes d\'une réception en cours', func
     [, [$lineA]] = sentOrder($supplier, [5]);
     [, [$lineB]] = sentOrder($supplier, [4]);
     $reception = Reception::start($supplier, [$lineA->id => ['quantity' => 5], $lineB->id => ['quantity' => 4]]);
-    [$receptionLineA, $receptionLineB] = $reception->lines->all();
+    $receptionLines = $reception->lines->keyBy('supplier_order_line_id');
+    [$receptionLineA, $receptionLineB] = [$receptionLines[$lineA->id], $receptionLines[$lineB->id]];
 
     Livewire::test(App\Livewire\Receptions\Show::class, ['reception' => $reception])
         ->call('openGroup', $receptionLineA->groupKey())
