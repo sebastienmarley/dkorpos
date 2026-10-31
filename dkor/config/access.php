@@ -243,4 +243,21 @@ return [
         'roles' => ['admin', 'owner', 'accounting'],
         'enforced' => (bool) env('TWO_FACTOR_ENFORCED', true),
     ],
+
+    /*
+     * NIP de déverrouillage (ADR 0015) : obligatoire pour tous, créé à la connexion après la 2FA.
+     * `enforced` permet de le désactiver dans les tests qui n'en traitent pas.
+     */
+    'pin' => [
+        'enforced' => (bool) env('PIN_ENFORCED', true),
+    ],
+
+    /*
+     * Verrouillage de la session après inactivité (ADR 0015). Après `max_attempts` NIP erronés, l'usager est
+     * déconnecté.
+     */
+    'session_lock' => [
+        'idle_minutes' => (int) env('SESSION_LOCK_IDLE_MINUTES', 5),
+        'max_attempts' => 5,
+    ],
 ];

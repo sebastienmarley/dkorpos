@@ -3,6 +3,7 @@
         <flux:navlist aria-label="{{ __('Settings') }}">
             <flux:navlist.item :href="route('profile.edit')" wire:navigate>{{ __('Profil') }}</flux:navlist.item>
             <flux:navlist.item :href="route('two-factor.edit')" wire:navigate>{{ __('Authentification à deux facteurs') }}</flux:navlist.item>
+            <flux:navlist.item :href="route('pin.edit')" wire:navigate>{{ __('NIP') }}</flux:navlist.item>
         </flux:navlist>
     </div>
 

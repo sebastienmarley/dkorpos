@@ -4,6 +4,7 @@ use App\Enums\StoreType;
 use App\Http\Controllers\DeliverySignatureController;
 use App\Http\Controllers\LabelPrintController;
 use App\Http\Controllers\ProductLabelController;
+use App\Http\Controllers\SessionLockController;
 use App\Livewire\Accounting\Currencies;
 use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
@@ -143,6 +144,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('schedules/appointments', Appointments::class)->middleware('can:appointments.view')->name('schedules.appointments');
     Route::get('schedules/templates', Templates::class)->middleware('can:schedule_templates.view')->name('schedules.templates');
     Route::get('schedules/holidays', Holidays::class)->middleware('can:holidays.view')->name('schedules.holidays');
+});
+
+Route::middleware('auth')->controller(SessionLockController::class)->group(function () {
+    Route::get('lock', 'show')->name('session-lock.show');
+    Route::post('lock', 'lock')->name('session-lock.lock');
+    Route::post('lock/unlock', 'unlock')->name('session-lock.unlock');
+    Route::post('lock/heartbeat', 'heartbeat')->name('session-lock.heartbeat');
 });
 
 require __DIR__.'/settings.php';

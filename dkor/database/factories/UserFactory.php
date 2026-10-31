@@ -84,4 +84,14 @@ class UserFactory extends Factory
             'two_factor_confirmed_at' => now(),
         ]);
     }
+
+    /**
+     * NIP de déverrouillage de la session (ADR 0015).
+     */
+    public function withPin(string $pin = '1234'): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'pin' => Hash::make($pin),
+        ]);
+    }
 }

@@ -1,11 +1,11 @@
-<div class="p-6">
+<div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:heading level="1" size="xl">{{ __('Paie') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Verrouillez les horaires d\'une période de 2 semaines puis téléchargez le rapport.') }}</flux:text>
         </div>
 
-        <div class="w-72">
+        <div class="w-full sm:w-72">
             <flux:select wire:model.live="periodStart" :label="__('Période de paie')">
                 @foreach ($this->periodOptions() as $option)
                     <flux:select.option :value="$option['start']">{{ $option['label'] }}{{ $option['locked'] ? ' 🔒' : '' }}</flux:select.option>
@@ -27,7 +27,7 @@
             @endif
         </div>
 
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
             @can('payroll.lock')
                 @if ($period)
                     <flux:button size="sm" variant="ghost" icon="lock-open" wire:click="unlock"

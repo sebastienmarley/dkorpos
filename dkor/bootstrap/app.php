@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsurePinIsSet;
+use App\Http\Middleware\EnsureSessionIsUnlocked;
 use App\Http\Middleware\EnsureTwoFactorIsEnabled;
 use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Foundation\Application;
@@ -17,6 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             EnsureUserIsActive::class,
             EnsureTwoFactorIsEnabled::class,
+            EnsurePinIsSet::class,
+            EnsureSessionIsUnlocked::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

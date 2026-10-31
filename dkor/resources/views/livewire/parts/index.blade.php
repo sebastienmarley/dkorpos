@@ -1,6 +1,6 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Pièces') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Pièces de remplacement commandées pour les clients') }}</flux:text>
@@ -12,7 +12,7 @@
     </div>
 
     {{-- Onglets --}}
-    <div class="mb-4 flex border-b border-zinc-200 dark:border-zinc-700">
+    <div class="mb-4 flex overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] dark:border-zinc-700">
         @foreach (['catalog' => __('Catalogue'), 'orders' => __('Commandes fournisseur')] as $key => $label)
             <button
                 type="button"
@@ -28,12 +28,12 @@
 
     @if ($tab === 'orders')
         {{-- Commandes fournisseur --}}
-        <div class="mb-4 flex gap-3">
+        <div class="mb-4 flex flex-wrap gap-3">
             <div class="flex-1">
                 <flux:input wire:model.live.debounce.300ms="orderSearch" placeholder="{{ __('Rechercher par modèle, description, client ou numéro de commande…') }}" icon="magnifying-glass" />
             </div>
 
-            <div class="w-56">
+            <div class="w-full sm:w-56">
                 <flux:select wire:model.live="orderStage">
                     <flux:select.option value="">{{ __('Tous les statuts') }}</flux:select.option>
                     @foreach ($orderStages as $value => $label)

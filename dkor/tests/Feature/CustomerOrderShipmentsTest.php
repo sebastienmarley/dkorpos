@@ -308,6 +308,9 @@ it('avise l\'entrepôt d\'une expédition réduite, puis à faire quand ce qui r
     payBalance($this->order, $this->cash);
     $shipment = app(RequestShipment::class)->handle($this->order, [$line->id => 2]);
 
+    // Les avis sont triés par date de création : dans la même seconde, PostgreSQL ne garantit pas leur ordre.
+    $this->travel(1)->second();
+
     $this->order->updateLine($line->fresh(), 1, 0, Money::parse(100), null);
 
     expect(CustomerOrderDelivery::find($shipment->id)->lines()->sole()->quantity)->toBe(1)

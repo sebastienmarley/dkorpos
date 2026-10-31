@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
             <flux:heading level="1" size="xl">{{ __('Livraisons') }}</flux:heading>
@@ -9,7 +9,7 @@
 
         <div class="flex flex-wrap items-center gap-2">
             @if ($this->canChooseStore())
-                <flux:select wire:model.live="storeId" class="w-56">
+                <flux:select wire:model.live="storeId" class="w-full sm:w-56">
                     @foreach ($stores as $store)
                         <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
                     @endforeach

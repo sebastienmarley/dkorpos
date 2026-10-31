@@ -1,5 +1,5 @@
 <div>
-    <div class="mb-4 flex items-center justify-between gap-3">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <flux:text class="text-zinc-500">{{ __('Couleurs offertes pour les produits.') }}</flux:text>
         @can('colors.create')
             <flux:button variant="primary" icon="plus" wire:click="openCreate">
@@ -62,7 +62,7 @@
 
             <flux:field>
                 <flux:label>{{ __('Code hex') }}</flux:label>
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                     <flux:input wire:model="hexCode" type="text" placeholder="#RRGGBB" maxlength="7" class="font-mono" />
                     @if (filled($hexCode))
                         <span class="inline-block h-9 w-9 flex-shrink-0 rounded-lg border border-zinc-200 dark:border-zinc-600" style="background-color: {{ $hexCode }}"></span>

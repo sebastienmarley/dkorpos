@@ -1,10 +1,10 @@
-<div class="p-6">
+<div class="sm:p-6">
     @if (session('toast-error'))
         <div x-data x-init="$nextTick(() => $flux.toast({ text: @js(session('toast-error')), variant: 'danger' }))"></div>
     @endif
 
     {{-- En-tête --}}
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Utilisateurs') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ match ($statusFilter) { 'inactive' => __('Employés inactifs'), 'all' => __('Tous les employés'), default => __('Employés actifs') } }}</flux:text>
@@ -19,11 +19,11 @@
 
     {{-- Recherche et filtres --}}
     <div class="mb-4 flex flex-wrap items-center gap-3">
-        <div class="w-64">
+        <div class="w-full sm:w-64">
             <flux:input wire:model.live.debounce.300ms="search" type="search" icon="magnifying-glass" :placeholder="__('Rechercher un employé…')" />
         </div>
 
-        <div class="w-56">
+        <div class="w-full sm:w-56">
             <flux:select wire:model.live="sortRole">
                 <flux:select.option value="">{{ __('Tous les rôles') }}</flux:select.option>
                 @foreach ($this->visibleRoles() as $roleOption)
@@ -33,7 +33,7 @@
         </div>
 
         @if (auth()->user()->hasAllStores())
-            <div class="w-56">
+            <div class="w-full sm:w-56">
                 <flux:select wire:model.live="storeFilter">
                     <flux:select.option value="">{{ __('Tous les magasins') }}</flux:select.option>
                     @foreach ($this->stores() as $storeOption)
@@ -43,7 +43,7 @@
             </div>
         @endif
 
-        <div class="w-44">
+        <div class="w-full sm:w-44">
             <flux:select wire:model.live="statusFilter">
                 <flux:select.option value="active">{{ __('Actifs') }}</flux:select.option>
                 <flux:select.option value="inactive">{{ __('Inactifs') }}</flux:select.option>
@@ -155,7 +155,7 @@
                     {{ trans_choice('Un employé inactif porte déjà ce nom.|:count employés inactifs portent déjà ce nom.', count($inactiveMatchIds)) }}
                 </p>
                 <p class="mt-1">{{ __("S'agit-il d'un nouvel employé ou d'un retour d'employé ?") }}</p>
-                <div class="mt-3 flex gap-2">
+                <div class="mt-3 flex flex-wrap gap-2">
                     <flux:button size="sm" variant="primary" wire:click="confirmNewEmployee">
                         {{ __('Nouvel employé') }}
                     </flux:button>

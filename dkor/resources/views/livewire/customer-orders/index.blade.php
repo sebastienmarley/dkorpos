@@ -1,6 +1,6 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Commandes clients') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Commandes de vente aux clients') }}</flux:text>
@@ -14,13 +14,13 @@
     </div>
 
     {{-- Filtres --}}
-    <div class="mb-4 flex gap-3">
+    <div class="mb-4 flex flex-wrap gap-3">
         <div class="flex-1">
             <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher par numéro, client ou téléphone…') }}" icon="magnifying-glass" />
         </div>
 
         @if ($stores->isNotEmpty())
-            <div class="w-52">
+            <div class="w-full sm:w-52">
                 <flux:select wire:model.live="storeFilter">
                     <flux:select.option value="">{{ __('Tous les magasins') }}</flux:select.option>
                     @foreach ($stores as $store)
@@ -30,7 +30,7 @@
             </div>
         @endif
 
-        <div class="w-52">
+        <div class="w-full sm:w-52">
             <flux:select wire:model.live="statusFilter">
                 <flux:select.option value="">{{ __('Tous les statuts') }}</flux:select.option>
                 @foreach ($statuses as $status)

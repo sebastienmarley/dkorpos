@@ -1,4 +1,4 @@
-<div class="mx-auto max-w-2xl p-4 sm:p-6">
+<div class="mx-auto max-w-2xl sm:p-6">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Mes livraisons') }}</flux:heading>
@@ -33,7 +33,7 @@
                     'border-zinc-200 dark:border-zinc-700' => $openedId !== $delivery->id,
                     'opacity-60' => ! $delivery->status->isActive(),
                 ])>
-                    <div class="flex items-start gap-3">
+                    <div class="flex flex-wrap items-start gap-3">
                         <div class="flex flex-col items-center">
                             <span class="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-100 text-sm font-semibold dark:bg-zinc-800">{{ $index + 1 }}</span>
                             @if ($delivery->status->isActive())

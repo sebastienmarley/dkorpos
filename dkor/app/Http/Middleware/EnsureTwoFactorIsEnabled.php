@@ -2,16 +2,16 @@
 
 namespace App\Http\Middleware;
 
+use App\Concerns\ResolvesPageRouteName;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
-use Livewire\Livewire;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EnsureTwoFactorIsEnabled
 {
+    use ResolvesPageRouteName;
+
     /**
      * Routes accessibles avant d'avoir activé la 2FA : son réglage, la confirmation du mot de passe et la déconnexion.
      *
@@ -39,21 +39,5 @@ class EnsureTwoFactorIsEnabled
         }
 
         return redirect()->route('two-factor.edit');
-    }
-
-    /**
-     * Pour une requête Livewire, le nom de la route de la page qui contient le composant.
-     */
-    private function routeName(Request $request): string
-    {
-        if (! Livewire::isLivewireRequest()) {
-            return (string) $request->route()?->getName();
-        }
-
-        try {
-            return (string) Route::getRoutes()->match(Request::create('/'.ltrim(Livewire::originalPath(), '/')))->getName();
-        } catch (HttpException) {
-            return '';
-        }
     }
 }

@@ -6,9 +6,9 @@
     $status = $order->status;
 @endphp
 
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-start justify-between gap-4">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:link :href="route('supplier-orders.index')" wire:navigate class="text-sm">
                 ← {{ __('Commandes fournisseurs') }}
@@ -38,7 +38,7 @@
             </flux:text>
         </div>
 
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
             @if ($order->isDeletable())
                 @can('supplier_orders.delete')
                     <flux:button variant="ghost" icon="trash" wire:click="deleteOrder" wire:confirm="{{ __('Supprimer définitivement cette commande vide?') }}">
@@ -344,7 +344,7 @@
                         <flux:checkbox wire:model.live="isCollect" :label="__('Envoyer collect')" :disabled="$order->supplier->collect" />
 
                         @if ($isCollect)
-                            <div class="w-64">
+                            <div class="w-full sm:w-64">
                                 <flux:select wire:model="shippingSupplierId" :label="__('Fournisseur d\'expédition')" :placeholder="__('Choisir…')">
                                     @foreach ($shippingSuppliers as $shippingSupplier)
                                         <flux:select.option :value="$shippingSupplier->id">{{ $shippingSupplier->name }}</flux:select.option>

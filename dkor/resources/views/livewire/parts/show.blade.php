@@ -1,6 +1,6 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-start justify-between gap-4">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div class="flex items-center gap-4">
             <flux:button variant="ghost" icon="arrow-left" :href="route('parts.index')" wire:navigate size="sm">
                 {{ __('Retour') }}
