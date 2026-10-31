@@ -1,6 +1,6 @@
-<div class="p-6" wire:poll.30s="checkForChanges">
+<div class="sm:p-6" wire:poll.30s="checkForChanges">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Gestion des horaires') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">
@@ -8,9 +8,9 @@
             </flux:text>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             @if ($this->canChooseStore())
-                <flux:select wire:model.live="storeId" size="sm" class="w-56">
+                <flux:select wire:model.live="storeId" size="sm" class="w-full sm:w-56">
                     @foreach ($stores as $store)
                         <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
                     @endforeach
@@ -348,7 +348,7 @@
                     </flux:field>
                 @endif
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <flux:field>
                         <flux:label>{{ __('Début') }}</flux:label>
                         <flux:input wire:model="startTime" type="time" />
@@ -412,7 +412,7 @@
                     @endif
                 </div>
 
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-3">
                     <flux:button type="button" variant="ghost" wire:click="$set('showModal', false)">
                         {{ __('Annuler') }}
                     </flux:button>
@@ -449,7 +449,7 @@
                     </flux:callout>
                 @enderror
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <flux:field>
                         <flux:label>{{ __('Date') }}</flux:label>
                         <flux:input wire:model.live="reassignDate" type="date" :min="now()->toDateString()" />

@@ -1,5 +1,5 @@
 <div>
-    <div class="mb-4 flex items-center justify-between gap-3">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <flux:text class="text-zinc-500">{{ __('Styles offerts pour les produits.') }}</flux:text>
         @can('styles.create')
             <flux:button variant="primary" icon="plus" wire:click="openCreate">

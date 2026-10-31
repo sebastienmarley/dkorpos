@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Jours fériés') }}</flux:heading>
@@ -7,7 +7,7 @@
             </flux:text>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             <flux:button.group>
                 <flux:button size="sm" icon="chevron-left" wire:click="previousYear" :label="__('Année précédente')" />
                 <flux:button size="sm" disabled>{{ $year }}</flux:button>

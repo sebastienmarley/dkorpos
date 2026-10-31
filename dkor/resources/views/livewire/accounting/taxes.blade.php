@@ -1,5 +1,5 @@
-<div class="p-6">
-    <div class="mb-6 flex items-center justify-between">
+<div class="sm:p-6">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Taxes') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Taxes par province et historique des taux') }}</flux:text>
@@ -13,7 +13,7 @@
 
     {{-- Filtres --}}
     <div class="mb-4 flex flex-wrap items-end gap-4">
-        <flux:field class="w-64">
+        <flux:field class="w-full sm:w-64">
             <flux:label>{{ __('Province') }}</flux:label>
             <flux:select wire:model.live="filterProvince">
                 <flux:select.option value="">{{ __('Toutes') }}</flux:select.option>
@@ -23,7 +23,7 @@
             </flux:select>
         </flux:field>
 
-        <flux:field class="w-52">
+        <flux:field class="w-full sm:w-52">
             <flux:label>{{ __('En vigueur le') }}</flux:label>
             <flux:input wire:model.live="filterDate" type="date" />
         </flux:field>
@@ -106,7 +106,7 @@
                 <flux:error name="province" />
             </flux:field>
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <flux:field>
                     <flux:label>{{ __('Nom') }}</flux:label>
                     <flux:input wire:model="name" type="text" placeholder="TPS" required autofocus />
@@ -125,7 +125,7 @@
                 <flux:error name="isCompound" />
             </flux:field>
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <flux:field>
                     <flux:label>{{ __('Date de début') }}</flux:label>
                     <flux:input wire:model="startDate" type="date" required />

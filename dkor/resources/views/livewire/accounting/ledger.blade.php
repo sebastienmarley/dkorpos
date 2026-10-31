@@ -1,10 +1,10 @@
-<div class="p-6">
+<div class="sm:p-6">
     <div class="mb-6">
         <flux:heading level="1" size="xl">{{ __('Grand livre') }}</flux:heading>
         <flux:text class="mt-1 text-zinc-500">{{ __('Écritures équilibrées, passées par les ajustements d\'inventaire. Une écriture ne se modifie pas : une correction passe une écriture inverse.') }}</flux:text>
     </div>
 
-    <div class="mb-4 w-72">
+    <div class="mb-4 w-full sm:w-72">
         <flux:select wire:model.live="accountFilter">
             <flux:select.option value="">{{ __('Tous les comptes') }}</flux:select.option>
             @foreach ($accounts as $account)

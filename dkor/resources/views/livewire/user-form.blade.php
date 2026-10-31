@@ -1,4 +1,4 @@
-<section class="mx-auto w-full max-w-3xl p-6">
+<section class="mx-auto w-full max-w-3xl sm:p-6">
     <div class="mb-6">
         <flux:heading level="1">{{ $user ? 'Edit user' : 'Create user' }}</flux:heading>
     </div>

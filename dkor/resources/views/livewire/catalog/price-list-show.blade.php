@@ -1,5 +1,5 @@
-<div class="p-6">
-    <div class="mb-6 flex items-start justify-between gap-4">
+<div class="sm:p-6">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div class="flex items-center gap-4">
             <flux:button variant="ghost" icon="arrow-left" :href="route('catalog.price-lists')" wire:navigate size="sm">
                 {{ __('Retour') }}
@@ -76,7 +76,7 @@
                 </div>
                 @can('price_lists.edit')
                     @if ($priceList->isActive())
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
                             <flux:button size="sm" icon="arrow-up-tray" wire:click="openImport({{ $list->id }})">{{ __('Importer') }}</flux:button>
                             <flux:button size="sm" variant="ghost" icon="trash" wire:click="deleteList({{ $list->id }})" wire:confirm="{{ __('Supprimer cette liste et tous ses produits importés ?') }}" />
                         </div>

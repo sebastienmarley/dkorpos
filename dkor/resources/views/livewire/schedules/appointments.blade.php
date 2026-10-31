@@ -1,6 +1,6 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-start justify-between">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Rendez-vous') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">
@@ -8,7 +8,7 @@
             </flux:text>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
             {{-- Nouveau client --}}
             @can('customers.create')
                 <flux:button size="sm" variant="ghost" icon="user-plus" x-on:click="$dispatch('open-customer-create')">
@@ -18,21 +18,21 @@
 
             {{-- Sélecteur de magasin (stores.all) et d'employé du magasin --}}
             @if ($this->canChooseStore())
-                <flux:select wire:model.live="storeId" class="w-48">
+                <flux:select wire:model.live="storeId" class="w-full sm:w-48">
                     @foreach ($stores as $store)
                         <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
                     @endforeach
                 </flux:select>
             @endif
 
-            <flux:select wire:model.live="selectedUserId" class="w-48">
+            <flux:select wire:model.live="selectedUserId" class="w-full sm:w-48">
                 @foreach ($users as $user)
                     <flux:select.option value="{{ $user->id }}">{{ $user->fullName() }}</flux:select.option>
                 @endforeach
             </flux:select>
 
             {{-- Navigation semaine --}}
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
                 @if (! $isCurrentWeek)
                     <flux:button size="sm" variant="ghost" wire:click="goToCurrentWeek">{{ __('Semaine actuelle') }}</flux:button>
                 @endif
@@ -338,7 +338,7 @@
         @endif
 
         <form wire:submit="save" class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <flux:field class="col-span-2">
                     <flux:label>{{ __('Titre') }}</flux:label>
                     <flux:input wire:model="title" autofocus placeholder="{{ __('Ex: Consultation, Réunion…') }}" />
@@ -397,7 +397,7 @@
                     @endcan
                 </div>
 
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-3">
                     <flux:button type="button" variant="ghost" wire:click="closeModal">{{ __('Annuler') }}</flux:button>
                     <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
                 </div>

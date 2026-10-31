@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:link :href="route('inventory.counts')" wire:navigate class="text-sm">← {{ __('Prises d\'inventaire') }}</flux:link>
@@ -65,7 +65,7 @@
         </div>
     </div>
 
-    <div class="mb-3 flex items-center justify-between">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
         <flux:heading size="lg">{{ $types[$type] ?? '' }}</flux:heading>
         @if ($count->isInProgress())
             <flux:button size="sm" icon="plus" wire:click="openAdd">{{ __('Ajouter un produit trouvé') }}</flux:button>

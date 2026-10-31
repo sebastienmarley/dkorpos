@@ -2,8 +2,8 @@
     $inProgress = $reception->isInProgress();
 @endphp
 
-<div class="p-6">
-    <div class="mb-6 flex items-start justify-between gap-4">
+<div class="sm:p-6">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:link :href="route('receptions.index')" wire:navigate class="text-sm">← {{ __('Réceptions') }}</flux:link>
             <div class="mt-1 flex items-center gap-3">
@@ -24,7 +24,7 @@
 
         @if ($inProgress)
             @can('receptions.create')
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2">
                     <flux:button variant="ghost" icon="trash" wire:click="discard" wire:confirm="{{ __('Abandonner cette réception? Rien n\'est enregistré dans l\'inventaire.') }}">{{ __('Abandonner') }}</flux:button>
                     <flux:button variant="primary" icon="check" wire:click="complete" wire:confirm="{{ __('Terminer la réception? Les quantités entreront en inventaire.') }}">{{ __('Terminer la réception') }}</flux:button>
                 </div>
@@ -176,7 +176,7 @@
                     </div>
                     @php($receptionOrders = $this->receptionOrders())
                     @if ($receptionOrders->count() > 1)
-                        <div class="w-48">
+                        <div class="w-full sm:w-48">
                             <flux:select wire:model="overshipOrderId">
                                 @foreach ($receptionOrders as $receptionOrder)
                                     <flux:select.option :value="$receptionOrder->id">{{ $receptionOrder->number }}</flux:select.option>

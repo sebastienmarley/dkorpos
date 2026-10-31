@@ -25,7 +25,7 @@
     }"
     x-on:print-labels.window="print($event.detail.url)"
 >
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Étiquettes à imprimer') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Les démonstrateurs dont le prix a changé s\'ajoutent automatiquement à la file.') }}</flux:text>

@@ -1,5 +1,5 @@
-<div class="p-6">
-    <div class="mb-6 flex items-center justify-between">
+<div class="sm:p-6">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Modes de paiement') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Modes de paiement acceptés des clients') }}</flux:text>

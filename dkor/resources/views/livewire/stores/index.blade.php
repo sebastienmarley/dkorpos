@@ -1,6 +1,6 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Magasins') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Liste de tous les emplacements, physiques et virtuels') }}</flux:text>

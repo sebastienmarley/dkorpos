@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
     <div class="mb-6 flex items-center gap-4">
         <flux:button variant="ghost" icon="arrow-left" :href="route('suppliers.index')" wire:navigate size="sm">
@@ -20,19 +20,19 @@
 
     {{-- Onglets --}}
     <div x-data="{ tab: @entangle('activeTab') }">
-        <div class="flex border-b border-zinc-200 dark:border-zinc-700">
+        <div class="flex overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] dark:border-zinc-700">
             <button
                 type="button"
                 @click="tab = 'identification'"
                 :class="tab === 'identification' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Identification') }}</button>
 
             <button
                 type="button"
                 @click="tab = 'accounting'"
                 :class="tab === 'accounting' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Comptabilité') }}</button>
 
             @if ($supplier->type === \App\Enums\SupplierType::Product)
@@ -40,7 +40,7 @@
                     type="button"
                     @click="tab = 'transport'"
                     :class="tab === 'transport' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('Transport') }}</button>
             @endif
 
@@ -49,7 +49,7 @@
                     type="button"
                     @click="tab = 'parameters'"
                     :class="tab === 'parameters' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('Info commande') }}</button>
             @endif
         </div>
@@ -169,7 +169,7 @@
                 </div>
 
                 <div>
-                    <div class="mb-4 flex items-center justify-between">
+                    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                         <flux:heading size="sm">{{ __('Adresse de paiement') }}</flux:heading>
                         <flux:checkbox
                             wire:model.live="sameAsMainAddress"

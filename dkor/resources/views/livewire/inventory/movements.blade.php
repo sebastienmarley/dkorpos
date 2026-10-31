@@ -1,5 +1,5 @@
-<div class="p-6">
-    <div class="mb-6 flex items-center justify-between">
+<div class="sm:p-6">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Journal d\'inventaire') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">
@@ -17,9 +17,9 @@
         @endcan
     </div>
 
-    <div class="mb-4 flex gap-3">
+    <div class="mb-4 flex flex-wrap gap-3">
         @if (auth()->user()->hasAllStores())
-            <div class="w-56">
+            <div class="w-full sm:w-56">
                 <flux:select wire:model.live="storeFilter">
                     <flux:select.option value="">{{ __('Tous les magasins') }}</flux:select.option>
                     @foreach ($stores as $store)
@@ -28,7 +28,7 @@
                 </flux:select>
             </div>
         @endif
-        <div class="w-56">
+        <div class="w-full sm:w-56">
             <flux:select wire:model.live="statusFilter">
                 <flux:select.option value="">{{ __('Tous les états') }}</flux:select.option>
                 @foreach ($statuses as $status)
@@ -36,7 +36,7 @@
                 @endforeach
             </flux:select>
         </div>
-        <div class="w-64">
+        <div class="w-full sm:w-64">
             <flux:select wire:model.live="typeFilter">
                 <flux:select.option value="">{{ __('Tous les types') }}</flux:select.option>
                 @foreach ($types as $type)

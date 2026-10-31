@@ -1,5 +1,5 @@
-<div class="p-6">
-    <div class="mb-6 flex items-start justify-between gap-4">
+<div class="sm:p-6">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
       <div>
         <flux:heading level="1" size="xl">{{ __('Facturation fournisseurs') }}</flux:heading>
         <flux:text class="mt-1 text-zinc-500">{{ __('Cherchez une réception de produits ou une commande de services par son numéro, son bon de commande ou son quote #, puis ouvrez sa facturation.') }}</flux:text>

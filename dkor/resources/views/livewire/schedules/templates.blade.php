@@ -1,4 +1,4 @@
-<div class="space-y-10 p-6">
+<div class="space-y-10 sm:p-6">
     <div>
         <flux:heading level="1" size="xl">{{ __('Modèles d\'horaire') }}</flux:heading>
         <flux:text class="mt-1 text-zinc-500">
@@ -8,7 +8,7 @@
 
     {{-- Quarts type --}}
     <section>
-        <div class="mb-3 flex items-center justify-between">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
             <flux:heading size="lg">{{ __('Quarts type') }}</flux:heading>
             @can('schedule_templates.create')
                 <flux:button size="sm" variant="primary" icon="plus" wire:click="openCreateShift">
@@ -68,8 +68,8 @@
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
             <flux:heading size="lg">{{ __('Semaines type') }}</flux:heading>
 
-            <div class="flex items-center gap-2">
-                <flux:select wire:model.live="selectedWeekTemplateId" class="w-56">
+            <div class="flex flex-wrap items-center gap-2">
+                <flux:select wire:model.live="selectedWeekTemplateId" class="w-full sm:w-56">
                     <flux:select.option value="">{{ __('Choisir une semaine type…') }}</flux:select.option>
                     @foreach ($weekTemplates as $week)
                         <flux:select.option value="{{ $week->id }}">{{ $week->name }} ({{ trans_choice(':count jour|:count jours', $week->entries_count) }})</flux:select.option>
@@ -159,7 +159,7 @@
                 <flux:error name="shiftName" />
             </flux:field>
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <flux:field>
                     <flux:label>{{ __('Début') }}</flux:label>
                     <flux:input wire:model="shiftStart" type="time" />

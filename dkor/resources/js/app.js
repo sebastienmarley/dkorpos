@@ -263,3 +263,89 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 });
+
+/**
+ * Recherche « spotlight » des pages de la navigation. Les résultats sont rendus par le serveur selon les permissions ;
+ * on ne fait que les filtrer, sans tenir compte des accents (le serveur fournit le texte de recherche déjà normalisé).
+ */
+document.addEventListener('alpine:init', () => {
+    window.Alpine.data('spotlight', () => ({
+        query: '',
+        active: 0,
+        visibleCount: 0,
+
+        init() {
+            this.filter();
+        },
+
+        onGlobalKeydown(event) {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                this.show();
+            }
+        },
+
+        show() {
+            this.query = '';
+            this.filter();
+            window.Flux.modal('spotlight').show();
+            this.$nextTick(() => this.$refs.input.focus());
+        },
+
+        normalize(text) {
+            return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+        },
+
+        items() {
+            return [...this.$refs.results.querySelectorAll('[data-spotlight-item]')];
+        },
+
+        visibleItems() {
+            return this.items().filter((item) => !item.hidden);
+        },
+
+        filter() {
+            const terms = this.normalize(this.query).split(/\s+/).filter(Boolean);
+
+            this.items().forEach((item) => {
+                item.hidden = !terms.every((term) => item.dataset.search.includes(term));
+            });
+
+            this.$refs.results.querySelectorAll('[data-spotlight-section]').forEach((section) => {
+                section.hidden = !section.querySelector('[data-spotlight-item]:not([hidden])');
+            });
+
+            this.visibleCount = this.visibleItems().length;
+            this.active = 0;
+            this.highlight();
+        },
+
+        move(step) {
+            if (this.visibleCount === 0) {
+                return;
+            }
+
+            this.active = (this.active + step + this.visibleCount) % this.visibleCount;
+            this.highlight();
+        },
+
+        activate(item) {
+            this.active = this.visibleItems().indexOf(item);
+            this.highlight(false);
+        },
+
+        highlight(scroll = true) {
+            this.visibleItems().forEach((item, index) => {
+                item.toggleAttribute('data-active', index === this.active);
+
+                if (scroll && index === this.active) {
+                    item.scrollIntoView({ block: 'nearest' });
+                }
+            });
+        },
+
+        openActive() {
+            this.visibleItems()[this.active]?.click();
+        },
+    }));
+});
