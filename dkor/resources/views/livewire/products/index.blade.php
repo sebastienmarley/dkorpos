@@ -1,6 +1,6 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Produits') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Liste de tous les produits') }}</flux:text>
@@ -19,7 +19,7 @@
             <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher un produit…') }}" icon="magnifying-glass" />
         </div>
 
-        <div class="w-56">
+        <div class="w-full sm:w-56">
             <flux:select wire:model.live="supplierId">
                 <flux:select.option value="">{{ __('Tous les fournisseurs') }}</flux:select.option>
                 @foreach ($suppliers as $supplier)
@@ -28,7 +28,7 @@
             </flux:select>
         </div>
 
-        <div class="w-48">
+        <div class="w-full sm:w-48">
             <flux:select wire:model.live="departmentId">
                 <flux:select.option value="">{{ __('Tous les départements') }}</flux:select.option>
                 @foreach ($this->getDepartments() as $department)
@@ -37,7 +37,7 @@
             </flux:select>
         </div>
 
-        <div class="w-48">
+        <div class="w-full sm:w-48">
             <flux:select wire:model.live="categoryId" :disabled="blank($departmentId)">
                 <flux:select.option value="">{{ __('Toutes les catégories') }}</flux:select.option>
                 @foreach ($this->getCategories() as $category)

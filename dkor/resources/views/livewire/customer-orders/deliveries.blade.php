@@ -76,7 +76,7 @@
 
                         @can('customer_orders.edit')
                             @if ($delivery->status === \App\Enums\DeliveryStatus::Scheduled)
-                                <div class="flex gap-2">
+                                <div class="flex flex-wrap gap-2">
                                     @if ($delivery->method === \App\Enums\DeliveryMethod::Internal)
                                         <flux:button size="sm" icon="calendar" wire:click="openReschedule({{ $delivery->id }})">{{ __('Reporter') }}</flux:button>
                                     @endif

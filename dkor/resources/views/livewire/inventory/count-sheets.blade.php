@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:link :href="route('inventory.counts.show', $count)" wire:navigate class="text-sm">← {{ __('Prise d\'inventaire du :date', ['date' => $count->counted_on->format('Y-m-d')]) }}</flux:link>
@@ -33,7 +33,7 @@
     <div class="space-y-6">
         @forelse ($scopes as $scopeKey => $scope)
             <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:key="scope-{{ $scopeKey }}">
-                <div class="mb-3 flex items-center justify-between">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <flux:heading size="lg">{{ $scope['label'] }}</flux:heading>
                     @if ($scope['reconciled'])
                         <flux:badge color="green">{{ __('Réconciliée') }}</flux:badge>
@@ -43,7 +43,7 @@
                 <div class="grid gap-3 sm:grid-cols-3">
                     @foreach ($scope['sheets'] as $sheet)
                         <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700" wire:key="sheet-{{ $sheet->id }}">
-                            <div class="mb-2 flex items-center justify-between">
+                            <div class="mb-2 flex flex-wrap items-center justify-between gap-3">
                                 <flux:text class="font-medium">{{ $sheet->pass->label() }}</flux:text>
                                 <flux:badge size="sm" :color="$sheet->state->color()">{{ $sheet->state->label() }}</flux:badge>
                             </div>
@@ -94,7 +94,7 @@
                     @if ($count->isInProgress() && ! $scope['reconciled'])
                         <div class="mt-4 flex flex-wrap items-end gap-3">
                             @if ($disagreements->isNotEmpty() && ! $scope['hasRecount'])
-                                <div class="w-64">
+                                <div class="w-full sm:w-64">
                                     <flux:select size="sm" wire:model="recountCounters.{{ $scopeKey }}" :label="__('Compteur du recompte')">
                                         <flux:select.option value="">{{ __('Choisir…') }}</flux:select.option>
                                         @foreach ($counters as $counter)

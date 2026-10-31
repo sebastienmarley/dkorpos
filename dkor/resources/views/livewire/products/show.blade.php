@@ -1,6 +1,6 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-start justify-between gap-4">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div class="flex items-center gap-4">
             <flux:button variant="ghost" icon="arrow-left" :href="route('products.index')" wire:navigate size="sm">
                 {{ __('Retour') }}
@@ -36,33 +36,33 @@
 
     {{-- Onglets --}}
     <div x-data="{ tab: @entangle('activeTab') }">
-        <div class="flex border-b border-zinc-200 dark:border-zinc-700">
+        <div class="flex overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] dark:border-zinc-700">
             <button
                 type="button"
                 @click="tab = 'general'"
                 :class="tab === 'general' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Général') }}</button>
 
             <button
                 type="button"
                 @click="tab = 'description'"
                 :class="tab === 'description' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Description') }}</button>
 
             <button
                 type="button"
                 @click="tab = 'inventory'"
                 :class="tab === 'inventory' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Inventaire') }}</button>
 
             <button
                 type="button"
                 @click="tab = 'photos'"
                 :class="tab === 'photos' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
             >{{ __('Photos') }}</button>
 
             @can('parts.view')
@@ -70,7 +70,7 @@
                     type="button"
                     @click="tab = 'parts'"
                     :class="tab === 'parts' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ __('Pièces') }} ({{ $parts->count() }})</button>
             @endcan
         </div>

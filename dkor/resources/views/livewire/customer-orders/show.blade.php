@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
     <div class="mb-6 grid grid-cols-1 items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
         <div>
@@ -52,21 +52,21 @@
     {{-- Produits --}}
     <div class="mb-6">
         @can('customer_orders.edit')
-            <div class="mb-3 flex items-start gap-3">
+            <div class="mb-3 flex flex-wrap items-start gap-3">
                 <flux:button icon="plus" wire:click="openProductModal">{{ __('Ajouter un produit') }}</flux:button>
                 <flux:button icon="wrench" wire:click="openServiceModal">{{ __('Ajouter un service') }}</flux:button>
                 @can('parts.view')
                     <flux:button icon="puzzle-piece" x-on:click="$dispatch('open-part-picker')">{{ __('Ajouter une pièce') }}</flux:button>
                 @endcan
 
-                <form wire:submit="scanUpc" class="w-64">
+                <form wire:submit="scanUpc" class="w-full sm:w-64">
                     <flux:field>
                         <flux:input wire:model="upcScan" icon="qr-code" inputmode="numeric" autocomplete="off" autofocus :placeholder="__('Scanner un UPC…')" />
                         <flux:error name="upcScan" />
                     </flux:field>
                 </form>
 
-                <div class="ms-auto flex gap-2">
+                <div class="ms-auto flex flex-wrap gap-2">
                     @if ($order->lines->contains(fn ($line) => ! $line->isService() && $line->status->isPickable()))
                         <flux:button icon="truck" x-on:click="$dispatch('open-delivery-modal')">{{ __('Livraison') }}</flux:button>
                         <flux:button icon="paper-airplane" x-on:click="$dispatch('open-delivery-modal', { method: 'shipping' })">{{ __('Expédition') }}</flux:button>
@@ -547,7 +547,7 @@
                     @if (! $editingLine->isService() && ! $editingLine->isPart() && $editingLine->status->isHandedOver())
                         <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                             <flux:text class="mb-2 text-sm font-medium">{{ __('Le client rapporte cet article ?') }}</flux:text>
-                            <div class="flex gap-2">
+                            <div class="flex flex-wrap gap-2">
                                 @if (! $editingLine->is_custom || auth()->user()->can('customer_orders.return_custom'))
                                     <flux:button type="button" size="sm" icon="arrow-uturn-left" wire:click="openReturnModal({{ $editingLine->id }})">{{ __('Retour') }}</flux:button>
                                 @else

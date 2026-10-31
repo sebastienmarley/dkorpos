@@ -1,5 +1,5 @@
-<div class="p-6">
-    <div class="mb-6 flex items-center justify-between">
+<div class="sm:p-6">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Ajustements d\'inventaire') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">{{ __('Pertes, vols, usage magasin, corrections de comptage et stock initial, avec leur écriture au grand livre.') }}</flux:text>

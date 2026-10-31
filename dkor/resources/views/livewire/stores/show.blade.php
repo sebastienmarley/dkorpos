@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
     <div class="mb-6 flex items-center gap-4">
         <flux:button variant="ghost" icon="arrow-left" :href="route('stores.index')" wire:navigate size="sm">
@@ -20,13 +20,13 @@
 
     {{-- Onglets --}}
     <div x-data="{ tab: @entangle('activeTab') }">
-        <div class="flex border-b border-zinc-200 dark:border-zinc-700">
+        <div class="flex overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] dark:border-zinc-700">
             @foreach ($this->getTabs() as $key => $label)
                 <button
                     type="button"
                     @click="tab = '{{ $key }}'"
                     :class="tab === '{{ $key }}' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px px-4 py-3 text-sm font-medium transition-colors"
+                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
                 >{{ $label }}</button>
             @endforeach
         </div>

@@ -64,3 +64,12 @@ select:focus[data-flux-control] {
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
+
+/* Sur iOS, un champ sous 16px fait zoomer la page au focus. */
+@media (max-width: 767px) {
+    input[data-flux-control],
+    textarea[data-flux-control],
+    select[data-flux-control] {
+        font-size: 16px;
+    }
+}

@@ -1,6 +1,6 @@
-<div class="p-6">
+<div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <flux:heading level="1" size="xl">{{ __('Mon horaire') }}</flux:heading>
             <flux:text class="mt-1 text-zinc-500">
@@ -8,7 +8,7 @@
             </flux:text>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             @if (! $isCurrentWeek)
                 <flux:button size="sm" variant="ghost" wire:click="goToCurrentWeek">
                     {{ __('Semaine actuelle') }}

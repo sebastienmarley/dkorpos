@@ -1,8 +1,8 @@
 <div>
-    <div class="mb-4 flex items-center justify-between gap-3">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <flux:text class="text-zinc-500">{{ __('Chaque catégorie appartient à un département. Le département d\'un produit est déduit de sa catégorie.') }}</flux:text>
 
-        <div class="flex shrink-0 gap-2">
+        <div class="flex flex-wrap gap-2 sm:shrink-0">
             @can('categories.create')
                 <flux:button icon="plus" wire:click="openCreateCategory" :disabled="$departments->isEmpty()">
                     {{ __('Nouvelle catégorie') }}

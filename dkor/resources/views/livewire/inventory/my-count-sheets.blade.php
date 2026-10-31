@@ -1,4 +1,4 @@
-<div class="mx-auto max-w-md p-4">
+<div class="mx-auto max-w-md sm:p-4">
     @if ($sheet)
         <div class="mb-4">
             <flux:button size="sm" variant="ghost" icon="arrow-left" wire:click="back">{{ __('Mes comptes') }}</flux:button>
@@ -49,7 +49,7 @@
                 </div>
             @endif
 
-            <div class="mt-4 flex gap-2">
+            <div class="mt-4 flex flex-wrap gap-2">
                 <flux:button class="flex-1" icon="arrow-uturn-left" wire:click="undo">{{ __('Annuler la dernière lecture') }}</flux:button>
                 <flux:button class="flex-1" variant="primary" wire:click="finish"
                     wire:confirm="{{ __('Terminer la feuille ? Vous ne pourrez plus la modifier.') }}">{{ __('Terminer') }}</flux:button>

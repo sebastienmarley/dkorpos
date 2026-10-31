@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="sm:p-6">
     <div class="mb-6">
         <flux:link :href="route('accounting.invoices')" wire:navigate class="text-sm">← {{ __('Facturation fournisseurs') }}</flux:link>
         <flux:heading level="1" size="xl" class="mt-1">{{ __('Nouvelle facture') }}</flux:heading>

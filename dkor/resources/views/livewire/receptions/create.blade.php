@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="sm:p-6">
     <div class="mb-6">
         <flux:link :href="route('receptions.index')" wire:navigate class="text-sm">← {{ __('Réceptions') }}</flux:link>
         <flux:heading level="1" size="xl" class="mt-1">{{ __('Nouvelle réception') }}</flux:heading>
@@ -101,7 +101,7 @@
                                     <flux:text class="font-medium">{{ $line->label }}</flux:text>
                                     <flux:text class="text-xs text-zinc-400">{{ $line->order->number }}</flux:text>
                                 </div>
-                                <div class="flex items-center gap-3">
+                                <div class="flex flex-wrap items-center gap-3">
                                     <flux:text>× {{ $quantities[$line->id] ?? 0 }}</flux:text>
                                     <flux:button type="button" size="xs" variant="ghost" icon="x-mark" wire:click="removeSelected({{ $line->id }})" />
                                 </div>
