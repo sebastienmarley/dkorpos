@@ -117,7 +117,6 @@ describe('réception par magasin', function () {
             ->assertSee('est celle du magasin Gaspé')
             ->call('confirmOtherStore')
             ->assertSet("selected.{$line->id}", true)
-            ->assertSet("quantities.{$line->id}", '2')
             ->call('start');
 
         expect(Reception::sole()->store_id)->toBe($this->gaspe->id);

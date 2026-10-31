@@ -4,6 +4,7 @@ namespace App\Livewire\Receptions;
 
 use App\Models\Product;
 use App\Models\Reception;
+use App\Models\ReceptionLine;
 use App\Models\SupplierOrder;
 use DomainException;
 use Flux\Flux;
@@ -20,14 +21,19 @@ class Show extends Component
 
     public string $notes = '';
 
-    /** @var array<int, string> Quantité à recevoir par ligne de réception. */
-    public array $quantities = [];
+    /** Code UPC balayé : une unité du produit correspondant est comptée. */
+    public string $upcScan = '';
 
-    /** @var array<int, string> Partie endommagée de la quantité reçue, par ligne de réception. */
-    public array $damaged = [];
+    /** Produit (ReceptionLine::groupKey()) ouvert dans le modal de réception. */
+    public ?string $groupKey = null;
 
-    /** @var array<int, string> Quantité annoncée par le fournisseur, mais non reçue, par ligne de réception. */
-    public array $short = [];
+    public bool $showGroupModal = false;
+
+    public string $received = '0';
+
+    public string $damaged = '0';
+
+    public string $short = '0';
 
     public string $overshipSearch = '';
 
@@ -40,50 +46,111 @@ class Show extends Component
         abort_unless($reception->isAccessibleTo(auth()->user()), 403);
 
         $this->reception = $reception;
-        $this->fillFromModel();
+        $this->reference = $reception->reference ?? '';
+        $this->notes = $reception->notes ?? '';
     }
 
-    public function saveQuantities(): void
+    /** La douchette tape le code UPC et Entrée : une unité est comptée dans le produit attendu. */
+    public function scanUpc(): void
+    {
+        $this->authorize('receptions.create');
+
+        $upc = trim($this->upcScan);
+        $this->upcScan = '';
+
+        if ($upc === '') {
+            return;
+        }
+
+        try {
+            $lines = $this->reception->receiveScannedUpc($upc);
+        } catch (DomainException $e) {
+            Flux::toast(text: $e->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        Flux::toast(text: __(':label : :received / :expected', [
+            'label' => $lines->first()->label,
+            'received' => $lines->sum('quantity'),
+            'expected' => $lines->sum('quantity_expected'),
+        ]), variant: 'success');
+    }
+
+    public function openGroup(string $groupKey): void
+    {
+        $lines = $this->group($groupKey);
+
+        $this->resetValidation();
+        $this->groupKey = $groupKey;
+        $this->received = (string) $lines->sum('quantity');
+        $this->damaged = (string) $lines->sum('quantity_damaged');
+        $this->short = (string) $lines->sum('quantity_short');
+        $this->showGroupModal = true;
+    }
+
+    /** Confirme ce qui est réellement reçu du produit ouvert : il devient vérifié. */
+    public function saveGroup(): void
+    {
+        $this->authorize('receptions.create');
+
+        $this->validate([
+            'received' => ['required', 'integer', 'min:0', 'max:99999'],
+            'damaged' => ['required', 'integer', 'min:0', 'max:99999'],
+            'short' => ['required', 'integer', 'min:0', 'max:99999'],
+        ]);
+
+        try {
+            $this->reception->receiveGroup((string) $this->groupKey, (int) $this->received, (int) $this->damaged, (int) $this->short);
+        } catch (DomainException $e) {
+            $this->addError('received', $e->getMessage());
+
+            return;
+        }
+
+        $this->closeGroup();
+        Flux::toast(text: __('Produit vérifié.'), variant: 'success');
+    }
+
+    /** Retire de la réception toutes les lignes du produit ouvert. */
+    public function removeGroup(): void
+    {
+        $this->authorize('receptions.create');
+
+        $lines = $this->group((string) $this->groupKey);
+
+        $this->attempt(function () use ($lines): void {
+            foreach ($lines as $line) {
+                $this->reception->removeLine($line);
+            }
+        }, __('Produit retiré de la réception.'));
+
+        $this->closeGroup();
+    }
+
+    public function closeGroup(): void
+    {
+        $this->showGroupModal = false;
+        $this->groupKey = null;
+    }
+
+    public function saveDetails(): void
     {
         $this->authorize('receptions.create');
 
         $this->validate([
             'reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
-            'quantities.*' => ['required', 'integer', 'min:0', 'max:99999'],
-            'damaged.*' => ['nullable', 'integer', 'min:0', 'max:99999'],
-            'short.*' => ['nullable', 'integer', 'min:0', 'max:99999'],
         ]);
 
-        $this->attempt(function (): void {
-            foreach ($this->reception->lines()->with('orderLine.order')->get() as $line) {
-                $this->reception->setLineQuantity(
-                    $line,
-                    (int) ($this->quantities[$line->id] ?? $line->quantity),
-                    (int) ($this->damaged[$line->id] ?? $line->quantity_damaged),
-                    (int) ($this->short[$line->id] ?? $line->quantity_short),
-                );
-            }
-
-            $this->reception->updateDetails($this->reference, $this->notes);
-        }, __('Réception sauvegardée.'));
-    }
-
-    public function removeLine(int $lineId): void
-    {
-        $this->authorize('receptions.create');
-
-        $line = $this->reception->lines()->findOrFail($lineId);
-
-        $this->attempt(fn () => $this->reception->removeLine($line), __('Ligne retirée.'));
-        $this->fillFromModel();
+        $this->attempt(fn () => $this->reception->updateDetails($this->reference, $this->notes), __('Réception sauvegardée.'));
     }
 
     public function complete(): void
     {
         $this->authorize('receptions.create');
 
-        $this->saveQuantities();
+        $this->saveDetails();
 
         if ($this->getErrorBag()->isNotEmpty()) {
             return;
@@ -97,8 +164,18 @@ class Show extends Component
         if (! $emailed) {
             Flux::toast(text: __('Le courriel d\'erreur d\'expédition n\'a pas pu être envoyé au fournisseur : avisez-le vous-même.'), variant: 'warning');
         }
+    }
 
-        $this->fillFromModel();
+    /**
+     * Lignes d'un produit de la réception, clients d'abord.
+     *
+     * @return EloquentCollection<int, ReceptionLine>
+     */
+    private function group(string $groupKey): EloquentCollection
+    {
+        $this->reception->unsetRelation('lines');
+
+        return $this->reception->lineGroups()->get($groupKey) ?? abort(404);
     }
 
     /**
@@ -124,7 +201,6 @@ class Show extends Component
 
         $this->reset(['overshipSearch', 'overshipOrderId']);
         $this->overshipQuantity = '1';
-        $this->fillFromModel();
     }
 
     /**
@@ -192,22 +268,16 @@ class Show extends Component
         Flux::toast(text: $successMessage, variant: 'success');
     }
 
-    private function fillFromModel(): void
-    {
-        $this->reception->refresh()->unsetRelation('lines');
-        $this->reference = $this->reception->reference ?? '';
-        $this->notes = $this->reception->notes ?? '';
-        $lines = $this->reception->lines()->get();
-        $this->quantities = $lines->mapWithKeys(fn ($line) => [$line->id => (string) $line->quantity])->all();
-        $this->damaged = $lines->mapWithKeys(fn ($line) => [$line->id => (string) $line->quantity_damaged])->all();
-        $this->short = $lines->mapWithKeys(fn ($line) => [$line->id => (string) $line->quantity_short])->all();
-    }
-
     public function render(): View
     {
         $this->reception->load(['supplier', 'receiver', 'lines.product', 'lines.orderLine.order', 'lines.orderLine.customerOrderLine.order.customer', 'lines.orderLine.customerOrderLine.product', 'lines.orderLine.customerOrderLine.part']);
 
-        return view('livewire.receptions.show')
+        $groups = $this->reception->lineGroups();
+
+        return view('livewire.receptions.show', [
+            'groups' => $groups,
+            'openLines' => $this->showGroupModal && $this->groupKey !== null ? $groups->get($this->groupKey) : null,
+        ])
             ->layout('layouts.app', ['title' => $this->reception->number]);
     }
 }

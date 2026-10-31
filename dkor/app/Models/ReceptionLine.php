@@ -17,8 +17,10 @@ use Illuminate\Support\Carbon;
  * @property int $supplier_order_line_id
  * @property int|null $product_id
  * @property int $quantity
+ * @property int $quantity_expected Quantité attendue selon le bordereau du fournisseur.
  * @property int $quantity_damaged Partie de la quantité reçue endommagée (inventaire défectueux).
  * @property int $quantity_short Quantité annoncée (et facturée) par le fournisseur, mais non reçue.
+ * @property Carbon|null $checked_at Moment où la quantité reçue a été vérifiée.
  * @property Money $unit_cost
  * @property int $quantity_reversed
  * @property Carbon|null $reversed_at
@@ -34,7 +36,7 @@ use Illuminate\Support\Carbon;
  * @property-read int $billable_quantity
  * @property-read string $label
  */
-#[Fillable(['reception_id', 'supplier_order_line_id', 'product_id', 'quantity', 'quantity_damaged', 'quantity_short', 'unit_cost', 'quantity_reversed', 'reversed_at', 'reversed_by', 'reversal_reason'])]
+#[Fillable(['reception_id', 'supplier_order_line_id', 'product_id', 'quantity', 'quantity_expected', 'quantity_damaged', 'quantity_short', 'checked_at', 'unit_cost', 'quantity_reversed', 'reversed_at', 'reversed_by', 'reversal_reason'])]
 class ReceptionLine extends Model
 {
     /** @use HasFactory<ReceptionLineFactory> */
@@ -44,6 +46,8 @@ class ReceptionLine extends Model
         'quantity_damaged' => 'integer',
         'quantity_short' => 'integer',
         'quantity' => 'integer',
+        'quantity_expected' => 'integer',
+        'checked_at' => 'datetime',
         'unit_cost' => MoneyCast::class,
         'quantity_reversed' => 'integer',
         'reversed_at' => 'datetime',
@@ -65,6 +69,21 @@ class ReceptionLine extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Clé du produit auquel la ligne est regroupée dans la réception : les lignes d'un même produit se reçoivent
+     * ensemble. Une ligne libre (sans produit) et un article reçu en trop restent seuls.
+     */
+    public function groupKey(): string
+    {
+        return $this->product_id === null || $this->orderLine->is_overship ? 'line-'.$this->id : 'product-'.$this->product_id;
+    }
+
+    /** La ligne couvre un article commandé pour un client : elle est servie en premier. */
+    public function isForCustomer(): bool
+    {
+        return $this->orderLine->customerOrderLine !== null;
     }
 
     /** Quantité encore comptée après les renversements. */

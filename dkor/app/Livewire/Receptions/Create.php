@@ -17,8 +17,9 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
- * Première étape d'une réception: on cherche des bons de commande (numéro ou quote #), on choisit les lignes à
- * recevoir avec leurs quantités, puis on commence la réception qui contient alors tous ces articles.
+ * Première étape d'une réception: on cherche des bons de commande (numéro ou quote #), on choisit les produits
+ * attendus (les lignes d'un même produit sont regroupées), puis on commence la réception : tout ce qui reste à recevoir
+ * y est attendu, et on compte ensuite ce qui est réellement reçu.
  *
  * Seules les commandes destinées au magasin de l'usager sont offertes (ADR 0013). Avec stores.all, les autres magasins
  * le sont aussi, mais la première ligne cochée d'une commande d'un autre magasin demande une confirmation.
@@ -33,9 +34,6 @@ class Create extends Component
     /** @var array<int, bool> */
     public array $selected = [];
 
-    /** @var array<int, string> */
-    public array $quantities = [];
-
     /** @var array<int, int> Commandes d'un autre magasin dont la réception a été confirmée. */
     public array $confirmedOrderIds = [];
 
@@ -46,13 +44,33 @@ class Create extends Component
 
     public function updatedSupplierId(): void
     {
-        $this->reset('selected', 'quantities', 'orderSearch', 'confirmedOrderIds', 'pendingLineId', 'showStoreConfirm');
+        $this->reset('selected', 'orderSearch', 'confirmedOrderIds', 'pendingLineId', 'showStoreConfirm');
         $this->resetValidation();
     }
 
     /**
-     * Cocher une ligne propose la quantité restante; la décocher efface la saisie. Livewire n'envoie pas toujours la
-     * clé modifiée (mise à jour de tout le tableau): sans clé, toutes les lignes cochées sont synchronisées.
+     * Coche ou décoche ensemble les lignes d'un même produit d'une commande.
+     *
+     * @param  array<int, int>  $lineIds
+     */
+    public function toggleLines(array $lineIds): void
+    {
+        $lineIds = array_map('intval', $lineIds);
+        $isChecked = ! in_array(false, array_map(fn (int $id): bool => $this->selected[$id] ?? false, $lineIds), true);
+
+        foreach ($lineIds as $id) {
+            $this->selected[$id] = ! $isChecked;
+            $this->updatedSelected(! $isChecked, (string) $id);
+
+            if ($this->showStoreConfirm) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * Cocher une ligne vérifie qu'elle est encore à recevoir. Livewire n'envoie pas toujours la clé modifiée (mise à
+     * jour de tout le tableau): sans clé, toutes les lignes cochées sont synchronisées.
      */
     public function updatedSelected(mixed $value = null, ?string $lineId = null): void
     {
@@ -61,12 +79,10 @@ class Create extends Component
             $line = ($this->selected[$id] ?? false) ? $this->receivableLine($id) : null;
 
             if ($line && $this->needsStoreConfirmation($line)) {
-                unset($this->selected[$id], $this->quantities[$id]);
+                unset($this->selected[$id]);
                 $this->pendingLineId = $id;
                 $this->showStoreConfirm = true;
             } elseif ($line) {
-                $this->quantities[$id] ??= (string) $line->quantity_outstanding;
-
                 if ($key === $lineId && ($shipment = $line->activeShipment()) !== null) {
                     Flux::toast(
                         heading: __('Article pour expédition'),
@@ -79,12 +95,12 @@ class Create extends Component
                     );
                 }
             } else {
-                unset($this->selected[$id], $this->quantities[$id]);
+                unset($this->selected[$id]);
             }
         }
     }
 
-    /** L'usager confirme recevoir la commande d'un autre magasin : la ligne en attente est cochée. */
+    /** L'usager confirme recevoir la commande d'un autre magasin : les lignes du produit en attente sont cochées. */
     public function confirmOtherStore(): void
     {
         $line = $this->pendingLineId !== null ? $this->receivableLine($this->pendingLineId) : null;
@@ -95,8 +111,26 @@ class Create extends Component
         }
 
         $this->confirmedOrderIds[] = $line->supplier_order_id;
-        $this->selected[$line->id] = true;
-        $this->updatedSelected(true, (string) $line->id);
+        $this->toggleLines($this->sameProductLineIds($line));
+    }
+
+    /**
+     * Lignes encore à recevoir de la commande pour le même produit que la ligne (la ligne seule sans produit).
+     *
+     * @return array<int, int>
+     */
+    private function sameProductLineIds(SupplierOrderLine $line): array
+    {
+        if ($line->product_id === null) {
+            return [$line->id];
+        }
+
+        return $line->order->lines()
+            ->where('product_id', $line->product_id)
+            ->pluck('id')
+            ->filter(fn (int $id): bool => $this->receivableLine($id) !== null)
+            ->values()
+            ->all();
     }
 
     public function cancelOtherStore(): void
@@ -111,9 +145,14 @@ class Create extends Component
         return $line->order->store_id !== auth()->user()->store_id && ! in_array($line->supplier_order_id, $this->confirmedOrderIds, true);
     }
 
-    public function removeSelected(int $lineId): void
+    /**
+     * @param  array<int, int>  $lineIds
+     */
+    public function removeSelected(array $lineIds): void
     {
-        unset($this->selected[$lineId], $this->quantities[$lineId]);
+        foreach ($lineIds as $lineId) {
+            unset($this->selected[(int) $lineId]);
+        }
     }
 
     public function start(): void
@@ -122,7 +161,6 @@ class Create extends Component
 
         $this->validate([
             'supplierId' => ['required', 'integer', 'exists:suppliers,id'],
-            'quantities.*' => ['nullable', 'integer', 'min:0', 'max:99999'],
         ]);
 
         $receipts = [];
@@ -136,7 +174,7 @@ class Create extends Component
                 return;
             }
 
-            $receipts[(int) $lineId] = ['quantity' => (int) ($this->quantities[$lineId] ?? 0)];
+            $receipts[(int) $lineId] = ['quantity' => 0, 'expected' => $line->quantity_outstanding];
         }
 
         try {
@@ -198,6 +236,7 @@ class Create extends Component
                 ->whereIn('status', [SupplierOrderLineStatus::Active, SupplierOrderLineStatus::CancellationRequested])
                 ->whereColumn('quantity_received', '<', 'quantity'),
                 'lines.product',
+                'lines.customerOrderLine',
                 'store',
             ])
             ->orderBy('id')
