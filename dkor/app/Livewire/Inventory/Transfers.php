@@ -7,7 +7,6 @@ use App\Actions\CloseStoreTransfer;
 use App\Actions\ReceiveStoreTransfer;
 use App\Actions\RequestStoreTransfer;
 use App\Concerns\ChoosesStore;
-use App\Enums\InventoryStatus;
 use App\Enums\StoreTransferStatus;
 use App\Enums\StoreType;
 use App\Models\InventoryStock;
@@ -244,7 +243,6 @@ class Transfers extends Component
                 ->latest('updated_at')
                 ->get(),
             'selectedProduct' => $this->requestProductId ? Product::find($this->requestProductId) : null,
-            'inStock' => InventoryStatus::InStock,
         ])->layout('layouts.app', ['title' => __('Transferts')]);
     }
 }
