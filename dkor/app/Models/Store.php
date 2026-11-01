@@ -119,6 +119,21 @@ class Store extends Model
         return $this->hasMany(DeliveryTruck::class);
     }
 
+    /** La livraison par nos camions est offerte seulement si le magasin a au moins un camion actif. */
+    public function offersDelivery(): bool
+    {
+        return $this->deliveryTrucks()->active()->exists();
+    }
+
+    /**
+     * L'expédition est offerte seulement si le magasin a un entrepôt d'expédition : c'est lui qui fait les expéditions
+     * de ses commandes.
+     */
+    public function offersShipping(): bool
+    {
+        return $this->shipping_warehouse_id !== null;
+    }
+
     /** @return HasMany<StoreTaxRegistration, $this> */
     public function taxRegistrations(): HasMany
     {

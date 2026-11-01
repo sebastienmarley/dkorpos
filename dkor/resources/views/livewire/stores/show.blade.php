@@ -347,7 +347,12 @@
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>{{ __('Entrepôt d\'expédition') }}</flux:label>
+                    <div class="flex items-center gap-1.5">
+                        <flux:label>{{ __('Entrepôt d\'expédition') }}</flux:label>
+                        <flux:tooltip :content="__('Magasin qui fait les expéditions des commandes de ce magasin. Sans entrepôt d\'expédition, l\'expédition n\'est pas offerte.')">
+                            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                        </flux:tooltip>
+                    </div>
                     <flux:select wire:model="shippingWarehouseId">
                         <flux:select.option value="">{{ __('— Aucun —') }}</flux:select.option>
                         @foreach ($physicalStores as $physicalStore)
