@@ -182,3 +182,36 @@ it('réserve les paiements à supplier_payments.create', function () {
 
     expect(fn () => pay($supplier, [$invoice->id => ['amount' => Money::parse(100)]]))->toThrow(AuthorizationException::class);
 });
+
+it('marque payées hors de l\'application les factures d\'avant la bascule, sans toucher celles au grand livre', function () {
+    $old = SupplierInvoice::factory()->create(['invoice_number' => 'F-OLD', 'invoice_date' => '2026-09-15']);
+    $recent = SupplierInvoice::factory()->create(['invoice_number' => 'F-NEW', 'invoice_date' => '2026-10-15']);
+    $posted = invoiceFor(Supplier::factory()->create(), 'F-POSTED', '100', '2026-09-20');
+
+    $this->artisan('invoices:mark-paid-outside')->assertFailed();
+
+    $this->artisan('invoices:mark-paid-outside', ['--before' => '2026-10-01'])
+        ->expectsOutputToContain('Factures marquées payées : 1')
+        ->expectsOutputToContain('laissées dues : 1')
+        ->assertSuccessful();
+
+    expect($old->fresh()->paid_outside_at)->not->toBeNull()
+        ->and($old->fresh()->balanceDue())->toBeMoney(0)
+        ->and($recent->fresh()->paid_outside_at)->toBeNull()
+        ->and($posted->fresh()->paid_outside_at)->toBeNull()
+        ->and(SupplierInvoice::unpaid()->pluck('invoice_number')->sort()->values()->all())->toBe(['F-NEW', 'F-POSTED'])
+        ->and(payablesBalance(LedgerAccount::ACCOUNTS_PAYABLE))->toBe(-10000);
+});
+
+it('marque une facture payée ailleurs depuis les comptes à payer, sauf si elle est au grand livre', function () {
+    $old = SupplierInvoice::factory()->create(['invoice_number' => 'F-OLD']);
+    $posted = invoiceFor(Supplier::factory()->create(), 'F-POSTED', '100');
+
+    Livewire::test(Payables::class)
+        ->call('markPaidOutside', $old->id)
+        ->call('markPaidOutside', $posted->id);
+
+    expect($old->fresh()->paid_outside_by)->toBe(auth()->id())
+        ->and($posted->fresh()->paid_outside_at)->toBeNull()
+        ->and(fn () => $old->fresh()->markPaidOutside())->toThrow(DomainException::class, 'déjà un paiement');
+});

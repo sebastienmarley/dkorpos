@@ -7,6 +7,7 @@ use App\Actions\RecordSupplierPayment;
 use App\Enums\LedgerAccountType;
 use App\Enums\SupplierPaymentMethod;
 use App\Models\LedgerAccount;
+use App\Models\LedgerEntry;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierPayment;
@@ -141,6 +142,24 @@ class Payables extends Component
         Flux::toast(text: __('Paiement enregistré.'), variant: 'success');
     }
 
+    /**
+     * Marque payée hors de l'application une facture d'avant la tenue des paiements (sans écriture au grand livre).
+     */
+    public function markPaidOutside(SupplierInvoice $invoice): void
+    {
+        $this->authorize('supplier_payments.create');
+
+        try {
+            $invoice->markPaidOutside(auth()->user());
+        } catch (DomainException $e) {
+            Flux::toast(text: $e->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        Flux::toast(text: __('Facture :number marquée payée hors de l\'application.', ['number' => $invoice->invoice_number]), variant: 'success');
+    }
+
     public function openCancel(SupplierPayment $payment): void
     {
         $this->authorize('supplier_payments.create');
@@ -194,6 +213,11 @@ class Payables extends Component
             'invoicesBySupplier' => $invoices->groupBy('supplier_id'),
             'totalCad' => Money::sum($invoices->map(fn (SupplierInvoice $invoice): Money => $invoice->balanceDue()->multiply($invoice->exchange_rate))->all()),
             'warningDate' => today()->addDays(self::DISCOUNT_WARNING_DAYS),
+            'postedInvoiceIds' => LedgerEntry::query()
+                ->where('reference_type', (new SupplierInvoice)->getMorphClass())
+                ->whereIn('reference_id', $invoices->modelKeys())
+                ->pluck('reference_id')
+                ->flip(),
             'suppliers' => Supplier::query()->whereIn('id', SupplierInvoice::query()->select('supplier_id'))->orderBy('name')->get(),
             'payments' => SupplierPayment::query()
                 ->with(['supplier.currency', 'account', 'allocations.invoice'])

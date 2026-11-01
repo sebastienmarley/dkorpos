@@ -1354,50 +1354,6 @@ CREATE TABLE "role_has_permissions"(
   foreign key("role_id") references "roles"("id") on delete cascade,
   primary key("permission_id", "role_id")
 );
-CREATE TABLE "supplier_invoices"(
-  "id" integer primary key autoincrement not null,
-  "supplier_id" integer not null,
-  "reception_id" integer,
-  "invoice_number" varchar not null,
-  "invoice_date" date not null,
-  "merchandise_total" integer not null,
-  "freight_fee" integer not null default('0'),
-  "customs_fee" integer not null default('0'),
-  "taxes" integer not null default('0'),
-  "computed_total" integer not null,
-  "invoice_total" integer not null,
-  "variance" integer not null default('0'),
-  "discount_percent" numeric not null default('0'),
-  "discount_days" integer,
-  "discount_due_date" date,
-  "discount_amount" integer not null default('0'),
-  "created_by" integer,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "discount_next_month" tinyint(1) not null default('0'),
-  "supplier_order_id" integer,
-  "description" varchar,
-  "credit_requested" integer not null default('0'),
-  "credit_note_number" varchar,
-  "credit_received_at" date,
-  "exchange_rate" numeric not null default '1',
-  "ledger_account_id" integer,
-  foreign key("supplier_order_id") references supplier_orders("id") on delete restrict on update no action,
-  foreign key("created_by") references users("id") on delete set null on update no action,
-  foreign key("reception_id") references receptions("id") on delete restrict on update no action,
-  foreign key("supplier_id") references suppliers("id") on delete restrict on update no action,
-  foreign key("ledger_account_id") references "ledger_accounts"("id") on delete restrict
-);
-CREATE UNIQUE INDEX "supplier_invoices_reception_id_unique" on "supplier_invoices"(
-  "reception_id"
-);
-CREATE UNIQUE INDEX "supplier_invoices_supplier_id_invoice_number_unique" on "supplier_invoices"(
-  "supplier_id",
-  "invoice_number"
-);
-CREATE UNIQUE INDEX "supplier_invoices_supplier_order_id_unique" on "supplier_invoices"(
-  "supplier_order_id"
-);
 CREATE TABLE "supplier_payments"(
   "id" integer primary key autoincrement not null,
   "supplier_id" integer not null,
@@ -1436,6 +1392,53 @@ CREATE TABLE "supplier_payment_allocations"(
 CREATE UNIQUE INDEX "supplier_payment_allocations_supplier_payment_id_supplier_invoice_id_unique" on "supplier_payment_allocations"(
   "supplier_payment_id",
   "supplier_invoice_id"
+);
+CREATE TABLE "supplier_invoices"(
+  "id" integer primary key autoincrement not null,
+  "supplier_id" integer not null,
+  "reception_id" integer,
+  "invoice_number" varchar not null,
+  "invoice_date" date not null,
+  "merchandise_total" integer not null,
+  "freight_fee" integer not null default('0'),
+  "customs_fee" integer not null default('0'),
+  "taxes" integer not null default('0'),
+  "computed_total" integer not null,
+  "invoice_total" integer not null,
+  "variance" integer not null default('0'),
+  "discount_percent" numeric not null default('0'),
+  "discount_days" integer,
+  "discount_due_date" date,
+  "discount_amount" integer not null default('0'),
+  "created_by" integer,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "discount_next_month" tinyint(1) not null default('0'),
+  "supplier_order_id" integer,
+  "description" varchar,
+  "credit_requested" integer not null default('0'),
+  "credit_note_number" varchar,
+  "credit_received_at" date,
+  "exchange_rate" numeric not null default('1'),
+  "ledger_account_id" integer,
+  "paid_outside_at" datetime,
+  "paid_outside_by" integer,
+  foreign key("ledger_account_id") references ledger_accounts("id") on delete restrict on update no action,
+  foreign key("supplier_id") references suppliers("id") on delete restrict on update no action,
+  foreign key("reception_id") references receptions("id") on delete restrict on update no action,
+  foreign key("created_by") references users("id") on delete set null on update no action,
+  foreign key("supplier_order_id") references supplier_orders("id") on delete restrict on update no action,
+  foreign key("paid_outside_by") references "users"("id") on delete set null
+);
+CREATE UNIQUE INDEX "supplier_invoices_reception_id_unique" on "supplier_invoices"(
+  "reception_id"
+);
+CREATE UNIQUE INDEX "supplier_invoices_supplier_id_invoice_number_unique" on "supplier_invoices"(
+  "supplier_id",
+  "invoice_number"
+);
+CREATE UNIQUE INDEX "supplier_invoices_supplier_order_id_unique" on "supplier_invoices"(
+  "supplier_order_id"
 );
 
 INSERT INTO migrations VALUES(1,'2026_10_25_000001_create_password_reset_tokens_table',1);
@@ -1523,3 +1526,4 @@ INSERT INTO migrations VALUES(82,'2026_11_01_111652_add_exchange_rate_and_ledger
 INSERT INTO migrations VALUES(83,'2026_11_01_111653_add_exchange_rate_to_receptions_table',3);
 INSERT INTO migrations VALUES(84,'2026_11_01_113039_create_supplier_payments_table',4);
 INSERT INTO migrations VALUES(85,'2026_11_01_113040_create_supplier_payment_allocations_table',4);
+INSERT INTO migrations VALUES(86,'2026_11_01_115402_add_paid_outside_to_supplier_invoices_table',5);

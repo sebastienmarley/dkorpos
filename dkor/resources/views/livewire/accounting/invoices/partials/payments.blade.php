@@ -2,7 +2,9 @@
 <div class="mt-6 max-w-xl rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
     <div class="mb-2 flex items-center justify-between">
         <flux:heading size="sm">{{ __('Paiements') }}</flux:heading>
-        @if ($invoice->isPaid())
+        @if ($invoice->paid_outside_at)
+            <flux:badge color="green" size="sm">{{ __('Payée hors de l\'application') }}</flux:badge>
+        @elseif ($invoice->isPaid())
             <flux:badge color="green" size="sm">{{ __('Payée') }}</flux:badge>
         @else
             <flux:badge color="amber" size="sm">{{ __('Solde dû : :amount', ['amount' => $invoice->balanceDue()->format()]) }}</flux:badge>

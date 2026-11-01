@@ -32,6 +32,7 @@
                     <flux:table.column>{{ __('Escompte') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Montant net') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Solde dû') }}</flux:table.column>
+                    <flux:table.column></flux:table.column>
                 </flux:table.columns>
                 <flux:table.rows>
                     @foreach ($supplierInvoices as $invoice)
@@ -49,6 +50,15 @@
                             </flux:table.cell>
                             <flux:table.cell align="end">{{ $invoice->netTotal()->format() }}</flux:table.cell>
                             <flux:table.cell align="end" variant="strong">{{ $invoice->balanceDue()->format() }}</flux:table.cell>
+                            <flux:table.cell align="end">
+                                @can('supplier_payments.create')
+                                    @if (! $postedInvoiceIds->has($invoice->id) && $invoice->activeAllocations()->isEmpty())
+                                        <flux:tooltip :content="__('Facture d\'avant le grand livre, déjà payée ailleurs : elle n\'a pas d\'écriture à solder.')">
+                                            <flux:button size="xs" variant="ghost" icon="check" wire:click="markPaidOutside({{ $invoice->id }})" wire:confirm="{{ __('Marquer la facture :number payée hors de l\'application ?', ['number' => $invoice->invoice_number]) }}">{{ __('Payée ailleurs') }}</flux:button>
+                                        </flux:tooltip>
+                                    @endif
+                                @endcan
+                            </flux:table.cell>
                         </flux:table.row>
                     @endforeach
                 </flux:table.rows>

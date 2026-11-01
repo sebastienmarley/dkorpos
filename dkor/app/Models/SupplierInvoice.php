@@ -51,6 +51,8 @@ use Illuminate\Support\Str;
  * @property string|null $credit_note_number Numéro de la note de crédit du fournisseur, une fois reçue.
  * @property Carbon|null $credit_received_at
  * @property int|null $created_by
+ * @property Carbon|null $paid_outside_at Payée hors de l'application, avant la tenue des paiements (#132).
+ * @property int|null $paid_outside_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Supplier $supplier
@@ -63,7 +65,7 @@ use Illuminate\Support\Str;
 #[Fillable([
     'supplier_id', 'ledger_account_id', 'reception_id', 'supplier_order_id', 'invoice_number', 'invoice_date', 'description', 'merchandise_total', 'freight_fee', 'customs_fee',
     'taxes', 'computed_total', 'invoice_total', 'variance', 'discount_percent', 'discount_days', 'discount_next_month', 'discount_due_date',
-    'discount_amount', 'credit_requested', 'credit_note_number', 'credit_received_at', 'created_by', 'exchange_rate',
+    'discount_amount', 'credit_requested', 'credit_note_number', 'credit_received_at', 'created_by', 'exchange_rate', 'paid_outside_at', 'paid_outside_by',
 ])]
 class SupplierInvoice extends Model
 {
@@ -91,6 +93,7 @@ class SupplierInvoice extends Model
         'discount_amount' => MoneyCast::class,
         'credit_requested' => MoneyCast::class,
         'credit_received_at' => 'date',
+        'paid_outside_at' => 'datetime',
     ];
 
     /** @return BelongsTo<LedgerAccount, $this> */
@@ -170,7 +173,7 @@ class SupplierInvoice extends Model
      */
     public function scopeUnpaid(Builder $query): Builder
     {
-        return $query->whereRaw('supplier_invoices.invoice_total - supplier_invoices.credit_requested > (
+        return $query->whereNull('supplier_invoices.paid_outside_at')->whereRaw('supplier_invoices.invoice_total - supplier_invoices.credit_requested > (
             select coalesce(sum(allocations.amount + allocations.discount), 0)
             from supplier_payment_allocations as allocations
             join supplier_payments as payments on payments.id = allocations.supplier_payment_id
@@ -191,12 +194,41 @@ class SupplierInvoice extends Model
     /** Ce qui reste à payer : le montant net moins les paiements et escomptes appliqués (devise du fournisseur). */
     public function balanceDue(): Money
     {
+        if ($this->paid_outside_at !== null) {
+            return Money::zero();
+        }
+
         return $this->netTotal()->minus(Money::sum($this->activeAllocations()->map(fn (SupplierPaymentAllocation $allocation): Money => $allocation->settled())->all()));
     }
 
     public function isPaid(): bool
     {
         return ! $this->balanceDue()->isPositive();
+    }
+
+    /** La facture a une écriture au grand livre : elle se paie par un paiement, qui solde les comptes fournisseurs. */
+    public function hasLedgerEntry(): bool
+    {
+        return LedgerEntry::query()->whereMorphedTo('reference', $this)->exists();
+    }
+
+    /**
+     * Marque payée hors de l'application une facture d'avant la tenue des paiements (#132) : elle n'a pas d'écriture,
+     * donc rien à solder aux comptes fournisseurs.
+     *
+     * @throws DomainException si la facture a une écriture, un paiement, ou si elle est déjà payée.
+     */
+    public function markPaidOutside(?User $user = null): void
+    {
+        if ($this->hasLedgerEntry()) {
+            throw new DomainException(__('La facture :number est au grand livre : enregistrez son paiement.', ['number' => $this->invoice_number]));
+        }
+
+        if ($this->isPaid() || $this->activeAllocations()->isNotEmpty()) {
+            throw new DomainException(__('La facture :number a déjà un paiement.', ['number' => $this->invoice_number]));
+        }
+
+        $this->update(['paid_outside_at' => now(), 'paid_outside_by' => $user?->id]);
     }
 
     /** L'escompte de paiement rapide s'applique encore à un paiement fait à cette date. */

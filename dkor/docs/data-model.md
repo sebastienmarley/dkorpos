@@ -422,6 +422,9 @@ erDiagram
   soldé aux comptes fournisseurs en CAD, au taux de la facture. Le solde dû d'une facture est son montant net
   (`invoice_total - credit_requested`) moins les allocations des paiements non annulés. Un paiement ne se supprime
   pas : il s'annule (`cancelled_at`), avec une écriture inverse.
+- Une facture d'avant la tenue des paiements, payée ailleurs et sans écriture au grand livre, est marquée
+  `paid_outside_at` (bouton « Payée ailleurs » ou `php artisan invoices:mark-paid-outside --before=AAAA-MM-JJ`) :
+  elle n'a plus de solde dû.
 - `supplier_order_lines.substituted_from_line_id` relie une ligne à celle qu'elle remplace
   (substitution par le fournisseur).
 - **Erreurs d'expédition :** à la réception, `quantity_short` compte ce qui est annoncé (et facturé) par
@@ -462,7 +465,7 @@ erDiagram
     supplier_orders |o--o| supplier_invoices : "supplier_order_id · restrict"
     suppliers ||--o{ supplier_invoices : "supplier_id · restrict"
     receptions |o--o| supplier_invoices : "reception_id · restrict"
-    users |o--o{ supplier_invoices : "created_by · null"
+    users |o--o{ supplier_invoices : "created_by, paid_outside_by · null"
     ledger_accounts |o--o{ supplier_invoices : "ledger_account_id · restrict"
     supplier_order_lines |o--o{ supplier_invoice_lines : "supplier_order_line_id · restrict"
     supplier_invoices ||--o{ supplier_invoice_lines : "supplier_invoice_id · cascade"
@@ -608,6 +611,8 @@ erDiagram
         int credit_requested "cents"
         string credit_note_number "nullable"
         date credit_received_at "nullable"
+        datetime paid_outside_at "nullable"
+        int paid_outside_by FK "nullable"
         bool discount_next_month
         string description "nullable"
         datetime created_at
