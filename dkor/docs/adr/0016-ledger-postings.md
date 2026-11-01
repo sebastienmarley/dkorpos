@@ -1,6 +1,6 @@
 # ADR 0016 — Écritures du grand livre par document
 
-- **Statut :** Proposé
+- **Statut :** Accepté
 - **Date :** 2026-11-01
 - **Issue liée :** #131 (et #132 pour les paiements aux fournisseurs)
 - **Complète :** [ADR 0011](0011-inventory-movements-and-adjustments.md) (grand livre, couches de coût FIFO) et
