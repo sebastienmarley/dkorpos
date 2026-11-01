@@ -139,12 +139,6 @@ class Supplier extends Model
         return $this->belongsTo(Currency::class);
     }
 
-    /** @return BelongsTo<Supplier, $this> */
-    public function defaultShippingSupplier(): BelongsTo
-    {
-        return $this->belongsTo(Supplier::class, 'default_shipping_supplier_id');
-    }
-
     /** @return HasMany<SupplierOrder, $this> */
     public function orders(): HasMany
     {
