@@ -123,6 +123,8 @@ class AppServiceProvider extends ServiceProvider
             'supplier_invoice' => Models\SupplierInvoice::class,
             'supplier_invoice_line' => Models\SupplierInvoiceLine::class,
             'supplier_invoice_tax' => Models\SupplierInvoiceTax::class,
+            'supplier_payment' => Models\SupplierPayment::class,
+            'supplier_payment_allocation' => Models\SupplierPaymentAllocation::class,
             'supplier_order' => Models\SupplierOrder::class,
             'supplier_order_line' => Models\SupplierOrderLine::class,
             'tax' => Models\Tax::class,

@@ -73,6 +73,7 @@ class Navigation
             ]],
             ['Comptabilité', [
                 $this->item(__('Facturation fournisseurs'), 'document-text', 'accounting.invoices', 'accounting.invoices*', $user->can('invoices.view')),
+                $this->item(__('Comptes à payer'), 'banknotes', 'accounting.payables', allowed: $user->can('supplier_payments.view')),
                 $this->item(__('Paie'), 'banknotes', 'accounting.payroll', allowed: $user->can('payroll.view')),
                 $this->item(__('Modes de paiement'), 'credit-card', 'accounting.payment-methods', allowed: $user->can('payment_methods.view')),
                 $this->item(__('Taxes'), 'receipt-percent', 'accounting.taxes', allowed: $user->can('taxes.view')),

@@ -112,6 +112,8 @@
                 @endcan
             @endif
         </div>
+
+        @include('livewire.accounting.invoices.partials.payments')
     @else
         @can('invoices.create')
             <form wire:submit="save" class="space-y-6">

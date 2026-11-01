@@ -175,8 +175,8 @@ class Form extends Component
     {
         $document = $this->reception ?? $this->order;
         $invoice = $this->reception
-            ? $this->reception->invoice()->with(['lines.receptionLine.orderLine', 'taxLines'])->first()
-            : $this->order->supplierInvoice()->with(['lines.orderLine', 'taxLines'])->first();
+            ? $this->reception->invoice()->with(['lines.receptionLine.orderLine', 'taxLines', 'paymentAllocations.payment'])->first()
+            : $this->order->supplierInvoice()->with(['lines.orderLine', 'taxLines', 'paymentAllocations.payment'])->first();
         $lines = $this->lines();
 
         return view('livewire.accounting.invoices.form', [

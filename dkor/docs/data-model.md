@@ -82,6 +82,9 @@ erDiagram
     receptions |o--o| supplier_invoices : ""
     supplier_order_lines |o--o{ supplier_invoice_lines : ""
     supplier_invoices ||--o{ supplier_invoice_lines : ""
+    suppliers ||--o{ supplier_payments : ""
+    supplier_payments ||--o{ supplier_payment_allocations : ""
+    supplier_invoices ||--o{ supplier_payment_allocations : ""
     reception_lines |o--o{ supplier_invoice_lines : ""
     products ||--o{ inventory_stocks : ""
     products ||--o{ inventory_movements : ""
@@ -413,6 +416,12 @@ erDiagram
   est la somme. Les montants d'une facture sont dans la devise du fournisseur ; `exchange_rate` est le taux de sa
   devise, figé à la saisie, qui convertit l'écriture en CAD. `receptions.exchange_rate` est celui du jour de la
   réception, qui valorise les unités reçues en CAD ([ADR 0016](adr/0016-ledger-postings.md)).
+- **Paiements aux fournisseurs (#132) :** `supplier_payments` est un paiement, payé depuis un compte d'encaisse
+  (`ledger_account_id`), avec le montant dans la devise du fournisseur et le montant réellement déboursé en CAD.
+  `supplier_payment_allocations` le répartit sur les factures : montant payé, escompte de paiement rapide et montant
+  soldé aux comptes fournisseurs en CAD, au taux de la facture. Le solde dû d'une facture est son montant net
+  (`invoice_total - credit_requested`) moins les allocations des paiements non annulés. Un paiement ne se supprime
+  pas : il s'annule (`cancelled_at`), avec une écriture inverse.
 - `supplier_order_lines.substituted_from_line_id` relie une ligne à celle qu'elle remplace
   (substitution par le fournisseur).
 - **Erreurs d'expédition :** à la réception, `quantity_short` compte ce qui est annoncé (et facturé) par
@@ -433,6 +442,11 @@ erDiagram
     currencies |o--o{ suppliers : "currency_id · null"
     suppliers |o--o{ supplier_orders : "shipping_supplier_id · null"
     supplier_invoices ||--o{ supplier_invoice_taxes : "supplier_invoice_id · cascade"
+    suppliers ||--o{ supplier_payments : "supplier_id · restrict"
+    ledger_accounts ||--o{ supplier_payments : "ledger_account_id · restrict"
+    users |o--o{ supplier_payments : "created_by, cancelled_by · null"
+    supplier_payments ||--o{ supplier_payment_allocations : "supplier_payment_id · cascade"
+    supplier_invoices ||--o{ supplier_payment_allocations : "supplier_invoice_id · restrict"
     suppliers ||--o{ supplier_orders : "supplier_id · restrict"
     users |o--o{ supplier_orders : "created_by · null"
     supplier_order_lines |o--o{ supplier_order_lines : "substituted_from_line_id · null"
@@ -604,6 +618,32 @@ erDiagram
         int supplier_invoice_id FK
         string tax_name "UK avec supplier_invoice_id"
         int amount "cents"
+        datetime created_at
+        datetime updated_at
+    }
+    supplier_payments {
+        int id PK
+        int supplier_id FK
+        int ledger_account_id FK
+        date paid_on
+        string method "SupplierPaymentMethod"
+        string reference "nullable"
+        int amount "cents · devise du fournisseur"
+        int amount_cad "cents"
+        int created_by FK "nullable"
+        datetime cancelled_at "nullable"
+        int cancelled_by FK "nullable"
+        string cancellation_reason "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    supplier_payment_allocations {
+        int id PK
+        int supplier_payment_id FK "UK avec supplier_invoice_id"
+        int supplier_invoice_id FK
+        int amount "cents · devise du fournisseur"
+        int discount "cents · devise du fournisseur"
+        int payable_cad "cents"
         datetime created_at
         datetime updated_at
     }
@@ -913,7 +953,8 @@ erDiagram
   **polymorphe** (`reference_type`, `reference_id`), sans clé étrangère.
 - `ledger_entry_lines` : un débit ou un crédit en cents par ligne. Les ajustements d'inventaire
   ([ADR 0011](adr/0011-inventory-movements-and-adjustments.md)), les réceptions, leurs renversements, les factures
-  fournisseur et les notes de crédit passent des écritures ([ADR 0016](adr/0016-ledger-postings.md)).
+  fournisseur, les notes de crédit et les paiements aux fournisseurs passent des écritures
+  ([ADR 0016](adr/0016-ledger-postings.md)).
 
 ```mermaid
 erDiagram

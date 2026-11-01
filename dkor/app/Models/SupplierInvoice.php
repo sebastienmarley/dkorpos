@@ -12,6 +12,7 @@ use Carbon\CarbonInterface;
 use Database\Factories\SupplierInvoiceFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -153,6 +154,64 @@ class SupplierInvoice extends Model
     public function netTotal(): Money
     {
         return $this->invoice_total->minus($this->credit_requested);
+    }
+
+    /** @return HasMany<SupplierPaymentAllocation, $this> */
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(SupplierPaymentAllocation::class);
+    }
+
+    /**
+     * Factures qui ont encore un solde dû (#132) : le montant net dépasse ce que les paiements non annulés ont soldé.
+     *
+     * @param  Builder<SupplierInvoice>  $query
+     * @return Builder<SupplierInvoice>
+     */
+    public function scopeUnpaid(Builder $query): Builder
+    {
+        return $query->whereRaw('supplier_invoices.invoice_total - supplier_invoices.credit_requested > (
+            select coalesce(sum(allocations.amount + allocations.discount), 0)
+            from supplier_payment_allocations as allocations
+            join supplier_payments as payments on payments.id = allocations.supplier_payment_id
+            where allocations.supplier_invoice_id = supplier_invoices.id and payments.cancelled_at is null
+        )');
+    }
+
+    /**
+     * Allocations des paiements non annulés.
+     *
+     * @return \Illuminate\Support\Collection<int, SupplierPaymentAllocation>
+     */
+    public function activeAllocations(): \Illuminate\Support\Collection
+    {
+        return $this->paymentAllocations->loadMissing('payment')->reject(fn (SupplierPaymentAllocation $allocation): bool => $allocation->payment->isCancelled())->values()->toBase();
+    }
+
+    /** Ce qui reste à payer : le montant net moins les paiements et escomptes appliqués (devise du fournisseur). */
+    public function balanceDue(): Money
+    {
+        return $this->netTotal()->minus(Money::sum($this->activeAllocations()->map(fn (SupplierPaymentAllocation $allocation): Money => $allocation->settled())->all()));
+    }
+
+    public function isPaid(): bool
+    {
+        return ! $this->balanceDue()->isPositive();
+    }
+
+    /** L'escompte de paiement rapide s'applique encore à un paiement fait à cette date. */
+    public function discountAvailableOn(CarbonInterface $date): bool
+    {
+        return $this->discount_amount->isPositive()
+            && $this->discount_due_date !== null
+            && $date->toDateString() <= $this->discount_due_date->toDateString()
+            && $this->activeAllocations()->every(fn (SupplierPaymentAllocation $allocation): bool => $allocation->discount->isZero());
+    }
+
+    /** Montant net dû aux comptes fournisseurs, en CAD au taux de la facture. */
+    public function payableCad(): Money
+    {
+        return $this->invoice_total->multiply($this->exchange_rate)->minus($this->credit_requested->multiply($this->exchange_rate));
     }
 
     /**

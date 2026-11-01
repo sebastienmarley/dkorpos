@@ -15,6 +15,8 @@ beforeEach(function () {
 
 it('crée les comptes système sans toucher à ceux que le comptable a modifiés', function () {
     expect(LedgerAccount::orderBy('code')->pluck('system_key', 'code')->all())->toBe([
+        '1010' => LedgerAccount::CASH_CAD,
+        '1020' => LedgerAccount::CASH_USD,
         '1250' => LedgerAccount::SUPPLIER_CREDITS_RECEIVABLE,
         '1300' => LedgerAccount::INVENTORY,
         '2100' => LedgerAccount::ACCOUNTS_PAYABLE,
@@ -22,18 +24,20 @@ it('crée les comptes système sans toucher à ceux que le comptable a modifiés
         '3900' => LedgerAccount::OPENING_BALANCE,
         '5000' => LedgerAccount::COST_OF_GOODS_SOLD,
         '5010' => LedgerAccount::COST_OF_SERVICES_SOLD,
+        '5050' => LedgerAccount::PURCHASE_DISCOUNTS,
         '5110' => LedgerAccount::INVENTORY_SHRINKAGE,
         '5120' => LedgerAccount::INVENTORY_COUNT_VARIANCE,
         '5130' => LedgerAccount::INVOICE_VARIANCE,
         '5200' => LedgerAccount::SHIPPING_EXPENSE,
         '5400' => LedgerAccount::STORE_SUPPLIES,
+        '5800' => LedgerAccount::EXCHANGE_GAIN_LOSS,
     ]);
 
     LedgerAccount::forKey(LedgerAccount::INVENTORY)->update(['code' => '1350', 'name' => 'Stocks']);
 
     $this->seed(ReferenceDataSeeder::class);
 
-    expect(LedgerAccount::count())->toBe(12)
+    expect(LedgerAccount::count())->toBe(16)
         ->and(LedgerAccount::forKey(LedgerAccount::INVENTORY))
         ->code->toBe('1350')
         ->name->toBe('Stocks')

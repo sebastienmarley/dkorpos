@@ -52,6 +52,14 @@ class LedgerAccount extends Model
 
     public const INVOICE_VARIANCE = 'invoice_variance';
 
+    public const CASH_CAD = 'cash_cad';
+
+    public const CASH_USD = 'cash_usd';
+
+    public const PURCHASE_DISCOUNTS = 'purchase_discounts';
+
+    public const EXCHANGE_GAIN_LOSS = 'exchange_gain_loss';
+
     /** Préfixe de la clé du compte « à recevoir » d'une taxe (ex. : tax_receivable:TPS). */
     public const TAX_RECEIVABLE_PREFIX = 'tax_receivable:';
 
@@ -67,6 +75,8 @@ class LedgerAccount extends Model
     public static function systemAccounts(): array
     {
         return [
+            self::CASH_CAD => ['1010', __('Encaisse CAD'), LedgerAccountType::Asset],
+            self::CASH_USD => ['1020', __('Encaisse USD'), LedgerAccountType::Asset],
             self::SUPPLIER_CREDITS_RECEIVABLE => ['1250', __('Crédits à recevoir des fournisseurs'), LedgerAccountType::Asset],
             self::INVENTORY => ['1300', __('Stock de marchandises'), LedgerAccountType::Asset],
             self::ACCOUNTS_PAYABLE => ['2100', __('Comptes fournisseurs'), LedgerAccountType::Liability],
@@ -74,11 +84,13 @@ class LedgerAccount extends Model
             self::OPENING_BALANCE => ['3900', __('Solde d\'ouverture'), LedgerAccountType::Equity],
             self::COST_OF_GOODS_SOLD => ['5000', __('Coût des marchandises vendues'), LedgerAccountType::Expense],
             self::COST_OF_SERVICES_SOLD => ['5010', __('Coût des services vendus'), LedgerAccountType::Expense],
+            self::PURCHASE_DISCOUNTS => ['5050', __('Escomptes sur achats'), LedgerAccountType::Expense],
             self::INVOICE_VARIANCE => ['5130', __('Écarts de facturation fournisseurs'), LedgerAccountType::Expense],
             self::SHIPPING_EXPENSE => ['5200', __('Frais d\'expédition et transport'), LedgerAccountType::Expense],
             self::INVENTORY_SHRINKAGE => ['5110', __('Pertes d\'inventaire'), LedgerAccountType::Expense],
             self::INVENTORY_COUNT_VARIANCE => ['5120', __('Écart d\'inventaire'), LedgerAccountType::Expense],
             self::STORE_SUPPLIES => ['5400', __('Fournitures du magasin'), LedgerAccountType::Expense],
+            self::EXCHANGE_GAIN_LOSS => ['5800', __('Gain ou perte de change'), LedgerAccountType::Expense],
         ];
     }
 

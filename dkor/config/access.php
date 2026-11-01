@@ -103,6 +103,8 @@ $accountingAccess = [
     'invoices.create',
     'invoices.edit',
     'invoices.delete',
+    'supplier_payments.view',
+    'supplier_payments.create',
     'ledger.view',
     'ledger.edit',
 ];
@@ -193,6 +195,8 @@ return [
         'invoices.create' => ['Créer — facturation fournisseurs', 'Saisir la facture d\'une réception.'],
         'invoices.edit' => ['Modifier — facturation fournisseurs', 'Modifier une facture fournisseur existante.'],
         'invoices.delete' => ['Supprimer — facturation fournisseurs', 'Supprimer une facture fournisseur.'],
+        'supplier_payments.view' => ['Voir — comptes à payer', 'Accéder à la page : comptes à payer (factures dues et paiements aux fournisseurs).'],
+        'supplier_payments.create' => ['Payer — comptes à payer', 'Enregistrer ou annuler un paiement à un fournisseur.'],
         'schedules.view' => ['Voir — « Mon horaire »', 'Accéder à la page : « Mon horaire ».'],
         'schedule_management.view' => ['Voir — gestion des horaires', 'Accéder à la page : gestion des horaires.'],
         'schedule_management.edit' => ['Modifier — gestion des horaires', 'Modifier dans : gestion des horaires.'],

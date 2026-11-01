@@ -1398,6 +1398,45 @@ CREATE UNIQUE INDEX "supplier_invoices_supplier_id_invoice_number_unique" on "su
 CREATE UNIQUE INDEX "supplier_invoices_supplier_order_id_unique" on "supplier_invoices"(
   "supplier_order_id"
 );
+CREATE TABLE "supplier_payments"(
+  "id" integer primary key autoincrement not null,
+  "supplier_id" integer not null,
+  "ledger_account_id" integer not null,
+  "paid_on" date not null,
+  "method" varchar not null,
+  "reference" varchar,
+  "amount" integer not null,
+  "amount_cad" integer not null,
+  "created_by" integer,
+  "cancelled_at" datetime,
+  "cancelled_by" integer,
+  "cancellation_reason" varchar,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("supplier_id") references "suppliers"("id") on delete restrict,
+  foreign key("ledger_account_id") references "ledger_accounts"("id") on delete restrict,
+  foreign key("created_by") references "users"("id") on delete set null,
+  foreign key("cancelled_by") references "users"("id") on delete set null
+);
+CREATE INDEX "supplier_payments_paid_on_index" on "supplier_payments"(
+  "paid_on"
+);
+CREATE TABLE "supplier_payment_allocations"(
+  "id" integer primary key autoincrement not null,
+  "supplier_payment_id" integer not null,
+  "supplier_invoice_id" integer not null,
+  "amount" integer not null,
+  "discount" integer not null default '0',
+  "payable_cad" integer not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("supplier_payment_id") references "supplier_payments"("id") on delete cascade,
+  foreign key("supplier_invoice_id") references "supplier_invoices"("id") on delete restrict
+);
+CREATE UNIQUE INDEX "supplier_payment_allocations_supplier_payment_id_supplier_invoice_id_unique" on "supplier_payment_allocations"(
+  "supplier_payment_id",
+  "supplier_invoice_id"
+);
 
 INSERT INTO migrations VALUES(1,'2026_10_25_000001_create_password_reset_tokens_table',1);
 INSERT INTO migrations VALUES(2,'2026_10_25_000002_create_sessions_table',1);
@@ -1482,3 +1521,5 @@ INSERT INTO migrations VALUES(80,'2026_10_26_201403_add_pin_to_users_table',2);
 INSERT INTO migrations VALUES(81,'2026_10_31_152256_add_expected_quantity_to_reception_lines_table',2);
 INSERT INTO migrations VALUES(82,'2026_11_01_111652_add_exchange_rate_and_ledger_account_to_supplier_invoices_table',3);
 INSERT INTO migrations VALUES(83,'2026_11_01_111653_add_exchange_rate_to_receptions_table',3);
+INSERT INTO migrations VALUES(84,'2026_11_01_113039_create_supplier_payments_table',4);
+INSERT INTO migrations VALUES(85,'2026_11_01_113040_create_supplier_payment_allocations_table',4);
