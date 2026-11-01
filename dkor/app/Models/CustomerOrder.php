@@ -2432,6 +2432,7 @@ class CustomerOrder extends Model
 
             $delivery->update(['status' => DeliveryStatus::Delivered, 'delivered_at' => now(), 'delivered_by' => auth()->id()]);
 
+            $this->recalculateBalance();
             $this->refreshStatusFromLines();
 
             return $refused;
@@ -2550,6 +2551,7 @@ class CustomerOrder extends Model
                 }
             }
 
+            $this->recalculateBalance();
             $this->refreshStatusFromLines();
 
             return $remainder;

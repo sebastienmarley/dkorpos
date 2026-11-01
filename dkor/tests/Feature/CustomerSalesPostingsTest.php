@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\RequestShipment;
 use App\Enums\LedgerAccountType;
 use App\Enums\SupplierType;
 use App\Models\CustomerOrder;
@@ -126,4 +127,20 @@ it('passe les frais d\'annulation et leurs taxes', function () {
     expect(salesBalance(LedgerAccount::CANCELLATION_FEES))->toBe(-1000)
         ->and(array_sum(taxesPayable($this->order->fresh())))->toBe(-150)
         ->and(salesBalance(LedgerAccount::ACCOUNTS_RECEIVABLE))->toBe(1150);
+});
+
+it('passe la vente et le coût d\'un article expédié dès son envoi', function () {
+    $this->order->store->update(['shipping_warehouse_id' => $this->order->store_id]);
+    $this->order->customer->update(['address_civic' => '12', 'address_street' => 'rue Principale', 'address_city' => 'Gaspé', 'address_province' => 'QC', 'address_country' => 'CA', 'address_postal_code' => 'G4X1A1']);
+    $line = stockedLine($this->order, 1, 1, 100);
+    $unitCost = InventoryUnit::where('product_id', $line->product_id)->sole()->cost->cents();
+    $this->order->pickUp([], [['method_id' => $this->cash->id, 'amount' => $this->order->fresh()->balance_due]]);
+
+    $shipment = app(RequestShipment::class)->handle($this->order->fresh(), [$line->id => 1]);
+    $shipment->chooseCarrier(Supplier::factory()->create(['type' => SupplierType::Shipping])->id, Money::parse(25));
+    $this->order->fresh()->shipDelivery($shipment->fresh(), [$shipment->lines()->sole()->id => 1], 'TRK1');
+
+    expect(salesBalance(LedgerAccount::MERCHANDISE_SALES))->toBe(-10000)
+        ->and(salesBalance(LedgerAccount::CUSTOMER_DEPOSITS))->toBe(0)
+        ->and(salesBalance(LedgerAccount::COST_OF_GOODS_SOLD))->toBe($unitCost);
 });
