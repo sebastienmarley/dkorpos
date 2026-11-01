@@ -216,11 +216,6 @@ class Index extends Component
         $this->reset(['showCredentialsModal', 'createdEmail', 'createdPassword']);
     }
 
-    public function sortByRole(string $role): void
-    {
-        $this->sortRole = $this->sortRole === $role ? '' : $role;
-    }
-
     /** @return Collection<int, Role> */
     public function assignableRoles(): Collection
     {
