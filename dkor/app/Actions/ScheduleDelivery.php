@@ -43,6 +43,10 @@ class ScheduleDelivery
             throw new DomainException(__('La commande n\'est liée à aucun magasin : impossible de planifier ses camions.'));
         }
 
+        if (! $order->store->offersDelivery()) {
+            throw new DomainException(__('Ce magasin n\'a aucun camion actif : la livraison n\'est pas offerte.'));
+        }
+
         if (Carbon::parse($date)->lt(Carbon::today())) {
             throw new DomainException(__('La date de livraison est passée.'));
         }

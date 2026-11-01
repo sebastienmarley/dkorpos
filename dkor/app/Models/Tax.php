@@ -75,13 +75,6 @@ class Tax extends Model
         return $query->whereDate('start_date', '<=', $day)->whereDate('end_date', '>=', $day);
     }
 
-    public function isActiveOn(Carbon|string $date): bool
-    {
-        $day = Carbon::parse($date)->startOfDay();
-
-        return $this->start_date->lte($day) && $this->end_date->gte($day);
-    }
-
     /**
      * Une taxe de même province et de même nom qui chevauche la période, s'il y en a une.
      */

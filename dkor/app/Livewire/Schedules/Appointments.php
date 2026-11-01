@@ -621,7 +621,6 @@ class Appointments extends Component
             'gridData' => $gridData,
             'slotMinutes' => self::SLOT_MINUTES,
             'appointments' => $appointments,
-            'schedules' => $schedules,
             'customerResults' => $customerResults,
             'coveredCells' => $coveredCells,
             'maxDuration' => $maxDuration,

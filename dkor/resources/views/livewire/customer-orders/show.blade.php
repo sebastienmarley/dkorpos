@@ -68,8 +68,12 @@
 
                 <div class="ms-auto flex flex-wrap gap-2">
                     @if ($order->lines->contains(fn ($line) => ! $line->isService() && $line->status->isPickable()))
-                        <flux:button icon="truck" x-on:click="$dispatch('open-delivery-modal')">{{ __('Livraison') }}</flux:button>
-                        <flux:button icon="paper-airplane" x-on:click="$dispatch('open-delivery-modal', { method: 'shipping' })">{{ __('Expédition') }}</flux:button>
+                        @if ($order->store?->offersDelivery())
+                            <flux:button icon="truck" x-on:click="$dispatch('open-delivery-modal')">{{ __('Livraison') }}</flux:button>
+                        @endif
+                        @if ($order->store?->offersShipping())
+                            <flux:button icon="paper-airplane" x-on:click="$dispatch('open-delivery-modal', { method: 'shipping' })">{{ __('Expédition') }}</flux:button>
+                        @endif
                     @endif
                     @if ($order->balance_due->isPositive() || $order->lines->contains(fn ($line) => $line->status->isPickable() && $line->quantity_reserved > 0))
                         <flux:button variant="primary" icon="shopping-cart" wire:click="openPickupModal">{{ __('Poursuivre') }}</flux:button>

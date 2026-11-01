@@ -48,20 +48,20 @@ it('filtre les utilisateurs par rôle', function () {
     $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
-        ->call('sortByRole', 'admin')
+        ->set('sortRole', 'admin')
         ->assertSee($admin->fullName())
         ->assertDontSee($userRole->fullName());
 });
 
-it('retire le filtre de rôle quand on rappelle sortByRole avec le même rôle', function () {
+it('retire le filtre de rôle quand on revient à tous les rôles', function () {
     $admin = User::factory()->withRole('admin')->create(['is_active' => true]);
     $userRole = User::factory()->create(['is_active' => true]);
 
     $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(Index::class)
-        ->call('sortByRole', 'admin')
-        ->call('sortByRole', 'admin')
+        ->set('sortRole', 'admin')
+        ->set('sortRole', '')
         ->assertSee($admin->fullName())
         ->assertSee($userRole->fullName());
 });

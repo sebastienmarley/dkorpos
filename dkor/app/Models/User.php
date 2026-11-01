@@ -470,12 +470,6 @@ class User extends Authenticatable
         ]);
     }
 
-    /** @return BelongsTo<User, $this> */
-    public function lastModifiedBy(): BelongsTo
-    {
-        return $this->belongsTo(self::class, 'last_modified_by');
-    }
-
     /** @return HasMany<Schedule, $this> */
     public function schedules(): HasMany
     {

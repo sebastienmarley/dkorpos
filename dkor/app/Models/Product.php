@@ -196,12 +196,6 @@ class Product extends Model
         return $this->belongsTo(Style::class);
     }
 
-    /** @return HasMany<InventoryUnit, $this> */
-    public function inventoryUnits(): HasMany
-    {
-        return $this->hasMany(InventoryUnit::class);
-    }
-
     /** @return HasMany<ProductUpc, $this> */
     public function upcs(): HasMany
     {

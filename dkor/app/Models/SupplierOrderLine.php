@@ -133,14 +133,6 @@ class SupplierOrderLine extends Model
     }
 
     /**
-     * Substitue le produit de la ligne par un autre (utilisable depuis les ventes).
-     */
-    public function substituteWith(Product $product): SupplierOrderLine
-    {
-        return $this->order->substituteLine($this, $product);
-    }
-
-    /**
      * Demande l'annulation de la ligne au fournisseur (utilisable depuis les commandes comme depuis les ventes).
      *
      * @return bool Vrai si le courriel de demande a pu être envoyé au fournisseur.

@@ -622,7 +622,7 @@ it('ne substitue que ce qui reste à recevoir d\'une ligne partiellement reçue'
     $order->fresh()->receive([$line->id => ['quantity' => 4, 'unit_cost' => 5]]);
     $new = Product::factory()->create(['supplier_id' => $order->supplier_id]);
 
-    $replacement = $line->fresh()->substituteWith($new);
+    $replacement = $order->fresh()->substituteLine($line->fresh(), $new);
 
     expect($replacement->quantity)->toBe(6)
         ->and($line->fresh())->quantity->toBe(4)->status->toBe(SupplierOrderLineStatus::Active)
@@ -634,7 +634,7 @@ it('réceptionne la ligne de remplacement et clôt la commande', function () {
     [$order, , $line] = productOrderWithLine(3);
     sendOrder($order);
     $new = Product::factory()->create(['supplier_id' => $order->supplier_id, 'cost' => Money::parse(2)]);
-    $replacement = $line->fresh()->substituteWith($new);
+    $replacement = $order->fresh()->substituteLine($line->fresh(), $new);
 
     $order->fresh()->receive([$line->id => ['quantity' => 3, 'unit_cost' => 5], $replacement->id => ['quantity' => 3, 'unit_cost' => 2]]);
 
@@ -648,13 +648,13 @@ it('refuse une substitution invalide', function () {
     $foreign = Product::factory()->create();
     $blocked = Product::factory()->create(['supplier_id' => $order->supplier_id, 'is_non_orderable' => true]);
 
-    expect(fn () => $line->fresh()->substituteWith(Product::factory()->create(['supplier_id' => $order->supplier_id])))->toThrow(DomainException::class);
+    expect(fn () => $order->fresh()->substituteLine($line->fresh(), Product::factory()->create(['supplier_id' => $order->supplier_id])))->toThrow(DomainException::class);
 
     sendOrder($order);
 
-    expect(fn () => $line->fresh()->substituteWith($foreign))->toThrow(DomainException::class)
-        ->and(fn () => $line->fresh()->substituteWith($blocked))->toThrow(DomainException::class)
-        ->and(fn () => $line->fresh()->substituteWith($line->product))->toThrow(DomainException::class);
+    expect(fn () => $order->fresh()->substituteLine($line->fresh(), $foreign))->toThrow(DomainException::class)
+        ->and(fn () => $order->fresh()->substituteLine($line->fresh(), $blocked))->toThrow(DomainException::class)
+        ->and(fn () => $order->fresh()->substituteLine($line->fresh(), $line->product))->toThrow(DomainException::class);
 });
 
 it('refuse de substituer une ligne en demande d\'annulation ou sur une commande de services', function () {
@@ -663,13 +663,13 @@ it('refuse de substituer une ligne en demande d\'annulation ou sur une commande 
     sendOrder($order);
     $line->fresh()->requestCancellation();
 
-    expect(fn () => $line->fresh()->substituteWith(Product::factory()->create(['supplier_id' => $order->supplier_id])))->toThrow(DomainException::class);
+    expect(fn () => $order->fresh()->substituteLine($line->fresh(), Product::factory()->create(['supplier_id' => $order->supplier_id])))->toThrow(DomainException::class);
 
     $service = SupplierOrder::factory()->service()->create();
     $serviceLine = SupplierOrderLine::factory()->create(['supplier_order_id' => $service->id]);
     sendOrder($service);
 
-    expect(fn () => $serviceLine->fresh()->substituteWith(Product::factory()->create(['supplier_id' => $service->supplier_id])))->toThrow(DomainException::class);
+    expect(fn () => $service->fresh()->substituteLine($serviceLine->fresh(), Product::factory()->create(['supplier_id' => $service->supplier_id])))->toThrow(DomainException::class);
 });
 
 it('refuse une deuxième commande en brouillon pour le même fournisseur', function () {

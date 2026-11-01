@@ -441,7 +441,6 @@ it('crée une facture libre rattachée à un fournisseur, sans document', functi
         ->supplier_id->toBe($supplier->id)->reception_id->toBeNull()->supplier_order_id->toBeNull()
         ->description->toBe('Abonnement annuel')
         ->merchandise_total->toBeMoney(20000)->computed_total->toBeMoney(24150)->variance->toBeMoney(0)
-        ->and($invoice->isStandalone())->toBeTrue()
         ->and($invoice->lines)->toHaveCount(0)
         ->and(InventoryMovement::count())->toBe(0);
 

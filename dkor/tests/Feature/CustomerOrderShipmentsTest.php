@@ -13,6 +13,7 @@ use App\Enums\SupplierType;
 use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Catalog\Services;
 use App\Livewire\CustomerOrders\Deliveries;
+use App\Livewire\CustomerOrders\Show as CustomerOrderShow;
 use App\Livewire\Deliveries\Index as DeliveriesIndex;
 use App\Livewire\Receptions\Create as ReceptionCreate;
 use App\Livewire\Shipments\Index as ShipmentsIndex;
@@ -28,6 +29,7 @@ use App\Models\Product;
 use App\Models\Reception;
 use App\Models\Role;
 use App\Models\Service;
+use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\User;
@@ -43,6 +45,7 @@ beforeEach(function () {
     $this->actingAs($this->user);
 
     $this->order = CustomerOrder::factory()->create();
+    $this->order->store->update(['shipping_warehouse_id' => $this->order->store_id]);
     $this->order->customer->update(['address_civic' => '12', 'address_street' => 'rue Principale', 'address_city' => 'Gaspé', 'address_province' => 'QC', 'address_country' => 'CA', 'address_postal_code' => 'G4X1A1']);
     $this->cash = CustomerPaymentMethod::cash();
 
@@ -179,6 +182,38 @@ describe('demande d\'expédition', function () {
             ->and($warnings[$large->id])->toContain('Trop grand')
             ->and($warnings[$heavy->id])->toContain('Trop lourd')
             ->and($warnings[$unknown->id])->toContain('Dimensions inconnues');
+    });
+});
+
+describe('entrepôt d\'expédition du magasin', function () {
+    it('confie l\'expédition à l\'entrepôt d\'expédition du magasin de la commande', function () {
+        $warehouse = Store::factory()->create();
+        $this->order->store->update(['shipping_warehouse_id' => $warehouse->id]);
+        $line = stockedLine($this->order, 1, 1, 100);
+        payBalance($this->order, $this->cash);
+
+        Livewire::test(CustomerOrderShow::class, ['order' => $this->order->fresh()])
+            ->assertSeeHtml("method: 'shipping'");
+
+        $shipment = app(RequestShipment::class)->handle($this->order->fresh(), [$line->id => 1]);
+
+        expect($shipment->store_id)->toBe($warehouse->id);
+    });
+
+    it('n\'offre pas l\'expédition sans entrepôt d\'expédition', function () {
+        $this->order->store->update(['shipping_warehouse_id' => null]);
+        $line = stockedLine($this->order, 1, 1, 100);
+        payBalance($this->order, $this->cash);
+
+        Livewire::test(CustomerOrderShow::class, ['order' => $this->order->fresh()])
+            ->assertDontSeeHtml("method: 'shipping'");
+
+        Livewire::test(Deliveries::class, ['order' => $this->order->fresh()])
+            ->call('open', 'shipping')
+            ->assertSet('showModal', false);
+
+        expect(fn () => app(RequestShipment::class)->handle($this->order->fresh(), [$line->id => 1]))
+            ->toThrow(DomainException::class, 'Ce magasin n\'a pas d\'entrepôt d\'expédition : l\'expédition n\'est pas offerte.');
     });
 });
 

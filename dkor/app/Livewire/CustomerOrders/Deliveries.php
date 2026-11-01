@@ -81,6 +81,15 @@ class Deliveries extends Component
         $this->reset(['reschedulingId', 'quantities', 'requiredCents', 'payOnDelivery', 'date', 'period', 'notes', 'isEditingAddress']);
         $this->resetErrorBag();
         $this->method = (DeliveryMethod::tryFrom($method) ?? DeliveryMethod::Internal)->value;
+
+        if (! $this->isOffered()) {
+            Flux::toast(text: $this->isShipping()
+                ? __('Ce magasin n\'a pas d\'entrepôt d\'expédition : l\'expédition n\'est pas offerte.')
+                : __('Ce magasin n\'a aucun camion actif : la livraison n\'est pas offerte.'), variant: 'warning');
+
+            return;
+        }
+
         $this->addShippingFee = $this->order->shippingFeeLines()->isEmpty();
         $this->available = $this->order->deliverableQuantities();
 
@@ -184,6 +193,14 @@ class Deliveries extends Component
             $this->isShipping() => 'confirm',
             default => 'slot',
         };
+    }
+
+    /** Le magasin de la commande offre-t-il la méthode en cours (camion actif ou entrepôt d'expédition) ? */
+    private function isOffered(): bool
+    {
+        $store = $this->order->store;
+
+        return $store !== null && ($this->isShipping() ? $store->offersShipping() : $store->offersDelivery());
     }
 
     public function isShipping(): bool

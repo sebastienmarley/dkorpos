@@ -482,3 +482,27 @@ it('affiche les places et les livraisons de la semaine dans la grille des livrai
         ->assertSee('#'.$this->order->id.' · '.$this->order->customer->lastname)
         ->assertSee('Rimouski');
 });
+
+describe('service offert selon les camions du magasin', function () {
+    it('offre la livraison quand le magasin a un camion actif', function () {
+        stockedLine($this->order, 1, 1, 100);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->assertSeeHtml("\$dispatch('open-delivery-modal')");
+    });
+
+    it('n\'offre pas la livraison sans camion actif', function () {
+        $this->truck->update(['is_active' => false]);
+        $line = paidLine($this->order, $this->cash);
+
+        Livewire::test(Show::class, ['order' => $this->order->fresh()])
+            ->assertDontSeeHtml("\$dispatch('open-delivery-modal')");
+
+        Livewire::test(Deliveries::class, ['order' => $this->order])
+            ->call('open')
+            ->assertSet('showModal', false);
+
+        expect(fn () => scheduleDelivery($this->order, [$line->id => 1]))
+            ->toThrow(DomainException::class, 'Ce magasin n\'a aucun camion actif : la livraison n\'est pas offerte.');
+    });
+});
