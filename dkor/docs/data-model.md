@@ -959,20 +959,30 @@ erDiagram
   **polymorphe** (`reference_type`, `reference_id`), sans clé étrangère.
 - `ledger_entry_lines` : un débit ou un crédit en cents par ligne. Les ajustements d'inventaire
   ([ADR 0011](adr/0011-inventory-movements-and-adjustments.md)), les réceptions, leurs renversements, les factures
-  fournisseur, les notes de crédit et les paiements aux fournisseurs passent des écritures
-  ([ADR 0016](adr/0016-ledger-postings.md)).
+  fournisseur, les notes de crédit, les paiements aux fournisseurs, les paiements clients et les ventes passent des
+  écritures ([ADR 0016](adr/0016-ledger-postings.md)).
+- `ledger_closings` : historique des clôtures du grand livre; la dernière ligne donne `closed_through`, la date
+  jusqu'à laquelle aucune écriture n'est datée (une écriture plus ancienne est reportée au premier jour ouvert).
 
 ```mermaid
 erDiagram
     ledger_entries ||--o{ ledger_entry_lines : "ledger_entry_id · cascade"
     ledger_accounts ||--o{ ledger_entry_lines : "ledger_account_id · restrict"
     users |o--o{ ledger_entries : "user_id · null"
+    users |o--o{ ledger_closings : "user_id · null"
     ledger_accounts {
         int id PK
         string code UK
         string name
         string type "LedgerAccountType"
         string system_key UK "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    ledger_closings {
+        int id PK
+        date closed_through "nullable"
+        int user_id FK "nullable"
         datetime created_at
         datetime updated_at
     }

@@ -163,22 +163,32 @@ Avant, l'argent reçu est un dépôt.
 
 ### La clôture
 
-- Table `ledger_periods` : date de fin de la dernière période clôturée, usager, date. Permission `ledger.close`
-  pour clôturer et rouvrir.
+- Table `ledger_closings` : historique des clôtures et réouvertures; la dernière ligne donne la date jusqu'à
+  laquelle le grand livre est clôturé (`closed_through`, vide : tout ouvert). Permission `ledger.close` pour
+  clôturer (une période terminée, après la clôture actuelle) et rouvrir (la clôture recule à la veille de la date
+  rouverte), dans la page États comptables.
 - `LedgerEntry::post()` ne refuse rien : une écriture datée dans une période clôturée est **reportée au premier
   jour de la période ouverte**, et sa description garde la date du document. Le document lui-même garde sa date.
 
 ### Les contrôles
 
-Nouveaux invariants, vérifiés par des tests puis par une commande de contrôle :
+Nouveaux invariants, vérifiés par des tests et par la commande `php artisan ledger:check` (`LedgerChecks`), qui
+échoue au premier écart :
 
 | # | Invariant |
 |---|---|
 | I11 | Solde de Stock = somme des coûts des unités ouvertes. |
-| I12 | Solde d'Achats non facturés = coût des réceptions non encore facturées. |
-| I13 | Solde de Dépôts de clients = montants payés moins montants livrés, sur les commandes ouvertes. |
-| I14 | Solde de chaque taxe à payer ou à recevoir = taxes des documents comptabilisés. |
-| I15 | Solde de Comptes fournisseurs = soldes dus des factures (#132). |
+| I12 | Solde d'Achats non facturés = valeur nette des unités reçues des réceptions sans facture. |
+| I13 | Dépôts de clients moins Comptes clients = montants payés moins ventes comptabilisées, sur toutes les commandes, plus les crédits au compte des clients. |
+| I14 | Solde de chaque taxe à payer ou à recevoir = taxes des documents comptabilisés (vérifié par les tests seulement). |
+| I15 | Solde de Comptes fournisseurs = total CAD des factures au grand livre, moins les notes de crédit reçues et les paiements actifs (#132). |
+
+### Les états
+
+La page **États comptables** (`ledger.view`, `LedgerReport`) donne, sur une période et pour un magasin ou
+l'ensemble : la balance de vérification (ouverture, débits, crédits, clôture par compte), le grand livre d'un compte
+(solde courant, lien vers le document source) et les taxes perçues, payées et nettes par taxe, avec les numéros
+d'inscription. La balance et le détail des écritures s'exportent en CSV (point-virgule, virgule décimale).
 
 ## Conséquences
 

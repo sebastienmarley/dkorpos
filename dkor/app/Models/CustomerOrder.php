@@ -1068,6 +1068,35 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Total des ventes comptabilisées de la commande, taxes incluses : lignes remises et frais d'annulation (ADR 0016).
+     */
+    public function recognizedSales(): Money
+    {
+        return $this->recognition($this->lines()->get())['total'];
+    }
+
+    /**
+     * Ventes comptabilisées : lignes remises au client, frais d'annulation, taxes sur leur partie taxable et total.
+     *
+     * @param  Collection<int, CustomerOrderLine>  $lines
+     * @return array{handedOver: Collection<int, CustomerOrderLine>, fees: Money, taxes: array{amounts: array<int, Money>, total: Money}, total: Money}
+     */
+    private function recognition(Collection $lines): array
+    {
+        $handedOver = $lines->filter(fn (CustomerOrderLine $line): bool => $line->status->isHandedOver());
+        $fees = Money::sum($lines->map(fn (CustomerOrderLine $line): Money => $line->cancellation_fee ?? Money::zero()));
+        $taxable = Money::sum($handedOver->filter(fn (CustomerOrderLine $line): bool => $line->is_taxable)->map(fn (CustomerOrderLine $line): Money => $line->total))->plus($fees);
+        $taxes = $this->taxesFor($taxable);
+
+        return [
+            'handedOver' => $handedOver,
+            'fees' => $fees,
+            'taxes' => $taxes,
+            'total' => Money::sum($handedOver->map(fn (CustomerOrderLine $line): Money => $line->total))->plus($fees)->plus(Money::sum($taxes['amounts'])),
+        ];
+    }
+
+    /**
      * Met le grand livre à jour avec les ventes de la commande (ADR 0016) : passe l'écart entre ce que la commande
      * a comptabilisé jusqu'ici (écritures qui la référencent) et ce qu'elle doit avoir comptabilisé maintenant.
      *
@@ -1085,11 +1114,7 @@ class CustomerOrder extends Model
      */
     private function postSales(Collection $lines, Money $amountPaid): void
     {
-        $handedOver = $lines->filter(fn (CustomerOrderLine $line): bool => $line->status->isHandedOver());
-        $fees = Money::sum($lines->map(fn (CustomerOrderLine $line): Money => $line->cancellation_fee ?? Money::zero()));
-        $taxable = Money::sum($handedOver->filter(fn (CustomerOrderLine $line): bool => $line->is_taxable)->map(fn (CustomerOrderLine $line): Money => $line->total))->plus($fees);
-        $taxes = $this->taxesFor($taxable);
-        $sales = Money::sum($handedOver->map(fn (CustomerOrderLine $line): Money => $line->total))->plus($fees)->plus(Money::sum($taxes['amounts']));
+        ['handedOver' => $handedOver, 'fees' => $fees, 'taxes' => $taxes, 'total' => $sales] = $this->recognition($lines);
         $receivable = $sales->minus($amountPaid)->max(Money::zero());
 
         $cost = Money::sum(InventoryMovement::query()

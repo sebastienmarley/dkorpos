@@ -107,6 +107,7 @@ $accountingAccess = [
     'supplier_payments.create',
     'ledger.view',
     'ledger.edit',
+    'ledger.close',
 ];
 
 return [
@@ -189,6 +190,7 @@ return [
         'currencies.view' => ['Voir — devises', 'Accéder à la page : devises.'],
         'ledger.view' => ['Voir — grand livre', 'Accéder à la page : grand livre (écritures et comptes).'],
         'ledger.edit' => ['Modifier — grand livre', 'Modifier le code et le nom des comptes du grand livre.'],
+        'ledger.close' => ['Clôturer — grand livre', 'Clôturer une période du grand livre et la rouvrir.'],
         'currencies.create' => ['Créer — devises', 'Créer dans : devises.'],
         'currencies.edit' => ['Modifier — devises', 'Modifier dans : devises.'],
         'invoices.view' => ['Voir — facturation fournisseurs', 'Accéder à la page : facturation fournisseurs.'],

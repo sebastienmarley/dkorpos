@@ -79,6 +79,7 @@ class Navigation
                 $this->item(__('Taxes'), 'receipt-percent', 'accounting.taxes', allowed: $user->can('taxes.view')),
                 $this->item(__('Devises'), 'currency-dollar', 'accounting.currencies', allowed: $user->can('currencies.view')),
                 $this->item(__('Grand livre'), 'book-open', 'accounting.ledger', allowed: $user->can('ledger.view')),
+                $this->item(__('États comptables'), 'document-chart-bar', 'accounting.statements', allowed: $user->can('ledger.view')),
             ]],
             ['Gestion horaire', [
                 $this->item(__('Mon horaire'), 'calendar-days', 'schedules.index', allowed: $user->can('schedules.view')),

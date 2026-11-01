@@ -95,6 +95,7 @@ class AppServiceProvider extends ServiceProvider
             'inventory_zone' => Models\InventoryZone::class,
             'label_request' => Models\LabelRequest::class,
             'ledger_account' => Models\LedgerAccount::class,
+            'ledger_closing' => Models\LedgerClosing::class,
             'ledger_entry' => Models\LedgerEntry::class,
             'ledger_entry_line' => Models\LedgerEntryLine::class,
             'merchant_payment_method' => Models\MerchantPaymentMethod::class,

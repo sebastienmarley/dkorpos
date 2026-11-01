@@ -1442,6 +1442,14 @@ CREATE TABLE "customer_payment_methods"(
 CREATE UNIQUE INDEX "customer_payment_methods_code_unique" on "customer_payment_methods"(
   "code"
 );
+CREATE TABLE "ledger_closings"(
+  "id" integer primary key autoincrement not null,
+  "closed_through" date,
+  "user_id" integer,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("user_id") references "users"("id") on delete set null
+);
 
 INSERT INTO migrations VALUES(1,'2026_10_25_000001_create_password_reset_tokens_table',1);
 INSERT INTO migrations VALUES(2,'2026_10_25_000002_create_sessions_table',1);
@@ -1530,3 +1538,4 @@ INSERT INTO migrations VALUES(84,'2026_11_01_113039_create_supplier_payments_tab
 INSERT INTO migrations VALUES(85,'2026_11_01_113040_create_supplier_payment_allocations_table',4);
 INSERT INTO migrations VALUES(86,'2026_11_01_115402_add_paid_outside_to_supplier_invoices_table',5);
 INSERT INTO migrations VALUES(87,'2026_11_01_121016_add_ledger_account_to_customer_payment_methods_table',6);
+INSERT INTO migrations VALUES(88,'2026_11_01_122051_create_ledger_closings_table',7);

@@ -31,6 +31,7 @@ use LogicException;
  * @property Carbon $created_at
  * @property-read Collection<int, LedgerEntryLine> $lines
  * @property-read User|null $user
+ * @property-read Store|null $store
  * @property-read Model|null $reference
  */
 #[Fillable(['store_id', 'posted_on', 'description', 'reference_type', 'reference_id', 'user_id'])]
@@ -53,7 +54,9 @@ class LedgerEntry extends Model
 
     /**
      * Passe une écriture équilibrée. Chaque ligne a un débit ou un crédit positif (pas les deux). Une écriture
-     * d'inventaire porte son magasin (ADR 0012); les autres, tenues par le bureau chef, n'en ont pas.
+     * d'inventaire porte son magasin (ADR 0012); les autres, tenues par le bureau chef, n'en ont pas. Une écriture
+     * datée dans une période clôturée est reportée au premier jour ouvert, avec la date du document dans sa
+     * description (ADR 0016).
      *
      * @param  list<array{account: LedgerAccount, debit?: Money, credit?: Money}>  $lines
      *
@@ -87,10 +90,17 @@ class LedgerEntry extends Model
             ]));
         }
 
+        $documentDate = $postedOn ?? today();
+        $postedOn = LedgerClosing::openDateFor($documentDate);
+
+        if (! $postedOn->isSameDay($documentDate)) {
+            $description = __(':description (document du :date)', ['description' => $description, 'date' => $documentDate->toDateString()]);
+        }
+
         return DB::transaction(function () use ($description, $lines, $reference, $postedOn, $userId, $storeId): self {
             $entry = static::create([
                 'store_id' => $storeId,
-                'posted_on' => $postedOn ?? today(),
+                'posted_on' => $postedOn,
                 'description' => $description,
                 'reference_type' => $reference?->getMorphClass(),
                 'reference_id' => $reference?->getKey(),
@@ -161,6 +171,22 @@ class LedgerEntry extends Model
     public function reference(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Lien vers le document source de l'écriture, s'il a une page.
+     */
+    public function sourceUrl(): ?string
+    {
+        return match (true) {
+            $this->reference instanceof SupplierInvoice => route('accounting.invoices.show', $this->reference),
+            $this->reference instanceof Reception => route('receptions.show', $this->reference),
+            $this->reference instanceof CustomerOrder => route('customer-orders.show', $this->reference),
+            $this->reference instanceof CustomerOrderPayment => route('customer-orders.show', $this->reference->customer_order_id),
+            $this->reference instanceof SupplierPayment => route('accounting.payables', ['supplier' => $this->reference->supplier_id]),
+            $this->reference instanceof InventoryAdjustment => route('inventory.adjustments'),
+            default => null,
+        };
     }
 
     public function total(): Money
