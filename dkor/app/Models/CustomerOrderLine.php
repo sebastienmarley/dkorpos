@@ -181,12 +181,6 @@ class CustomerOrderLine extends Model
         return $this->hasMany(StoreTransfer::class);
     }
 
-    /** Transfert ouvert (demandé ou en transit) qui servira cette ligne, s'il y a lieu (issue #103). */
-    public function openTransfer(): ?StoreTransfer
-    {
-        return $this->transfers()->open()->with('fromStore')->first();
-    }
-
     /** @return BelongsTo<InventoryLocation, $this> */
     public function location(): BelongsTo
     {

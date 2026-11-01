@@ -18,10 +18,4 @@ enum DefectiveResolution: string
             self::DamagedOnArrival => __('Endommagé à la réception (à traiter)'),
         };
     }
-
-    /** Le produit défectueux est en inventaire défectueux (repris au client ou reçu endommagé). */
-    public function isTakenBack(): bool
-    {
-        return $this !== self::PartOrder;
-    }
 }
