@@ -129,11 +129,6 @@ class SupplierInvoice extends Model
         return $this->hasMany(CustomerOrderDelivery::class)->orderBy('shipped_at')->orderBy('id');
     }
 
-    public function isStandalone(): bool
-    {
-        return $this->reception_id === null && $this->supplier_order_id === null;
-    }
-
     public function hasVariance(): bool
     {
         return ! $this->variance->isZero();
