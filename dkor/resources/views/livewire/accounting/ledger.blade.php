@@ -57,7 +57,12 @@
         </flux:table>
     </div>
 
-    <flux:heading size="lg" class="mb-3 mt-10">{{ __('Comptes') }}</flux:heading>
+    <div class="mb-3 mt-10 flex items-center justify-between gap-3">
+        <flux:heading size="lg">{{ __('Comptes') }}</flux:heading>
+        @can('ledger.edit')
+            <flux:button size="sm" icon="plus" wire:click="createAccount">{{ __('Ajouter un compte') }}</flux:button>
+        @endcan
+    </div>
 
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <flux:table>
@@ -92,11 +97,21 @@
 
     <flux:modal wire:model="showAccount" class="w-full max-w-md">
         <form wire:submit="saveAccount" class="space-y-4">
-            <flux:heading>{{ __('Modifier le compte') }}</flux:heading>
-            <flux:text class="text-zinc-500">{{ __('Le code et le nom suivent votre plan comptable; le rôle du compte dans l\'application ne change pas.') }}</flux:text>
+            <flux:heading>{{ $editingAccountId ? __('Modifier le compte') : __('Nouveau compte') }}</flux:heading>
+            <flux:text class="text-zinc-500">
+                {{ $editingAccountId ? __('Le code et le nom suivent votre plan comptable; le rôle du compte dans l\'application ne change pas.') : __('Un compte ajouté sert aux écritures manuelles (frais bancaires, salaires…). Son type ne change plus ensuite.') }}
+            </flux:text>
 
             <flux:input wire:model="code" :label="__('Code')" required />
             <flux:input wire:model="name" :label="__('Nom')" required />
+
+            @unless ($editingAccountId)
+                <flux:select wire:model="type" :label="__('Type')">
+                    @foreach ($types as $accountType)
+                        <flux:select.option :value="$accountType->value">{{ $accountType->label() }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endunless
 
             <div class="flex justify-end gap-3 pt-2">
                 <flux:button type="button" variant="ghost" wire:click="$set('showAccount', false)">{{ __('Annuler') }}</flux:button>

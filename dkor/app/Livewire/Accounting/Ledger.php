@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Accounting;
 
+use App\Enums\LedgerAccountType;
 use App\Models\InventoryAdjustment;
 use App\Models\LedgerAccount;
 use App\Models\LedgerEntry;
@@ -17,7 +18,8 @@ use Livewire\WithPagination;
 
 /**
  * Grand livre (ADR 0011) : les écritures, filtrables par compte, et les comptes, dont le comptable ajuste le code et
- * le nom à son plan comptable.
+ * le nom à son plan comptable. Il peut ajouter ses propres comptes (frais bancaires, salaires…) pour les écritures
+ * manuelles (ADR 0016).
  */
 class Ledger extends Component
 {
@@ -34,9 +36,23 @@ class Ledger extends Component
 
     public string $name = '';
 
+    public string $type = '';
+
     public function updatedAccountFilter(): void
     {
         $this->resetPage();
+    }
+
+    public function createAccount(): void
+    {
+        $this->authorize('ledger.edit');
+
+        $this->editingAccountId = null;
+        $this->code = '';
+        $this->name = '';
+        $this->type = LedgerAccountType::Expense->value;
+        $this->resetValidation();
+        $this->showAccount = true;
     }
 
     public function editAccount(LedgerAccount $account): void
@@ -54,21 +70,26 @@ class Ledger extends Component
     {
         $this->authorize('ledger.edit');
 
-        $account = LedgerAccount::findOrFail($this->editingAccountId);
+        $account = $this->editingAccountId !== null ? LedgerAccount::findOrFail($this->editingAccountId) : null;
 
         $this->code = trim($this->code);
         $this->name = trim($this->name);
 
         $validated = $this->validate([
-            'code' => ['required', 'string', 'max:20', Rule::unique('ledger_accounts', 'code')->ignore($account->id)],
+            'code' => ['required', 'string', 'max:20', Rule::unique('ledger_accounts', 'code')->ignore($account?->id)],
             'name' => ['required', 'string', 'max:100'],
+            'type' => [$account === null ? 'required' : 'nullable', Rule::enum(LedgerAccountType::class)],
         ]);
 
-        $account->update($validated);
+        if ($account !== null) {
+            $account->update(['code' => $validated['code'], 'name' => $validated['name']]);
+        } else {
+            LedgerAccount::create($validated);
+        }
 
         $this->showAccount = false;
 
-        Flux::toast(text: __('Compte modifié.'), variant: 'success');
+        Flux::toast(text: $account !== null ? __('Compte modifié.') : __('Compte ajouté.'), variant: 'success');
     }
 
     public function render(): View
@@ -88,6 +109,7 @@ class Ledger extends Component
         return view('livewire.accounting.ledger', [
             'entries' => $entries,
             'accounts' => LedgerAccount::query()->orderBy('code')->get(),
+            'types' => LedgerAccountType::cases(),
         ])->layout('layouts.app', ['title' => __('Grand livre')]);
     }
 }

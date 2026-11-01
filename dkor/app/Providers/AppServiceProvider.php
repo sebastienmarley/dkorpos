@@ -93,6 +93,7 @@ class AppServiceProvider extends ServiceProvider
             'inventory_stock' => Models\InventoryStock::class,
             'inventory_unit' => Models\InventoryUnit::class,
             'inventory_zone' => Models\InventoryZone::class,
+            'journal_entry' => Models\JournalEntry::class,
             'label_request' => Models\LabelRequest::class,
             'ledger_account' => Models\LedgerAccount::class,
             'ledger_closing' => Models\LedgerClosing::class,

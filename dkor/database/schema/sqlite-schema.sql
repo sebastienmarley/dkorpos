@@ -1450,6 +1450,23 @@ CREATE TABLE "ledger_closings"(
   "updated_at" datetime,
   foreign key("user_id") references "users"("id") on delete set null
 );
+CREATE TABLE "journal_entries"(
+  "id" integer primary key autoincrement not null,
+  "entry_date" date not null,
+  "description" varchar not null,
+  "document_number" varchar,
+  "store_id" integer,
+  "reverses_id" integer,
+  "created_by" integer,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("store_id") references "stores"("id") on delete restrict,
+  foreign key("reverses_id") references "journal_entries"("id") on delete restrict,
+  foreign key("created_by") references "users"("id") on delete set null
+);
+CREATE UNIQUE INDEX "journal_entries_reverses_id_unique" on "journal_entries"(
+  "reverses_id"
+);
 
 INSERT INTO migrations VALUES(1,'2026_10_25_000001_create_password_reset_tokens_table',1);
 INSERT INTO migrations VALUES(2,'2026_10_25_000002_create_sessions_table',1);
@@ -1539,3 +1556,4 @@ INSERT INTO migrations VALUES(85,'2026_11_01_113040_create_supplier_payment_allo
 INSERT INTO migrations VALUES(86,'2026_11_01_115402_add_paid_outside_to_supplier_invoices_table',5);
 INSERT INTO migrations VALUES(87,'2026_11_01_121016_add_ledger_account_to_customer_payment_methods_table',6);
 INSERT INTO migrations VALUES(88,'2026_11_01_122051_create_ledger_closings_table',7);
+INSERT INTO migrations VALUES(89,'2026_11_01_124735_create_journal_entries_table',8);

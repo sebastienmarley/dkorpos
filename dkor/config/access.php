@@ -108,6 +108,7 @@ $accountingAccess = [
     'ledger.view',
     'ledger.edit',
     'ledger.close',
+    'ledger.journal',
 ];
 
 return [
@@ -191,6 +192,7 @@ return [
         'ledger.view' => ['Voir — grand livre', 'Accéder à la page : grand livre (écritures et comptes).'],
         'ledger.edit' => ['Modifier — grand livre', 'Modifier le code et le nom des comptes du grand livre.'],
         'ledger.close' => ['Clôturer — grand livre', 'Clôturer une période du grand livre et la rouvrir.'],
+        'ledger.journal' => ['Écritures manuelles — grand livre', 'Passer et renverser des écritures manuelles au journal général.'],
         'currencies.create' => ['Créer — devises', 'Créer dans : devises.'],
         'currencies.edit' => ['Modifier — devises', 'Modifier dans : devises.'],
         'invoices.view' => ['Voir — facturation fournisseurs', 'Accéder à la page : facturation fournisseurs.'],

@@ -185,6 +185,7 @@ class LedgerEntry extends Model
             $this->reference instanceof CustomerOrderPayment => route('customer-orders.show', $this->reference->customer_order_id),
             $this->reference instanceof SupplierPayment => route('accounting.payables', ['supplier' => $this->reference->supplier_id]),
             $this->reference instanceof InventoryAdjustment => route('inventory.adjustments'),
+            $this->reference instanceof JournalEntry => route('accounting.journal'),
             default => null,
         };
     }

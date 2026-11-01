@@ -13,6 +13,7 @@ dataset('pages', [
     'accounting.invoices' => ['accounting.invoices', 'invoices.view'],
     'accounting.payables' => ['accounting.payables', 'supplier_payments.view'],
     'accounting.statements' => ['accounting.statements', 'ledger.view'],
+    'accounting.journal' => ['accounting.journal', 'ledger.view'],
     'products.index' => ['products.index', 'products.view'],
     'parts.index' => ['parts.index', 'parts.view'],
     'supplier-orders.index' => ['supplier-orders.index', 'supplier_orders.view'],

@@ -161,6 +161,15 @@ Avant, l'argent reçu est un dépôt.
 | Paiement | Comptes fournisseurs (au taux de la facture) | Encaisse CAD ou USD ; Escomptes sur achats (escompte appliqué) ; Gain/perte de change (écart, ou au débit) |
 | Annulation du paiement | Inverse | |
 
+### Les écritures manuelles
+
+Ce qui n'a pas de document dans l'application passe par le **journal général** (`journal_entries`, page Journal
+général, permission `ledger.journal`) : soldes d'ouverture (contre Solde d'ouverture), dépôts des processeurs de
+paiement (Encaisse et frais contre le compte de compensation du mode de paiement), virements entre encaisses, frais
+bancaires, paie. Chaque écriture manuelle passe une écriture équilibrée qui la référence (`RecordJournalEntry`);
+elle ne se modifie pas, elle se renverse (`ReverseJournalEntry`, une seule fois). Le comptable ajoute les comptes
+dont il a besoin (frais bancaires, salaires…) dans la page Grand livre (`ledger.edit`); leur type ne change plus.
+
 ### La clôture
 
 - Table `ledger_closings` : historique des clôtures et réouvertures; la dernière ligne donne la date jusqu'à

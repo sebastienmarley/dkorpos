@@ -961,6 +961,9 @@ erDiagram
   ([ADR 0011](adr/0011-inventory-movements-and-adjustments.md)), les réceptions, leurs renversements, les factures
   fournisseur, les notes de crédit, les paiements aux fournisseurs, les paiements clients et les ventes passent des
   écritures ([ADR 0016](adr/0016-ledger-postings.md)).
+- `journal_entries` : écritures manuelles du journal général (soldes d'ouverture, dépôts des processeurs, virements,
+  frais bancaires, paie); leur écriture au grand livre les référence. `reverses_id` : écriture manuelle renversée
+  (une seule fois).
 - `ledger_closings` : historique des clôtures du grand livre; la dernière ligne donne `closed_through`, la date
   jusqu'à laquelle aucune écriture n'est datée (une écriture plus ancienne est reportée au premier jour ouvert).
 
@@ -970,12 +973,26 @@ erDiagram
     ledger_accounts ||--o{ ledger_entry_lines : "ledger_account_id · restrict"
     users |o--o{ ledger_entries : "user_id · null"
     users |o--o{ ledger_closings : "user_id · null"
+    journal_entries |o--o| journal_entries : "reverses_id · restrict"
+    stores |o--o{ journal_entries : "store_id · restrict"
+    users |o--o{ journal_entries : "created_by · null"
     ledger_accounts {
         int id PK
         string code UK
         string name
         string type "LedgerAccountType"
         string system_key UK "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    journal_entries {
+        int id PK
+        date entry_date
+        string description
+        string document_number "nullable"
+        int store_id FK "nullable"
+        int reverses_id FK "nullable, unique"
+        int created_by FK "nullable"
         datetime created_at
         datetime updated_at
     }
