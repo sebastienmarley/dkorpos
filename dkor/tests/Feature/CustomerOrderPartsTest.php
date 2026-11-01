@@ -139,7 +139,7 @@ it('refuse la substitution d\'une ligne de pièce chez le fournisseur', function
     $supplierLine->order->send();
     $product = Product::factory()->create(['supplier_id' => $this->part->supplier_id, 'clean_model' => 'abc']);
 
-    expect(fn () => $supplierLine->fresh()->substituteWith($product))->toThrow(DomainException::class);
+    expect(fn () => $supplierLine->order->fresh()->substituteLine($supplierLine->fresh(), $product))->toThrow(DomainException::class);
 });
 
 it('refuse le retour en magasin d\'une pièce remise au client', function () {
