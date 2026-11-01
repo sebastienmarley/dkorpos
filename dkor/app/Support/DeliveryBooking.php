@@ -86,11 +86,6 @@ class DeliveryBooking
         return Carbon::parse($date)->startOfDay()->addMinutes($period->startMinute())->lte(Carbon::now());
     }
 
-    public static function canBook(int $storeId, string $date, DeliveryPeriod $period, ?int $ignoringDeliveryId = null): bool
-    {
-        return ! self::hasStarted($date, $period) && self::remaining($storeId, $date, $period, $ignoringDeliveryId) > 0;
-    }
-
     /**
      * Places de chaque demi-journée sur plusieurs jours, pour le choix de la date et la grille des livraisons.
      *

@@ -153,16 +153,6 @@ class Store extends Model
     }
 
     /**
-     * Magasin physique d'où partent les expéditions de cet emplacement.
-     *
-     * @return BelongsTo<Store, $this>
-     */
-    public function shippingWarehouse(): BelongsTo
-    {
-        return $this->belongsTo(self::class, 'shipping_warehouse_id');
-    }
-
-    /**
      * Horaire par défaut : ouvert du lundi au vendredi.
      *
      * @return array<string, array{open: bool, from: string, to: string}>
