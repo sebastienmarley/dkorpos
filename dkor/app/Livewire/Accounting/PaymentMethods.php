@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Accounting;
 
+use App\Enums\LedgerAccountType;
 use App\Models\CustomerPaymentMethod;
+use App\Models\LedgerAccount;
 use App\Models\MerchantPaymentMethod;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -20,6 +22,9 @@ class PaymentMethods extends Component
     /** Le livreur peut enregistrer ce mode à la livraison (ex. : TPV portatif). */
     public bool $isUsableOnDelivery = false;
 
+    /** Compte d'encaisse ou de compensation des paiements reçus par ce mode (vide : Encaisse CAD). */
+    public string $ledgerAccountId = '';
+
     public bool $showMerchantModal = false;
 
     public ?int $editingMerchantId = null;
@@ -30,7 +35,7 @@ class PaymentMethods extends Component
     {
         $this->authorize('payment_methods.create');
 
-        $this->reset(['editingId', 'name', 'isUsableOnDelivery']);
+        $this->reset(['editingId', 'name', 'isUsableOnDelivery', 'ledgerAccountId']);
         $this->resetValidation();
         $this->showModal = true;
     }
@@ -43,6 +48,7 @@ class PaymentMethods extends Component
         $this->editingId = $paymentMethod->id;
         $this->name = $paymentMethod->name;
         $this->isUsableOnDelivery = $paymentMethod->is_usable_on_delivery;
+        $this->ledgerAccountId = (string) $paymentMethod->ledger_account_id;
         $this->resetValidation();
         $this->showModal = true;
     }
@@ -78,20 +84,27 @@ class PaymentMethods extends Component
                     }
                 },
             ],
+            'ledgerAccountId' => ['nullable', 'integer', Rule::exists('ledger_accounts', 'id')->where('type', LedgerAccountType::Asset->value)],
         ]);
+
+        $attributes = [
+            'name' => $this->name,
+            'is_usable_on_delivery' => $this->isUsableOnDelivery,
+            'ledger_account_id' => filled($this->ledgerAccountId) ? (int) $this->ledgerAccountId : null,
+        ];
 
         if ($this->editingId) {
             $paymentMethod = CustomerPaymentMethod::findOrFail($this->editingId);
             abort_if($paymentMethod->isSystem(), 403);
-            $paymentMethod->update(['name' => $this->name, 'is_usable_on_delivery' => $this->isUsableOnDelivery]);
+            $paymentMethod->update($attributes);
             Flux::toast(text: __('Mode de paiement mis à jour.'), variant: 'success');
         } else {
-            CustomerPaymentMethod::create(['name' => $this->name, 'is_active' => true, 'is_usable_on_delivery' => $this->isUsableOnDelivery]);
+            CustomerPaymentMethod::create([...$attributes, 'is_active' => true]);
             Flux::toast(text: __('Mode de paiement créé.'), variant: 'success');
         }
 
         $this->showModal = false;
-        $this->reset(['editingId', 'name', 'isUsableOnDelivery']);
+        $this->reset(['editingId', 'name', 'isUsableOnDelivery', 'ledgerAccountId']);
     }
 
     public function openCreateMerchant(): void
@@ -150,7 +163,8 @@ class PaymentMethods extends Component
     public function render(): View
     {
         return view('livewire.accounting.payment-methods', [
-            'paymentMethods' => CustomerPaymentMethod::query()->orderByDesc('is_active')->orderBy('name')->get(),
+            'paymentMethods' => CustomerPaymentMethod::query()->with('ledgerAccount')->orderByDesc('is_active')->orderBy('name')->get(),
+            'cashAccounts' => LedgerAccount::query()->where('type', LedgerAccountType::Asset)->orderBy('code')->get(),
             'merchantMethods' => MerchantPaymentMethod::query()->orderByDesc('is_active')->orderBy('name')->get(),
         ])->layout('layouts.app', ['title' => __('Modes de paiement')]);
     }

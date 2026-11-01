@@ -94,7 +94,7 @@ nom, pas la clé.
 | Renversement de réception (`SupplierOrder::reverseReceipt()`) | Achats non facturés | Stock | Renversement |
 | Facture de réception (`SupplierInvoice::record()`) | Achats non facturés (montant passé à la réception) ; Stock ou Coût des marchandises vendues (écart de coût, transport, douane) ; Crédits à recevoir des fournisseurs (`credit_requested`) ; une taxe à recevoir par taxe ; Écarts de facturation (`variance`) | Comptes fournisseurs (`invoice_total`) | Facture |
 | Note de crédit reçue (`recordCreditNote()`) | Comptes fournisseurs | Crédits à recevoir des fournisseurs | Note de crédit |
-| Facture de services (`recordForOrder()`) | Achats non facturés (coût passé à la livraison au client) ou Coût des services vendus ; taxes à recevoir | Comptes fournisseurs | Facture |
+| Facture de services (`recordForOrder()`) | Coût des services vendus ; taxes à recevoir | Comptes fournisseurs | Facture |
 | Facture sans réception (`recordStandalone()`) | Compte de charge choisi à la saisie ; taxes à recevoir | Comptes fournisseurs | Facture |
 | Facture de transporteur (`recordForShipments()`) | Inchangée ([ADR 0011](0011-inventory-movements-and-adjustments.md)) | | |
 
@@ -121,18 +121,28 @@ Avant, l'argent reçu est un dépôt.
 | Paiement reçu (`CustomerPaymentType::Payment`) | Compte du mode de paiement | Dépôts de clients | Paiement |
 | Remboursement (`Refund`) | Dépôts de clients | Compte du mode de paiement | Remboursement |
 | Arrondi au comptant (`rounding_adjustment`) | Arrondis au comptant (ou l'inverse) | Compte du mode de paiement | Paiement |
-| Ligne livrée ou ramassée | Dépôts de clients, puis Comptes clients pour le reste | Ventes de marchandises (produit, pièce) ou Ventes de services ; une taxe à payer par taxe | Livraison |
-| Sortie des unités (même événement) | Coût des marchandises vendues | Stock (valeur FIFO des unités fermées) | Livraison |
-| Service fourni par un fournisseur (`ServiceSupplier`) | Coût des services vendus | Achats non facturés | Livraison |
-| Retour client | Inverse des trois écritures précédentes, pour la quantité retournée, au coût des unités rouvertes | | Retour |
-| Frais d'annulation | Dépôts de clients | Frais d'annulation ; taxes à payer | Annulation |
+| Ligne livrée, ramassée, expédiée ou service complété | Dépôts de clients, puis Comptes clients pour ce qui n'est pas payé | Ventes de marchandises (produit, pièce) ou Ventes de services ; une taxe à payer par taxe | Remise |
+| Sortie des unités (même événement) | Coût des marchandises vendues | Stock (valeur FIFO des unités sorties) | Remise |
+| Retour client | Inverse des deux écritures précédentes, pour la quantité retournée, au coût des unités rouvertes | | Retour |
+| Frais d'annulation | Dépôts de clients (ou Comptes clients) | Frais d'annulation ; taxes à payer | Annulation |
 
-- Une ligne **sans frais** (`is_no_charge`) ne passe que l'écriture de coût.
-- Les taxes de la vente sont **réparties au prorata** des lignes livrées, à partir de `customer_order_taxes` ; la
-  dernière livraison de la commande prend le reste pour que la somme égale les taxes de la commande.
+- **Les ventes se passent par écart cumulatif** (`CustomerOrder::postSales()`, appelée par `recalculateBalance()`
+  après chaque changement de la commande) : on calcule ce que la commande doit avoir comptabilisé (lignes remises,
+  frais d'annulation, taxes sur ce cumul, coût net des mouvements d'inventaire qui la référencent, partage entre
+  Dépôts et Comptes clients selon le payé) et on passe l'écart avec ce que ses écritures ont déjà passé. Un seul
+  point d'accroche couvre le ramassage, la livraison, l'expédition, le service complété, les retours, les
+  annulations avec frais et les paiements qui soldent un compte client.
+- **Les taxes** sont recalculées sur le cumul remis : la somme des écritures égale les taxes de la commande une
+  fois tout remis, sans répartition au prorata.
+- Une ligne **sans frais** (`is_no_charge`) a un total nul : seule la sortie des unités passe.
+- **Le coût des services et des pièces** passe à la facture du fournisseur (Coût des services vendus ou des
+  marchandises vendues), pas à la remise : les pièces n'ont pas d'unités d'inventaire et le coût d'un service
+  n'est connu qu'à sa facture. Le compte Achats non facturés ne porte donc que les réceptions de marchandises.
 - Le transfert et l'utilisation de crédit (`CreditTransfer`, `CreditUse`) déplacent un solde entre commandes dans
-  Dépôts de clients : ils ne passent aucune écriture, sauf s'ils changent de magasin.
+  Dépôts de clients : ils ne passent aucune écriture.
 - Le magasin de l'écriture est celui de la commande (`customer_orders.store_id`).
+- Chaque mode de paiement client a un compte (`customer_payment_methods.ledger_account_id`), choisi dans l'écran
+  des modes de paiement ; sans compte, Encaisse CAD.
 
 ### La devise
 
@@ -165,7 +175,7 @@ Nouveaux invariants, vérifiés par des tests puis par une commande de contrôle
 | # | Invariant |
 |---|---|
 | I11 | Solde de Stock = somme des coûts des unités ouvertes. |
-| I12 | Solde d'Achats non facturés = coût des réceptions et des services livrés non encore facturés. |
+| I12 | Solde d'Achats non facturés = coût des réceptions non encore facturées. |
 | I13 | Solde de Dépôts de clients = montants payés moins montants livrés, sur les commandes ouvertes. |
 | I14 | Solde de chaque taxe à payer ou à recevoir = taxes des documents comptabilisés. |
 | I15 | Solde de Comptes fournisseurs = soldes dus des factures (#132). |
@@ -185,8 +195,9 @@ Nouveaux invariants, vérifiés par des tests puis par une commande de contrôle
   annulations). Un document oublié fausse un invariant : les tests d'invariants le détectent.
 - La facture qui corrige le coût doit savoir quelles unités sont sorties ; la valeur des mouvements de sortie déjà
   consignés (`inventory_movements.value`) ne suit pas.
-- La répartition des taxes de vente par livraison est une approximation au cent près, corrigée à la dernière
-  livraison.
+- Le calcul cumulatif des ventes porte sur toute la commande : une commande remise avant la mise en service
+  passerait toutes ses ventes passées à sa prochaine modification. La mise en service part d'une base sans
+  commande remise : aucune date de départ n'est prévue.
 - Les documents passés avant la mise en service n'ont pas d'écriture : il faut un solde d'ouverture par compte.
 
 **Protections mises en place**

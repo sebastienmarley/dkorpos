@@ -17,11 +17,16 @@ it('crée les comptes système sans toucher à ceux que le comptable a modifiés
     expect(LedgerAccount::orderBy('code')->pluck('system_key', 'code')->all())->toBe([
         '1010' => LedgerAccount::CASH_CAD,
         '1020' => LedgerAccount::CASH_USD,
+        '1200' => LedgerAccount::ACCOUNTS_RECEIVABLE,
         '1250' => LedgerAccount::SUPPLIER_CREDITS_RECEIVABLE,
         '1300' => LedgerAccount::INVENTORY,
         '2100' => LedgerAccount::ACCOUNTS_PAYABLE,
         '2110' => LedgerAccount::GOODS_RECEIVED_NOT_INVOICED,
+        '2400' => LedgerAccount::CUSTOMER_DEPOSITS,
         '3900' => LedgerAccount::OPENING_BALANCE,
+        '4000' => LedgerAccount::MERCHANDISE_SALES,
+        '4100' => LedgerAccount::SERVICE_SALES,
+        '4200' => LedgerAccount::CANCELLATION_FEES,
         '5000' => LedgerAccount::COST_OF_GOODS_SOLD,
         '5010' => LedgerAccount::COST_OF_SERVICES_SOLD,
         '5050' => LedgerAccount::PURCHASE_DISCOUNTS,
@@ -31,13 +36,14 @@ it('crée les comptes système sans toucher à ceux que le comptable a modifiés
         '5200' => LedgerAccount::SHIPPING_EXPENSE,
         '5400' => LedgerAccount::STORE_SUPPLIES,
         '5800' => LedgerAccount::EXCHANGE_GAIN_LOSS,
+        '5900' => LedgerAccount::CASH_ROUNDING,
     ]);
 
     LedgerAccount::forKey(LedgerAccount::INVENTORY)->update(['code' => '1350', 'name' => 'Stocks']);
 
     $this->seed(ReferenceDataSeeder::class);
 
-    expect(LedgerAccount::count())->toBe(16)
+    expect(LedgerAccount::count())->toBe(22)
         ->and(LedgerAccount::forKey(LedgerAccount::INVENTORY))
         ->code->toBe('1350')
         ->name->toBe('Stocks')

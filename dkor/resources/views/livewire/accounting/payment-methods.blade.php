@@ -15,6 +15,7 @@
         <flux:table>
             <flux:table.columns>
                 <flux:table.column>{{ __('Nom') }}</flux:table.column>
+                <flux:table.column>{{ __('Compte au grand livre') }}</flux:table.column>
                 <flux:table.column />
             </flux:table.columns>
 
@@ -33,6 +34,9 @@
                                 <flux:badge size="sm" color="sky" icon="truck" class="ms-2">{{ __('Utilisable à la livraison') }}</flux:badge>
                             @endif
                         </flux:table.cell>
+                        <flux:table.cell class="text-zinc-500">
+                            {{ $paymentMethod->ledgerAccount ? $paymentMethod->ledgerAccount->code.' — '.$paymentMethod->ledgerAccount->name : __('Encaisse CAD (par défaut)') }}
+                        </flux:table.cell>
                         <flux:table.cell class="text-right">
                             @if (! $paymentMethod->isSystem() && auth()->user()->can('payment_methods.edit'))
                                 <flux:button variant="ghost" size="sm" icon="pencil" wire:click="openEdit({{ $paymentMethod->id }})" />
@@ -48,7 +52,7 @@
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="2" class="py-12 text-center">
+                        <flux:table.cell colspan="3" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="credit-card" class="h-8 w-8 text-zinc-300" />
                                 <flux:text class="text-zinc-400">{{ __('Aucun mode de paiement.') }}</flux:text>
@@ -143,6 +147,18 @@
             <flux:field>
                 <flux:checkbox wire:model="isUsableOnDelivery" :label="__('Utilisable à la livraison')" />
                 <flux:description>{{ __('Le livreur peut enregistrer ce mode pour un paiement à la livraison (ex. : TPV portatif).') }}</flux:description>
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Compte au grand livre') }}</flux:label>
+                <flux:select wire:model="ledgerAccountId">
+                    <flux:select.option value="">{{ __('Encaisse CAD (par défaut)') }}</flux:select.option>
+                    @foreach ($cashAccounts as $account)
+                        <flux:select.option :value="$account->id">{{ $account->code }} — {{ $account->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:description>{{ __('Compte d\'encaisse ou de compensation où passent les paiements reçus par ce mode.') }}</flux:description>
+                <flux:error name="ledgerAccountId" />
             </flux:field>
 
             <div class="flex justify-end gap-3 pt-2">

@@ -93,18 +93,6 @@ CREATE TABLE "customers"(
 );
 CREATE UNIQUE INDEX "customers_email_unique" on "customers"("email");
 CREATE INDEX "customers_search_name_index" on "customers"("search_name");
-CREATE TABLE "customer_payment_methods"(
-  "id" integer primary key autoincrement not null,
-  "name" varchar not null,
-  "is_active" tinyint(1) not null default '1',
-  "created_at" datetime,
-  "updated_at" datetime,
-  "code" varchar,
-  "is_usable_on_delivery" tinyint(1) not null default '0'
-);
-CREATE UNIQUE INDEX "customer_payment_methods_code_unique" on "customer_payment_methods"(
-  "code"
-);
 CREATE TABLE "merchant_payment_methods"(
   "id" integer primary key autoincrement not null,
   "name" varchar not null,
@@ -1440,6 +1428,20 @@ CREATE UNIQUE INDEX "supplier_invoices_supplier_id_invoice_number_unique" on "su
 CREATE UNIQUE INDEX "supplier_invoices_supplier_order_id_unique" on "supplier_invoices"(
   "supplier_order_id"
 );
+CREATE TABLE "customer_payment_methods"(
+  "id" integer primary key autoincrement not null,
+  "name" varchar not null,
+  "is_active" tinyint(1) not null default('1'),
+  "created_at" datetime,
+  "updated_at" datetime,
+  "code" varchar,
+  "is_usable_on_delivery" tinyint(1) not null default('0'),
+  "ledger_account_id" integer,
+  foreign key("ledger_account_id") references "ledger_accounts"("id") on delete restrict
+);
+CREATE UNIQUE INDEX "customer_payment_methods_code_unique" on "customer_payment_methods"(
+  "code"
+);
 
 INSERT INTO migrations VALUES(1,'2026_10_25_000001_create_password_reset_tokens_table',1);
 INSERT INTO migrations VALUES(2,'2026_10_25_000002_create_sessions_table',1);
@@ -1527,3 +1529,4 @@ INSERT INTO migrations VALUES(83,'2026_11_01_111653_add_exchange_rate_to_recepti
 INSERT INTO migrations VALUES(84,'2026_11_01_113039_create_supplier_payments_table',4);
 INSERT INTO migrations VALUES(85,'2026_11_01_113040_create_supplier_payment_allocations_table',4);
 INSERT INTO migrations VALUES(86,'2026_11_01_115402_add_paid_outside_to_supplier_invoices_table',5);
+INSERT INTO migrations VALUES(87,'2026_11_01_121016_add_ledger_account_to_customer_payment_methods_table',6);

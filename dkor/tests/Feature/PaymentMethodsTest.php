@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\LedgerAccountType;
 use App\Livewire\Accounting\PaymentMethods;
 use App\Models\CustomerPaymentMethod;
+use App\Models\LedgerAccount;
 use App\Models\MerchantPaymentMethod;
 use App\Models\Role;
 use App\Models\User;
@@ -20,6 +22,23 @@ it('crée un mode de paiement', function () {
         ->assertHasNoErrors();
 
     expect(CustomerPaymentMethod::where('name', 'Visa')->sole())->is_active->toBeTrue()->code->toBeNull();
+});
+
+it('associe un mode de paiement à un compte d\'actif du grand livre', function () {
+    $clearing = LedgerAccount::factory()->create(['code' => '1030', 'name' => 'Compensation Visa', 'type' => LedgerAccountType::Asset]);
+
+    Livewire::test(PaymentMethods::class)
+        ->call('openCreate')
+        ->set('name', 'Visa')
+        ->set('ledgerAccountId', (string) LedgerAccount::forKey(LedgerAccount::MERCHANDISE_SALES)->id)
+        ->call('save')
+        ->assertHasErrors('ledgerAccountId')
+        ->set('ledgerAccountId', (string) $clearing->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(CustomerPaymentMethod::where('name', 'Visa')->sole()->cashAccount()->is($clearing))->toBeTrue()
+        ->and(CustomerPaymentMethod::cash()->cashAccount()->system_key)->toBe(LedgerAccount::CASH_CAD);
 });
 
 it('refuse un nom en double', function () {

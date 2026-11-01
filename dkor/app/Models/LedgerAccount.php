@@ -60,8 +60,23 @@ class LedgerAccount extends Model
 
     public const EXCHANGE_GAIN_LOSS = 'exchange_gain_loss';
 
+    public const ACCOUNTS_RECEIVABLE = 'accounts_receivable';
+
+    public const CUSTOMER_DEPOSITS = 'customer_deposits';
+
+    public const MERCHANDISE_SALES = 'merchandise_sales';
+
+    public const SERVICE_SALES = 'service_sales';
+
+    public const CANCELLATION_FEES = 'cancellation_fees';
+
+    public const CASH_ROUNDING = 'cash_rounding';
+
     /** Préfixe de la clé du compte « à recevoir » d'une taxe (ex. : tax_receivable:TPS). */
     public const TAX_RECEIVABLE_PREFIX = 'tax_receivable:';
+
+    /** Préfixe de la clé du compte « à payer » d'une taxe perçue (ex. : tax_payable:TPS). */
+    public const TAX_PAYABLE_PREFIX = 'tax_payable:';
 
     protected $casts = [
         'type' => LedgerAccountType::class,
@@ -77,11 +92,16 @@ class LedgerAccount extends Model
         return [
             self::CASH_CAD => ['1010', __('Encaisse CAD'), LedgerAccountType::Asset],
             self::CASH_USD => ['1020', __('Encaisse USD'), LedgerAccountType::Asset],
+            self::ACCOUNTS_RECEIVABLE => ['1200', __('Comptes clients'), LedgerAccountType::Asset],
             self::SUPPLIER_CREDITS_RECEIVABLE => ['1250', __('Crédits à recevoir des fournisseurs'), LedgerAccountType::Asset],
             self::INVENTORY => ['1300', __('Stock de marchandises'), LedgerAccountType::Asset],
             self::ACCOUNTS_PAYABLE => ['2100', __('Comptes fournisseurs'), LedgerAccountType::Liability],
             self::GOODS_RECEIVED_NOT_INVOICED => ['2110', __('Achats non facturés'), LedgerAccountType::Liability],
+            self::CUSTOMER_DEPOSITS => ['2400', __('Dépôts de clients'), LedgerAccountType::Liability],
             self::OPENING_BALANCE => ['3900', __('Solde d\'ouverture'), LedgerAccountType::Equity],
+            self::MERCHANDISE_SALES => ['4000', __('Ventes de marchandises'), LedgerAccountType::Revenue],
+            self::SERVICE_SALES => ['4100', __('Ventes de services'), LedgerAccountType::Revenue],
+            self::CANCELLATION_FEES => ['4200', __('Frais d\'annulation'), LedgerAccountType::Revenue],
             self::COST_OF_GOODS_SOLD => ['5000', __('Coût des marchandises vendues'), LedgerAccountType::Expense],
             self::COST_OF_SERVICES_SOLD => ['5010', __('Coût des services vendus'), LedgerAccountType::Expense],
             self::PURCHASE_DISCOUNTS => ['5050', __('Escomptes sur achats'), LedgerAccountType::Expense],
@@ -91,6 +111,7 @@ class LedgerAccount extends Model
             self::INVENTORY_COUNT_VARIANCE => ['5120', __('Écart d\'inventaire'), LedgerAccountType::Expense],
             self::STORE_SUPPLIES => ['5400', __('Fournitures du magasin'), LedgerAccountType::Expense],
             self::EXCHANGE_GAIN_LOSS => ['5800', __('Gain ou perte de change'), LedgerAccountType::Expense],
+            self::CASH_ROUNDING => ['5900', __('Arrondis au comptant'), LedgerAccountType::Expense],
         ];
     }
 
@@ -118,20 +139,34 @@ class LedgerAccount extends Model
      */
     public static function forTaxReceivable(string $taxName): self
     {
-        $key = self::TAX_RECEIVABLE_PREFIX.$taxName;
+        return self::forTax(self::TAX_RECEIVABLE_PREFIX, $taxName, 1410, __(':tax à recevoir', ['tax' => $taxName]), LedgerAccountType::Asset);
+    }
+
+    /**
+     * Compte « à payer » d'une taxe perçue des clients : un compte par taxe, créé au besoin à partir du code 2310
+     * (2310, 2311…), comme forTaxReceivable().
+     */
+    public static function forTaxPayable(string $taxName): self
+    {
+        return self::forTax(self::TAX_PAYABLE_PREFIX, $taxName, 2310, __(':tax à payer', ['tax' => $taxName]), LedgerAccountType::Liability);
+    }
+
+    private static function forTax(string $prefix, string $taxName, int $firstCode, string $name, LedgerAccountType $type): self
+    {
+        $key = $prefix.$taxName;
         $existing = static::query()->where('system_key', $key)->first();
 
         if ($existing !== null) {
             return $existing;
         }
 
-        $code = 1410;
+        $code = $firstCode;
 
         while (static::query()->where('code', (string) $code)->exists()) {
             $code++;
         }
 
-        return static::query()->create(['system_key' => $key, 'code' => (string) $code, 'name' => __(':tax à recevoir', ['tax' => $taxName]), 'type' => LedgerAccountType::Asset]);
+        return static::query()->create(['system_key' => $key, 'code' => (string) $code, 'name' => $name, 'type' => $type]);
     }
 
     public function isSystem(): bool

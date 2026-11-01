@@ -1063,6 +1063,70 @@ class CustomerOrder extends Model
             'amount_paid' => $amountPaid,
             'balance_due' => $total->minus($amountPaid),
         ]);
+
+        $this->postSales($lines, $amountPaid);
+    }
+
+    /**
+     * Met le grand livre à jour avec les ventes de la commande (ADR 0016) : passe l'écart entre ce que la commande
+     * a comptabilisé jusqu'ici (écritures qui la référencent) et ce qu'elle doit avoir comptabilisé maintenant.
+     *
+     * - Ventes : lignes remises au client (ramassées, livrées, expédiées, services complétés) et frais d'annulation,
+     *   aux Ventes de marchandises, de services ou aux Frais d'annulation; les taxes sur la partie taxable, aux taxes
+     *   à payer. Le total est pris aux Dépôts de clients, et aux Comptes clients pour ce qui n'est pas payé.
+     * - Coût : valeur FIFO des unités sorties pour la commande, moins celle des unités rouvertes par un retour, au
+     *   Coût des marchandises vendues contre le Stock. Le coût des pièces et des services est passé à la facture du
+     *   fournisseur.
+     *
+     * Le calcul est cumulatif : un retour renverse la vente et le coût, et les taxes, recalculées sur le cumul,
+     * égalent celles de la commande une fois tout remis.
+     *
+     * @param  Collection<int, CustomerOrderLine>  $lines
+     */
+    private function postSales(Collection $lines, Money $amountPaid): void
+    {
+        $handedOver = $lines->filter(fn (CustomerOrderLine $line): bool => $line->status->isHandedOver());
+        $fees = Money::sum($lines->map(fn (CustomerOrderLine $line): Money => $line->cancellation_fee ?? Money::zero()));
+        $taxable = Money::sum($handedOver->filter(fn (CustomerOrderLine $line): bool => $line->is_taxable)->map(fn (CustomerOrderLine $line): Money => $line->total))->plus($fees);
+        $taxes = $this->taxesFor($taxable);
+        $sales = Money::sum($handedOver->map(fn (CustomerOrderLine $line): Money => $line->total))->plus($fees)->plus(Money::sum($taxes['amounts']));
+        $receivable = $sales->minus($amountPaid)->max(Money::zero());
+
+        $cost = Money::sum(InventoryMovement::query()
+            ->whereMorphedTo('reference', $this)
+            ->whereNotNull('value')
+            ->get()
+            ->map(fn (InventoryMovement $movement): Money => $movement->to_status?->isValued() ? $movement->value->negate() : $movement->value)
+            ->all());
+
+        $target = [
+            [LedgerAccount::forKey(LedgerAccount::MERCHANDISE_SALES), Money::sum($handedOver->reject(fn (CustomerOrderLine $line): bool => $line->isService())->map(fn (CustomerOrderLine $line): Money => $line->total))->negate()],
+            [LedgerAccount::forKey(LedgerAccount::SERVICE_SALES), Money::sum($handedOver->filter(fn (CustomerOrderLine $line): bool => $line->isService())->map(fn (CustomerOrderLine $line): Money => $line->total))->negate()],
+            [LedgerAccount::forKey(LedgerAccount::CANCELLATION_FEES), $fees->negate()],
+            [LedgerAccount::forKey(LedgerAccount::CUSTOMER_DEPOSITS), $sales->minus($receivable)],
+            [LedgerAccount::forKey(LedgerAccount::ACCOUNTS_RECEIVABLE), $receivable],
+            [LedgerAccount::forKey(LedgerAccount::COST_OF_GOODS_SOLD), $cost],
+            [LedgerAccount::forKey(LedgerAccount::INVENTORY), $cost->negate()],
+        ];
+
+        foreach ($this->taxLines as $taxLine) {
+            $target[] = [LedgerAccount::forTaxPayable($taxLine->name), $taxes['amounts'][$taxLine->id]->negate()];
+        }
+
+        $posted = LedgerEntryLine::query()
+            ->whereHas('entry', fn (Builder $entry) => $entry->whereMorphedTo('reference', $this))
+            ->with('account')
+            ->get();
+
+        foreach ($posted as $line) {
+            $target[] = [$line->account, $line->credit->minus($line->debit)];
+        }
+
+        $entryLines = LedgerEntry::signedLines($target);
+
+        if ($entryLines !== []) {
+            LedgerEntry::post(__('Ventes — commande #:id', ['id' => $this->id]), $entryLines, $this, storeId: $this->store_id);
+        }
     }
 
     /**
@@ -2110,7 +2174,7 @@ class CustomerOrder extends Model
                 }
             }
 
-            $this->payments()->create([
+            $recorded = $this->payments()->create([
                 'customer_order_pickup_id' => $pickup?->id,
                 'customer_payment_method_id' => $method->id,
                 'type' => $type,
@@ -2118,7 +2182,31 @@ class CustomerOrder extends Model
                 'received_by' => auth()->id(),
                 ...$cash,
             ]);
+
+            $this->postPaymentEntry($recorded, $method);
         }
+    }
+
+    /**
+     * Écriture d'un paiement ou d'un remboursement (ADR 0016) : le montant passe aux Dépôts de clients, l'argent
+     * réellement perçu ou remis (arrondi au 5 ¢ en comptant) au compte du mode de paiement, l'écart aux Arrondis au
+     * comptant.
+     */
+    private function postPaymentEntry(CustomerOrderPayment $payment, CustomerPaymentMethod $method): void
+    {
+        $sign = $payment->type === CustomerPaymentType::Payment ? 1 : -1;
+        $rounding = $payment->rounding_adjustment ?? Money::zero();
+
+        LedgerEntry::post(
+            __(':type — commande #:id (:method)', ['type' => $payment->type->label(), 'id' => $this->id, 'method' => $method->name]),
+            LedgerEntry::signedLines([
+                [$method->cashAccount(), $payment->amount->plus($rounding->times($sign))],
+                [LedgerAccount::forKey(LedgerAccount::CUSTOMER_DEPOSITS), $payment->amount->negate()],
+                [LedgerAccount::forKey(LedgerAccount::CASH_ROUNDING), $rounding->times(-$sign)],
+            ]),
+            $payment,
+            storeId: $this->store_id,
+        );
     }
 
     /**

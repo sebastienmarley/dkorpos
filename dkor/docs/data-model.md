@@ -104,6 +104,7 @@ erDiagram
     ledger_entries ||--o{ ledger_entry_lines : ""
     ledger_accounts ||--o{ ledger_entry_lines : ""
     ledger_accounts |o--o{ supplier_invoices : ""
+    ledger_accounts |o--o{ customer_payment_methods : ""
     reception_lines |o--o{ defective_products : ""
     products ||--o{ defective_products : ""
     customer_orders |o--o{ defective_products : ""
@@ -1417,7 +1418,8 @@ erDiagram
 - `store_tax_registrations` : numéro d'inscription du magasin pour chaque taxe (un par nom de taxe).
 - `customer_payment_methods` : modes de paiement des clients; `code` identifie ceux gérés par le
   code (`cash` pour « Comptant »). `is_usable_on_delivery` : le livreur peut l'enregistrer pour un paiement à la
-  livraison (ex. : TPV portatif). `merchant_payment_methods` : modes de paiement du marchand.
+  livraison (ex. : TPV portatif). `ledger_account_id` : compte d'encaisse ou de compensation où passent ses
+  paiements (vide : Encaisse CAD, ADR 0016). `merchant_payment_methods` : modes de paiement du marchand.
 
 ```mermaid
 erDiagram
@@ -1487,6 +1489,7 @@ erDiagram
         string name
         bool is_active
         bool is_usable_on_delivery
+        int ledger_account_id FK "nullable"
         string code UK "nullable"
         datetime created_at
         datetime updated_at
