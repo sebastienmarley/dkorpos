@@ -14,6 +14,7 @@
 use App\Enums\SupplierType;
 use App\Models\CustomerOrder;
 use App\Models\CustomerPaymentMethod;
+use App\Models\LedgerAccount;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
@@ -127,8 +128,9 @@ it('calcule le total, l\'écart et l\'escompte d\'une facture fournisseur', func
         'merchandise_total' => '12.99',
         'freight_fee' => '5.10',
         'customs_fee' => '1.25',
-        'taxes' => '2.90',
+        'taxes' => ['TPS' => '2.90'],
         'invoice_total' => '22.25',
+        'ledger_account_id' => LedgerAccount::forKey(LedgerAccount::STORE_SUPPLIES)->id,
     ]);
 
     expect(centsOf($invoice->computed_total))->toBe(2224)

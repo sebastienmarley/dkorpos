@@ -109,6 +109,36 @@ class LedgerEntry extends Model
         });
     }
 
+    /**
+     * Lignes d'écriture à partir de montants signés (positif : débit, négatif : crédit), regroupées par compte. Un
+     * compte dont le montant net est nul ne donne pas de ligne.
+     *
+     * @param  list<array{0: LedgerAccount, 1: Money}>  $amounts
+     * @return list<array{account: LedgerAccount, debit?: Money, credit?: Money}>
+     */
+    public static function signedLines(array $amounts): array
+    {
+        $accounts = [];
+        $totals = [];
+
+        foreach ($amounts as [$account, $amount]) {
+            $accounts[$account->id] = $account;
+            $totals[$account->id] = ($totals[$account->id] ?? Money::zero())->plus($amount);
+        }
+
+        $lines = [];
+
+        foreach ($totals as $accountId => $total) {
+            if (! $total->isZero()) {
+                $lines[] = $total->isPositive()
+                    ? ['account' => $accounts[$accountId], 'debit' => $total]
+                    : ['account' => $accounts[$accountId], 'credit' => $total->negate()];
+            }
+        }
+
+        return $lines;
+    }
+
     /** @return BelongsTo<Store, $this> */
     public function store(): BelongsTo
     {

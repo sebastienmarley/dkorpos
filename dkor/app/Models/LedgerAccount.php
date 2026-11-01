@@ -42,6 +42,16 @@ class LedgerAccount extends Model
 
     public const SHIPPING_EXPENSE = 'shipping_expense';
 
+    public const GOODS_RECEIVED_NOT_INVOICED = 'goods_received_not_invoiced';
+
+    public const SUPPLIER_CREDITS_RECEIVABLE = 'supplier_credits_receivable';
+
+    public const COST_OF_GOODS_SOLD = 'cost_of_goods_sold';
+
+    public const COST_OF_SERVICES_SOLD = 'cost_of_services_sold';
+
+    public const INVOICE_VARIANCE = 'invoice_variance';
+
     /** Préfixe de la clé du compte « à recevoir » d'une taxe (ex. : tax_receivable:TPS). */
     public const TAX_RECEIVABLE_PREFIX = 'tax_receivable:';
 
@@ -57,9 +67,14 @@ class LedgerAccount extends Model
     public static function systemAccounts(): array
     {
         return [
+            self::SUPPLIER_CREDITS_RECEIVABLE => ['1250', __('Crédits à recevoir des fournisseurs'), LedgerAccountType::Asset],
             self::INVENTORY => ['1300', __('Stock de marchandises'), LedgerAccountType::Asset],
             self::ACCOUNTS_PAYABLE => ['2100', __('Comptes fournisseurs'), LedgerAccountType::Liability],
+            self::GOODS_RECEIVED_NOT_INVOICED => ['2110', __('Achats non facturés'), LedgerAccountType::Liability],
             self::OPENING_BALANCE => ['3900', __('Solde d\'ouverture'), LedgerAccountType::Equity],
+            self::COST_OF_GOODS_SOLD => ['5000', __('Coût des marchandises vendues'), LedgerAccountType::Expense],
+            self::COST_OF_SERVICES_SOLD => ['5010', __('Coût des services vendus'), LedgerAccountType::Expense],
+            self::INVOICE_VARIANCE => ['5130', __('Écarts de facturation fournisseurs'), LedgerAccountType::Expense],
             self::SHIPPING_EXPENSE => ['5200', __('Frais d\'expédition et transport'), LedgerAccountType::Expense],
             self::INVENTORY_SHRINKAGE => ['5110', __('Pertes d\'inventaire'), LedgerAccountType::Expense],
             self::INVENTORY_COUNT_VARIANCE => ['5120', __('Écart d\'inventaire'), LedgerAccountType::Expense],

@@ -54,6 +54,9 @@
                 <div class="flex justify-between"><dt>{{ __('Transport') }}</dt><dd>{{ $invoice->freight_fee->format() }}</dd></div>
                 <div class="flex justify-between"><dt>{{ __('Douanes') }}</dt><dd>{{ $invoice->customs_fee->format() }}</dd></div>
                 <div class="flex justify-between"><dt>{{ __('Taxes') }}</dt><dd>{{ $invoice->taxes->format() }}</dd></div>
+                @foreach ($invoice->taxLines as $taxLine)
+                    <div class="flex justify-between ps-4 text-zinc-500"><dt>{{ $taxLine->tax_name }}</dt><dd>{{ $taxLine->amount->format() }}</dd></div>
+                @endforeach
                 <div class="flex justify-between font-medium"><dt>{{ __('Total calculé') }}</dt><dd>{{ $invoice->computed_total->format() }}</dd></div>
                 <div class="flex justify-between font-medium"><dt>{{ __('Montant de la facture') }}</dt><dd>{{ $invoice->invoice_total->format() }}</dd></div>
                 <div class="flex justify-between">
@@ -171,11 +174,13 @@
                         <flux:input wire:model.live.debounce.400ms="customsFee" type="number" min="0" step="0.01" required />
                         <flux:error name="customsFee" />
                     </flux:field>
-                    <flux:field>
-                        <flux:label>{{ __('Taxes') }}</flux:label>
-                        <flux:input wire:model.live.debounce.400ms="taxes" type="number" min="0" step="0.01" required />
-                        <flux:error name="taxes" />
-                    </flux:field>
+                    @foreach ($taxAmounts as $taxName => $amount)
+                        <flux:field wire:key="tax-{{ $taxName }}">
+                            <flux:label>{{ $taxName }}</flux:label>
+                            <flux:input wire:model.live.debounce.400ms="taxAmounts.{{ $taxName }}" type="number" min="0" step="0.01" required />
+                            <flux:error name="taxAmounts.{{ $taxName }}" />
+                        </flux:field>
+                    @endforeach
                     <flux:field>
                         <flux:label>{{ __('Montant de la facture') }}</flux:label>
                         <flux:input wire:model.live.debounce.400ms="invoiceTotal" type="number" min="0" step="0.01" required />

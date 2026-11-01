@@ -118,3 +118,14 @@ it('se sérialise en cents', function () {
 it('ne se convertit pas en chaîne, pour qu\'un montant mal écrit échoue', function () {
     expect(fn () => (string) Money::of(1234))->toThrow(Error::class);
 });
+
+it('répartit un montant au prorata des poids sans perdre de cent', function (int $cents, array $weights, array $expected) {
+    $shares = Money::of($cents)->allocate($weights);
+
+    expect(array_map(fn (Money $share): int => $share->cents(), $shares))->toBe($expected);
+})->with([
+    'parts égales' => [1000, [1, 1, 1], [334, 333, 333]],
+    'au prorata' => [4050, ['a' => 3600, 'b' => 0, 'c' => 450], ['a' => 3600, 'b' => 0, 'c' => 450]],
+    'poids tous nuls' => [5, [0, 0], [3, 2]],
+    'montant négatif' => [-100, [1, 2], [-33, -67]],
+]);

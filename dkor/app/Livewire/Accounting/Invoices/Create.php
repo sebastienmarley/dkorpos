@@ -3,8 +3,10 @@
 namespace App\Livewire\Accounting\Invoices;
 
 use App\Enums\DeliveryMethod;
+use App\Enums\LedgerAccountType;
 use App\Enums\SupplierType;
 use App\Models\CustomerOrderDelivery;
+use App\Models\LedgerAccount;
 use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
@@ -38,21 +40,21 @@ class Create extends Component
 
     public string $customsFee = '0';
 
-    public string $taxes = '0';
+    public string $ledgerAccountId = '';
 
     public string $invoiceTotal = '';
 
     /** @var array<int, bool> envois cochés (transporteur), par id d'expédition */
     public array $shipmentIds = [];
 
-    /** @var array<string, string> montant par taxe (transporteur), en dollars */
+    /** @var array<string, string> montant par taxe, en dollars */
     public array $taxAmounts = [];
 
     public function updatedSupplierId(): void
     {
         $this->shipmentIds = [];
-        $this->taxAmounts = $this->isCarrier()
-            ? $this->carrierTaxNames()->mapWithKeys(fn (string $name): array => [$name => '0'])->all()
+        $this->taxAmounts = filled($this->supplierId)
+            ? $this->taxNames()->mapWithKeys(fn (string $name): array => [$name => '0'])->all()
             : [];
     }
 
@@ -102,11 +104,12 @@ class Create extends Component
     }
 
     /**
-     * Taxes à détailler : celles en vigueur dans la province des magasins des envois (ou du magasin de l'usager).
+     * Taxes à détailler : celles en vigueur dans la province des magasins des envois d'un transporteur (ou du magasin
+     * de l'usager).
      *
      * @return SupportCollection<int, string>
      */
-    private function carrierTaxNames(): SupportCollection
+    private function taxNames(): SupportCollection
     {
         $storeIds = $this->getInvoiceableShipments()->pluck('store_id')->filter()->unique();
 
@@ -146,8 +149,9 @@ class Create extends Component
             'merchandiseTotal' => ['required', 'numeric', 'min:0', 'max:999999999'],
             'freightFee' => ['required', 'numeric', 'min:0', 'max:99999999'],
             'customsFee' => ['required', 'numeric', 'min:0', 'max:99999999'],
-            'taxes' => ['required', 'numeric', 'min:0', 'max:99999999'],
+            'taxAmounts.*' => ['required', 'numeric', 'min:0', 'max:99999999'],
             'invoiceTotal' => ['required', 'numeric', 'min:0', 'max:999999999'],
+            'ledgerAccountId' => ['required', 'integer', Rule::exists('ledger_accounts', 'id')->whereIn('type', [LedgerAccountType::Expense->value, LedgerAccountType::Asset->value])],
         ]);
 
         try {
@@ -158,8 +162,9 @@ class Create extends Component
                 'merchandise_total' => $this->merchandiseTotal,
                 'freight_fee' => $this->freightFee,
                 'customs_fee' => $this->customsFee,
-                'taxes' => $this->taxes,
+                'taxes' => $this->taxAmounts,
                 'invoice_total' => $this->invoiceTotal,
+                'ledger_account_id' => $this->ledgerAccountId,
             ], auth()->id());
         } catch (DomainException $e) {
             Flux::toast(text: $e->getMessage(), variant: 'danger');
@@ -214,13 +219,14 @@ class Create extends Component
 
         return view('livewire.accounting.invoices.create', [
             'suppliers' => Supplier::query()->where('is_active', true)->orderBy('name')->get(),
+            'expenseAccounts' => LedgerAccount::query()->whereIn('type', [LedgerAccountType::Expense, LedgerAccountType::Asset])->orderBy('code')->get(),
             'totals' => $supplier ? SupplierInvoice::totals(
                 $supplier,
                 collect(),
                 [],
                 Money::tryParse($this->freightFee) ?? Money::zero(),
                 Money::tryParse($this->customsFee) ?? Money::zero(),
-                $this->isCarrier() ? $this->taxTotal() : (Money::tryParse($this->taxes) ?? Money::zero()),
+                $this->taxTotal(),
                 Money::tryParse($this->invoiceTotal) ?? Money::zero(),
                 Carbon::canBeCreatedFromFormat($this->invoiceDate, 'Y-m-d') ? Carbon::parse($this->invoiceDate) : null,
                 Money::tryParse($this->merchandiseTotal) ?? Money::zero(),

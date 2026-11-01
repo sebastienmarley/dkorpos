@@ -37,7 +37,8 @@ class Form extends Component
 
     public string $customsFee = '0';
 
-    public string $taxes = '0';
+    /** @var array<string, string> Montant par taxe (TPS, TVQ…), en dollars. */
+    public array $taxAmounts = [];
 
     public string $creditNoteNumber = '';
 
@@ -68,6 +69,9 @@ class Form extends Component
         foreach ($this->lines() as $line) {
             $this->unitCosts[$line->id] = $line->unit_cost->toDecimal();
         }
+
+        $store = ($reception ?? $order)->store ?? auth()->user()->store;
+        $this->taxAmounts = $store?->applicableTaxNames()->mapWithKeys(fn (string $name): array => [$name => '0'])->all() ?? [];
     }
 
     public function save(): void
@@ -82,7 +86,7 @@ class Form extends Component
             'invoiceDate' => ['required', 'date'],
             'freightFee' => ['required', 'numeric', 'min:0', 'max:99999999'],
             'customsFee' => ['required', 'numeric', 'min:0', 'max:99999999'],
-            'taxes' => ['required', 'numeric', 'min:0', 'max:99999999'],
+            'taxAmounts.*' => ['required', 'numeric', 'min:0', 'max:99999999'],
             'invoiceTotal' => ['required', 'numeric', 'min:0', 'max:999999999'],
             'unitCosts.*' => ['required', 'numeric', 'min:0', 'max:99999999'],
         ]);
@@ -92,7 +96,7 @@ class Form extends Component
             'invoice_date' => $this->invoiceDate,
             'freight_fee' => $this->freightFee,
             'customs_fee' => $this->customsFee,
-            'taxes' => $this->taxes,
+            'taxes' => $this->taxAmounts,
             'invoice_total' => $this->invoiceTotal,
         ];
 
@@ -140,6 +144,11 @@ class Form extends Component
         Flux::toast(text: __('Note de crédit enregistrée.'), variant: 'success');
     }
 
+    public function taxTotal(): Money
+    {
+        return Money::sum(array_map(fn (string $amount): Money => Money::tryParse($amount) ?? Money::zero(), array_values($this->taxAmounts)));
+    }
+
     private function supplier(): Supplier
     {
         return $this->reception ? $this->reception->supplier : $this->order->supplier;
@@ -166,8 +175,8 @@ class Form extends Component
     {
         $document = $this->reception ?? $this->order;
         $invoice = $this->reception
-            ? $this->reception->invoice()->with('lines.receptionLine.orderLine')->first()
-            : $this->order->supplierInvoice()->with('lines.orderLine')->first();
+            ? $this->reception->invoice()->with(['lines.receptionLine.orderLine', 'taxLines'])->first()
+            : $this->order->supplierInvoice()->with(['lines.orderLine', 'taxLines'])->first();
         $lines = $this->lines();
 
         return view('livewire.accounting.invoices.form', [
@@ -188,7 +197,7 @@ class Form extends Component
                 array_map(fn (string $cost): Money => Money::tryParse($cost) ?? Money::zero(), $this->unitCosts),
                 Money::tryParse($this->freightFee) ?? Money::zero(),
                 Money::tryParse($this->customsFee) ?? Money::zero(),
-                Money::tryParse($this->taxes) ?? Money::zero(),
+                $this->taxTotal(),
                 Money::tryParse($this->invoiceTotal) ?? Money::zero(),
                 Carbon::canBeCreatedFromFormat($this->invoiceDate, 'Y-m-d') ? Carbon::parse($this->invoiceDate) : null,
             ),

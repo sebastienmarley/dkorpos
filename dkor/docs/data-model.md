@@ -100,6 +100,7 @@ erDiagram
     inventory_counts ||--o{ inventory_count_results : ""
     ledger_entries ||--o{ ledger_entry_lines : ""
     ledger_accounts ||--o{ ledger_entry_lines : ""
+    ledger_accounts |o--o{ supplier_invoices : ""
     reception_lines |o--o{ defective_products : ""
     products ||--o{ defective_products : ""
     customer_orders |o--o{ defective_products : ""
@@ -406,9 +407,12 @@ erDiagram
 - Une facture couvre **soit** une réception (produits), **soit** une commande de services : les deux
   clés sont uniques et `nullable`. Une facture de **transporteur** (fournisseur d'expédition, issue #95) n'a ni
   l'une ni l'autre : elle couvre plusieurs envois, reliés par `customer_order_deliveries.supplier_invoice_id`
-  (`restrict`, un envoi n'est facturé qu'une fois). `supplier_invoice_taxes` détaille ses taxes (une ligne par
-  taxe), et son écriture au grand livre va aux frais d'expédition et transport, à un compte « à recevoir » par
-  taxe et aux comptes fournisseurs.
+  (`restrict`, un envoi n'est facturé qu'une fois). Une facture libre (ni réception, ni commande, ni envoi) porte
+  son compte de charge (`ledger_account_id`, `restrict`).
+- `supplier_invoice_taxes` détaille les taxes de chaque facture (une ligne par taxe) ; `supplier_invoices.taxes` en
+  est la somme. Les montants d'une facture sont dans la devise du fournisseur ; `exchange_rate` est le taux de sa
+  devise, figé à la saisie, qui convertit l'écriture en CAD. `receptions.exchange_rate` est celui du jour de la
+  réception, qui valorise les unités reçues en CAD ([ADR 0016](adr/0016-ledger-postings.md)).
 - `supplier_order_lines.substituted_from_line_id` relie une ligne à celle qu'elle remplace
   (substitution par le fournisseur).
 - **Erreurs d'expédition :** à la réception, `quantity_short` compte ce qui est annoncé (et facturé) par
@@ -445,6 +449,7 @@ erDiagram
     suppliers ||--o{ supplier_invoices : "supplier_id · restrict"
     receptions |o--o| supplier_invoices : "reception_id · restrict"
     users |o--o{ supplier_invoices : "created_by · null"
+    ledger_accounts |o--o{ supplier_invoices : "ledger_account_id · restrict"
     supplier_order_lines |o--o{ supplier_invoice_lines : "supplier_order_line_id · restrict"
     supplier_invoices ||--o{ supplier_invoice_lines : "supplier_invoice_id · cascade"
     reception_lines |o--o{ supplier_invoice_lines : "reception_line_id · restrict"
@@ -544,6 +549,7 @@ erDiagram
         string reference "nullable"
         text notes "nullable"
         string status "ReceptionStatus"
+        decimal exchange_rate "12,6"
         datetime completed_at "nullable"
         datetime created_at
         datetime updated_at
@@ -568,6 +574,7 @@ erDiagram
         int id PK
         int supplier_order_id FK, UK "nullable"
         int supplier_id FK
+        int ledger_account_id FK "nullable"
         int reception_id FK, UK "nullable"
         int created_by FK "nullable"
         string invoice_number
@@ -578,6 +585,7 @@ erDiagram
         int taxes "cents"
         int computed_total "cents"
         int invoice_total "cents"
+        decimal exchange_rate "12,6"
         int variance "cents"
         decimal discount_percent "5,2"
         int discount_days "nullable"
@@ -898,13 +906,14 @@ erDiagram
 
 ## Grand livre
 
-- `ledger_accounts` : comptes du grand livre. Les comptes système (`system_key` : stock, pertes,
-  fournitures, écart d'inventaire, solde d'ouverture) sont créés par `ReferenceDataSeeder`; le comptable en
-  change le code et le nom.
+- `ledger_accounts` : comptes du grand livre. Les comptes système (`system_key` : stock, achats non facturés,
+  comptes fournisseurs, coût des ventes, pertes, fournitures, écarts…) sont créés par `ReferenceDataSeeder`; le
+  comptable en change le code et le nom.
 - `ledger_entries` : écritures équilibrées et immuables, liées à leur document source par une référence
   **polymorphe** (`reference_type`, `reference_id`), sans clé étrangère.
-- `ledger_entry_lines` : un débit ou un crédit en cents par ligne. Seuls les ajustements d'inventaire passent
-  des écritures pour l'instant ([ADR 0011](adr/0011-inventory-movements-and-adjustments.md)).
+- `ledger_entry_lines` : un débit ou un crédit en cents par ligne. Les ajustements d'inventaire
+  ([ADR 0011](adr/0011-inventory-movements-and-adjustments.md)), les réceptions, leurs renversements, les factures
+  fournisseur et les notes de crédit passent des écritures ([ADR 0016](adr/0016-ledger-postings.md)).
 
 ```mermaid
 erDiagram
