@@ -203,46 +203,32 @@ class Reception extends Model
     }
 
     /**
-     * Change les quantités d'une ligne d'une réception en cours : reçue, dont endommagée, et manquante (annoncée par
-     * le fournisseur, mais non reçue). Reçu et manquant ensemble vont de 1 à ce qui reste à recevoir. Pour un article
-     * reçu en trop, la quantité de la ligne de commande suit et il n'y a pas de manquant.
+     * Quantité d'un article reçu en trop : la ligne de commande suit la quantité reçue et il n'y a pas de manquant.
      *
-     * @throws DomainException si une quantité est invalide.
+     * @throws DomainException si la quantité est invalide.
      */
-    public function setLineQuantity(ReceptionLine $line, int $quantity, ?int $damaged = null, ?int $short = null): void
-    {
-        DB::transaction(function () use ($line, $quantity, $damaged, $short): void {
-            $this->refreshForUpdate();
-            $this->guardInProgress($line);
-            $this->applyLineQuantity($line, $quantity, $damaged, $short);
-        });
-    }
-
-    private function applyLineQuantity(ReceptionLine $line, int $quantity, ?int $damaged, ?int $short): void
+    private function applyOvershipQuantity(ReceptionLine $line, int $quantity, int $damaged): void
     {
         $orderLine = $line->orderLine;
-        $short = $orderLine->is_overship ? 0 : ($short ?? $line->quantity_short);
 
-        if ($orderLine->is_overship && $quantity !== $orderLine->quantity) {
-            if ($quantity < 1) {
-                throw new DomainException(__('La quantité reçue en trop doit être d\'au moins 1.'));
-            }
+        if ($quantity < 1) {
+            throw new DomainException(__('La quantité reçue en trop doit être d\'au moins 1.'));
+        }
 
+        if ($quantity !== $orderLine->quantity) {
             $orderLine->order->updateLine($orderLine, $quantity, Money::zero());
             $orderLine->refresh();
         }
 
-        $outstanding = $orderLine->quantity_outstanding;
-
-        if ($quantity < 0 || $short < 0 || $quantity + $short < 1 || $quantity + $short > $outstanding) {
-            throw new DomainException(__('La quantité reçue et la quantité manquante doivent totaliser entre 1 et :max.', ['max' => $outstanding]));
+        if ($quantity > $orderLine->quantity_outstanding) {
+            throw new DomainException(__('La quantité reçue en trop doit être entre 1 et :max.', ['max' => $orderLine->quantity_outstanding]));
         }
 
         $line->update([
             'quantity' => $quantity,
-            'quantity_expected' => $orderLine->is_overship ? $quantity : max($line->quantity_expected, $quantity + $short),
-            'quantity_damaged' => self::damagedQuantity($orderLine, $quantity, $damaged ?? $line->quantity_damaged),
-            'quantity_short' => $short,
+            'quantity_expected' => $quantity,
+            'quantity_damaged' => self::damagedQuantity($orderLine, $quantity, $damaged),
+            'quantity_short' => 0,
             'checked_at' => now(),
         ]);
     }
@@ -351,7 +337,7 @@ class Reception extends Model
     private function allocateGroup(Collection $lines, int $received, int $damaged, int $short, bool $checked): void
     {
         if ($lines->count() === 1 && $lines->first()->orderLine->is_overship) {
-            $this->applyLineQuantity($lines->first(), $received, $damaged, 0);
+            $this->applyOvershipQuantity($lines->first(), $received, $damaged);
 
             return;
         }

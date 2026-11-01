@@ -106,16 +106,16 @@ describe('articles manquants', function () {
             ->and($reorder->order->status)->toBe(SupplierOrderStatus::Draft);
     });
 
-    it('refuse plus de reçus et de manquants que ce qui reste à recevoir, ou aucun des deux', function (int $received, int $short) {
+    it('refuse plus de reçus et de manquants que ce qui est attendu, ou une quantité négative', function (int $received, int $short) {
         [$order, $product, $line] = shippedOrder(5);
         $reception = Reception::start($order->supplier, [$line->id => ['quantity' => 5]]);
 
-        expect(fn () => $reception->setLineQuantity($reception->lines()->sole(), $received, 0, $short))->toThrow(DomainException::class);
+        expect(fn () => $reception->receiveGroup($reception->lines()->sole()->groupKey(), $received, 0, $short))->toThrow(DomainException::class);
 
         expect($reception->lines()->sole())->quantity->toBe(5)->quantity_short->toBe(0);
     })->with([
         'plus que le restant' => [4, 2],
-        'ni reçu ni manquant' => [0, 0],
+        'quantité négative' => [-1, 0],
     ]);
 });
 
