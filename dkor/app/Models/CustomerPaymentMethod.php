@@ -7,6 +7,7 @@ use Database\Factories\CustomerPaymentMethodFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
@@ -15,10 +16,12 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property bool $is_active
  * @property bool $is_usable_on_delivery Le livreur peut l'enregistrer à la livraison (ex. : TPV portatif).
+ * @property int|null $ledger_account_id Compte d'encaisse ou de compensation des paiements (vide : Encaisse CAD).
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read LedgerAccount|null $ledgerAccount
  */
-#[Fillable(['code', 'name', 'is_active', 'is_usable_on_delivery'])]
+#[Fillable(['code', 'name', 'is_active', 'is_usable_on_delivery', 'ledger_account_id'])]
 class CustomerPaymentMethod extends Model
 {
     /** @use HasFactory<CustomerPaymentMethodFactory> */
@@ -38,6 +41,20 @@ class CustomerPaymentMethod extends Model
     public static function cash(): self
     {
         return static::query()->firstOrCreate(['code' => self::CASH], ['name' => 'Comptant', 'is_active' => true]);
+    }
+
+    /** @return BelongsTo<LedgerAccount, $this> */
+    public function ledgerAccount(): BelongsTo
+    {
+        return $this->belongsTo(LedgerAccount::class);
+    }
+
+    /**
+     * Compte où passent les paiements reçus par ce mode : celui choisi, sinon Encaisse CAD.
+     */
+    public function cashAccount(): LedgerAccount
+    {
+        return $this->ledgerAccount ?? LedgerAccount::forKey(LedgerAccount::CASH_CAD);
     }
 
     public function isCash(): bool

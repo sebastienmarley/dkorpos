@@ -28,7 +28,7 @@ class Show extends Component
             return;
         }
 
-        $this->invoice = $invoice->load('supplier');
+        $this->invoice = $invoice->load(['supplier', 'paymentAllocations.payment']);
     }
 
     public function render(): View

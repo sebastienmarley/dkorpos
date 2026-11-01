@@ -33,6 +33,7 @@ it('ne garde en décimal que les taux, pourcentages, multiplicateurs et mesures'
         'price_list_items.width',
         'price_list_lists.discount_percent',
         'products.height',
+        'receptions.exchange_rate',
         'products.length',
         'products.weight',
         'products.width',
@@ -41,6 +42,7 @@ it('ne garde en décimal que les taux, pourcentages, multiplicateurs et mesures'
         'stores.shipping_max_length',
         'stores.shipping_max_weight',
         'supplier_invoices.discount_percent',
+        'supplier_invoices.exchange_rate',
         'suppliers.base_multiplier',
         'suppliers.customs_fee',
         'suppliers.early_payment_discount_percent',
@@ -67,7 +69,7 @@ it('stocke chaque montant casté en Money dans une colonne entière', function (
                 ->map(fn (string $column): array => [$model->getTable(), $column]);
         });
 
-    expect($moneyColumns)->toHaveCount(43);
+    expect($moneyColumns)->toHaveCount(48);
 
     foreach ($moneyColumns as [$table, $column]) {
         expect(Schema::getColumnType($table, $column))->toBeIn(['integer', 'int4'], "{$table}.{$column}");

@@ -10,9 +10,12 @@ use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
 use App\Livewire\Accounting\Invoices\Index as InvoicesIndex;
 use App\Livewire\Accounting\Invoices\Show as InvoiceShow;
+use App\Livewire\Accounting\Journal;
 use App\Livewire\Accounting\Ledger;
+use App\Livewire\Accounting\Payables;
 use App\Livewire\Accounting\PaymentMethods;
 use App\Livewire\Accounting\Payroll;
+use App\Livewire\Accounting\Statements;
 use App\Livewire\Accounting\Taxes;
 use App\Livewire\Admin\Permissions;
 use App\Livewire\Admin\Positions;
@@ -131,6 +134,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('accounting/taxes', Taxes::class)->middleware('can:taxes.view')->name('accounting.taxes');
     Route::get('accounting/currencies', Currencies::class)->middleware('can:currencies.view')->name('accounting.currencies');
     Route::get('accounting/ledger', Ledger::class)->middleware('can:ledger.view')->name('accounting.ledger');
+    Route::get('accounting/statements', Statements::class)->middleware('can:ledger.view')->name('accounting.statements');
+    Route::get('accounting/journal', Journal::class)->middleware('can:ledger.view')->name('accounting.journal');
+    Route::get('accounting/payables', Payables::class)->middleware('can:supplier_payments.view')->name('accounting.payables');
 
     Route::get('stores', StoresIndex::class)->middleware('can:stores.view')->name('stores.index');
     Route::get('stores/{store}', StoreShow::class)->name('stores.show'); // stores.view ou inventory.supervise : vérifié par le composant

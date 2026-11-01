@@ -122,6 +122,16 @@ class Supplier extends Model
         return (float) $this->currency?->rate;
     }
 
+    /**
+     * Taux qui convertit en CAD un montant dans la devise du fournisseur (ADR 0016) : celui de sa devise, 1 sans devise.
+     */
+    public function conversionRate(): string
+    {
+        $rate = $this->currency?->getRawOriginal('rate');
+
+        return $rate !== null && (float) $rate > 0 ? (string) $rate : '1';
+    }
+
     public function computePriceMultiplier(): float
     {
         return round(

@@ -15,6 +15,7 @@ use App\Models\InventoryMovement;
 use App\Models\LedgerEntry;
 use App\Models\LedgerEntryLine;
 use App\Models\Product;
+use App\Models\Reception;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Support\Money;
@@ -158,14 +159,14 @@ it('refuse de finaliser sans gel, avec une ligne à compter ou un écart dans le
 
     expect($finalize)->toThrow(DomainException::class, 'Écart dans le stock client')
         ->and(InventoryCount::sole()->status)->toBe(InventoryCountStatus::InProgress)
-        ->and(LedgerEntry::count())->toBe(0);
+        ->and(LedgerEntry::whereNot('reference_type', (new Reception)->getMorphClass())->count())->toBe(0);
 
     $count->recordCount(countLine($count, $this->product, InventoryStatus::ReservedCustomer), null, true, null, $this->owner);
     $finalize();
 
     expect(InventoryCount::sole()->status)->toBe(InventoryCountStatus::Finalized)
         ->and(countLine($count, $this->product, InventoryStatus::ReservedCustomer))->inventory_adjustment_id->toBeNull()->expected_quantity->toBe(1)
-        ->and(LedgerEntry::count())->toBe(0);
+        ->and(LedgerEntry::whereNot('reference_type', (new Reception)->getMorphClass())->count())->toBe(0);
 
     expectInventoryIntegrity($this->product);
 });

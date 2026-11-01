@@ -45,6 +45,8 @@
         </dl>
     </div>
 
+    @include('livewire.accounting.invoices.partials.payments')
+
     @if ($invoice->shipments->isNotEmpty())
         <div class="mt-6 max-w-xl rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <flux:heading size="sm" class="mb-2">{{ __('Envois couverts') }}</flux:heading>

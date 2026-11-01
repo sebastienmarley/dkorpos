@@ -12,6 +12,7 @@ use Carbon\CarbonInterface;
 use Database\Factories\SupplierInvoiceFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -27,6 +28,7 @@ use Illuminate\Support\Str;
  *
  * @property int $id
  * @property int $supplier_id
+ * @property int|null $ledger_account_id Compte de charge d'une facture sans réception ni commande (ADR 0016).
  * @property int|null $reception_id
  * @property int|null $supplier_order_id
  * @property string $invoice_number
@@ -38,6 +40,7 @@ use Illuminate\Support\Str;
  * @property Money $taxes
  * @property Money $computed_total
  * @property Money $invoice_total
+ * @property string $exchange_rate Taux de la devise du fournisseur, figé à la saisie : l'écriture est en CAD (ADR 0016).
  * @property Money $variance
  * @property float $discount_percent
  * @property int|null $discount_days
@@ -48,6 +51,8 @@ use Illuminate\Support\Str;
  * @property string|null $credit_note_number Numéro de la note de crédit du fournisseur, une fois reçue.
  * @property Carbon|null $credit_received_at
  * @property int|null $created_by
+ * @property Carbon|null $paid_outside_at Payée hors de l'application, avant la tenue des paiements (#132).
+ * @property int|null $paid_outside_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Supplier $supplier
@@ -58,9 +63,9 @@ use Illuminate\Support\Str;
  * @property-read Collection<int, CustomerOrderDelivery> $shipments
  */
 #[Fillable([
-    'supplier_id', 'reception_id', 'supplier_order_id', 'invoice_number', 'invoice_date', 'description', 'merchandise_total', 'freight_fee', 'customs_fee',
+    'supplier_id', 'ledger_account_id', 'reception_id', 'supplier_order_id', 'invoice_number', 'invoice_date', 'description', 'merchandise_total', 'freight_fee', 'customs_fee',
     'taxes', 'computed_total', 'invoice_total', 'variance', 'discount_percent', 'discount_days', 'discount_next_month', 'discount_due_date',
-    'discount_amount', 'credit_requested', 'credit_note_number', 'credit_received_at', 'created_by',
+    'discount_amount', 'credit_requested', 'credit_note_number', 'credit_received_at', 'created_by', 'exchange_rate', 'paid_outside_at', 'paid_outside_by',
 ])]
 class SupplierInvoice extends Model
 {
@@ -79,6 +84,7 @@ class SupplierInvoice extends Model
         'taxes' => MoneyCast::class,
         'computed_total' => MoneyCast::class,
         'invoice_total' => MoneyCast::class,
+        'exchange_rate' => 'decimal:6',
         'variance' => MoneyCast::class,
         'discount_percent' => 'float',
         'discount_days' => 'integer',
@@ -87,7 +93,14 @@ class SupplierInvoice extends Model
         'discount_amount' => MoneyCast::class,
         'credit_requested' => MoneyCast::class,
         'credit_received_at' => 'date',
+        'paid_outside_at' => 'datetime',
     ];
+
+    /** @return BelongsTo<LedgerAccount, $this> */
+    public function ledgerAccount(): BelongsTo
+    {
+        return $this->belongsTo(LedgerAccount::class);
+    }
 
     /** @return BelongsTo<Supplier, $this> */
     public function supplier(): BelongsTo
@@ -146,6 +159,93 @@ class SupplierInvoice extends Model
         return $this->invoice_total->minus($this->credit_requested);
     }
 
+    /** @return HasMany<SupplierPaymentAllocation, $this> */
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(SupplierPaymentAllocation::class);
+    }
+
+    /**
+     * Factures qui ont encore un solde dû (#132) : le montant net dépasse ce que les paiements non annulés ont soldé.
+     *
+     * @param  Builder<SupplierInvoice>  $query
+     * @return Builder<SupplierInvoice>
+     */
+    public function scopeUnpaid(Builder $query): Builder
+    {
+        return $query->whereNull('supplier_invoices.paid_outside_at')->whereRaw('supplier_invoices.invoice_total - supplier_invoices.credit_requested > (
+            select coalesce(sum(allocations.amount + allocations.discount), 0)
+            from supplier_payment_allocations as allocations
+            join supplier_payments as payments on payments.id = allocations.supplier_payment_id
+            where allocations.supplier_invoice_id = supplier_invoices.id and payments.cancelled_at is null
+        )');
+    }
+
+    /**
+     * Allocations des paiements non annulés.
+     *
+     * @return \Illuminate\Support\Collection<int, SupplierPaymentAllocation>
+     */
+    public function activeAllocations(): \Illuminate\Support\Collection
+    {
+        return $this->paymentAllocations->loadMissing('payment')->reject(fn (SupplierPaymentAllocation $allocation): bool => $allocation->payment->isCancelled())->values()->toBase();
+    }
+
+    /** Ce qui reste à payer : le montant net moins les paiements et escomptes appliqués (devise du fournisseur). */
+    public function balanceDue(): Money
+    {
+        if ($this->paid_outside_at !== null) {
+            return Money::zero();
+        }
+
+        return $this->netTotal()->minus(Money::sum($this->activeAllocations()->map(fn (SupplierPaymentAllocation $allocation): Money => $allocation->settled())->all()));
+    }
+
+    public function isPaid(): bool
+    {
+        return ! $this->balanceDue()->isPositive();
+    }
+
+    /** La facture a une écriture au grand livre : elle se paie par un paiement, qui solde les comptes fournisseurs. */
+    public function hasLedgerEntry(): bool
+    {
+        return LedgerEntry::query()->whereMorphedTo('reference', $this)->exists();
+    }
+
+    /**
+     * Marque payée hors de l'application une facture d'avant la tenue des paiements (#132) : elle n'a pas d'écriture,
+     * donc rien à solder aux comptes fournisseurs.
+     *
+     * @throws DomainException si la facture a une écriture, un paiement, ou si elle est déjà payée.
+     */
+    public function markPaidOutside(?User $user = null): void
+    {
+        if ($this->hasLedgerEntry()) {
+            throw new DomainException(__('La facture :number est au grand livre : enregistrez son paiement.', ['number' => $this->invoice_number]));
+        }
+
+        if ($this->isPaid() || $this->activeAllocations()->isNotEmpty()) {
+            throw new DomainException(__('La facture :number a déjà un paiement.', ['number' => $this->invoice_number]));
+        }
+
+        $this->update(['paid_outside_at' => now(), 'paid_outside_by' => $user?->id]);
+    }
+
+    /** L'escompte de paiement rapide s'applique encore à un paiement fait à cette date. */
+    public function discountAvailableOn(CarbonInterface $date): bool
+    {
+        return $this->discount_amount->isPositive()
+            && $this->discount_due_date !== null
+            && $date->toDateString() <= $this->discount_due_date->toDateString()
+            && $this->activeAllocations()->every(fn (SupplierPaymentAllocation $allocation): bool => $allocation->discount->isZero());
+    }
+
+    /** Montant net dû aux comptes fournisseurs, en CAD au taux de la facture. */
+    public function payableCad(): Money
+    {
+        return $this->invoice_total->multiply($this->exchange_rate)->minus($this->credit_requested->multiply($this->exchange_rate));
+    }
+
     /**
      * Enregistre la note de crédit reçue du fournisseur pour les manquants de cette facture.
      *
@@ -161,7 +261,21 @@ class SupplierInvoice extends Model
             throw new DomainException(__('Indiquez le numéro de la note de crédit du fournisseur.'));
         }
 
-        $this->update(['credit_note_number' => trim($creditNoteNumber), 'credit_received_at' => $receivedAt]);
+        DB::transaction(function () use ($creditNoteNumber, $receivedAt): void {
+            $this->update(['credit_note_number' => trim($creditNoteNumber), 'credit_received_at' => $receivedAt]);
+
+            $credit = $this->credit_requested->multiply($this->exchange_rate);
+
+            LedgerEntry::post(
+                Str::limit(__('Note de crédit :number — :supplier', ['number' => $this->credit_note_number, 'supplier' => $this->supplier->name]), 250),
+                [
+                    ['account' => LedgerAccount::forKey(LedgerAccount::ACCOUNTS_PAYABLE), 'debit' => $credit],
+                    ['account' => LedgerAccount::forKey(LedgerAccount::SUPPLIER_CREDITS_RECEIVABLE), 'credit' => $credit],
+                ],
+                $this,
+                $receivedAt,
+            );
+        });
     }
 
     /**
@@ -216,7 +330,7 @@ class SupplierInvoice extends Model
      * réception, de la commande (pour les prochaines réceptions) et sur les unités d'inventaire reçues; les
      * commandes entièrement reçues et facturées passent à « Facturée ».
      *
-     * @param  array{invoice_number: string, invoice_date: string, freight_fee?: float|int|string, customs_fee?: float|int|string, taxes?: float|int|string, invoice_total: float|int|string}  $details
+     * @param  array{invoice_number: string, invoice_date: string, freight_fee?: float|int|string, customs_fee?: float|int|string, taxes?: array<string, float|int|string>, invoice_total: float|int|string}  $details
      * @param  array<int, float|int|string>  $unitCosts  Coût réel par id de ligne de réception.
      */
     public static function record(Reception $reception, array $details, array $unitCosts = [], int|string|null $createdBy = null): SupplierInvoice
@@ -243,8 +357,9 @@ class SupplierInvoice extends Model
 
                 $line->update(['unit_cost' => $cost]);
                 $line->orderLine->update(['unit_cost' => $cost]);
-                InventoryUnit::where('reception_line_id', $line->id)->update(['cost' => $cost->cents()]);
             }
+
+            $invoice->postReceptionEntry($reception, $lines);
 
             SupplierOrder::query()
                 ->whereIn('id', $lines->pluck('orderLine.supplier_order_id')->unique())
@@ -259,7 +374,7 @@ class SupplierInvoice extends Model
      * Enregistre la facture d'une commande de services complétée (pas de réception): les coûts réels remplacent
      * ceux de la commande et la commande passe à « Facturée ».
      *
-     * @param  array{invoice_number: string, invoice_date: string, freight_fee?: float|int|string, customs_fee?: float|int|string, taxes?: float|int|string, invoice_total: float|int|string}  $details
+     * @param  array{invoice_number: string, invoice_date: string, freight_fee?: float|int|string, customs_fee?: float|int|string, taxes?: array<string, float|int|string>, invoice_total: float|int|string}  $details
      * @param  array<int, float|int|string>  $unitCosts  Coût réel par id de ligne de commande.
      */
     public static function recordForOrder(SupplierOrder $order, array $details, array $unitCosts = [], int|string|null $createdBy = null): SupplierInvoice
@@ -287,6 +402,8 @@ class SupplierInvoice extends Model
 
             $order->update(['status' => SupplierOrderStatus::Invoiced]);
 
+            $invoice->postExpenseEntry(LedgerAccount::forKey(LedgerAccount::COST_OF_SERVICES_SOLD));
+
             return $invoice;
         });
     }
@@ -296,11 +413,22 @@ class SupplierInvoice extends Model
      * marchandises ou de services, les frais et taxes, comparés au montant de la facture. Aucun effet sur
      * l'inventaire ni sur les commandes.
      *
-     * @param  array{invoice_number: string, invoice_date: string, description?: string|null, merchandise_total: float|int|string, freight_fee?: float|int|string, customs_fee?: float|int|string, taxes?: float|int|string, invoice_total: float|int|string}  $details
+     * @param  array{invoice_number: string, invoice_date: string, description?: string|null, ledger_account_id: int|string, merchandise_total: float|int|string, freight_fee?: float|int|string, customs_fee?: float|int|string, taxes?: array<string, float|int|string>, invoice_total: float|int|string}  $details
      */
     public static function recordStandalone(Supplier $supplier, array $details, int|string|null $createdBy = null): SupplierInvoice
     {
-        return DB::transaction(fn () => self::persist($supplier, [], collect(), $details, [], $createdBy));
+        $account = LedgerAccount::query()->find($details['ledger_account_id']);
+
+        if ($account === null) {
+            throw new DomainException(__('Choisissez le compte de charge de la facture.'));
+        }
+
+        return DB::transaction(function () use ($supplier, $details, $createdBy, $account): SupplierInvoice {
+            $invoice = self::persist($supplier, ['ledger_account_id' => $account->id], collect(), $details, [], $createdBy);
+            $invoice->postExpenseEntry($account);
+
+            return $invoice;
+        });
     }
 
     /**
@@ -344,34 +472,17 @@ class SupplierInvoice extends Model
                 }
             }
 
-            $taxes = collect($taxAmounts)
-                ->map(fn (float|int|string $amount): Money => Money::parse($amount))
-                ->filter(fn (Money $amount): bool => $amount->isPositive());
-            $taxTotal = Money::sum($taxes->values()->all());
+            $invoice = self::persist($carrier, [], collect(), [...$details, 'freight_fee' => 0, 'customs_fee' => 0, 'taxes' => $taxAmounts], [], $createdBy);
 
-            $invoice = self::persist($carrier, [], collect(), [...$details, 'freight_fee' => 0, 'customs_fee' => 0, 'taxes' => $taxTotal->toDecimal()], [], $createdBy);
-            $expense = $invoice->invoice_total->minus($taxTotal);
-
-            if (! $expense->isPositive()) {
+            if (! $invoice->invoice_total->minus($invoice->taxes)->isPositive()) {
                 throw new DomainException(__('Le montant de la facture doit dépasser ses taxes.'));
-            }
-
-            foreach ($taxes as $taxName => $amount) {
-                $invoice->taxLines()->create(['tax_name' => $taxName, 'amount' => $amount]);
             }
 
             CustomerOrderDelivery::query()->whereKey($shipmentIds)->update(['supplier_invoice_id' => $invoice->id]);
 
-            LedgerEntry::post(
-                Str::limit(__('Facture :number — :carrier (:count envois)', ['number' => $invoice->invoice_number, 'carrier' => $carrier->name, 'count' => count($shipmentIds)]), 250),
-                [
-                    ['account' => LedgerAccount::forKey(LedgerAccount::SHIPPING_EXPENSE), 'debit' => $expense],
-                    ...$taxes->map(fn (Money $amount, string $taxName): array => ['account' => LedgerAccount::forTaxReceivable($taxName), 'debit' => $amount])->values()->all(),
-                    ['account' => LedgerAccount::forKey(LedgerAccount::ACCOUNTS_PAYABLE), 'credit' => $invoice->invoice_total],
-                ],
-                $invoice,
-                $invoice->invoice_date,
-                $createdBy,
+            $invoice->postExpenseEntry(
+                LedgerAccount::forKey(LedgerAccount::SHIPPING_EXPENSE),
+                __('Facture :number — :carrier (:count envois)', ['number' => $invoice->invoice_number, 'carrier' => $carrier->name, 'count' => count($shipmentIds)]),
             );
 
             return $invoice;
@@ -399,17 +510,20 @@ class SupplierInvoice extends Model
      *
      * @param  array<string, int>  $target  Réception ou commande facturée.
      * @param  \Illuminate\Support\Collection<int, ReceptionLine>|\Illuminate\Support\Collection<int, SupplierOrderLine>  $lines
-     * @param  array<string, mixed>  $details
-     *                                         Les montants de $details et de $unitCosts sont en dollars, tels que saisis.
+     * @param  array{invoice_number: string, invoice_date: string, description?: string|null, merchandise_total?: float|int|string, freight_fee?: float|int|string, customs_fee?: float|int|string, taxes?: array<string, float|int|string>, invoice_total: float|int|string}  $details
+     *                                                                                                                                                                                                                                                                                   Les montants de $details et de $unitCosts sont en dollars, tels que saisis.
      * @param  array<int, float|int|string>  $unitCosts
      */
     private static function persist(Supplier $supplier, array $target, \Illuminate\Support\Collection $lines, array $details, array $unitCosts, int|string|null $createdBy): SupplierInvoice
     {
         $date = Carbon::parse($details['invoice_date']);
+        $taxes = collect($details['taxes'] ?? [])
+            ->map(fn (float|int|string $amount): Money => Money::parse($amount))
+            ->filter(fn (Money $amount): bool => $amount->isPositive());
         $amounts = [
             'freight_fee' => Money::parse($details['freight_fee'] ?? 0),
             'customs_fee' => Money::parse($details['customs_fee'] ?? 0),
-            'taxes' => Money::parse($details['taxes'] ?? 0),
+            'taxes' => Money::sum($taxes->values()->all()),
             'invoice_total' => Money::parse($details['invoice_total']),
         ];
         $costs = array_map(fn (float|int|string $cost): Money => Money::parse($cost), $unitCosts);
@@ -432,9 +546,14 @@ class SupplierInvoice extends Model
             'invoice_date' => $date,
             'description' => filled($details['description'] ?? null) ? $details['description'] : null,
             ...$amounts,
+            'exchange_rate' => $supplier->conversionRate(),
             'created_by' => $createdBy,
             ...$totals,
         ]);
+
+        foreach ($taxes as $taxName => $amount) {
+            $invoice->taxLines()->create(['tax_name' => $taxName, 'amount' => $amount]);
+        }
 
         foreach ($lines as $line) {
             $invoice->lines()->create([
@@ -446,5 +565,102 @@ class SupplierInvoice extends Model
         }
 
         return $invoice->load('lines');
+    }
+
+    /**
+     * Écriture de la facture d'une réception (ADR 0016), en CAD au taux de la facture. Le coût réel des marchandises
+     * reçues, avec le transport et la douane, est réparti sur les unités au prorata de leur coût : l'écart avec la
+     * valeur passée à la réception va au Stock pour les unités en main et au coût des marchandises vendues pour les
+     * unités sorties (ou sans unité, comme une pièce). Achats non facturés est soldé de la valeur de la réception.
+     *
+     * @param  Collection<int, ReceptionLine>  $lines
+     */
+    private function postReceptionEntry(Reception $reception, Collection $lines): void
+    {
+        $payable = $this->invoice_total->multiply($this->exchange_rate);
+        $taxes = $this->taxLines()->get()->map(fn (SupplierInvoiceTax $tax): array => [LedgerAccount::forTaxReceivable($tax->tax_name), $tax->amount->multiply($this->exchange_rate)]);
+        $credit = $this->credit_requested->multiply($this->exchange_rate);
+        $variance = $this->variance->multiply($this->exchange_rate);
+        $landed = $payable->minus(Money::sum($taxes->map(fn (array $tax): Money => $tax[1])->all()))->minus($credit)->minus($variance);
+
+        $shares = $landed->allocate($lines->mapWithKeys(fn (ReceptionLine $line): array => [
+            $line->id => $this->lines->firstWhere('reception_line_id', $line->id)->unit_cost->cents() * $line->quantity_net,
+        ])->all());
+        $units = InventoryUnit::query()->whereIn('reception_line_id', $lines->modelKeys())->orderBy('id')->get()->groupBy('reception_line_id');
+
+        $received = Money::zero();
+        $inStock = Money::zero();
+        $sold = Money::zero();
+
+        foreach ($lines as $line) {
+            $lineUnits = $units->get($line->id, new Collection);
+
+            if ($lineUnits->isEmpty()) {
+                $sold = $sold->plus($shares[$line->id]);
+
+                continue;
+            }
+
+            $costs = $shares[$line->id]->allocate($lineUnits->mapWithKeys(fn (InventoryUnit $unit): array => [$unit->id => 1])->all());
+
+            foreach ($lineUnits as $unit) {
+                $change = $costs[$unit->id]->minus($unit->cost);
+                $received = $received->plus($unit->cost);
+
+                if ($unit->delivered_at === null) {
+                    $inStock = $inStock->plus($change);
+                } else {
+                    $sold = $sold->plus($change);
+                }
+            }
+
+            foreach ($lineUnits->groupBy(fn (InventoryUnit $unit): int => $costs[$unit->id]->cents()) as $cents => $sameCost) {
+                InventoryUnit::query()->whereKey($sameCost->modelKeys())->update(['cost' => $cents]);
+            }
+        }
+
+        LedgerEntry::post(
+            Str::limit(__('Facture :number — :supplier', ['number' => $this->invoice_number, 'supplier' => $reception->supplier->name]), 250),
+            LedgerEntry::signedLines([
+                [LedgerAccount::forKey(LedgerAccount::GOODS_RECEIVED_NOT_INVOICED), $received],
+                [LedgerAccount::forKey(LedgerAccount::INVENTORY), $inStock],
+                [LedgerAccount::forKey(LedgerAccount::COST_OF_GOODS_SOLD), $sold],
+                [LedgerAccount::forKey(LedgerAccount::SUPPLIER_CREDITS_RECEIVABLE), $credit],
+                [LedgerAccount::forKey(LedgerAccount::INVOICE_VARIANCE), $variance],
+                ...$taxes->all(),
+                [LedgerAccount::forKey(LedgerAccount::ACCOUNTS_PAYABLE), $payable->negate()],
+            ]),
+            $this,
+            $this->invoice_date,
+            $this->created_by,
+            $reception->store_id,
+        );
+    }
+
+    /**
+     * Écriture d'une facture sans inventaire (ADR 0016), en CAD au taux de la facture : le montant avant taxes au
+     * compte donné (charge, coût des services), chaque taxe à son compte « à recevoir », le total aux fournisseurs.
+     */
+    private function postExpenseEntry(LedgerAccount $account, ?string $description = null): void
+    {
+        $payable = $this->invoice_total->multiply($this->exchange_rate);
+
+        if ($payable->isZero()) {
+            return;
+        }
+
+        $taxes = $this->taxLines()->get()->map(fn (SupplierInvoiceTax $tax): array => [LedgerAccount::forTaxReceivable($tax->tax_name), $tax->amount->multiply($this->exchange_rate)]);
+
+        LedgerEntry::post(
+            Str::limit($description ?? __('Facture :number — :supplier', ['number' => $this->invoice_number, 'supplier' => $this->supplier->name]), 250),
+            LedgerEntry::signedLines([
+                [$account, $payable->minus(Money::sum($taxes->map(fn (array $tax): Money => $tax[1])->all()))],
+                ...$taxes->all(),
+                [LedgerAccount::forKey(LedgerAccount::ACCOUNTS_PAYABLE), $payable->negate()],
+            ]),
+            $this,
+            $this->invoice_date,
+            $this->created_by,
+        );
     }
 }

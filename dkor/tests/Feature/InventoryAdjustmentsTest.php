@@ -13,6 +13,7 @@ use App\Models\LedgerAccount;
 use App\Models\LedgerEntry;
 use App\Models\LedgerEntryLine;
 use App\Models\Product;
+use App\Models\Reception;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Support\Money;
@@ -96,7 +97,7 @@ it('refuse un motif, un sens, un état, une note ou une quantité invalides sans
 
     expect(fn () => adjust($this->product, $reason, $status, $isEntry, $quantity, $note))->toThrow(DomainException::class)
         ->and(InventoryAdjustment::count())->toBe(0)
-        ->and(LedgerEntry::count())->toBe(0)
+        ->and(LedgerEntry::whereNot('reference_type', (new Reception)->getMorphClass())->count())->toBe(0)
         ->and(InventoryMovement::where('type', InventoryMovementType::Adjustment)->count())->toBe(0);
 })->with([
     'stock initial en sortie' => [InventoryAdjustmentReason::OpeningBalance, InventoryStatus::InStock, false, 1, 'Note'],

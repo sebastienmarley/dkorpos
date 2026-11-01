@@ -99,17 +99,30 @@
                 <flux:input wire:model.live.debounce.400ms="customsFee" type="number" min="0" step="0.01" required />
                 <flux:error name="customsFee" />
             </flux:field>
-            <flux:field>
-                <flux:label>{{ __('Taxes') }}</flux:label>
-                <flux:input wire:model.live.debounce.400ms="taxes" type="number" min="0" step="0.01" required />
-                <flux:error name="taxes" />
-            </flux:field>
+            @foreach ($taxAmounts as $taxName => $amount)
+                <flux:field wire:key="tax-{{ $taxName }}">
+                    <flux:label>{{ $taxName }}</flux:label>
+                    <flux:input wire:model.live.debounce.400ms="taxAmounts.{{ $taxName }}" type="number" min="0" step="0.01" required />
+                    <flux:error name="taxAmounts.{{ $taxName }}" />
+                </flux:field>
+            @endforeach
             <flux:field>
                 <flux:label>{{ __('Montant de la facture') }}</flux:label>
                 <flux:input wire:model.live.debounce.400ms="invoiceTotal" type="number" min="0" step="0.01" required />
                 <flux:error name="invoiceTotal" />
             </flux:field>
         </div>
+
+        <flux:field class="max-w-xl">
+            <flux:label>{{ __('Compte de charge') }}</flux:label>
+            <flux:select wire:model="ledgerAccountId" :placeholder="__('Choisir un compte…')">
+                @foreach ($expenseAccounts as $account)
+                    <flux:select.option :value="$account->id">{{ $account->code }} — {{ $account->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:description>{{ __('Le montant avant taxes va à ce compte, chaque taxe à son compte « à recevoir », et le total aux comptes fournisseurs.') }}</flux:description>
+            <flux:error name="ledgerAccountId" />
+        </flux:field>
         @endif
 
         @if ($totals)
