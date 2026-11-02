@@ -9,11 +9,15 @@ use App\Enums\ScheduleType;
 use App\Livewire\Accounting\Payroll;
 use App\Livewire\Schedules\ScheduleEdit;
 use App\Livewire\Users\Show;
+use App\Models\CustomerOrder;
+use App\Models\LedgerAccount;
+use App\Models\LedgerEntry;
 use App\Models\PayrollPeriod;
 use App\Models\Permission;
 use App\Models\Schedule;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
@@ -33,6 +37,20 @@ function quart(User $user, string $date, ScheduleType $type = ScheduleType::Work
 function ligne(User $user, string $periodStart): array
 {
     return app(BuildPayrollReport::class)->handle(Carbon::parse($periodStart))->firstWhere('user.id', $user->id);
+}
+
+/**
+ * Passe au grand livre une vente (montant positif) ou un retour (négatif) de la commande, à cette date.
+ */
+function vente(CustomerOrder $order, string $date, float $amount, string $account = LedgerAccount::MERCHANDISE_SALES): void
+{
+    $money = Money::parse(abs($amount));
+    $sales = LedgerAccount::forKey($account);
+    $deposits = LedgerAccount::forKey(LedgerAccount::CUSTOMER_DEPOSITS);
+
+    LedgerEntry::post('Vente', $amount > 0
+        ? [['account' => $deposits, 'debit' => $money], ['account' => $sales, 'credit' => $money]]
+        : [['account' => $sales, 'debit' => $money], ['account' => $deposits, 'credit' => $money]], $order, Carbon::parse($date));
 }
 
 // ── Périodes ───────────────────────────────────────────────────────────────
@@ -271,4 +289,40 @@ it('enregistre une formation avec ses heures à l\'horaire', function () {
 
     expect($schedule->type)->toBe(ScheduleType::Training)
         ->and($schedule->start_time)->toBe('09:00');
+});
+
+// ── Commissions et primes ─────────────────────────────────────────────────
+
+it('calcule la commission sur la part du vendeur des ventes avant taxes de la période, moins les retours', function () {
+    $sophie = User::factory()->create(['first_day' => '2025-01-01', 'has_commission' => true, 'commission_rate' => '5.00']);
+    $marc = User::factory()->create(['first_day' => '2025-01-01', 'has_commission' => true, 'commission_rate' => '10.00']);
+    $sansCommission = User::factory()->create(['first_day' => '2025-01-01']);
+
+    $partagee = CustomerOrder::factory()->create();
+    $partagee->syncSalespeople([['user_id' => $sophie->id, 'percent' => 50], ['user_id' => $marc->id, 'percent' => 50]]);
+    vente($partagee, '2026-01-05', 1000);
+    vente($partagee, '2026-01-06', 200, LedgerAccount::SERVICE_SALES);
+    vente($partagee, '2026-01-07', 300, LedgerAccount::CANCELLATION_FEES);
+
+    $seule = CustomerOrder::factory()->create();
+    $seule->syncSalespeople([['user_id' => $sophie->id, 'percent' => 100], ['user_id' => $sansCommission->id, 'percent' => 0]]);
+    vente($seule, '2026-01-03', 5000);
+    vente($seule, '2026-01-12', -400);
+    vente($seule, '2026-01-18', 9000);
+
+    expect(ligne($sophie, '2026-01-04')['commission'])->toBe(10.0)
+        ->and(ligne($marc, '2026-01-04')['commission'])->toBe(60.0)
+        ->and(ligne($sansCommission, '2026-01-04')['commission'])->toBe(0.0);
+});
+
+it('verse une prime par tranche complète de ventes au-delà de l\'objectif, semaine par semaine', function () {
+    $user = User::factory()->create(['first_day' => '2025-01-01', 'has_bonus' => true, 'weekly_sales_target' => 5000, 'bonus_amount' => 50, 'bonus_step' => 1000]);
+    $order = CustomerOrder::factory()->create();
+    $order->syncSalespeople([['user_id' => $user->id, 'percent' => 100]]);
+
+    vente($order, '2026-01-05', 7999.99);
+    vente($order, '2026-01-12', 4999);
+    vente($order, '2026-01-17', 1000);
+
+    expect(ligne($user, '2026-01-04')['bonus'])->toBe(100.0);
 });

@@ -9,6 +9,7 @@ use App\Livewire\Orders\Show;
 use App\Livewire\Suppliers\Show as SupplierShow;
 use App\Models\InventoryMovement;
 use App\Models\InventoryUnit;
+use App\Models\LedgerAccount;
 use App\Models\Product;
 use App\Models\Reception;
 use App\Models\Role;
@@ -99,7 +100,7 @@ it('facture une réception partielle: coûts réels, frais, écart et statut de 
         ->set('invoiceDate', '2026-10-03')
         ->set('freightFee', '10')
         ->set('customsFee', '4.50')
-        ->set('taxes', '3.25')
+        ->set('taxAmounts.TPS', '3.25')
         ->set('invoiceTotal', '40.75')
         ->call('save')
         ->assertHasNoErrors();
@@ -115,7 +116,7 @@ it('facture une réception partielle: coûts réels, frais, écart et statut de 
         ->and($invoice->lines->first())->quantity->toBe(4)->unit_cost->toBeMoney(575)
         ->and($receptionLine->fresh()->unit_cost)->toBeMoney(575)
         ->and($line->fresh()->unit_cost)->toBeMoney(575)
-        ->and(InventoryUnit::pluck('cost')->map->cents()->unique()->all())->toBe([575])
+        ->and(InventoryUnit::pluck('cost')->map->cents()->all())->toBe([938, 938, 937, 937])
         ->and($order->fresh()->status)->toBe(SupplierOrderStatus::PartiallyReceived);
 });
 
@@ -137,7 +138,7 @@ it('compare le montant saisi au total calculé et enregistre l\'écart', functio
 
     $component = Livewire::test(Form::class, ['reception' => $reception])
         ->set('freightFee', '5')
-        ->set('taxes', '2')
+        ->set('taxAmounts.TPS', '2')
         ->set('invoiceTotal', '30');
 
     $totals = $component->viewData('totals');
@@ -225,7 +226,7 @@ it('refuse une deuxième facture, une réception en cours ou sans rien à factur
 it('affiche une facture enregistrée en lecture seule', function () {
     [$order, [$line]] = orderToInvoice(quantities: [2], cost: 10);
     $reception = receive($order, $line, 2);
-    SupplierInvoice::record($reception, ['invoice_number' => 'F-READ', 'invoice_date' => '2026-10-01', 'invoice_total' => 25, 'taxes' => 3]);
+    SupplierInvoice::record($reception, ['invoice_number' => 'F-READ', 'invoice_date' => '2026-10-01', 'invoice_total' => 25, 'taxes' => ['TPS' => 3]]);
 
     Livewire::test(Form::class, ['reception' => $reception])
         ->assertSee('F-READ')->assertSee('Facturée')->assertSee('Écart')
@@ -364,7 +365,7 @@ it('facture une commande de services: coûts réels, frais, écart et statut fac
         ->set('invoiceNumber', 'S-1')
         ->set('invoiceDate', '2026-10-05')
         ->set('freightFee', '5')
-        ->set('taxes', '33')
+        ->set('taxAmounts.TPS', '33')
         ->set('invoiceTotal', '258')
         ->call('save')
         ->assertHasNoErrors();
@@ -430,8 +431,9 @@ it('crée une facture libre rattachée à un fournisseur, sans document', functi
         ->set('description', 'Abonnement annuel')
         ->set('merchandiseTotal', '200')
         ->set('freightFee', '10')
-        ->set('taxes', '31.50')
+        ->set('taxAmounts.TPS', '31.50')
         ->set('invoiceTotal', '241.50')
+        ->set('ledgerAccountId', (string) LedgerAccount::forKey(LedgerAccount::STORE_SUPPLIES)->id)
         ->call('save')
         ->assertHasNoErrors()
         ->assertRedirect(route('accounting.invoices.show', SupplierInvoice::first()));
@@ -454,8 +456,9 @@ it('compare le montant d\'une facture libre et applique l\'escompte du fournisse
         ->set('supplierId', (string) $supplier->id)
         ->set('invoiceDate', '2026-10-20')
         ->set('merchandiseTotal', '100')
-        ->set('taxes', '15')
-        ->set('invoiceTotal', '120');
+        ->set('taxAmounts.TPS', '15')
+        ->set('invoiceTotal', '120')
+        ->set('ledgerAccountId', (string) LedgerAccount::forKey(LedgerAccount::STORE_SUPPLIES)->id);
 
     $totals = $component->viewData('totals');
 
@@ -472,11 +475,11 @@ it('compare le montant d\'une facture libre et applique l\'escompte du fournisse
 it('valide la facture libre: fournisseur actif, numéro unique et montants', function () {
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product, 'is_active' => true]);
     $inactive = Supplier::factory()->create(['type' => SupplierType::Product, 'is_active' => false]);
-    SupplierInvoice::recordStandalone($supplier, ['invoice_number' => 'L-1', 'invoice_date' => '2026-10-01', 'merchandise_total' => 10, 'invoice_total' => 10]);
+    SupplierInvoice::recordStandalone($supplier, ['invoice_number' => 'L-1', 'invoice_date' => '2026-10-01', 'merchandise_total' => 10, 'invoice_total' => 10, 'ledger_account_id' => LedgerAccount::forKey(LedgerAccount::STORE_SUPPLIES)->id]);
 
     Livewire::test(Create::class)
         ->call('save')
-        ->assertHasErrors(['supplierId', 'invoiceNumber', 'merchandiseTotal', 'invoiceTotal']);
+        ->assertHasErrors(['supplierId', 'invoiceNumber', 'merchandiseTotal', 'invoiceTotal', 'ledgerAccountId']);
 
     Livewire::test(Create::class)
         ->set('supplierId', (string) $inactive->id)
@@ -501,7 +504,7 @@ it('valide la facture libre: fournisseur actif, numéro unique et montants', fun
 
 it('retrouve les factures libres dans la facturation et ouvre la bonne vue pour les autres', function () {
     $supplier = Supplier::factory()->create(['name' => 'Fournisseur Unique', 'is_active' => true]);
-    $standalone = SupplierInvoice::recordStandalone($supplier, ['invoice_number' => 'L-77', 'invoice_date' => '2026-10-01', 'description' => 'Frais divers', 'merchandise_total' => 10, 'invoice_total' => 10]);
+    $standalone = SupplierInvoice::recordStandalone($supplier, ['invoice_number' => 'L-77', 'invoice_date' => '2026-10-01', 'description' => 'Frais divers', 'merchandise_total' => 10, 'invoice_total' => 10, 'ledger_account_id' => LedgerAccount::forKey(LedgerAccount::STORE_SUPPLIES)->id]);
     [$order, [$line]] = orderToInvoice(quantities: [2]);
     $linked = SupplierInvoice::record(receive($order, $line, 2), ['invoice_number' => 'F-LINK', 'invoice_date' => '2026-10-01', 'invoice_total' => 10]);
 

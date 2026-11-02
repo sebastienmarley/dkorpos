@@ -37,6 +37,7 @@ $pageAccess = [
 ];
 
 $managementAccess = [
+    'sales.view_store',
     'labels.view',
     'labels.print',
     'customer_orders.assign_salespeople',
@@ -103,8 +104,12 @@ $accountingAccess = [
     'invoices.create',
     'invoices.edit',
     'invoices.delete',
+    'supplier_payments.view',
+    'supplier_payments.create',
     'ledger.view',
     'ledger.edit',
+    'ledger.close',
+    'ledger.journal',
 ];
 
 return [
@@ -137,6 +142,7 @@ return [
         'transfers.accept' => ['Accepter un transfert — magasins', 'Accepter ou refuser les transferts demandés au magasin.'],
         'transfers.receive' => ['Recevoir un transfert — magasins', 'Confirmer la réception des transferts arrivés au magasin.'],
         'deliveries.handle' => ['Faire les livraisons', 'Accéder au menu « Mes livraisons » : ordre de la route, chargement du camion et remise au client.'],
+        'sales.view_store' => ['Voir les ventes du magasin', 'Voir à l\'accueil les ventes du jour, de la semaine et du mois du magasin (de tous les magasins avec stores.all).'],
         'deliveries.view' => ['Voir — livraisons', 'Accéder à la page : livraisons (places par demi-journée et livraisons planifiées).'],
         'customer_orders.assign_salespeople' => ['Gérer les vendeurs — commandes clients', 'Modifier les vendeurs et la répartition de la vente dans : commandes clients.'],
         'suppliers.view' => ['Voir — fournisseurs', 'Accéder à la page : fournisseurs.'],
@@ -187,12 +193,16 @@ return [
         'currencies.view' => ['Voir — devises', 'Accéder à la page : devises.'],
         'ledger.view' => ['Voir — grand livre', 'Accéder à la page : grand livre (écritures et comptes).'],
         'ledger.edit' => ['Modifier — grand livre', 'Modifier le code et le nom des comptes du grand livre.'],
+        'ledger.close' => ['Clôturer — grand livre', 'Clôturer une période du grand livre et la rouvrir.'],
+        'ledger.journal' => ['Écritures manuelles — grand livre', 'Passer et renverser des écritures manuelles au journal général.'],
         'currencies.create' => ['Créer — devises', 'Créer dans : devises.'],
         'currencies.edit' => ['Modifier — devises', 'Modifier dans : devises.'],
         'invoices.view' => ['Voir — facturation fournisseurs', 'Accéder à la page : facturation fournisseurs.'],
         'invoices.create' => ['Créer — facturation fournisseurs', 'Saisir la facture d\'une réception.'],
         'invoices.edit' => ['Modifier — facturation fournisseurs', 'Modifier une facture fournisseur existante.'],
         'invoices.delete' => ['Supprimer — facturation fournisseurs', 'Supprimer une facture fournisseur.'],
+        'supplier_payments.view' => ['Voir — comptes à payer', 'Accéder à la page : comptes à payer (factures dues et paiements aux fournisseurs).'],
+        'supplier_payments.create' => ['Payer — comptes à payer', 'Enregistrer ou annuler un paiement à un fournisseur.'],
         'schedules.view' => ['Voir — « Mon horaire »', 'Accéder à la page : « Mon horaire ».'],
         'schedule_management.view' => ['Voir — gestion des horaires', 'Accéder à la page : gestion des horaires.'],
         'schedule_management.edit' => ['Modifier — gestion des horaires', 'Modifier dans : gestion des horaires.'],

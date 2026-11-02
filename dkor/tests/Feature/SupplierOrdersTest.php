@@ -1146,7 +1146,7 @@ it('cherche le produit à ajouter par id, modèle ou modèle fournisseur, sans c
     $bySupplierModel = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Banc', 'supplier_model' => 'ZEPH-9']);
     $foreign = Product::factory()->create(['model' => 'Fauteuil Étranger']);
     $blocked = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'Fauteuil Bloqué', 'is_non_orderable' => true]);
-    Product::factory()->count(30)->create(['supplier_id' => $order->supplier_id, 'model' => 'Chaise']);
+    Product::factory()->count(30)->sequence(fn ($sequence) => ['model' => 'Chaise '.$sequence->index])->create(['supplier_id' => $order->supplier_id]);
 
     $ids = fn ($component) => $component->viewData('productResults')->pluck('id')->all();
 

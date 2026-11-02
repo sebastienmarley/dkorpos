@@ -82,6 +82,9 @@ erDiagram
     receptions |o--o| supplier_invoices : ""
     supplier_order_lines |o--o{ supplier_invoice_lines : ""
     supplier_invoices ||--o{ supplier_invoice_lines : ""
+    suppliers ||--o{ supplier_payments : ""
+    supplier_payments ||--o{ supplier_payment_allocations : ""
+    supplier_invoices ||--o{ supplier_payment_allocations : ""
     reception_lines |o--o{ supplier_invoice_lines : ""
     products ||--o{ inventory_stocks : ""
     products ||--o{ inventory_movements : ""
@@ -100,6 +103,8 @@ erDiagram
     inventory_counts ||--o{ inventory_count_results : ""
     ledger_entries ||--o{ ledger_entry_lines : ""
     ledger_accounts ||--o{ ledger_entry_lines : ""
+    ledger_accounts |o--o{ supplier_invoices : ""
+    ledger_accounts |o--o{ customer_payment_methods : ""
     reception_lines |o--o{ defective_products : ""
     products ||--o{ defective_products : ""
     customer_orders |o--o{ defective_products : ""
@@ -406,9 +411,21 @@ erDiagram
 - Une facture couvre **soit** une réception (produits), **soit** une commande de services : les deux
   clés sont uniques et `nullable`. Une facture de **transporteur** (fournisseur d'expédition, issue #95) n'a ni
   l'une ni l'autre : elle couvre plusieurs envois, reliés par `customer_order_deliveries.supplier_invoice_id`
-  (`restrict`, un envoi n'est facturé qu'une fois). `supplier_invoice_taxes` détaille ses taxes (une ligne par
-  taxe), et son écriture au grand livre va aux frais d'expédition et transport, à un compte « à recevoir » par
-  taxe et aux comptes fournisseurs.
+  (`restrict`, un envoi n'est facturé qu'une fois). Une facture libre (ni réception, ni commande, ni envoi) porte
+  son compte de charge (`ledger_account_id`, `restrict`).
+- `supplier_invoice_taxes` détaille les taxes de chaque facture (une ligne par taxe) ; `supplier_invoices.taxes` en
+  est la somme. Les montants d'une facture sont dans la devise du fournisseur ; `exchange_rate` est le taux de sa
+  devise, figé à la saisie, qui convertit l'écriture en CAD. `receptions.exchange_rate` est celui du jour de la
+  réception, qui valorise les unités reçues en CAD ([ADR 0016](adr/0016-ledger-postings.md)).
+- **Paiements aux fournisseurs (#132) :** `supplier_payments` est un paiement, payé depuis un compte d'encaisse
+  (`ledger_account_id`), avec le montant dans la devise du fournisseur et le montant réellement déboursé en CAD.
+  `supplier_payment_allocations` le répartit sur les factures : montant payé, escompte de paiement rapide et montant
+  soldé aux comptes fournisseurs en CAD, au taux de la facture. Le solde dû d'une facture est son montant net
+  (`invoice_total - credit_requested`) moins les allocations des paiements non annulés. Un paiement ne se supprime
+  pas : il s'annule (`cancelled_at`), avec une écriture inverse.
+- Une facture d'avant la tenue des paiements, payée ailleurs et sans écriture au grand livre, est marquée
+  `paid_outside_at` (bouton « Payée ailleurs » ou `php artisan invoices:mark-paid-outside --before=AAAA-MM-JJ`) :
+  elle n'a plus de solde dû.
 - `supplier_order_lines.substituted_from_line_id` relie une ligne à celle qu'elle remplace
   (substitution par le fournisseur).
 - **Erreurs d'expédition :** à la réception, `quantity_short` compte ce qui est annoncé (et facturé) par
@@ -429,6 +446,11 @@ erDiagram
     currencies |o--o{ suppliers : "currency_id · null"
     suppliers |o--o{ supplier_orders : "shipping_supplier_id · null"
     supplier_invoices ||--o{ supplier_invoice_taxes : "supplier_invoice_id · cascade"
+    suppliers ||--o{ supplier_payments : "supplier_id · restrict"
+    ledger_accounts ||--o{ supplier_payments : "ledger_account_id · restrict"
+    users |o--o{ supplier_payments : "created_by, cancelled_by · null"
+    supplier_payments ||--o{ supplier_payment_allocations : "supplier_payment_id · cascade"
+    supplier_invoices ||--o{ supplier_payment_allocations : "supplier_invoice_id · restrict"
     suppliers ||--o{ supplier_orders : "supplier_id · restrict"
     users |o--o{ supplier_orders : "created_by · null"
     supplier_order_lines |o--o{ supplier_order_lines : "substituted_from_line_id · null"
@@ -444,7 +466,8 @@ erDiagram
     supplier_orders |o--o| supplier_invoices : "supplier_order_id · restrict"
     suppliers ||--o{ supplier_invoices : "supplier_id · restrict"
     receptions |o--o| supplier_invoices : "reception_id · restrict"
-    users |o--o{ supplier_invoices : "created_by · null"
+    users |o--o{ supplier_invoices : "created_by, paid_outside_by · null"
+    ledger_accounts |o--o{ supplier_invoices : "ledger_account_id · restrict"
     supplier_order_lines |o--o{ supplier_invoice_lines : "supplier_order_line_id · restrict"
     supplier_invoices ||--o{ supplier_invoice_lines : "supplier_invoice_id · cascade"
     reception_lines |o--o{ supplier_invoice_lines : "reception_line_id · restrict"
@@ -544,6 +567,7 @@ erDiagram
         string reference "nullable"
         text notes "nullable"
         string status "ReceptionStatus"
+        decimal exchange_rate "12,6"
         datetime completed_at "nullable"
         datetime created_at
         datetime updated_at
@@ -568,6 +592,7 @@ erDiagram
         int id PK
         int supplier_order_id FK, UK "nullable"
         int supplier_id FK
+        int ledger_account_id FK "nullable"
         int reception_id FK, UK "nullable"
         int created_by FK "nullable"
         string invoice_number
@@ -578,6 +603,7 @@ erDiagram
         int taxes "cents"
         int computed_total "cents"
         int invoice_total "cents"
+        decimal exchange_rate "12,6"
         int variance "cents"
         decimal discount_percent "5,2"
         int discount_days "nullable"
@@ -586,6 +612,8 @@ erDiagram
         int credit_requested "cents"
         string credit_note_number "nullable"
         date credit_received_at "nullable"
+        datetime paid_outside_at "nullable"
+        int paid_outside_by FK "nullable"
         bool discount_next_month
         string description "nullable"
         datetime created_at
@@ -596,6 +624,32 @@ erDiagram
         int supplier_invoice_id FK
         string tax_name "UK avec supplier_invoice_id"
         int amount "cents"
+        datetime created_at
+        datetime updated_at
+    }
+    supplier_payments {
+        int id PK
+        int supplier_id FK
+        int ledger_account_id FK
+        date paid_on
+        string method "SupplierPaymentMethod"
+        string reference "nullable"
+        int amount "cents · devise du fournisseur"
+        int amount_cad "cents"
+        int created_by FK "nullable"
+        datetime cancelled_at "nullable"
+        int cancelled_by FK "nullable"
+        string cancellation_reason "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    supplier_payment_allocations {
+        int id PK
+        int supplier_payment_id FK "UK avec supplier_invoice_id"
+        int supplier_invoice_id FK
+        int amount "cents · devise du fournisseur"
+        int discount "cents · devise du fournisseur"
+        int payable_cad "cents"
         datetime created_at
         datetime updated_at
     }
@@ -898,25 +952,54 @@ erDiagram
 
 ## Grand livre
 
-- `ledger_accounts` : comptes du grand livre. Les comptes système (`system_key` : stock, pertes,
-  fournitures, écart d'inventaire, solde d'ouverture) sont créés par `ReferenceDataSeeder`; le comptable en
-  change le code et le nom.
+- `ledger_accounts` : comptes du grand livre. Les comptes système (`system_key` : stock, achats non facturés,
+  comptes fournisseurs, coût des ventes, pertes, fournitures, écarts…) sont créés par `ReferenceDataSeeder`; le
+  comptable en change le code et le nom.
 - `ledger_entries` : écritures équilibrées et immuables, liées à leur document source par une référence
   **polymorphe** (`reference_type`, `reference_id`), sans clé étrangère.
-- `ledger_entry_lines` : un débit ou un crédit en cents par ligne. Seuls les ajustements d'inventaire passent
-  des écritures pour l'instant ([ADR 0011](adr/0011-inventory-movements-and-adjustments.md)).
+- `ledger_entry_lines` : un débit ou un crédit en cents par ligne. Les ajustements d'inventaire
+  ([ADR 0011](adr/0011-inventory-movements-and-adjustments.md)), les réceptions, leurs renversements, les factures
+  fournisseur, les notes de crédit, les paiements aux fournisseurs, les paiements clients et les ventes passent des
+  écritures ([ADR 0016](adr/0016-ledger-postings.md)).
+- `journal_entries` : écritures manuelles du journal général (soldes d'ouverture, dépôts des processeurs, virements,
+  frais bancaires, paie); leur écriture au grand livre les référence. `reverses_id` : écriture manuelle renversée
+  (une seule fois).
+- `ledger_closings` : historique des clôtures du grand livre; la dernière ligne donne `closed_through`, la date
+  jusqu'à laquelle aucune écriture n'est datée (une écriture plus ancienne est reportée au premier jour ouvert).
 
 ```mermaid
 erDiagram
     ledger_entries ||--o{ ledger_entry_lines : "ledger_entry_id · cascade"
     ledger_accounts ||--o{ ledger_entry_lines : "ledger_account_id · restrict"
     users |o--o{ ledger_entries : "user_id · null"
+    users |o--o{ ledger_closings : "user_id · null"
+    journal_entries |o--o| journal_entries : "reverses_id · restrict"
+    stores |o--o{ journal_entries : "store_id · restrict"
+    users |o--o{ journal_entries : "created_by · null"
     ledger_accounts {
         int id PK
         string code UK
         string name
         string type "LedgerAccountType"
         string system_key UK "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    journal_entries {
+        int id PK
+        date entry_date
+        string description
+        string document_number "nullable"
+        int store_id FK "nullable"
+        int reverses_id FK "nullable, unique"
+        int created_by FK "nullable"
+        datetime created_at
+        datetime updated_at
+    }
+    ledger_closings {
+        int id PK
+        date closed_through "nullable"
+        int user_id FK "nullable"
         datetime created_at
         datetime updated_at
     }
@@ -1362,7 +1445,8 @@ erDiagram
 - `store_tax_registrations` : numéro d'inscription du magasin pour chaque taxe (un par nom de taxe).
 - `customer_payment_methods` : modes de paiement des clients; `code` identifie ceux gérés par le
   code (`cash` pour « Comptant »). `is_usable_on_delivery` : le livreur peut l'enregistrer pour un paiement à la
-  livraison (ex. : TPV portatif). `merchant_payment_methods` : modes de paiement du marchand.
+  livraison (ex. : TPV portatif). `ledger_account_id` : compte d'encaisse ou de compensation où passent ses
+  paiements (vide : Encaisse CAD, ADR 0016). `merchant_payment_methods` : modes de paiement du marchand.
 
 ```mermaid
 erDiagram
@@ -1432,6 +1516,7 @@ erDiagram
         string name
         bool is_active
         bool is_usable_on_delivery
+        int ledger_account_id FK "nullable"
         string code UK "nullable"
         datetime created_at
         datetime updated_at

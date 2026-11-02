@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\BelongsToStore;
+use App\Enums\InventoryMovementType;
 use App\Enums\ReceptionStatus;
 use App\Enums\SupplierType;
 use App\Mail\ReceptionDiscrepancyReported;
@@ -20,6 +21,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -28,6 +30,7 @@ use Throwable;
  * @property string|null $number
  * @property int $supplier_id
  * @property ReceptionStatus $status
+ * @property string $exchange_rate Taux de la devise du fournisseur à la réception : les unités sont valorisées en CAD (ADR 0016).
  * @property int|null $received_by
  * @property Carbon $received_at
  * @property Carbon|null $completed_at
@@ -40,7 +43,7 @@ use Throwable;
  * @property-read Collection<int, ReceptionLine> $lines
  * @property-read Money $total
  */
-#[Fillable(['store_id', 'number', 'supplier_id', 'status', 'received_by', 'received_at', 'completed_at', 'reference', 'notes'])]
+#[Fillable(['store_id', 'number', 'supplier_id', 'status', 'exchange_rate', 'received_by', 'received_at', 'completed_at', 'reference', 'notes'])]
 class Reception extends Model
 {
     use BelongsToStore;
@@ -52,6 +55,7 @@ class Reception extends Model
         'status' => ReceptionStatus::class,
         'received_at' => 'datetime',
         'completed_at' => 'datetime',
+        'exchange_rate' => 'decimal:6',
     ];
 
     protected static function booted(): void
@@ -524,6 +528,8 @@ class Reception extends Model
                 throw new DomainException(__('Vérifiez chaque produit avant de terminer la réception.'));
             }
 
+            $this->update(['exchange_rate' => $this->supplier->conversionRate()]);
+
             $lines = $this->lines()->with('orderLine.order')->get();
 
             foreach ($lines->groupBy(fn (ReceptionLine $line) => $line->orderLine->supplier_order_id) as $orderLines) {
@@ -542,6 +548,7 @@ class Reception extends Model
 
             $this->update(['status' => ReceptionStatus::Completed, 'completed_at' => now(), 'received_at' => now()]);
             $this->unsetRelation('lines');
+            $this->postReceiptEntry();
         });
 
         return $this->notifyDiscrepancies();
@@ -638,6 +645,36 @@ class Reception extends Model
 
             return $reception;
         });
+    }
+
+    /**
+     * Écriture de la réception (ADR 0016) : la valeur des unités créées, en CAD, entre au Stock et attend sa facture
+     * dans Achats non facturés.
+     */
+    private function postReceiptEntry(): void
+    {
+        $value = Money::sum(InventoryMovement::query()
+            ->where('reference_type', (new ReceptionLine)->getMorphClass())
+            ->whereIn('reference_id', $this->lines()->select('id'))
+            ->whereIn('type', [InventoryMovementType::Receipt, InventoryMovementType::ReceiptDamaged])
+            ->get()
+            ->map(fn (InventoryMovement $movement): Money => $movement->value ?? Money::zero())
+            ->all());
+
+        if (! $value->isPositive()) {
+            return;
+        }
+
+        LedgerEntry::post(
+            Str::limit(__('Réception :number — :supplier', ['number' => $this->number ?? $this->id, 'supplier' => $this->supplier->name]), 250),
+            [
+                ['account' => LedgerAccount::forKey(LedgerAccount::INVENTORY), 'debit' => $value],
+                ['account' => LedgerAccount::forKey(LedgerAccount::GOODS_RECEIVED_NOT_INVOICED), 'credit' => $value],
+            ],
+            $this,
+            $this->received_at,
+            storeId: $this->store_id,
+        );
     }
 
     private function guardInProgress(ReceptionLine $line): void

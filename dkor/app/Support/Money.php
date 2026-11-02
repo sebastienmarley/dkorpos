@@ -88,6 +88,49 @@ final class Money implements JsonSerializable
         return $this->cents;
     }
 
+    /**
+     * Répartit le montant au prorata des poids, au cent près : la somme des parts égale toujours le montant (plus fort
+     * reste). Des poids tous nuls répartissent à parts égales.
+     *
+     * @template TKey of array-key
+     *
+     * @param  array<TKey, int>  $weights  Poids positifs ou nuls.
+     * @return array<TKey, Money>
+     */
+    public function allocate(array $weights): array
+    {
+        if ($weights === []) {
+            return [];
+        }
+
+        $total = array_sum($weights);
+
+        if ($total <= 0) {
+            $weights = array_map(fn (): int => 1, $weights);
+            $total = count($weights);
+        }
+
+        $magnitude = abs($this->cents);
+        $shares = [];
+        $remainders = [];
+
+        foreach ($weights as $key => $weight) {
+            $exact = $magnitude * $weight / $total;
+            $shares[$key] = (int) floor($exact);
+            $remainders[$key] = $exact - $shares[$key];
+        }
+
+        arsort($remainders);
+
+        foreach (array_slice(array_keys($remainders), 0, $magnitude - array_sum($shares)) as $key) {
+            $shares[$key]++;
+        }
+
+        $sign = $this->cents < 0 ? -1 : 1;
+
+        return array_map(fn (int $cents): self => new self($sign * $cents), $shares);
+    }
+
     /** Montant en dollars, sans séparateur de milliers (« 1234.50 », « -0.05 ») : pour un champ de formulaire. */
     public function toDecimal(): string
     {

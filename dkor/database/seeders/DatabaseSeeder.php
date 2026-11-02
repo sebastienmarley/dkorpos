@@ -27,21 +27,6 @@ class DatabaseSeeder extends Seeder
         );
 
         User::updateOrCreate(
-            ['email' => 'testuser@dkor.ca'],
-            [
-                'firstname' => 'Test',
-                'lastname' => 'User',
-                'username' => 'testuser',
-                'store_id' => $store->id,
-                'is_active' => true,
-                'first_day' => now()->subMonths(3)->toDateString(),
-                'last_day' => null,
-                'email_verified_at' => now(),
-                'password' => bcrypt('password'),
-            ],
-        )->syncRoles('salesman');
-
-        User::updateOrCreate(
             ['email' => 'testadmin@dkor.ca'],
             [
                 'firstname' => 'Test',
@@ -63,20 +48,5 @@ class DatabaseSeeder extends Seeder
             ['type' => SupplierType::Service, 'name' => 'Services Informatiques Gagnon'],
             ['type' => SupplierType::Shipping, 'name' => 'Transport Express Bouchard'],
         ]);
-
-        User::updateOrCreate(
-            ['email' => 'testsale@dkor.ca'],
-            [
-                'firstname' => 'Test',
-                'lastname' => 'Sale',
-                'username' => 'testsale',
-                'store_id' => $store->id,
-                'is_active' => true,
-                'first_day' => now()->subMonths(3)->toDateString(),
-                'last_day' => null,
-                'email_verified_at' => now(),
-                'password' => bcrypt('password'),
-            ],
-        )->syncRoles('salesman');
     }
 }

@@ -40,6 +40,7 @@ class Navigation
         $sections = [
             [null, [
                 $this->item(__('Accueil'), 'home', 'home'),
+                $this->item(__('Statistiques'), 'chart-bar', 'stats.index'),
             ]],
             ['Ventes', [
                 $this->item(__('Clients'), 'user-group', 'customers.index', 'customers.*', $user->can('customers.view')),
@@ -73,11 +74,14 @@ class Navigation
             ]],
             ['Comptabilité', [
                 $this->item(__('Facturation fournisseurs'), 'document-text', 'accounting.invoices', 'accounting.invoices*', $user->can('invoices.view')),
+                $this->item(__('Comptes à payer'), 'banknotes', 'accounting.payables', allowed: $user->can('supplier_payments.view')),
                 $this->item(__('Paie'), 'banknotes', 'accounting.payroll', allowed: $user->can('payroll.view')),
                 $this->item(__('Modes de paiement'), 'credit-card', 'accounting.payment-methods', allowed: $user->can('payment_methods.view')),
                 $this->item(__('Taxes'), 'receipt-percent', 'accounting.taxes', allowed: $user->can('taxes.view')),
                 $this->item(__('Devises'), 'currency-dollar', 'accounting.currencies', allowed: $user->can('currencies.view')),
                 $this->item(__('Grand livre'), 'book-open', 'accounting.ledger', allowed: $user->can('ledger.view')),
+                $this->item(__('Journal général'), 'pencil-square', 'accounting.journal', allowed: $user->can('ledger.view')),
+                $this->item(__('États comptables'), 'document-chart-bar', 'accounting.statements', allowed: $user->can('ledger.view')),
             ]],
             ['Gestion horaire', [
                 $this->item(__('Mon horaire'), 'calendar-days', 'schedules.index', allowed: $user->can('schedules.view')),

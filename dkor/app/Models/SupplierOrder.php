@@ -28,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -429,8 +430,10 @@ class SupplierOrder extends Model
 
             $receptionLine->update(['quantity' => $quantity, 'quantity_damaged' => $damaged, 'quantity_short' => $short, 'unit_cost' => $cost]);
 
-            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $good, InventoryMovementType::Receipt, $receptionLine, unitCost: $cost);
-            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::DefectiveStock, $damaged, InventoryMovementType::ReceiptDamaged, $receptionLine, unitCost: $cost);
+            $unitValue = $cost->multiply($reception->exchange_rate);
+
+            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::InStock, $good, InventoryMovementType::Receipt, $receptionLine, unitCost: $unitValue);
+            $this->moveStock($line, InventoryStatus::OnOrder, InventoryStatus::DefectiveStock, $damaged, InventoryMovementType::ReceiptDamaged, $receptionLine, unitCost: $unitValue);
 
             $this->moveStock($line, InventoryStatus::OnOrder, null, $short, InventoryMovementType::ShortShipped, $receptionLine);
 
@@ -515,7 +518,20 @@ class SupplierOrder extends Model
         $customerLine = $line->customerOrderLine()->with('order')->first();
         $customerLine?->order->applySupplierReceiptReversal($customerLine, $quantity);
 
-        $this->moveStock($line, InventoryStatus::InStock, InventoryStatus::OnOrder, $quantity, InventoryMovementType::ReceiptReversal, $receptionLine, $reason);
+        $movement = $this->moveStock($line, InventoryStatus::InStock, InventoryStatus::OnOrder, $quantity, InventoryMovementType::ReceiptReversal, $receptionLine, $reason);
+
+        if ($movement?->value?->isPositive()) {
+            $stock = LedgerAccount::forKey(LedgerAccount::INVENTORY);
+            $pending = LedgerAccount::forKey(LedgerAccount::GOODS_RECEIVED_NOT_INVOICED);
+
+            LedgerEntry::post(
+                Str::limit(__('Renversement de la réception :number — :product', ['number' => $receptionLine->reception->number ?? $receptionLine->reception_id, 'product' => $line->label]), 250),
+                [['account' => $pending, 'debit' => $movement->value], ['account' => $stock, 'credit' => $movement->value]],
+                $receptionLine,
+                userId: $reversedBy,
+                storeId: $this->store_id,
+            );
+        }
 
         $line->update(['quantity_received' => $line->quantity_received - $quantity]);
 
@@ -924,12 +940,12 @@ class SupplierOrder extends Model
         ?Model $reference = null,
         ?string $note = null,
         ?Money $unitCost = null,
-    ): void {
+    ): ?InventoryMovement {
         if ($line->product_id === null || $quantity < 1) {
-            return;
+            return null;
         }
 
-        InventoryMovement::record($line->product_id, (int) $this->store_id, $from, $to, $quantity, $type, $reference ?? $line, $note, unitCost: $unitCost);
+        return InventoryMovement::record($line->product_id, (int) $this->store_id, $from, $to, $quantity, $type, $reference ?? $line, $note, unitCost: $unitCost);
     }
 
     private function guardStatus(SupplierOrderStatus $expected, string $message): void
