@@ -243,7 +243,7 @@ describe('onglet Commandes fournisseur', function () {
     it('cherche par modèle, description, client ou numéro de commande', function (string $term) {
         $line = orderedPartLine(['model' => 'PC-12', 'description' => 'Verre de lampe'], ['firstname' => 'Julie', 'lastname' => 'Tremblay'], ['id' => 4242]);
         $line->supplierOrderLine->order->update(['number' => 'CF-777777']);
-        orderedPartLine(['model' => 'ZX-99', 'description' => 'Pied de chaise'], ['firstname' => 'Marc', 'lastname' => 'Gagnon'], ['id' => 5151]);
+        orderedPartLine(['model' => 'ZX-99', 'description' => 'Pied de chaise'], ['firstname' => 'Marc', 'lastname' => 'Gagnon', 'email' => 'marc.gagnon@example.com', 'phone' => '(418)555-0100'], ['id' => 5151]);
 
         Livewire::test(Index::class)
             ->set('tab', 'orders')
