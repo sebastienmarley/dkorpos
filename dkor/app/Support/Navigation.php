@@ -40,6 +40,7 @@ class Navigation
         $sections = [
             [null, [
                 $this->item(__('Accueil'), 'home', 'home'),
+                $this->item(__('Statistiques'), 'chart-bar', 'stats.index'),
             ]],
             ['Ventes', [
                 $this->item(__('Clients'), 'user-group', 'customers.index', 'customers.*', $user->can('customers.view')),

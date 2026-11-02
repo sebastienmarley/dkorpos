@@ -20,7 +20,7 @@ it('ne montre que les pages permises', function () {
     $user = User::factory()->withRole('visiteur')->create();
     $user->givePermissionTo(['customers.view', 'products.view']);
 
-    expect(navigationRoutes($user))->toBe(['home', 'customers.index', 'products.index']);
+    expect(navigationRoutes($user))->toBe(['home', 'stats.index', 'customers.index', 'products.index']);
 });
 
 it('masque les sections sans page permise', function () {

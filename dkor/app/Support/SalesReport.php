@@ -4,9 +4,14 @@ namespace App\Support;
 
 use App\Models\CustomerOrder;
 use App\Models\LedgerAccount;
+use App\Models\LedgerEntry;
 use App\Models\LedgerEntryLine;
+use App\Models\User;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Ventes qui quittent le magasin : ventes de marchandises et de services passées au grand livre pour les commandes
@@ -15,6 +20,32 @@ use Illuminate\Support\Collection;
  */
 class SalesReport
 {
+    /** Date de la première vente passée au grand livre, pour borner les années offertes. */
+    public static function firstSaleDate(): ?CarbonImmutable
+    {
+        $date = LedgerEntry::query()->where('reference_type', (new CustomerOrder)->getMorphClass())->min('posted_on');
+
+        return $date === null ? null : CarbonImmutable::parse($date);
+    }
+
+    /**
+     * Vendeurs : les employés au rôle de vendeur et tous ceux qui ont une part d'une commande, d'un magasin ou de
+     * l'ensemble.
+     *
+     * @return EloquentCollection<int, User>
+     */
+    public static function salespeople(?int $storeId = null): EloquentCollection
+    {
+        return User::query()
+            ->when($storeId !== null, fn ($query) => $query->where('store_id', $storeId))
+            ->where(fn ($query) => $query
+                ->whereHas('roles', fn ($roles) => $roles->where('name', 'salesman'))
+                ->orWhereIn('id', DB::table('customer_order_salesperson')->select('user_id')))
+            ->orderBy('firstname')
+            ->orderBy('lastname')
+            ->get();
+    }
+
     /**
      * Ventes de chaque commande entre deux dates incluses, en cents, pour un magasin ou pour l'ensemble.
      *
@@ -43,14 +74,21 @@ class SalesReport
         return Money::of((int) self::byOrder($from, $to, $storeId)->sum());
     }
 
+    /** Part des ventes d'un vendeur entre deux dates incluses, dans un magasin ou dans l'ensemble. */
+    public static function forSalesperson(int $userId, CarbonInterface $from, CarbonInterface $to, ?int $storeId = null): Money
+    {
+        return Money::of(self::bySalesperson($from, $to, $storeId)[$userId] ?? 0);
+    }
+
     /**
-     * Ventes de chaque vendeur entre deux dates incluses, en cents : sa part de la vente de chaque commande.
+     * Ventes de chaque vendeur entre deux dates incluses, en cents : sa part de la vente de chaque commande, dans un
+     * magasin ou dans l'ensemble.
      *
      * @return array<int, int>
      */
-    public static function bySalesperson(CarbonInterface $from, CarbonInterface $to): array
+    public static function bySalesperson(CarbonInterface $from, CarbonInterface $to, ?int $storeId = null): array
     {
-        $salesByOrder = self::byOrder($from, $to);
+        $salesByOrder = self::byOrder($from, $to, $storeId);
         $sales = [];
 
         foreach (CustomerOrder::query()->whereIn('id', $salesByOrder->keys())->get() as $order) {

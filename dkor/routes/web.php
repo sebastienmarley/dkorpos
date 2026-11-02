@@ -52,6 +52,7 @@ use App\Livewire\Schedules\Index as SchedulesIndex;
 use App\Livewire\Schedules\ScheduleEdit;
 use App\Livewire\Schedules\Templates;
 use App\Livewire\Shipments\Index as ShipmentsIndex;
+use App\Livewire\Stats\Index as StatsIndex;
 use App\Livewire\Stores\Index as StoresIndex;
 use App\Livewire\Stores\Show as StoreShow;
 use App\Livewire\Suppliers\Index as SuppliersIndex;
@@ -72,6 +73,7 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('home', 'home')->name('home');
+    Route::get('stats', StatsIndex::class)->name('stats.index');
     Route::get('users', UsersIndex::class)->middleware('can:users.view')->name('users.index');
     Route::get('users/{user}', UserShow::class)->middleware('can:users.view')->name('users.show');
 
