@@ -8,7 +8,6 @@ use App\Actions\RequestShipment;
 use App\Actions\ScheduleDelivery;
 use App\Enums\DeliveryPeriod;
 use App\Enums\LedgerAccountType;
-use App\Enums\ScheduleStatus;
 use App\Enums\SupplierPaymentMethod;
 use App\Enums\SupplierType;
 use App\Models\Currency;
@@ -53,9 +52,15 @@ class DemoDataSeeder extends Seeder
 {
     private const DAYS = 60;
 
+    /** Jours d'horaire publiés après aujourd'hui, pour planifier des livraisons et prendre des rendez-vous. */
+    private const SCHEDULE_DAYS_AHEAD = 28;
+
     private Store $store;
 
     private User $admin;
+
+    /** @var list<User> */
+    private array $salespeople = [];
 
     private CustomerPaymentMethod $cash;
 
@@ -98,6 +103,7 @@ class DemoDataSeeder extends Seeder
         try {
             $this->on(0, function (): void {
                 $this->setUpStore();
+                $this->setUpEmployees();
                 $this->setUpPaymentMethods();
                 $this->setUpSuppliersAndProducts();
                 $this->setUpCustomers();
@@ -106,6 +112,7 @@ class DemoDataSeeder extends Seeder
 
             $this->stockPurchases();
             $this->sales();
+            $this->recentSales();
             $this->supplierPayments();
             $this->cardDeposits();
             $this->closeOldPeriod();
@@ -162,18 +169,121 @@ class DemoDataSeeder extends Seeder
         }
 
         DeliveryTruck::factory()->create(['store_id' => $this->store->id, 'name' => 'Camion 1', 'capacity_per_period' => 3]);
+    }
 
-        $driver = User::factory()->withRole('delivery')->create(['store_id' => $this->store->id, 'firstname' => 'Luc', 'lastname' => 'Livreur']);
+    /**
+     * Un employé par rôle (l'administrateur existe déjà), deux vendeurs à commission et à primes, tous avec le mot de
+     * passe « password ».
+     * Le livreur travaille du lundi au vendredi ; les vendeurs et le designer ont des quarts aléatoires dans les
+     * heures d'ouverture du magasin, pour tester les rendez-vous. Les horaires couvrent aussi les semaines à venir.
+     */
+    private function setUpEmployees(): void
+    {
+        $this->info('Employés…');
+        $employees = [
+            ['owner', 'Paul', 'Proprio', 'proprio'],
+            ['manager', 'Marie', 'Directrice', 'directeur'],
+            ['salesman', 'Sophie', 'Vendeuse', 'vendeur'],
+            ['salesman', 'Marc', 'Vendeur', 'vendeur2'],
+            ['design', 'Diane', 'Designer', 'designer'],
+            ['delivery', 'Luc', 'Livreur', 'livreur'],
+            ['warehouse', 'Eric', 'Commis', 'entrepot'],
+            ['accounting', 'Claire', 'Comptable', 'comptable'],
+            ['thirdkey', 'Tom', 'Clef', 'troisiemecle'],
+        ];
 
-        for ($day = 0; $day <= self::DAYS + 14; $day++) {
-            Schedule::factory()->create([
-                'user_id' => $driver->id,
-                'date' => $this->start->addDays($day)->toDateString(),
-                'start_time' => '08:00',
-                'end_time' => '17:00',
-                'status' => ScheduleStatus::Published,
+        foreach ($employees as [$role, $firstname, $lastname, $emailName]) {
+            $user = User::factory()->withRole($role)->create([
+                'store_id' => $this->store->id,
+                'firstname' => $firstname,
+                'lastname' => $lastname,
+                'email' => $emailName.'@dkor.ca',
+                'first_day' => $this->start->subMonths(6)->toDateString(),
+                ...($role === 'salesman' ? ['has_commission' => true, 'commission_rate' => '3.00', 'has_bonus' => true, 'weekly_sales_target' => 3000, 'bonus_amount' => 25, 'bonus_step' => 500] : []),
             ]);
+
+            if ($role === 'salesman') {
+                $this->salespeople[] = $user;
+            }
+
+            if ($role === 'delivery') {
+                $this->publishDriverSchedule($user);
+            }
+
+            if (in_array($role, ['salesman', 'design'], true)) {
+                $this->publishRandomSchedule($user);
+            }
         }
+    }
+
+    private function publishDriverSchedule(User $user): void
+    {
+        for ($day = 0; $day <= self::DAYS + self::SCHEDULE_DAYS_AHEAD; $day++) {
+            $date = $this->start->addDays($day);
+
+            if ($date->isWeekend()) {
+                continue;
+            }
+
+            $this->publishShift($user, $date, '08:00', '17:00', 60);
+        }
+    }
+
+    /**
+     * Quarts de 4 à 8 heures, quatre ou cinq jours ouverts par semaine, dans les heures d'ouverture du magasin et
+     * jamais plus de 40 heures travaillées (pause déduite) dans une semaine.
+     */
+    private function publishRandomSchedule(User $user): void
+    {
+        $end = $this->start->addDays(self::DAYS + self::SCHEDULE_DAYS_AHEAD);
+
+        for ($week = $this->start->startOfWeek(); $week->lte($end); $week = $week->addWeek()) {
+            $openDays = collect(range(0, 6))
+                ->map(fn (int $offset): CarbonImmutable => $week->addDays($offset))
+                ->filter(fn (CarbonImmutable $date): bool => $date->between($this->start, $end) && ($this->store->opening_hours[strtolower($date->englishDayOfWeek)]['open'] ?? false))
+                ->shuffle()
+                ->take(fake()->numberBetween(4, 5))
+                ->sortBy(fn (CarbonImmutable $date): int => $date->getTimestamp());
+            $remainingMinutes = 40 * 60;
+
+            foreach ($openDays as $date) {
+                $hours = $this->store->opening_hours[strtolower($date->englishDayOfWeek)];
+                [$opensAt, $closesAt] = [$this->minutesOf($hours['from']), $this->minutesOf($hours['to'])];
+                $length = min(fake()->numberBetween(8, 16) * 30, $closesAt - $opensAt);
+                $breakMinutes = $length > 5 * 60 ? 30 : 0;
+
+                if ($length - $breakMinutes > $remainingMinutes || $length < 4 * 60) {
+                    continue;
+                }
+
+                $startsAt = $opensAt + fake()->numberBetween(0, intdiv($closesAt - $opensAt - $length, 30)) * 30;
+                $this->publishShift($user, $date, $this->timeOf($startsAt), $this->timeOf($startsAt + $length), $breakMinutes);
+                $remainingMinutes -= $length - $breakMinutes;
+            }
+        }
+    }
+
+    private function publishShift(User $user, CarbonImmutable $date, string $startTime, string $endTime, int $breakMinutes): void
+    {
+        Schedule::factory()->published()->create([
+            'user_id' => $user->id,
+            'date' => $date->toDateString(),
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'break_minutes' => $breakMinutes,
+        ]);
+    }
+
+    private function minutesOf(string $time): int
+    {
+        [$hours, $minutes] = array_map(intval(...), explode(':', $time));
+
+        return $hours * 60 + $minutes;
+    }
+
+    private function timeOf(int $minutes): string
+    {
+        return sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
     }
 
     private function setUpPaymentMethods(): void
@@ -316,7 +426,7 @@ class DemoDataSeeder extends Seeder
             $day = 15 + intdiv($index * 40, 24);
 
             $this->on($day, function () use ($scenario, $index, $day): void {
-                $order = CustomerOrder::factory()->create(['customer_id' => $this->customers[$index % $this->customers->count()]->id, 'store_id' => $this->store->id]);
+                $order = $this->newOrder($index);
 
                 match ($scenario) {
                     'delivery', 'shipment', 'specialOrder', 'service', 'return' => $this->{$scenario}($order, $day),
@@ -324,6 +434,34 @@ class DemoDataSeeder extends Seeder
                 };
             });
         }
+    }
+
+    /**
+     * Ramassages de la dernière semaine, jusqu'à aujourd'hui, pour que l'accueil montre des ventes du jour, de la
+     * semaine et du mois.
+     */
+    private function recentSales(): void
+    {
+        $this->info('Ventes récentes…');
+
+        foreach (range(self::DAYS - 6, self::DAYS) as $offset => $day) {
+            foreach (range(0, $offset % 2) as $number) {
+                $this->on($day, fn () => $this->pickup($this->newOrder(100 + $offset * 2 + $number)));
+            }
+        }
+    }
+
+    /**
+     * Commande d'un client, vendue par un des deux vendeurs ou, une fois sur cinq, partagée entre eux.
+     */
+    private function newOrder(int $index): CustomerOrder
+    {
+        $order = CustomerOrder::factory()->create(['customer_id' => $this->customers[$index % $this->customers->count()]->id, 'store_id' => $this->store->id]);
+        $order->syncSalespeople($index % 5 === 0
+            ? [['user_id' => $this->salespeople[0]->id, 'percent' => 50], ['user_id' => $this->salespeople[1]->id, 'percent' => 50]]
+            : [['user_id' => $this->salespeople[$index % 2]->id, 'percent' => 100]]);
+
+        return $order;
     }
 
     /**
@@ -385,7 +523,7 @@ class DemoDataSeeder extends Seeder
         $this->pay($order, [], $order->fresh()->balance_due);
 
         $quantities = collect($lines)->mapWithKeys(fn (CustomerOrderLine $line): array => [$line->id => 1])->all();
-        $deliveryDay = min($day + 3, self::DAYS - 1);
+        $deliveryDay = $this->weekdayNear($day + 3);
         $delivery = app(ScheduleDelivery::class)->handle($order->fresh(), $quantities, $this->start->addDays($deliveryDay)->toDateString(), DeliveryPeriod::Pm);
 
         $this->on($deliveryDay, function () use ($order, $delivery): void {
@@ -397,6 +535,27 @@ class DemoDataSeeder extends Seeder
                 $order->fresh()->completeServiceLine($serviceLine);
             }
         });
+    }
+
+    /**
+     * Premier jour de semaine à partir de $day (le livreur ne travaille pas la fin de semaine), sans dépasser la
+     * période de démonstration : on recule alors au dernier jour de semaine de la période.
+     */
+    private function weekdayNear(int $day): int
+    {
+        while ($this->start->addDays($day)->isWeekend()) {
+            $day++;
+        }
+
+        if ($day > self::DAYS - 1) {
+            $day = self::DAYS - 1;
+
+            while ($this->start->addDays($day)->isWeekend()) {
+                $day--;
+            }
+        }
+
+        return $day;
     }
 
     private function shipment(CustomerOrder $order, int $day): void

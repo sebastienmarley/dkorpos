@@ -37,6 +37,7 @@ $pageAccess = [
 ];
 
 $managementAccess = [
+    'sales.view_store',
     'labels.view',
     'labels.print',
     'customer_orders.assign_salespeople',
@@ -141,6 +142,7 @@ return [
         'transfers.accept' => ['Accepter un transfert — magasins', 'Accepter ou refuser les transferts demandés au magasin.'],
         'transfers.receive' => ['Recevoir un transfert — magasins', 'Confirmer la réception des transferts arrivés au magasin.'],
         'deliveries.handle' => ['Faire les livraisons', 'Accéder au menu « Mes livraisons » : ordre de la route, chargement du camion et remise au client.'],
+        'sales.view_store' => ['Voir les ventes du magasin', 'Voir à l\'accueil les ventes du jour, de la semaine et du mois du magasin (de tous les magasins avec stores.all).'],
         'deliveries.view' => ['Voir — livraisons', 'Accéder à la page : livraisons (places par demi-journée et livraisons planifiées).'],
         'customer_orders.assign_salespeople' => ['Gérer les vendeurs — commandes clients', 'Modifier les vendeurs et la répartition de la vente dans : commandes clients.'],
         'suppliers.view' => ['Voir — fournisseurs', 'Accéder à la page : fournisseurs.'],

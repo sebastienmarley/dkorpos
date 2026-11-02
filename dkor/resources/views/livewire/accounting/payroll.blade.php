@@ -83,6 +83,6 @@
     </div>
 
     <flux:text class="mt-3 text-sm text-zinc-400">
-        {{ __('Primes et commissions : à 0 tant que le module de ventes n\'existe pas.') }}
+        {{ __('Primes et commissions : sur les ventes avant taxes remises au client pendant la période, moins les retours, selon la part de chaque vendeur. La prime se calcule par semaine.') }}
     </flux:text>
 </div>
