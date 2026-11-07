@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-=======
 ---
 title: "Réflexion semaine 7"
 date: 2026-10-27
@@ -12,6 +10,7 @@ tags:
   - "projet"
   - "réflexion"
 ---
+
 
 # Jour 5 : Le visuel et le mode mobile
 Semaine de l'Halloween oblige, moins de temps pour le projet, mais bon ce matin je me lance, UI, je reformate complètement l'interface utilisateur. La navigation en mobile était absolument atroce, my bad je n'avais pas encore vraiment testé avec l'option de dév. dans Safari. Post deploiement j'ai testé sur mon cellulaire et j'ai eu un petit choc, je croyais pourtant avoir mis les restrictions en place au début, mais bon un petit refacto, la beauté d'utiliser des gabarits (blade et layout) c'est que ça s'adapte très rapidement et les modifications n'ont pas à être appliqué de long en large sur chaque page. J'ai ajouté une recherche de type "Spotlight" j'adore cette fonction dans l'application développée au travail, alors je savais que tôt ou tard je l'intégrerais dans celle-ci parce que ça permet d'accélérer le travail pour un commis de bureau. En plus il est possible de passer des fonctions et des arguments, alors un usager pourrait chercher commande fournisseur 8 et ouvrir la dite commande, etc. J'ai failli faire une gaffe et faire un merge de mon PR directement dans le main au lieu du develop, je dois vraiment faire plus attention. D'ailleurs, le PR a échoué les tests passaient en local, mais pas en git, à cause de la façon de passer la liste pour les titres de la nav.  
@@ -29,4 +28,3 @@ J'ai fait fabriquer mon demoSeeder, en utilisant les factory et les fonctions r�
 
 # Conclusion du weekend
 Malgré le peu de temps, j'ai pu accomplir de nombreuses tâches qui m'énervaient. Suite au déploiement de la semaine dernière je me devais de déployer une mise à niveau pour permettre de fonctionner sur mobile, c'est chose faite. La migration de ce soir me fait plus peur, car elle implique ma première migration de table en prod. mais aussi il s'agit d'un gigantesque revamp de l'interface usager, si en desktop c'est peu visible il en va autrement sur téléphone. Tout semble fonctionner, le crochet fait son travail, les règles de déploiement aussi, les nouvelles permissions ont suivi et mes données de prod sont intactes. 
->>>>>>> Stashed changes
