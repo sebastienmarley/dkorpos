@@ -1,6 +1,10 @@
 <div class="mt-6">
-    <flux:heading size="sm" class="mb-1">{{ __('Démonstrateurs et liquidations') }}</flux:heading>
-    <flux:text class="mb-3 text-sm text-zinc-500">{{ __('Un démonstrateur donne son prix à un article en démo : passez d\'abord l\'article en démo dans les mouvements d\'inventaire. Une liquidation vend le stock en main du magasin à son prix, sans commande au fournisseur.') }}</flux:text>
+    <div class="mb-3 flex items-center gap-1.5">
+        <flux:heading size="sm">{{ __('Démonstrateurs et liquidations') }}</flux:heading>
+        <flux:tooltip :content="__('Un démonstrateur donne son prix à un article en démo : passez d\'abord l\'article en démo dans les mouvements d\'inventaire. Une liquidation vend le stock en main du magasin à son prix, sans commande au fournisseur.')">
+            <flux:icon name="information-circle" class="h-4 w-4 text-zinc-400" />
+        </flux:tooltip>
+    </div>
 
     <div class="space-y-4">
         @forelse ($this->getStoreRows() as $row)
@@ -52,11 +56,11 @@
                                 <flux:checkbox wire:model="demoIsAsIs" :label="__('Vendu tel quel (non retournable)')" />
                                 <div class="flex justify-end gap-2">
                                     <flux:button type="button" size="sm" variant="ghost" wire:click="$set('demoStoreId', null)">{{ __('Annuler') }}</flux:button>
-                                    <flux:button type="submit" size="sm" variant="primary">{{ __('Ajouter') }}</flux:button>
+                                    <flux:button type="submit" size="sm" variant="primary">{{ __('Créer') }}</flux:button>
                                 </div>
                             </form>
                         @else
-                            <flux:button size="sm" variant="ghost" icon="plus" wire:click="openDemoForm({{ $store->id }})">{{ __('Ajouter un démonstrateur') }}</flux:button>
+                            <flux:button size="sm" variant="ghost" icon="plus" wire:click="openDemoForm({{ $store->id }})">{{ __('Créer une vente démonstrateur') }}</flux:button>
                         @endif
                     @endif
                 </div>
