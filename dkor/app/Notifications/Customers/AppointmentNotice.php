@@ -24,10 +24,7 @@ class AppointmentNotice extends Notification
     public function toMail(customer $notifiable): MailMessage
     {
         $store = $this->appointment->store();
-        $when = __(':date à :time', [
-            'date' => $this->appointment->startsAt()->translatedFormat('l j F Y'),
-            'time' => $this->appointment->startsAt()->format('H:i'),
-        ]);
+        $when = $this->appointment->startsAtLabel();
 
         $message = (new MailMessage)
             ->subject($this->type->label().($store ? ' — '.$store->name : ''))

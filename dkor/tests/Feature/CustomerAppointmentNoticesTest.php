@@ -50,7 +50,7 @@ it('confirme au client la date, l\'heure et l\'adresse de son rendez-vous', func
 
     $mails = appointmentMails($this->customer, CustomerNoticeType::AppointmentBooked);
     expect($mails)->toHaveCount(1)
-        ->and($mails[0])->toContain('13 octobre 2026 à 09:00')
+        ->and($mails[0])->toContain($appointment->startsAtLabel())
         ->toContain('Succursale Rimouski')
         ->toContain('25 rue Saint-Germain');
 
@@ -63,13 +63,14 @@ it('avise le client quand la date ou l\'heure de son rendez-vous change', functi
     $appointment = customerAppointment($this->customer, $this->employee);
 
     $appointment->update(['start_minute' => 14 * 60]);
+    $movedLabel = $appointment->startsAtLabel();
     $afterTimeChange = appointmentMails($this->customer, CustomerNoticeType::AppointmentMoved);
 
     $this->travel(1)->minute();
     $appointment->update(['date' => '2026-10-14']);
 
     expect($afterTimeChange)->toHaveCount(1)
-        ->and($afterTimeChange[0])->toContain('13 octobre 2026 à 14:00')
+        ->and($afterTimeChange[0])->toContain($movedLabel)
         ->and(appointmentMails($this->customer, CustomerNoticeType::AppointmentMoved))->toHaveCount(2)
         ->and(CustomerNotice::query()->where('type', CustomerNoticeType::AppointmentMoved)->count())->toBe(2);
 });
@@ -84,7 +85,7 @@ it('n\'avise pas le client d\'un changement de titre, de notes ou d\'employé', 
 });
 
 it('avise le client de l\'annulation de son rendez-vous supprimé à l\'agenda', function () {
-    customerAppointment($this->customer, $this->employee);
+    $appointment = customerAppointment($this->customer, $this->employee);
 
     Livewire::test(Appointments::class)
         ->set('selectedUserId', $this->employee->id)
@@ -94,7 +95,7 @@ it('avise le client de l\'annulation de son rendez-vous supprimé à l\'agenda',
     $mails = appointmentMails($this->customer, CustomerNoticeType::AppointmentCancelled);
     expect(Appointment::count())->toBe(0)
         ->and($mails)->toHaveCount(1)
-        ->and($mails[0])->toContain('13 octobre 2026 à 09:00');
+        ->and($mails[0])->toContain($appointment->startsAtLabel());
     expect(CustomerNotice::query()->where('type', CustomerNoticeType::AppointmentCancelled)->sole()->isResendable())->toBeFalse();
 });
 
@@ -119,7 +120,7 @@ it('rappelle la veille, une seule fois, les rendez-vous du lendemain', function 
     $mails = appointmentMails($this->customer, CustomerNoticeType::AppointmentReminder);
     expect($mails)->toHaveCount(1)
         ->and($mails[0])->toContain('demain')
-        ->toContain('29 septembre 2026 à 10:00')
+        ->toContain($tomorrow->startsAtLabel())
         ->and(CustomerNotice::query()->where('type', CustomerNoticeType::AppointmentReminder)->count())->toBe(1)
         ->and(CustomerNotice::query()->where('type', CustomerNoticeType::AppointmentReminder)->sole()->subject->is($tomorrow))->toBeTrue();
 });

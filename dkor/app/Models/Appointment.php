@@ -67,6 +67,15 @@ class Appointment extends Model
         return Carbon::parse($this->date)->startOfDay()->addMinutes($this->start_minute);
     }
 
+    /** Date et heure du rendez-vous pour un avis au client (ex. : mardi 13 octobre 2026 à 09:00). */
+    public function startsAtLabel(): string
+    {
+        return __(':date à :time', [
+            'date' => $this->startsAt()->translatedFormat('l j F Y'),
+            'time' => $this->startsAt()->format('H:i'),
+        ]);
+    }
+
     /**
      * Magasin où le rendez-vous a lieu : celui de l'employé, sinon le magasin par défaut (bureau chef).
      */
