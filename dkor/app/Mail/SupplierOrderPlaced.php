@@ -23,6 +23,6 @@ class SupplierOrderPlaced extends Mailable
 
     public function content(): Content
     {
-        return new Content(markdown: 'mail.supplier-order-placed');
+        return new Content(view: 'documents.supplier-order');
     }
 }

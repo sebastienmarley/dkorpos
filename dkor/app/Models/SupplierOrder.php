@@ -366,6 +366,14 @@ class SupplierOrder extends Model
     }
 
     /**
+     * Charge ce qu'affiche le bon de commande (courriel et impression).
+     */
+    public function loadDocument(): static
+    {
+        return $this->load(['store', 'billingStore', 'supplier.currency', 'shippingSupplier', 'lines.product']);
+    }
+
+    /**
      * Les courriels aux fournisseurs sont-ils activés (config supplier_orders.email_enabled)?
      */
     public static function emailEnabled(): bool
@@ -385,7 +393,7 @@ class SupplierOrder extends Model
         }
 
         try {
-            Mail::to($recipient)->send(new SupplierOrderPlaced($this->load(['supplier', 'shippingSupplier', 'lines.product'])));
+            Mail::to($recipient)->send(new SupplierOrderPlaced($this->loadDocument()));
         } catch (Throwable $e) {
             report($e);
 

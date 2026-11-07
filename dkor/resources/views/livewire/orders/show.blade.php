@@ -39,6 +39,10 @@
         </div>
 
         <div class="flex flex-wrap gap-2">
+            <flux:button variant="ghost" icon="printer" :href="route('supplier-orders.print', $order)" target="_blank">
+                {{ __('Imprimer') }}
+            </flux:button>
+
             @if ($order->isDeletable())
                 @can('supplier_orders.delete')
                     <flux:button variant="ghost" icon="trash" wire:click="deleteOrder" wire:confirm="{{ __('Supprimer définitivement cette commande vide?') }}">
