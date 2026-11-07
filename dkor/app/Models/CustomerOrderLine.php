@@ -33,6 +33,8 @@ use Illuminate\Support\Carbon;
  * @property int $quantity_reserved
  * @property int $quantity_on_order
  * @property Money $unit_price
+ * @property int|null $promotion_id Promotion qui a baissé le prix de la ligne (issue #84).
+ * @property Money|null $regular_unit_price Prix unitaire avant la promotion.
  * @property bool $is_no_charge Pièce remise sans frais (ex. : sous garantie) : prix vendant à 0 $.
  * @property Money|null $cancellation_fee
  * @property string|null $note
@@ -55,7 +57,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, CustomerOrderDeliveryLine> $deliveryLines
  * @property-read Money $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'inventory_location_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'is_no_charge', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at'])]
+#[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'inventory_location_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'is_no_charge', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at', 'promotion_id', 'regular_unit_price'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
@@ -74,6 +76,7 @@ class CustomerOrderLine extends Model
         'quantity_reserved' => 'integer',
         'quantity_on_order' => 'integer',
         'unit_price' => MoneyCast::class,
+        'regular_unit_price' => MoneyCast::class,
         'is_no_charge' => 'boolean',
         'is_taxable' => 'boolean',
         'is_custom' => 'boolean',
@@ -139,7 +142,15 @@ class CustomerOrderLine extends Model
             'is_taxable' => $this->is_taxable,
             'is_custom' => $this->is_custom,
             'note' => $this->note,
+            'promotion_id' => $this->promotion_id,
+            'regular_unit_price' => $this->regular_unit_price,
         ];
+    }
+
+    /** @return BelongsTo<Promotion, $this> */
+    public function promotion(): BelongsTo
+    {
+        return $this->belongsTo(Promotion::class);
     }
 
     public function isService(): bool

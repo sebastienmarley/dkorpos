@@ -104,6 +104,9 @@
                             @if ($line->note)
                                 <div class="line-detail">{{ $line->note }}</div>
                             @endif
+                            @if ($line->promotion_id && $line->regular_unit_price)
+                                <div class="line-detail">{{ __('Promotion « :name » — prix régulier :price', ['name' => $line->promotion?->name, 'price' => $line->regular_unit_price->format()]) }}</div>
+                            @endif
                         </td>
                         <td class="num">{{ $line->quantity }}</td>
                         <td class="num">{{ $line->unit_price->format() }}</td>

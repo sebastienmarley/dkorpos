@@ -111,6 +111,8 @@ class AppServiceProvider extends ServiceProvider
             'product' => Models\Product::class,
             'product_store_location' => Models\ProductStoreLocation::class,
             'product_upc' => Models\ProductUpc::class,
+            'promotion' => Models\Promotion::class,
+            'promotion_target' => Models\PromotionTarget::class,
             'reception' => Models\Reception::class,
             'reception_line' => Models\ReceptionLine::class,
             'role' => Models\Role::class,
