@@ -25,6 +25,7 @@ use App\Livewire\Admin\Roles;
 use App\Livewire\Catalog\Classification;
 use App\Livewire\Catalog\PriceLists;
 use App\Livewire\Catalog\PriceListShow;
+use App\Livewire\Catalog\Promotions;
 use App\Livewire\Catalog\Services;
 use App\Livewire\CustomerOrders\Index as CustomerOrdersIndex;
 use App\Livewire\CustomerOrders\Show as CustomerOrderShow;
@@ -127,6 +128,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('catalog/classification', Classification::class)->name('catalog.classification');
     Route::get('catalog/services', Services::class)->middleware('can:services.view')->name('catalog.services');
+    Route::get('catalog/promotions', Promotions::class)->middleware('can:promotions.view')->name('catalog.promotions');
     Route::get('catalog/price-lists', PriceLists::class)->middleware('can:price_lists.view')->name('catalog.price-lists');
     Route::get('catalog/price-lists/{priceList}', PriceListShow::class)->middleware('can:price_lists.view')->name('catalog.price-lists.show');
 

@@ -50,6 +50,7 @@ use Illuminate\Support\Str;
  * @property Money $amount_paid
  * @property Money $balance_due
  * @property int|null $created_by
+ * @property int|null $promotion_id Promotion appliquée à la commande (une seule, issue #84).
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read customer $customer
@@ -62,7 +63,7 @@ use Illuminate\Support\Str;
  * @property-read Collection<int, CustomerOrderPayment> $payments
  * @property-read Collection<int, CustomerOrderTax> $taxLines
  */
-#[Fillable(['customer_id', 'store_id', 'status', 'subtotal', 'total', 'amount_paid', 'balance_due', 'created_by'])]
+#[Fillable(['customer_id', 'store_id', 'status', 'subtotal', 'total', 'amount_paid', 'balance_due', 'created_by', 'promotion_id'])]
 class CustomerOrder extends Model
 {
     use BelongsToStore;
@@ -214,7 +215,7 @@ class CustomerOrder extends Model
      */
     public function loadDocument(): static
     {
-        return $this->load(['store.taxRegistrations', 'customer', 'salespeople', 'lines.product', 'lines.part', 'lines.service', 'taxLines', 'payments.paymentMethod', 'deliveries']);
+        return $this->load(['store.taxRegistrations', 'customer', 'salespeople', 'lines.product', 'lines.part', 'lines.service', 'lines.promotion', 'taxLines', 'payments.paymentMethod', 'deliveries']);
     }
 
     /**
@@ -237,6 +238,93 @@ class CustomerOrder extends Model
     public function notices(): HasMany
     {
         return $this->hasMany(CustomerNotice::class)->latest('id');
+    }
+
+    /** @return BelongsTo<Promotion, $this> */
+    public function promotion(): BelongsTo
+    {
+        return $this->belongsTo(Promotion::class);
+    }
+
+    /**
+     * Promotions en vigueur aujourd'hui dont la commande remplit les conditions (issue #84).
+     *
+     * @return Collection<int, Promotion>
+     */
+    public function applicablePromotions(): Collection
+    {
+        if ($this->promotion_id !== null) {
+            return new Collection;
+        }
+
+        return Promotion::query()
+            ->inEffectOn(Carbon::today())
+            ->with('targets')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Promotion $promotion): bool => $promotion->isApplicableTo($this))
+            ->values();
+    }
+
+    /**
+     * Applique la promotion : le prix des lignes admissibles baisse (leur prix régulier est gardé), une seule
+     * promotion par commande, et le solde est recalculé.
+     *
+     * @throws DomainException si la promotion n'est pas en vigueur ou si la commande n'y est pas admissible.
+     */
+    public function applyPromotion(Promotion $promotion): void
+    {
+        DB::transaction(function () use ($promotion): void {
+            $order = static::query()->lockForUpdate()->findOrFail($this->id);
+
+            if (! Promotion::query()->inEffectOn(Carbon::today())->whereKey($promotion->id)->exists()) {
+                throw new DomainException(__('La promotion « :name » n\'est pas en vigueur.', ['name' => $promotion->name]));
+            }
+
+            if (! $promotion->isApplicableTo($order)) {
+                throw new DomainException($order->promotion_id !== null
+                    ? __('Une promotion est déjà appliquée à cette commande.')
+                    : __('Cette commande ne remplit pas les conditions de la promotion « :name ».', ['name' => $promotion->name]));
+            }
+
+            $lines = $promotion->eligibleLinesOf($order);
+
+            foreach ($promotion->discountedPrices($order, $lines) as $lineId => $price) {
+                $line = $lines->firstWhere('id', $lineId);
+                $line->update(['regular_unit_price' => $line->unit_price, 'unit_price' => $price, 'promotion_id' => $promotion->id]);
+            }
+
+            $this->update(['promotion_id' => $promotion->id]);
+            $this->recalculateBalance();
+        });
+    }
+
+    /**
+     * Retire la promotion : les lignes reprennent leur prix régulier. Impossible une fois un article escompté remis.
+     *
+     * @throws DomainException si un article escompté a déjà été remis au client.
+     */
+    public function removePromotion(): void
+    {
+        if ($this->promotion_id === null) {
+            return;
+        }
+
+        DB::transaction(function (): void {
+            $lines = $this->lines()->lockForUpdate()->where('promotion_id', $this->promotion_id)->get();
+
+            if ($lines->contains(fn (CustomerOrderLine $line): bool => ! $line->status->isPickable())) {
+                throw new DomainException(__('Un article escompté a déjà été remis, retourné ou annulé : la promotion ne peut plus être retirée.'));
+            }
+
+            foreach ($lines as $line) {
+                $line->update(['unit_price' => $line->regular_unit_price ?? $line->unit_price, 'regular_unit_price' => null, 'promotion_id' => null]);
+            }
+
+            $this->update(['promotion_id' => null]);
+            $this->recalculateBalance();
+        });
     }
 
     /** @return HasMany<CustomerOrderLine, $this> */
@@ -269,6 +357,7 @@ class CustomerOrder extends Model
                 : $this->lines()
                     ->where('product_id', $product->id)
                     ->whereIn('status', [CustomerOrderLineStatus::InStock, CustomerOrderLineStatus::OnOrder])
+                    ->whereNull('promotion_id')
                     ->lockForUpdate()
                     ->first()
                     ?? $this->lines()->make(['product_id' => $product->id, 'unit_price' => $product->selling_price, 'is_taxable' => $product->is_taxable]);
@@ -782,6 +871,7 @@ class CustomerOrder extends Model
             $line->update([
                 'unit_price' => $unitPrice,
                 'note' => filled($note) ? $note : null,
+                ...($unitPrice->equals($line->unit_price) ? [] : ['promotion_id' => null, 'regular_unit_price' => null]),
             ]);
 
             $this->recalculateBalance();

@@ -161,7 +161,12 @@
                             <flux:table.cell align="end">{{ $line->isService() ? '—' : $line->quantity_reserved }}</flux:table.cell>
                             <flux:table.cell align="end">{{ $line->isService() ? '—' : $line->quantity_on_order }}</flux:table.cell>
                             <flux:table.cell align="end">{{ $line->quantity }}</flux:table.cell>
-                            <flux:table.cell align="end">{{ $line->unit_price->format() }}</flux:table.cell>
+                            <flux:table.cell align="end">
+                                {{ $line->unit_price->format() }}
+                                @if ($line->promotion_id && $line->regular_unit_price)
+                                    <div class="text-xs text-zinc-400 line-through" title="{{ $line->promotion?->name }}">{{ $line->regular_unit_price->format() }}</div>
+                                @endif
+                            </flux:table.cell>
                             <flux:table.cell align="end">{{ $line->total->format() }}</flux:table.cell>
                             <flux:table.cell align="end">
                                 @can('customer_orders.edit')
@@ -1029,6 +1034,36 @@
                 <flux:text class="mt-1 text-xs text-zinc-400">
                     {{ __('Articles remis payés à 100 %, dépôt de :percent % sur le reste, taxes incluses.', ['percent' => rtrim(rtrim(number_format(config('sales.deposit_percent'), 2), '0'), '.')]) }}
                 </flux:text>
+
+                <div class="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                    @if ($order->promotion)
+                        <div class="flex items-center justify-between gap-3 text-sm">
+                            <div class="flex items-center gap-2">
+                                <flux:icon.receipt-percent class="h-4 w-4 text-green-600" />
+                                <span>{{ __('Promotion appliquée :') }} <span class="font-medium">{{ $order->promotion->name }}</span></span>
+                            </div>
+                            <flux:button type="button" size="sm" variant="ghost" icon="x-mark" wire:click="removePromotion">{{ __('Retirer') }}</flux:button>
+                        </div>
+                    @else
+                        @php($applicablePromotions = $this->getApplicablePromotions())
+                        <div class="flex items-center justify-between gap-3 text-sm">
+                            <span class="text-zinc-500">
+                                {{ $applicablePromotions->isEmpty() ? __('Aucune promotion en vigueur pour ces produits.') : trans_choice(':count promotion s\'applique.|:count promotions s\'appliquent.', $applicablePromotions->count()) }}
+                            </span>
+                            <flux:button type="button" size="sm" icon="receipt-percent" wire:click="applyPromotion" :disabled="$applicablePromotions->isEmpty()">{{ __('Promotion') }}</flux:button>
+                        </div>
+                        @if ($choosingPromotion && $applicablePromotions->isNotEmpty())
+                            <div class="mt-3 space-y-2">
+                                <flux:text class="text-sm">{{ __('Plusieurs promotions s\'appliquent : laquelle ?') }}</flux:text>
+                                @foreach ($applicablePromotions as $promotion)
+                                    <flux:button type="button" size="sm" class="w-full justify-between" wire:key="promotion-choice-{{ $promotion->id }}" wire:click="applyPromotion({{ $promotion->id }})">
+                                        {{ $promotion->name }} · {{ $promotion->discountLabel() }}
+                                    </flux:button>
+                                @endforeach
+                            </div>
+                        @endif
+                    @endif
+                </div>
 
                 <form wire:submit="confirmPickup" class="mt-6 space-y-3">
                     @if ($order->customer->credit_balance->isPositive())
