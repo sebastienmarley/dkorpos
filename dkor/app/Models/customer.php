@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 
 /**
@@ -28,13 +30,14 @@ use Illuminate\Support\Carbon;
  * @property string|null $address_province
  * @property string|null $address_country
  * @property string|null $address_postal_code
+ * @property bool $notifications_opt_out Le client refuse les avis automatiques (issue #135).
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
 #[Fillable([
     'firstname', 'lastname', 'phone', 'cellphone', 'email',
     'address_civic', 'address_apartment', 'address_street', 'address_city',
-    'address_province', 'address_country', 'address_postal_code',
+    'address_province', 'address_country', 'address_postal_code', 'notifications_opt_out',
 ])]
 class customer extends Model
 {
@@ -42,14 +45,23 @@ class customer extends Model
     use HasFactory;
 
     use HasSearchName;
+    use Notifiable;
 
     protected $attributes = [
         'credit_balance' => 0,
+        'notifications_opt_out' => false,
     ];
 
     protected $casts = [
         'credit_balance' => MoneyCast::class,
+        'notifications_opt_out' => 'boolean',
     ];
+
+    /** @return HasMany<CustomerNotice, $this> */
+    public function notices(): HasMany
+    {
+        return $this->hasMany(CustomerNotice::class);
+    }
 
     /** Adresse assez complète pour une livraison : numéro civique, rue, ville, province, pays et code postal. */
     public function hasCompleteAddress(): bool

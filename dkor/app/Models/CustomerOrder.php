@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Actions\NotifyCustomer;
 use App\Actions\NotifyDeliveryItemsReceived;
 use App\Actions\NotifyDeliveryTeam;
 use App\Actions\NotifyShipmentReady;
 use App\Casts\MoneyCast;
 use App\Concerns\BelongsToStore;
+use App\Enums\CustomerNoticeStatus;
+use App\Enums\CustomerNoticeType;
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
@@ -19,7 +22,6 @@ use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
 use App\Enums\UndeliveredReason;
-use App\Mail\CustomerOrderSummary;
 use App\Support\Money;
 use Database\Factories\CustomerOrderFactory;
 use DomainException;
@@ -33,9 +35,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Throwable;
 
 /**
  * @property int $id
@@ -215,25 +215,25 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Envoie la commande au courriel du client.
+     * Envoie la commande au courriel du client et l'inscrit à l'historique des avis.
      *
      * @return bool faux si le client n'a pas de courriel ou si l'envoi échoue
      */
     public function emailToCustomer(): bool
     {
-        if (blank($this->customer->email)) {
-            return false;
-        }
+        $notice = app(NotifyCustomer::class)->handle($this->customer, CustomerNoticeType::OrderSummary, $this, createdBy: auth()->id());
 
-        try {
-            Mail::to($this->customer->email)->send(new CustomerOrderSummary($this->loadDocument()));
-        } catch (Throwable $e) {
-            report($e);
+        return $notice?->status === CustomerNoticeStatus::Sent;
+    }
 
-            return false;
-        }
-
-        return true;
+    /**
+     * Avis envoyés au client pour cette commande, du plus récent au plus ancien.
+     *
+     * @return HasMany<CustomerNotice, $this>
+     */
+    public function notices(): HasMany
+    {
+        return $this->hasMany(CustomerNotice::class)->latest('id');
     }
 
     /** @return HasMany<CustomerOrderLine, $this> */

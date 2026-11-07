@@ -1,7 +1,6 @@
 <?php
 
 use App\Livewire\CustomerOrders\Show;
-use App\Mail\CustomerOrderSummary;
 use App\Models\customer;
 use App\Models\CustomerOrder;
 use App\Models\Product;
@@ -9,9 +8,10 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\StoreTaxRegistration;
 use App\Models\User;
+use App\Notifications\Customers\OrderSummaryNotice;
 use App\Support\Money;
 use Database\Seeders\TaxSeeder;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -44,11 +44,12 @@ it('refuse d\'imprimer la commande d\'un autre magasin', function () {
 });
 
 it('envoie la commande au courriel du client', function () {
-    Mail::fake();
+    Notification::fake();
 
     Livewire::test(Show::class, ['order' => $this->order])->call('emailToCustomer');
 
-    Mail::assertSent(CustomerOrderSummary::class, function (CustomerOrderSummary $mail): bool {
+    Notification::assertSentTo($this->order->customer, OrderSummaryNotice::class, function (OrderSummaryNotice $notice, array $channels, customer $notifiable): bool {
+        $mail = $notice->toMail($notifiable);
         $html = $mail->render();
 
         return $mail->hasTo('marguerite@client.test')
@@ -59,9 +60,9 @@ it('envoie la commande au courriel du client', function () {
 });
 
 it('n\'envoie rien à un client sans courriel', function () {
-    Mail::fake();
+    Notification::fake();
     $this->order->customer->update(['email' => null]);
 
     expect($this->order->fresh()->emailToCustomer())->toBeFalse();
-    Mail::assertNothingSent();
+    Notification::assertNothingSent();
 });
