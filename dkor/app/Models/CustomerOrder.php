@@ -19,6 +19,7 @@ use App\Enums\SupplierOrderLineStatus;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
 use App\Enums\UndeliveredReason;
+use App\Mail\CustomerOrderSummary;
 use App\Support\Money;
 use Database\Factories\CustomerOrderFactory;
 use DomainException;
@@ -32,7 +33,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * @property int $id
@@ -201,6 +204,36 @@ class CustomerOrder extends Model
         }
 
         $this->unsetRelation('taxLines');
+    }
+
+    /**
+     * Charge ce qu'affiche la commande imprimée ou envoyée au client.
+     */
+    public function loadDocument(): static
+    {
+        return $this->load(['store.taxRegistrations', 'customer', 'salespeople', 'lines.product', 'lines.part', 'lines.service', 'taxLines', 'payments.paymentMethod', 'deliveries']);
+    }
+
+    /**
+     * Envoie la commande au courriel du client.
+     *
+     * @return bool faux si le client n'a pas de courriel ou si l'envoi échoue
+     */
+    public function emailToCustomer(): bool
+    {
+        if (blank($this->customer->email)) {
+            return false;
+        }
+
+        try {
+            Mail::to($this->customer->email)->send(new CustomerOrderSummary($this->loadDocument()));
+        } catch (Throwable $e) {
+            report($e);
+
+            return false;
+        }
+
+        return true;
     }
 
     /** @return HasMany<CustomerOrderLine, $this> */

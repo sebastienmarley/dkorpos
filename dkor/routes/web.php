@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\StoreType;
+use App\Http\Controllers\CustomerOrderPrintController;
 use App\Http\Controllers\DeliverySignatureController;
 use App\Http\Controllers\LabelPrintController;
 use App\Http\Controllers\ProductLabelController;
@@ -82,6 +83,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('customer-orders', CustomerOrdersIndex::class)->middleware('can:customer_orders.view')->name('customer-orders.index');
     Route::get('customer-orders/{order}', CustomerOrderShow::class)->middleware('can:customer_orders.view')->name('customer-orders.show');
+    Route::get('customer-orders/{order}/print', CustomerOrderPrintController::class)->middleware('can:customer_orders.view')->name('customer-orders.print');
 
     Route::get('deliveries', DeliveriesIndex::class)->middleware('can:deliveries.view')->name('deliveries.index');
     Route::get('deliveries/mine', MyDeliveries::class)->middleware('can:deliveries.handle')->name('deliveries.mine');

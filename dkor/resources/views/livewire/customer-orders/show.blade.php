@@ -35,6 +35,17 @@
         </div>
 
         <div class="flex flex-col items-start gap-2 md:items-end">
+            <div class="flex flex-wrap gap-2">
+                <flux:button variant="ghost" icon="printer" :href="route('customer-orders.print', $order)" target="_blank">
+                    {{ __('Imprimer') }}
+                </flux:button>
+                @if (filled($order->customer->email))
+                    <flux:button variant="ghost" icon="envelope" wire:click="emailToCustomer" wire:confirm="{{ __('Envoyer la commande à :email?', ['email' => $order->customer->email]) }}">
+                        {{ __('Envoyer par courriel') }}
+                    </flux:button>
+                @endif
+            </div>
+
             @can('customer_orders.edit')
                 <flux:button variant="primary" icon="user-plus" wire:click="openCustomerModal">
                     {{ __('Changer le client') }}

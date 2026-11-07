@@ -178,6 +178,20 @@ class Show extends Component
         $this->order = $order;
     }
 
+    /**
+     * Envoie la commande au courriel du client.
+     */
+    public function emailToCustomer(): void
+    {
+        $this->authorize('customer_orders.view');
+
+        if ($this->order->emailToCustomer()) {
+            Flux::toast(text: __('Commande envoyée à :email.', ['email' => $this->order->customer->email]), variant: 'success');
+        } else {
+            Flux::toast(text: __('Le courriel n\'a pas pu être envoyé : vérifiez le courriel du client.'), variant: 'danger');
+        }
+    }
+
     public function openSalespeopleModal(): void
     {
         $this->authorize('customer_orders.assign_salespeople');
