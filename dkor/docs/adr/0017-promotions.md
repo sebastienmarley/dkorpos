@@ -166,7 +166,9 @@ Les commandes qui l'ont reçue la gardent.
 ## Questions ouvertes
 
 - **Démonstrateurs et liquidations** (hors portée de #84) : un besoin différent (prix par unité ou par produit,
-  pas par période), traité dans sa propre issue et son propre ADR. D'ici là, le vendeur baisse le prix de la ligne
+  pas par période), traité dans l'issue #143 et son propre ADR. Décisions déjà prises : un démonstrateur est un prix
+  pour un article, qui sort de l'inventaire en FIFO comme toute vente ; une liquidation a un prix fixe par magasin ;
+  un démonstrateur « tel quel » ne se retourne pas, mais une défectuosité passe toujours par le dossier défectueux. D'ici là, le vendeur baisse le prix de la ligne
   à la main : le produit devient « déjà escompté » et aucune promotion ne s'y ajoute.
 
 ## Références
