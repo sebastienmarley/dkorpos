@@ -112,6 +112,22 @@
                         <flux:input wire:model="bankAccount" type="text" />
                         <flux:error name="bankAccount" />
                     </flux:field>
+
+                    <flux:field>
+                        <div class="flex items-center gap-1.5">
+                            <flux:label>{{ __('Facturer à') }}</flux:label>
+                            <flux:tooltip :content="__('Magasin dont l\'adresse de facturation apparaît sur les commandes fournisseur de ce magasin. La livraison reste à ce magasin.')">
+                                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                            </flux:tooltip>
+                        </div>
+                        <flux:select wire:model="billingStoreId">
+                            <flux:select.option value="">{{ __('— Ce magasin —') }}</flux:select.option>
+                            @foreach ($billingStores as $billingStore)
+                                <flux:select.option value="{{ $billingStore->id }}">{{ $billingStore->name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="billingStoreId" />
+                    </flux:field>
                 </div>
 
                 <div>

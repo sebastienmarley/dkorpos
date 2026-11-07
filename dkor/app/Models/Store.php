@@ -41,6 +41,7 @@ use Illuminate\Support\Collection;
  * @property array<string, array{open: bool, from: string, to: string}>|null $opening_hours
  * @property int|null $warehouse_store_id
  * @property int|null $shipping_warehouse_id
+ * @property int|null $billing_store_id Magasin à qui les fournisseurs facturent les commandes de ce magasin ; vide : lui-même.
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -51,7 +52,7 @@ use Illuminate\Support\Collection;
     'address_province', 'address_country', 'address_postal_code',
     'bank_account', 'cancellation_fee_percent', 'custom_deposit_percent', 'shipping_max_length', 'shipping_max_weight',
     'vacation_accrual_start', 'sick_accrual_start', 'sick_days_full_time', 'sick_days_part_time',
-    'opening_hours', 'warehouse_store_id', 'shipping_warehouse_id', 'is_active',
+    'opening_hours', 'warehouse_store_id', 'shipping_warehouse_id', 'billing_store_id', 'is_active',
 ])]
 class Store extends Model
 {
@@ -105,6 +106,24 @@ class Store extends Model
     public function stockStoreId(): int
     {
         return $this->warehouse_store_id ?? $this->id;
+    }
+
+    /**
+     * Magasin à qui les fournisseurs facturent les commandes de ce magasin.
+     *
+     * @return BelongsTo<Store, $this>
+     */
+    public function billingStore(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'billing_store_id');
+    }
+
+    /**
+     * Magasin facturé pour les commandes de ce magasin : son magasin de facturation, sinon lui-même.
+     */
+    public function billingStoreId(): int
+    {
+        return $this->billing_store_id ?? $this->id;
     }
 
     /** @return HasMany<InventoryZone, $this> */

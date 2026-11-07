@@ -12,6 +12,7 @@ use App\Mail\SupplierOrderPlaced;
 use App\Models\InventoryStock;
 use App\Models\InventoryUnit;
 use App\Models\Product;
+use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
@@ -1270,4 +1271,18 @@ it('ne réapplique pas l\'envoi ni une modification de ligne depuis une instance
         ->and($product->inventoryStocks()->sole()->quantity_on_order)->toBe(12);
 
     expectInventoryIntegrity($product);
+});
+
+it('copie le magasin facturé sur la commande à sa création', function () {
+    $mainStore = Store::factory()->create();
+    $store = Store::factory()->create(['billing_store_id' => $mainStore->id]);
+
+    $billedOrder = SupplierOrder::factory()->create(['store_id' => $store->id]);
+    $ownOrder = SupplierOrder::factory()->create(['store_id' => $mainStore->id]);
+
+    $store->update(['billing_store_id' => null]);
+
+    expect($billedOrder->refresh()->billing_store_id)->toBe($mainStore->id)
+        ->and($billedOrder->billingStore->is($mainStore))->toBeTrue()
+        ->and($ownOrder->billing_store_id)->toBe($mainStore->id);
 });

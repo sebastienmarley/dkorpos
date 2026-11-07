@@ -34,6 +34,7 @@ use Throwable;
 /**
  * @property int $id
  * @property int|null $store_id Magasin (ADR 0012).
+ * @property int|null $billing_store_id Magasin facturé par le fournisseur, copié du magasin à la création.
  * @property string|null $number
  * @property string|null $quote_number
  * @property SupplierType $type
@@ -63,7 +64,7 @@ use Throwable;
  * @property-read Collection<int, SupplierOrderLine> $lines
  * @property-read Money $total
  */
-#[Fillable(['store_id', 'number', 'quote_number', 'type', 'supplier_id', 'status', 'is_collect', 'shipping_supplier_id', 'is_drop_ship', 'drop_ship_name', 'drop_ship_address_civic', 'drop_ship_address_apartment', 'drop_ship_address_street', 'drop_ship_address_city', 'drop_ship_address_province', 'drop_ship_address_country', 'drop_ship_address_postal_code', 'notes', 'sent_at', 'last_emailed_at', 'received_at', 'created_by'])]
+#[Fillable(['store_id', 'billing_store_id', 'number', 'quote_number', 'type', 'supplier_id', 'status', 'is_collect', 'shipping_supplier_id', 'is_drop_ship', 'drop_ship_name', 'drop_ship_address_civic', 'drop_ship_address_apartment', 'drop_ship_address_street', 'drop_ship_address_city', 'drop_ship_address_province', 'drop_ship_address_country', 'drop_ship_address_postal_code', 'notes', 'sent_at', 'last_emailed_at', 'received_at', 'created_by'])]
 class SupplierOrder extends Model
 {
     use BelongsToStore;
@@ -91,6 +92,7 @@ class SupplierOrder extends Model
     {
         static::creating(function (SupplierOrder $order): void {
             $order->store_id ??= Store::defaultIdFor(auth()->user());
+            $order->billing_store_id ??= $order->store_id === null ? null : Store::find($order->store_id)?->billingStoreId();
             $supplier = Supplier::find($order->supplier_id);
 
             if ($supplier?->collect && $order->type === SupplierType::Product) {
@@ -117,6 +119,16 @@ class SupplierOrder extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    /**
+     * Magasin à qui le fournisseur facture la commande (adresse « Facturer à »).
+     *
+     * @return BelongsTo<Store, $this>
+     */
+    public function billingStore(): BelongsTo
+    {
+        return $this->belongsTo(Store::class, 'billing_store_id');
     }
 
     /** @return BelongsTo<Supplier, $this> */
