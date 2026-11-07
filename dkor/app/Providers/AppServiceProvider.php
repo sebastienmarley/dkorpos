@@ -109,6 +109,8 @@ class AppServiceProvider extends ServiceProvider
             'price_list_item' => Models\PriceListItem::class,
             'price_list_list' => Models\PriceListList::class,
             'product' => Models\Product::class,
+            'product_clearance' => Models\ProductClearance::class,
+            'product_demo' => Models\ProductDemo::class,
             'product_store_location' => Models\ProductStoreLocation::class,
             'product_upc' => Models\ProductUpc::class,
             'promotion' => Models\Promotion::class,

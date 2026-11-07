@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property int $id
@@ -222,6 +223,70 @@ class Product extends Model
     public function inventoryStocks(): HasMany
     {
         return $this->hasMany(InventoryStock::class);
+    }
+
+    /** @return HasMany<ProductDemo, $this> */
+    public function demos(): HasMany
+    {
+        return $this->hasMany(ProductDemo::class);
+    }
+
+    /** @return HasMany<ProductClearance, $this> */
+    public function clearances(): HasMany
+    {
+        return $this->hasMany(ProductClearance::class);
+    }
+
+    /** Liquidation active du produit dans ce magasin (ADR 0018). */
+    public function activeClearanceAt(int $storeId): ?ProductClearance
+    {
+        return $this->clearances()->active()->where('store_id', $storeId)->latest('id')->first();
+    }
+
+    /**
+     * Crée la fiche d'un article du stock en démo du magasin (ADR 0018). Un magasin n'a jamais plus de fiches libres
+     * que d'articles en démo.
+     *
+     * @throws DomainException si tous les articles en démo du magasin ont déjà leur fiche.
+     */
+    public function declareDemo(int $storeId, Money $price, ?string $note, bool $isAsIs): ProductDemo
+    {
+        return DB::transaction(function () use ($storeId, $price, $note, $isAsIs): ProductDemo {
+            $inDemo = (int) InventoryStock::query()->lockForUpdate()->where('product_id', $this->id)->where('store_id', $storeId)->value('quantity_in_demo');
+            $freeDemos = $this->demos()->where('store_id', $storeId)->available()->count();
+
+            if ($freeDemos >= $inDemo) {
+                throw new DomainException($inDemo === 0
+                    ? __('Aucun article en démo dans ce magasin : passez d\'abord un article en démo (mouvements d\'inventaire).')
+                    : __('Chaque article en démo de ce magasin a déjà sa fiche.'));
+            }
+
+            return $this->demos()->create(['store_id' => $storeId, 'price' => $price, 'note' => filled($note) ? $note : null, 'is_as_is' => $isAsIs]);
+        });
+    }
+
+    /**
+     * Met le produit en liquidation dans le magasin, ou change le prix de la liquidation active (ADR 0018).
+     */
+    public function clearAt(int $storeId, Money $price): ProductClearance
+    {
+        return DB::transaction(function () use ($storeId, $price): ProductClearance {
+            $clearance = $this->clearances()->active()->where('store_id', $storeId)->lockForUpdate()->first();
+
+            if ($clearance !== null) {
+                $clearance->update(['price' => $price]);
+
+                return $clearance;
+            }
+
+            return $this->clearances()->create(['store_id' => $storeId, 'price' => $price]);
+        });
+    }
+
+    /** Met fin à la liquidation active du produit dans le magasin ; les lignes qui l'ont reçue la gardent. */
+    public function endClearanceAt(int $storeId): void
+    {
+        $this->clearances()->active()->where('store_id', $storeId)->update(['ended_at' => now()]);
     }
 
     /** Stock du produit dans un magasin, s'il en a déjà eu. */

@@ -215,7 +215,7 @@ class CustomerOrder extends Model
      */
     public function loadDocument(): static
     {
-        return $this->load(['store.taxRegistrations', 'customer', 'salespeople', 'lines.product', 'lines.part', 'lines.service', 'lines.promotion', 'taxLines', 'payments.paymentMethod', 'deliveries']);
+        return $this->load(['store.taxRegistrations', 'customer', 'salespeople', 'lines.product', 'lines.part', 'lines.service', 'lines.promotion', 'lines.demo', 'taxLines', 'payments.paymentMethod', 'deliveries']);
     }
 
     /**
@@ -352,18 +352,18 @@ class CustomerOrder extends Model
         }
 
         return DB::transaction(function () use ($product, $quantity, $unitPrice, $note): CustomerOrderLine {
+            $available = (int) (InventoryStock::query()->lockForUpdate()->where('product_id', $product->id)->where('store_id', $this->stockStoreId())->value('quantity_in_stock') ?? 0);
+            $clearance = $unitPrice === null ? $product->activeClearanceAt($this->stockStoreId()) : null;
+
+            if ($clearance !== null && $available > 0) {
+                return $this->addClearedProduct($product, $clearance, min($available, $quantity), $quantity - min($available, $quantity));
+            }
+
             $line = $unitPrice !== null
                 ? $this->lines()->make(['product_id' => $product->id, 'unit_price' => $unitPrice, 'is_taxable' => $product->is_taxable, 'note' => $note])
-                : $this->lines()
-                    ->where('product_id', $product->id)
-                    ->whereIn('status', [CustomerOrderLineStatus::InStock, CustomerOrderLineStatus::OnOrder])
-                    ->whereNull('promotion_id')
-                    ->lockForUpdate()
-                    ->first()
-                    ?? $this->lines()->make(['product_id' => $product->id, 'unit_price' => $product->selling_price, 'is_taxable' => $product->is_taxable]);
+                : $this->regularLineFor($product);
 
-            $available = InventoryStock::query()->lockForUpdate()->where('product_id', $product->id)->where('store_id', $this->stockStoreId())->value('quantity_in_stock') ?? 0;
-            $reserved = min((int) $available, $quantity);
+            $reserved = min($available, $quantity);
 
             if ($reserved > 0) {
                 $this->moveReservation($product->id, InventoryStatus::InStock, InventoryStatus::ReservedCustomer, $reserved);
@@ -373,6 +373,104 @@ class CustomerOrder extends Model
             $line->save();
 
             $this->syncSupplierLine($line);
+            $this->recalculateBalance();
+            $this->refreshStatusFromLines();
+
+            return $line;
+        });
+    }
+
+    /**
+     * Ligne modifiable du produit au prix de vente, à augmenter, ou nouvelle ligne. Les lignes en promotion, de
+     * démonstrateur ou de liquidation ne reçoivent jamais d'ajout : elles ont leur propre prix.
+     */
+    private function regularLineFor(Product $product): CustomerOrderLine
+    {
+        return $this->lines()
+            ->where('product_id', $product->id)
+            ->whereIn('status', [CustomerOrderLineStatus::InStock, CustomerOrderLineStatus::OnOrder])
+            ->whereNull('promotion_id')
+            ->whereNull('product_demo_id')
+            ->whereNull('product_clearance_id')
+            ->lockForUpdate()
+            ->first()
+            ?? $this->lines()->make(['product_id' => $product->id, 'unit_price' => $product->selling_price, 'is_taxable' => $product->is_taxable]);
+    }
+
+    /**
+     * Ajout d'un produit en liquidation dans le magasin (ADR 0018) : le stock en main va sur la ligne de liquidation,
+     * au prix de liquidation ; le reste se commande au fournisseur sur une ligne ordinaire, au prix de vente.
+     */
+    private function addClearedProduct(Product $product, ProductClearance $clearance, int $fromStock, int $toOrder): CustomerOrderLine
+    {
+        $clearanceLine = $this->lines()
+            ->where('product_clearance_id', $clearance->id)
+            ->where('status', CustomerOrderLineStatus::InStock)
+            ->lockForUpdate()
+            ->first()
+            ?? $this->lines()->make([
+                'product_id' => $product->id,
+                'unit_price' => $clearance->price,
+                'regular_unit_price' => $product->selling_price,
+                'product_clearance_id' => $clearance->id,
+                'is_taxable' => $product->is_taxable,
+            ]);
+
+        $this->moveReservation($product->id, InventoryStatus::InStock, InventoryStatus::ReservedCustomer, $fromStock);
+        $this->fillLineQuantities($clearanceLine, $clearanceLine->quantity_reserved + $fromStock, 0);
+        $clearanceLine->save();
+
+        if ($toOrder > 0) {
+            $line = $this->regularLineFor($product);
+            $this->fillLineQuantities($line, $line->quantity_reserved, $line->quantity_on_order + $toOrder);
+            $line->save();
+            $this->syncSupplierLine($line);
+        }
+
+        $this->recalculateBalance();
+        $this->refreshStatusFromLines();
+
+        return $clearanceLine;
+    }
+
+    /**
+     * Vend un démonstrateur (ADR 0018) : une ligne d'un article, au prix de la fiche, qui réserve un article du stock
+     * en démo du magasin. La sortie de l'inventaire suit ensuite le FIFO, comme toute vente.
+     *
+     * @throws DomainException si la fiche est d'un autre magasin, déjà prise, ou s'il n'y a plus d'article en démo.
+     */
+    public function addDemo(ProductDemo $demo): CustomerOrderLine
+    {
+        return DB::transaction(function () use ($demo): CustomerOrderLine {
+            $demo = ProductDemo::query()->lockForUpdate()->with('product')->findOrFail($demo->id);
+
+            if ($demo->store_id !== $this->stockStoreId()) {
+                throw new DomainException(__('Ce démonstrateur est dans un autre magasin.'));
+            }
+
+            if ($demo->isTaken()) {
+                throw new DomainException(__('Ce démonstrateur est déjà vendu ou réservé à une commande.'));
+            }
+
+            $inDemo = (int) InventoryStock::query()->lockForUpdate()->where('product_id', $demo->product_id)->where('store_id', $demo->store_id)->value('quantity_in_demo');
+
+            if ($inDemo < 1) {
+                throw new DomainException(__('Aucun article en démo dans ce magasin pour ce produit.'));
+            }
+
+            $line = $this->lines()->make([
+                'product_id' => $demo->product_id,
+                'unit_price' => $demo->price,
+                'regular_unit_price' => $demo->product->selling_price,
+                'product_demo_id' => $demo->id,
+                'is_taxable' => $demo->product->is_taxable,
+                'note' => $demo->note,
+            ]);
+
+            $this->moveReservation($demo->product_id, InventoryStatus::InDemo, InventoryStatus::ReservedCustomer, 1);
+            $this->fillLineQuantities($line, 1, 0);
+            $line->save();
+
             $this->recalculateBalance();
             $this->refreshStatusFromLines();
 
@@ -483,6 +581,14 @@ class CustomerOrder extends Model
 
             if ($line->isPart() && $reserved !== $line->quantity_reserved) {
                 throw new DomainException(__('Une pièce se commande toujours : elle ne se prend pas en stock.'));
+            }
+
+            if ($line->product_demo_id !== null && ($reserved !== 1 || $onOrder !== 0)) {
+                throw new DomainException(__('Un démonstrateur se vend à l\'unité : sa quantité ne change pas.'));
+            }
+
+            if ($line->product_clearance_id !== null && $onOrder > 0) {
+                throw new DomainException(__('Un article en liquidation ne se commande pas au fournisseur : ajoutez le produit pour commander le reste au prix de vente.'));
             }
 
             $difference = $reserved - $line->quantity_reserved;
@@ -871,7 +977,7 @@ class CustomerOrder extends Model
             $line->update([
                 'unit_price' => $unitPrice,
                 'note' => filled($note) ? $note : null,
-                ...($unitPrice->equals($line->unit_price) ? [] : ['promotion_id' => null, 'regular_unit_price' => null]),
+                ...($unitPrice->equals($line->unit_price) ? [] : ['promotion_id' => null, ...($line->isMarkedDown() ? [] : ['regular_unit_price' => null])]),
             ]);
 
             $this->recalculateBalance();
@@ -896,7 +1002,7 @@ class CustomerOrder extends Model
             $this->guardNotInTransfer($line);
 
             if ($line->quantity_reserved > 0) {
-                $this->moveReservation($line->product_id, InventoryStatus::ReservedCustomer, InventoryStatus::InStock, $line->quantity_reserved);
+                $this->moveReservation($line->product_id, InventoryStatus::ReservedCustomer, $line->product_demo_id !== null ? InventoryStatus::InDemo : InventoryStatus::InStock, $line->quantity_reserved);
             }
 
             $this->detachSupplierLine($line);
@@ -1829,6 +1935,10 @@ class CustomerOrder extends Model
 
             if ($line->isPart()) {
                 throw new DomainException(__('Une pièce de remplacement ne se retourne pas en magasin.'));
+            }
+
+            if ($line->demo?->is_as_is) {
+                throw new DomainException(__('Démonstrateur vendu tel quel : il ne se retourne pas. Une défectuosité passe par le dossier défectueux.'));
             }
 
             if ($quantity < 1 || $quantity > $line->quantity) {

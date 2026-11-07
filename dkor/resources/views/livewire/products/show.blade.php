@@ -353,6 +353,8 @@
                     </flux:table.rows>
                 </flux:table>
             </div>
+
+            <livewire:products.demos-and-clearances :product="$product" />
         </div>
 
         <div x-show="tab === 'photos'" x-cloak>

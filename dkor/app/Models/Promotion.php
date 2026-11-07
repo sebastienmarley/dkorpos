@@ -118,6 +118,7 @@ class Promotion extends Model
             fn (CustomerOrderLine $line): bool => $line->product !== null
                 && ! $line->is_custom
                 && $line->promotion_id === null
+                && ! $line->isMarkedDown()
                 && $line->status->isPickable()
                 && $line->unit_price->greaterThanOrEqual($line->product->selling_price)
                 && ($this->type !== PromotionType::TaxesPaid || $line->is_taxable)
