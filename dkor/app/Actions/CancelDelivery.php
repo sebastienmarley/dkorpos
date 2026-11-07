@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\CustomerNoticeType;
 use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryStatus;
 use App\Models\CustomerOrderDelivery;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  */
 class CancelDelivery
 {
-    public function __construct(private NotifyDeliveryTeam $notifyTeam) {}
+    public function __construct(private NotifyDeliveryTeam $notifyTeam, private NotifyCustomerOfDelivery $notifyCustomer) {}
 
     /**
      * @throws DomainException si la livraison n'est plus planifiée (en route, livrée ou déjà annulée).
@@ -41,5 +42,9 @@ class CancelDelivery
             : __('Livraison annulée : :slot', ['slot' => $delivery->slotLabel()]);
 
         $this->notifyTeam->handle($delivery, $title, $reason);
+
+        if ($delivery->method === DeliveryMethod::Internal) {
+            $this->notifyCustomer->handle($delivery, CustomerNoticeType::DeliveryCancelled);
+        }
     }
 }

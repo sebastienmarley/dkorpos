@@ -25,6 +25,9 @@ class CustomerForm extends Component
 
     public string $email = '';
 
+    /** Le client refuse les avis automatiques (livraison, ramassage, rendez-vous). */
+    public bool $notificationsOptOut = false;
+
     /** @var array{civic: string, apartment: string, street: string, city: string, province: string, country: string, postal_code: string} */
     public array $address = [
         'civic' => '', 'apartment' => '', 'street' => '',
@@ -36,7 +39,7 @@ class CustomerForm extends Component
     {
         $this->authorize('customers.create');
 
-        $this->reset(['customerId', 'firstname', 'lastname', 'phone', 'cellphone', 'email']);
+        $this->reset(['customerId', 'firstname', 'lastname', 'phone', 'cellphone', 'email', 'notificationsOptOut']);
         $this->address = ['civic' => '', 'apartment' => '', 'street' => '', 'city' => '', 'province' => '', 'country' => 'CA', 'postal_code' => ''];
         $this->resetErrorBag();
         $this->showModal = true;
@@ -55,6 +58,7 @@ class CustomerForm extends Component
         $this->phone = $customer->phone ?? '';
         $this->cellphone = $customer->cellphone ?? '';
         $this->email = $customer->email ?? '';
+        $this->notificationsOptOut = $customer->notifications_opt_out;
         $this->address = [
             'civic' => $customer->address_civic ?? '',
             'apartment' => $customer->address_apartment ?? '',
@@ -95,6 +99,7 @@ class CustomerForm extends Component
             'address.province' => ['nullable', 'string', 'size:2'],
             'address.country' => ['nullable', 'string', 'in:CA,US'],
             'address.postal_code' => ['nullable', 'string', new PostalCode($this->address['country'])],
+            'notificationsOptOut' => ['boolean'],
         ]);
 
         $data = [
@@ -103,6 +108,7 @@ class CustomerForm extends Component
             'phone' => filled($this->phone) ? $this->phone : null,
             'cellphone' => filled($this->cellphone) ? $this->cellphone : null,
             'email' => filled($this->email) ? $this->email : null,
+            'notifications_opt_out' => $this->notificationsOptOut,
             'address_civic' => filled($this->address['civic']) ? $this->address['civic'] : null,
             'address_apartment' => filled($this->address['apartment']) ? $this->address['apartment'] : null,
             'address_street' => filled($this->address['street']) ? $this->address['street'] : null,
@@ -120,7 +126,7 @@ class CustomerForm extends Component
         }
 
         $this->showModal = false;
-        $this->reset(['customerId', 'firstname', 'lastname', 'phone', 'cellphone', 'email']);
+        $this->reset(['customerId', 'firstname', 'lastname', 'phone', 'cellphone', 'email', 'notificationsOptOut']);
         $this->address = ['civic' => '', 'apartment' => '', 'street' => '', 'city' => '', 'province' => '', 'country' => 'CA', 'postal_code' => ''];
 
         $this->dispatch('customer-saved', id: $customer->id);

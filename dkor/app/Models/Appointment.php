@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Actions\NotifyCustomerOfAppointment;
+use App\Enums\CustomerNoticeType;
 use Database\Factories\AppointmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -45,6 +47,43 @@ class Appointment extends Model
                 $appointment->last_updated_by = $authorId;
             }
         });
+
+        static::created(fn (Appointment $appointment) => app(NotifyCustomerOfAppointment::class)->handle($appointment, CustomerNoticeType::AppointmentBooked));
+
+        static::updated(function (Appointment $appointment): void {
+            match (true) {
+                $appointment->wasChanged('customer_id') => app(NotifyCustomerOfAppointment::class)->handle($appointment, CustomerNoticeType::AppointmentBooked),
+                $appointment->wasChanged(['date', 'start_minute']) => app(NotifyCustomerOfAppointment::class)->handle($appointment, CustomerNoticeType::AppointmentMoved),
+                default => null,
+            };
+        });
+
+        static::deleted(fn (Appointment $appointment) => app(NotifyCustomerOfAppointment::class)->handle($appointment, CustomerNoticeType::AppointmentCancelled));
+    }
+
+    /** Début du rendez-vous (date et heure). */
+    public function startsAt(): Carbon
+    {
+        return Carbon::parse($this->date)->startOfDay()->addMinutes($this->start_minute);
+    }
+
+    /** Date et heure du rendez-vous pour un avis au client (ex. : mardi 13 octobre 2026 à 09:00). */
+    public function startsAtLabel(): string
+    {
+        return __(':date à :time', [
+            'date' => $this->startsAt()->translatedFormat('l j F Y'),
+            'time' => $this->startsAt()->format('H:i'),
+        ]);
+    }
+
+    /**
+     * Magasin où le rendez-vous a lieu : celui de l'employé, sinon le magasin par défaut (bureau chef).
+     */
+    public function store(): ?Store
+    {
+        $storeId = Store::defaultIdFor($this->user);
+
+        return $storeId === null ? null : Store::find($storeId);
     }
 
     /**

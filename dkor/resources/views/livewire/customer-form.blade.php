@@ -27,6 +27,8 @@
             <flux:error name="email" />
         </flux:field>
 
+        <flux:checkbox wire:model="notificationsOptOut" :label="__('Refuse les avis automatiques')" :description="__('Aucun avis de livraison, de ramassage ou de rendez-vous. La commande peut quand même lui être envoyée à la main.')" />
+
         <div>
             <flux:heading size="sm" class="mb-4">{{ __('Adresse') }}</flux:heading>
             <x-address-input prefix="address" :current-country="$address['country'] ?? 'CA'" />
