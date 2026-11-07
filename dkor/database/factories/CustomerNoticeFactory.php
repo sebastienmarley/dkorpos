@@ -21,7 +21,7 @@ class CustomerNoticeFactory extends Factory
     {
         return [
             'customer_order_id' => CustomerOrder::factory(),
-            'customer_id' => fn (array $attributes) => CustomerOrder::find($attributes['customer_order_id'])?->customer_id ?? customer::factory(),
+            'customer_id' => fn (array $attributes): mixed => CustomerOrder::query()->whereKey($attributes['customer_order_id'])->value('customer_id') ?? customer::factory(),
             'type' => CustomerNoticeType::OrderSummary,
             'recipient' => fake()->safeEmail(),
             'status' => CustomerNoticeStatus::Sent,

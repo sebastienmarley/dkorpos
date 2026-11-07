@@ -4,9 +4,11 @@ namespace App\Actions;
 
 use App\Enums\CustomerNoticeStatus;
 use App\Enums\CustomerNoticeType;
+use App\Models\Appointment;
 use App\Models\customer;
 use App\Models\CustomerNotice;
 use App\Models\CustomerOrder;
+use App\Models\CustomerOrderDelivery;
 use App\Notifications\Customers\AppointmentNotice;
 use App\Notifications\Customers\DeliveryUpdateNotice;
 use App\Notifications\Customers\OrderSummaryNotice;
@@ -15,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 use Throwable;
 
 /**
@@ -112,12 +115,33 @@ class NotifyCustomer
             CustomerNoticeType::DeliveryRescheduled,
             CustomerNoticeType::DeliveryCancelled,
             CustomerNoticeType::DeliveryOnTheWay,
-            CustomerNoticeType::ShipmentSent => new DeliveryUpdateNotice($notice->subject, $notice->type),
+            CustomerNoticeType::ShipmentSent => new DeliveryUpdateNotice($this->subjectOf($notice, CustomerOrderDelivery::class), $notice->type),
             CustomerNoticeType::PickupReady => new PickupReadyNotice($notice->order),
             CustomerNoticeType::AppointmentBooked,
             CustomerNoticeType::AppointmentMoved,
             CustomerNoticeType::AppointmentCancelled,
-            CustomerNoticeType::AppointmentReminder => new AppointmentNotice($notice->subject, $notice->type),
+            CustomerNoticeType::AppointmentReminder => new AppointmentNotice($this->subjectOf($notice, Appointment::class), $notice->type),
         };
+    }
+
+    /**
+     * Document dont parle l'avis, du type attendu pour sa sorte d'avis.
+     *
+     * @template TSubject of Model
+     *
+     * @param  class-string<TSubject>  $class
+     * @return TSubject
+     *
+     * @throws LogicException si l'avis ne porte pas sur un document de ce type
+     */
+    private function subjectOf(CustomerNotice $notice, string $class): Model
+    {
+        $subject = $notice->subject;
+
+        if (! $subject instanceof $class) {
+            throw new LogicException(__('L\'avis #:id ne porte pas sur le document attendu.', ['id' => $notice->id]));
+        }
+
+        return $subject;
     }
 }
