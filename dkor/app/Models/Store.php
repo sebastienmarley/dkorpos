@@ -186,6 +186,12 @@ class Store extends Model
         return $this->belongsTo(self::class, 'warehouse_store_id');
     }
 
+    /** Adresse sur une ligne (ex. : 25 rue Saint-Germain, Rimouski QC G5L1A1) ; vide sans adresse. */
+    public function addressLine(): string
+    {
+        return trim(trim($this->address_civic.' '.$this->address_street).', '.trim($this->address_city.' '.$this->address_province.' '.$this->address_postal_code), ', ');
+    }
+
     /**
      * Heures d'ouverture lisibles, un jour par ligne (ex. : « Lundi : 09:00 à 17:00 », « Dimanche : fermé »).
      *

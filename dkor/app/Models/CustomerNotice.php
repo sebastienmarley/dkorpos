@@ -77,8 +77,10 @@ class CustomerNotice extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** Un avis échoué se renvoie, tant que le document dont il parle existe encore (un rendez-vous supprimé, non). */
     public function isResendable(): bool
     {
-        return $this->status === CustomerNoticeStatus::Failed;
+        return $this->status === CustomerNoticeStatus::Failed
+            && ($this->subject_type === null || $this->subject()->exists());
     }
 }

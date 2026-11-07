@@ -14,6 +14,10 @@ enum CustomerNoticeType: string
     case DeliveryOnTheWay = 'delivery_on_the_way';
     case ShipmentSent = 'shipment_sent';
     case PickupReady = 'pickup_ready';
+    case AppointmentBooked = 'appointment_booked';
+    case AppointmentMoved = 'appointment_moved';
+    case AppointmentCancelled = 'appointment_cancelled';
+    case AppointmentReminder = 'appointment_reminder';
 
     public function label(): string
     {
@@ -25,6 +29,10 @@ enum CustomerNoticeType: string
             self::DeliveryOnTheWay => __('Livraison en chemin'),
             self::ShipmentSent => __('Expédition envoyée'),
             self::PickupReady => __('Prête à ramasser'),
+            self::AppointmentBooked => __('Rendez-vous confirmé'),
+            self::AppointmentMoved => __('Rendez-vous déplacé'),
+            self::AppointmentCancelled => __('Rendez-vous annulé'),
+            self::AppointmentReminder => __('Rappel de rendez-vous'),
         };
     }
 

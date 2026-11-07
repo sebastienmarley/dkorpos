@@ -7,6 +7,7 @@ use App\Enums\CustomerNoticeType;
 use App\Models\customer;
 use App\Models\CustomerNotice;
 use App\Models\CustomerOrder;
+use App\Notifications\Customers\AppointmentNotice;
 use App\Notifications\Customers\DeliveryUpdateNotice;
 use App\Notifications\Customers\OrderSummaryNotice;
 use App\Notifications\Customers\PickupReadyNotice;
@@ -113,6 +114,10 @@ class NotifyCustomer
             CustomerNoticeType::DeliveryOnTheWay,
             CustomerNoticeType::ShipmentSent => new DeliveryUpdateNotice($notice->subject, $notice->type),
             CustomerNoticeType::PickupReady => new PickupReadyNotice($notice->order),
+            CustomerNoticeType::AppointmentBooked,
+            CustomerNoticeType::AppointmentMoved,
+            CustomerNoticeType::AppointmentCancelled,
+            CustomerNoticeType::AppointmentReminder => new AppointmentNotice($notice->subject, $notice->type),
         };
     }
 }

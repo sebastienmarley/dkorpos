@@ -36,7 +36,7 @@ class PickupReadyNotice extends Notification
                 $message->replyTo($store->email, $store->name);
             }
 
-            $address = trim(trim($store->address_civic.' '.$store->address_street).', '.trim($store->address_city.' '.$store->address_province.' '.$store->address_postal_code), ', ');
+            $address = $store->addressLine();
 
             $message->line(__('Magasin : :store', ['store' => $store->name]))
                 ->lineIf(filled($address), __('Adresse : :address', ['address' => $address]))
