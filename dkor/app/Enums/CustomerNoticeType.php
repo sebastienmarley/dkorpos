@@ -13,6 +13,7 @@ enum CustomerNoticeType: string
     case DeliveryCancelled = 'delivery_cancelled';
     case DeliveryOnTheWay = 'delivery_on_the_way';
     case ShipmentSent = 'shipment_sent';
+    case PickupReady = 'pickup_ready';
 
     public function label(): string
     {
@@ -23,6 +24,7 @@ enum CustomerNoticeType: string
             self::DeliveryCancelled => __('Livraison annulée'),
             self::DeliveryOnTheWay => __('Livraison en chemin'),
             self::ShipmentSent => __('Expédition envoyée'),
+            self::PickupReady => __('Prête à ramasser'),
         };
     }
 

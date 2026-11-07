@@ -187,6 +187,27 @@ class Store extends Model
     }
 
     /**
+     * Heures d'ouverture lisibles, un jour par ligne (ex. : « Lundi : 09:00 à 17:00 », « Dimanche : fermé »).
+     *
+     * @return list<string>
+     */
+    public function openingHoursLines(): array
+    {
+        $labels = [
+            'monday' => __('Lundi'), 'tuesday' => __('Mardi'), 'wednesday' => __('Mercredi'), 'thursday' => __('Jeudi'),
+            'friday' => __('Vendredi'), 'saturday' => __('Samedi'), 'sunday' => __('Dimanche'),
+        ];
+        $hours = array_replace_recursive(self::defaultOpeningHours(), $this->opening_hours ?? []);
+
+        return array_map(
+            fn (string $day): string => $hours[$day]['open']
+                ? __(':day : :from à :to', ['day' => $labels[$day], 'from' => $hours[$day]['from'], 'to' => $hours[$day]['to']])
+                : __(':day : fermé', ['day' => $labels[$day]]),
+            self::DAYS,
+        );
+    }
+
+    /**
      * Horaire par défaut : ouvert du lundi au vendredi.
      *
      * @return array<string, array{open: bool, from: string, to: string}>

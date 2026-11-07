@@ -9,6 +9,7 @@ use App\Models\CustomerNotice;
 use App\Models\CustomerOrder;
 use App\Notifications\Customers\DeliveryUpdateNotice;
 use App\Notifications\Customers\OrderSummaryNotice;
+use App\Notifications\Customers\PickupReadyNotice;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Notifications\Notification;
@@ -111,6 +112,7 @@ class NotifyCustomer
             CustomerNoticeType::DeliveryCancelled,
             CustomerNoticeType::DeliveryOnTheWay,
             CustomerNoticeType::ShipmentSent => new DeliveryUpdateNotice($notice->subject, $notice->type),
+            CustomerNoticeType::PickupReady => new PickupReadyNotice($notice->order),
         };
     }
 }
