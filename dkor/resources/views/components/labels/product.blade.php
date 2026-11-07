@@ -1,7 +1,7 @@
-@props(['product'])
+@props(['product', 'clearance' => null])
 
 @php
-    $price = $product->selling_price;
+    $price = $clearance?->price ?? $product->selling_price;
     $priceText = $price->cents() % 100 === 0 ? number_format(intdiv($price->cents(), 100)).' $' : $price->format();
     $priceSize = match (true) {
         mb_strlen($priceText) <= 6 => '64pt',
@@ -13,7 +13,12 @@
 {{-- Étiquette 4 × 6 po : seule la zone utile 3,5 × 3,5 po du haut est imprimée, le bas est préimprimé. --}}
 <section class="label">
     <div class="label-area">
-        <div class="label-price" style="font-size: {{ $priceSize }}">{{ $priceText }}</div>
+        <div class="label-price" style="font-size: {{ $priceSize }}">
+            @if ($clearance)
+                <span class="label-clearance">{{ __('Liquidation') }}</span>
+            @endif
+            {{ $priceText }}
+        </div>
 
         <div class="label-details">
             <div class="label-supplier">{{ $product->supplier->name }}</div>

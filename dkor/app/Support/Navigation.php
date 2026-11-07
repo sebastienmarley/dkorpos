@@ -68,6 +68,7 @@ class Navigation
                 $this->item(__('Produits'), 'cube', 'products.index', 'products.*', $user->can('products.view')),
                 $this->item(__('Pièces'), 'puzzle-piece', 'parts.index', 'parts.*', $user->can('parts.view')),
                 $this->item(__('Services'), 'wrench', 'catalog.services', allowed: $user->can('services.view')),
+                $this->item(__('Promotions'), 'receipt-percent', 'catalog.promotions', allowed: $user->can('promotions.view')),
                 $this->item(__('Classification'), 'tag', 'catalog.classification', allowed: $user->canAny(['departments.view', 'categories.view', 'colors.view', 'styles.view'])),
                 $this->item(__('Étiquettes'), 'printer', 'labels.index', 'labels.*', $user->can('labels.view'), badge: fn (): int => (int) LabelRequest::query()->pending()->sum('quantity')),
                 $this->item(__('Listes de prix'), 'currency-dollar', 'catalog.price-lists', 'catalog.price-lists*', $user->can('price_lists.view')),

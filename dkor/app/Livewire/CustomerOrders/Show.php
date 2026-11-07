@@ -14,7 +14,10 @@ use App\Models\CustomerPaymentMethod;
 use App\Models\Part;
 use App\Models\PriceListItem;
 use App\Models\Product;
+use App\Models\ProductClearance;
+use App\Models\ProductDemo;
 use App\Models\ProductUpc;
+use App\Models\Promotion;
 use App\Models\Service;
 use App\Models\Supplier;
 use App\Models\User;
@@ -172,6 +175,9 @@ class Show extends Component
 
     /** @var array<int, array{method_id: int|string, amount: string, tendered?: string}> */
     public array $pickupPayments = [];
+
+    /** Plusieurs promotions s'appliquent : le vendeur choisit laquelle. */
+    public bool $choosingPromotion = false;
 
     public function mount(CustomerOrder $order): void
     {
@@ -771,6 +777,49 @@ class Show extends Component
     }
 
     /**
+     * Vend un démonstrateur du magasin de la commande (ADR 0018).
+     */
+    public function addDemo(int $demoId): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        try {
+            $this->order->addDemo(ProductDemo::query()->findOrFail($demoId));
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->showProductModal = false;
+        $this->reset(['pendingUpc', 'linkPendingUpc']);
+        $this->order->refresh();
+        Flux::toast(text: __('Démonstrateur ajouté à la commande.'), variant: 'success');
+    }
+
+    /**
+     * Démonstrateurs libres et liquidation des produits trouvés, dans le magasin du stock de la commande.
+     *
+     * @param  Collection<int, Product>  $products
+     * @return array<int, array{demos: Collection<int, ProductDemo>, clearance: ?ProductClearance}>
+     */
+    public function getMarkdownsFor(Collection $products): array
+    {
+        if ($products->isEmpty() || $this->order->store_id === null) {
+            return [];
+        }
+
+        $storeId = $this->order->stockStoreId();
+        $demos = ProductDemo::query()->available()->where('store_id', $storeId)->whereIn('product_id', $products->modelKeys())->orderBy('price')->get()->groupBy('product_id');
+        $clearances = ProductClearance::query()->active()->where('store_id', $storeId)->whereIn('product_id', $products->modelKeys())->get()->keyBy('product_id');
+
+        return $products->mapWithKeys(fn (Product $product): array => [$product->id => [
+            'demos' => $demos->get($product->id, new Collection),
+            'clearance' => $clearances->get($product->id),
+        ]])->all();
+    }
+
+    /**
      * Sans fournisseur, la recherche se fait uniquement par ID de produit.
      *
      * @return Collection<int, Product>
@@ -1206,20 +1255,91 @@ class Show extends Component
             }
         }
 
-        $required = $this->order->amountRequiredFor($quantities);
-        $credit = $this->order->customer()->firstOrFail()->credit_balance->min($required);
-        $this->pickupRequiredCents = $required->cents();
-        $this->pickupCredit = $credit->toDecimal();
-
         if (array_sum($quantities) === 0 && ! $this->order->balance_due->isPositive()) {
             $this->addError('pickupQuantities', __('Aucun article choisi et rien à payer.'));
 
             return;
         }
 
+        $this->preparePickupPayment();
+        $this->choosingPromotion = false;
+        $this->pickupStep = 'payment';
+    }
+
+    /** Montant à encaisser pour les quantités choisies, crédit client proposé et premier paiement prérempli. */
+    private function preparePickupPayment(): void
+    {
+        $required = $this->order->amountRequiredFor($this->pickupQuantitiesAsIntegers());
+        $credit = $this->order->customer()->firstOrFail()->credit_balance->min($required);
+        $this->pickupRequiredCents = $required->cents();
+        $this->pickupCredit = $credit->toDecimal();
+
         $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
         $this->pickupPayments = [['method_id' => $firstMethod ?? '', 'amount' => $required->minus($credit)->max(Money::zero())->toDecimal()]];
-        $this->pickupStep = 'payment';
+    }
+
+    /**
+     * Promotions que le bouton peut appliquer (issue #84) : aucune si la commande en a déjà une.
+     *
+     * @return Collection<int, Promotion>
+     */
+    public function getApplicablePromotions(): Collection
+    {
+        return $this->order->applicablePromotions();
+    }
+
+    /**
+     * Bouton « Promotion » : une seule promotion admissible s'applique tout de suite, plusieurs demandent laquelle.
+     */
+    public function applyPromotion(?int $promotionId = null): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        $promotions = $this->order->applicablePromotions();
+
+        if ($promotionId === null && $promotions->count() > 1) {
+            $this->choosingPromotion = true;
+
+            return;
+        }
+
+        $promotion = $promotionId === null ? $promotions->first() : $promotions->firstWhere('id', $promotionId);
+
+        if ($promotion === null) {
+            Flux::toast(text: __('Aucune promotion ne s\'applique à cette commande.'), variant: 'danger');
+
+            return;
+        }
+
+        try {
+            $this->order->applyPromotion($promotion);
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->order->refresh();
+        $this->choosingPromotion = false;
+        $this->preparePickupPayment();
+        Flux::toast(text: __('Promotion « :name » appliquée.', ['name' => $promotion->name]), variant: 'success');
+    }
+
+    public function removePromotion(): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        try {
+            $this->order->removePromotion();
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->order->refresh();
+        $this->preparePickupPayment();
+        Flux::toast(text: __('Promotion retirée : les prix réguliers sont rétablis.'), variant: 'success');
     }
 
     public function backToPickupItems(): void
@@ -1362,7 +1482,7 @@ class Show extends Component
         $customProduct = $this->customProductId ? Product::with('supplier')->find($this->customProductId) : null;
         $defectiveLine = $this->defectiveLineId ? $this->order->lines()->with('product.supplier')->find($this->defectiveLineId) : null;
 
-        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines' => fn ($query) => $query->orderBy('id'), 'lines.product.supplier', 'lines.product.inventoryStocks', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.transfers.fromStore', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver', 'notices.creator']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines' => fn ($query) => $query->orderBy('id'), 'lines.product.supplier', 'lines.product.inventoryStocks', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.transfers.fromStore', 'lines.service', 'lines.supplier', 'lines.promotion', 'lines.demo', 'lines.clearance', 'promotion', 'payments.paymentMethod', 'payments.receiver', 'notices.creator']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),
