@@ -7,7 +7,9 @@ use App\Enums\CustomerNoticeType;
 use App\Models\customer;
 use App\Models\CustomerNotice;
 use App\Models\CustomerOrder;
+use App\Notifications\Customers\DeliveryUpdateNotice;
 use App\Notifications\Customers\OrderSummaryNotice;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +25,7 @@ class NotifyCustomer
     /**
      * @return CustomerNotice|null null si l'événement a déjà son avis
      */
-    public function handle(customer $customer, CustomerNoticeType $type, ?CustomerOrder $order = null, ?string $eventKey = null, int|string|null $createdBy = null): ?CustomerNotice
+    public function handle(customer $customer, CustomerNoticeType $type, ?CustomerOrder $order = null, ?string $eventKey = null, int|string|null $createdBy = null, ?Model $subject = null): ?CustomerNotice
     {
         if ($eventKey !== null && CustomerNotice::query()->where('event_key', $eventKey)->exists()) {
             return null;
@@ -41,6 +43,8 @@ class NotifyCustomer
                 'status' => $blockedStatus ?? CustomerNoticeStatus::Failed,
                 'failed_at' => $blockedStatus === null ? null : now(),
                 'created_by' => $createdBy,
+                'subject_type' => $subject?->getMorphClass(),
+                'subject_id' => $subject?->getKey(),
             ]));
         } catch (UniqueConstraintViolationException) {
             return null;
@@ -50,7 +54,7 @@ class NotifyCustomer
             return $notice;
         }
 
-        return $this->deliver($notice->setRelation('customer', $customer)->setRelation('order', $order));
+        return $this->deliver($notice->setRelation('customer', $customer)->setRelation('order', $order)->setRelation('subject', $subject));
     }
 
     /**
@@ -102,6 +106,11 @@ class NotifyCustomer
     {
         return match ($notice->type) {
             CustomerNoticeType::OrderSummary => new OrderSummaryNotice($notice->order),
+            CustomerNoticeType::DeliveryScheduled,
+            CustomerNoticeType::DeliveryRescheduled,
+            CustomerNoticeType::DeliveryCancelled,
+            CustomerNoticeType::DeliveryOnTheWay,
+            CustomerNoticeType::ShipmentSent => new DeliveryUpdateNotice($notice->subject, $notice->type),
         };
     }
 }

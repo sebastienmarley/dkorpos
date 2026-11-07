@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
 
 /**
@@ -25,14 +26,17 @@ use Illuminate\Support\Carbon;
  * @property CustomerNoticeStatus $status
  * @property Carbon|null $sent_at
  * @property Carbon|null $failed_at
+ * @property string|null $subject_type
+ * @property int|null $subject_id Document dont l'avis parle (livraison, rendez-vous…).
  * @property int|null $created_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read customer $customer
  * @property-read CustomerOrder|null $order
  * @property-read User|null $creator
+ * @property-read Model|null $subject
  */
-#[Fillable(['customer_id', 'customer_order_id', 'type', 'event_key', 'channel', 'recipient', 'status', 'sent_at', 'failed_at', 'created_by'])]
+#[Fillable(['customer_id', 'customer_order_id', 'type', 'event_key', 'channel', 'recipient', 'status', 'sent_at', 'failed_at', 'created_by', 'subject_type', 'subject_id'])]
 class CustomerNotice extends Model
 {
     /** @use HasFactory<CustomerNoticeFactory> */
@@ -59,6 +63,12 @@ class CustomerNotice extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(CustomerOrder::class, 'customer_order_id');
+    }
+
+    /** @return MorphTo<Model, $this> */
+    public function subject(): MorphTo
+    {
+        return $this->morphTo();
     }
 
     /** @return BelongsTo<User, $this> */

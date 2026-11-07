@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\CustomerNoticeType;
 use App\Enums\DeliveryMethod;
 use App\Enums\DeliveryPeriod;
 use App\Enums\DeliveryStatus;
@@ -23,7 +24,7 @@ use Illuminate\Support\Facades\DB;
  */
 class ScheduleDelivery
 {
-    public function __construct(private NotifyDeliveryTeam $notifyTeam) {}
+    public function __construct(private NotifyDeliveryTeam $notifyTeam, private NotifyCustomerOfDelivery $notifyCustomer) {}
 
     /**
      * @param  array<int, int>  $quantities  quantité à livrer par ligne
@@ -107,6 +108,8 @@ class ScheduleDelivery
                 ? __('Livraison planifiée : :slot', ['slot' => $delivery->slotLabel()])
                 : __('Livraison reportée au :slot (prévue le :previous)', ['slot' => $delivery->slotLabel(), 'previous' => $replacing->slotLabel()]),
         );
+
+        $this->notifyCustomer->handle($delivery, $replacing === null ? CustomerNoticeType::DeliveryScheduled : CustomerNoticeType::DeliveryRescheduled);
 
         return $delivery;
     }

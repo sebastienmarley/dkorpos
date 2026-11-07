@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Actions\NotifyCustomer;
+use App\Actions\NotifyCustomerOfDelivery;
 use App\Actions\NotifyDeliveryItemsReceived;
 use App\Actions\NotifyDeliveryTeam;
 use App\Actions\NotifyShipmentReady;
@@ -2386,6 +2387,8 @@ class CustomerOrder extends Model
 
             $this->syncDeliveries();
         });
+
+        app(NotifyCustomerOfDelivery::class)->handle($delivery, CustomerNoticeType::DeliveryOnTheWay);
     }
 
     /**
