@@ -134,6 +134,11 @@
                                         <flux:badge size="sm" color="purple" class="ms-1">{{ __('Sur mesure') }}</flux:badge>
                                         <div class="max-w-xs truncate text-xs font-normal text-zinc-500">{{ $line->description }}</div>
                                     @endif
+                                    @if ($line->demo)
+                                        <flux:badge size="sm" color="purple" class="ms-1">{{ $line->demo->is_as_is ? __('Démonstrateur · tel quel') : __('Démonstrateur') }}</flux:badge>
+                                    @elseif ($line->product_clearance_id)
+                                        <flux:badge size="sm" color="red" class="ms-1">{{ __('Liquidation') }}</flux:badge>
+                                    @endif
                                 @endif
                                 @unless ($line->is_taxable)
                                     <div class="text-xs font-normal text-zinc-400">{{ __('Non taxable') }}</div>
@@ -163,7 +168,7 @@
                             <flux:table.cell align="end">{{ $line->quantity }}</flux:table.cell>
                             <flux:table.cell align="end">
                                 {{ $line->unit_price->format() }}
-                                @if ($line->promotion_id && $line->regular_unit_price)
+                                @if ($line->regular_unit_price && $line->regular_unit_price->greaterThan($line->unit_price))
                                     <div class="text-xs text-zinc-400 line-through" title="{{ $line->promotion?->name }}">{{ $line->regular_unit_price->format() }}</div>
                                 @endif
                             </flux:table.cell>
@@ -373,16 +378,36 @@
 
                     @if (filled($productSearch))
                         <div class="mt-2 divide-y divide-zinc-200 overflow-hidden rounded-lg border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
-                            @forelse ($this->getProductResults() as $result)
-                                <button type="button" wire:key="product-result-{{ $result->id }}" wire:click="addProduct({{ $result->id }})" class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                                    <span class="min-w-0">
-                                        <span class="font-medium text-zinc-900 dark:text-white">{{ $result->model }}</span>
-                                        <span class="text-zinc-500"> · {{ $result->supplier->name }} · #{{ $result->id }}</span>
-                                    </span>
-                                    @if ($result->is_custom)
-                                        <flux:badge size="sm" color="purple">{{ __('Sur mesure') }}</flux:badge>
-                                    @endif
-                                </button>
+                            @php($productResults = $this->getProductResults())
+                            @php($markdowns = $this->getMarkdownsFor($productResults))
+                            @forelse ($productResults as $result)
+                                <div wire:key="product-result-{{ $result->id }}">
+                                    <button type="button" wire:click="addProduct({{ $result->id }})" class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                                        <span class="min-w-0">
+                                            <span class="font-medium text-zinc-900 dark:text-white">{{ $result->model }}</span>
+                                            <span class="text-zinc-500"> · {{ $result->supplier->name }} · #{{ $result->id }}</span>
+                                        </span>
+                                        @if ($result->is_custom)
+                                            <flux:badge size="sm" color="purple">{{ __('Sur mesure') }}</flux:badge>
+                                        @elseif ($markdowns[$result->id]['clearance'] ?? null)
+                                            <flux:badge size="sm" color="red">{{ __('Liquidation :price', ['price' => $markdowns[$result->id]['clearance']->price->format()]) }}</flux:badge>
+                                        @endif
+                                    </button>
+                                    @foreach ($markdowns[$result->id]['demos'] ?? [] as $demo)
+                                        <button type="button" wire:key="demo-result-{{ $demo->id }}" wire:click="addDemo({{ $demo->id }})" class="flex w-full items-center justify-between gap-3 bg-purple-50/50 py-1.5 ps-6 pe-3 text-left text-xs hover:bg-purple-50 dark:bg-purple-950/20 dark:hover:bg-purple-950/40">
+                                            <span class="min-w-0 truncate">
+                                                <span class="font-medium">{{ __('Démonstrateur') }} · {{ $demo->price->format() }}</span>
+                                                @if ($demo->is_as_is)
+                                                    · {{ __('tel quel') }}
+                                                @endif
+                                                @if ($demo->note)
+                                                    <span class="text-zinc-500"> · {{ $demo->note }}</span>
+                                                @endif
+                                            </span>
+                                            <flux:icon.plus class="h-3.5 w-3.5 text-zinc-400" />
+                                        </button>
+                                    @endforeach
+                                </div>
                             @empty
                                 <div class="px-3 py-2 text-sm text-zinc-400">{{ __('Aucun produit trouvé.') }}</div>
                             @endforelse

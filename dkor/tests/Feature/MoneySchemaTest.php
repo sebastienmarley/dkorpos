@@ -70,7 +70,7 @@ it('stocke chaque montant casté en Money dans une colonne entière', function (
                 ->map(fn (string $column): array => [$model->getTable(), $column]);
         });
 
-    expect($moneyColumns)->toHaveCount(50);
+    expect($moneyColumns)->toHaveCount(52);
 
     foreach ($moneyColumns as [$table, $column]) {
         expect(Schema::getColumnType($table, $column))->toBeIn(['integer', 'int4'], "{$table}.{$column}");

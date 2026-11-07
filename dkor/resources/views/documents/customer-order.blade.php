@@ -104,8 +104,15 @@
                             @if ($line->note)
                                 <div class="line-detail">{{ $line->note }}</div>
                             @endif
+                            @if ($line->product_demo_id)
+                                <div class="line-detail">{{ $line->demo?->is_as_is ? __('Démonstrateur — vendu tel quel, non retournable') : __('Démonstrateur') }}</div>
+                            @elseif ($line->product_clearance_id)
+                                <div class="line-detail">{{ __('Liquidation') }}</div>
+                            @endif
                             @if ($line->promotion_id && $line->regular_unit_price)
                                 <div class="line-detail">{{ __('Promotion « :name » — prix régulier :price', ['name' => $line->promotion?->name, 'price' => $line->regular_unit_price->format()]) }}</div>
+                            @elseif ($line->isMarkedDown() && $line->regular_unit_price?->greaterThan($line->unit_price))
+                                <div class="line-detail">{{ __('Prix régulier :price', ['price' => $line->regular_unit_price->format()]) }}</div>
                             @endif
                         </td>
                         <td class="num">{{ $line->quantity }}</td>

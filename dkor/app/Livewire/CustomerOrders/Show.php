@@ -14,6 +14,8 @@ use App\Models\CustomerPaymentMethod;
 use App\Models\Part;
 use App\Models\PriceListItem;
 use App\Models\Product;
+use App\Models\ProductClearance;
+use App\Models\ProductDemo;
 use App\Models\ProductUpc;
 use App\Models\Promotion;
 use App\Models\Service;
@@ -775,6 +777,49 @@ class Show extends Component
     }
 
     /**
+     * Vend un démonstrateur du magasin de la commande (ADR 0018).
+     */
+    public function addDemo(int $demoId): void
+    {
+        $this->authorize('customer_orders.edit');
+
+        try {
+            $this->order->addDemo(ProductDemo::query()->findOrFail($demoId));
+        } catch (DomainException $exception) {
+            Flux::toast(text: $exception->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->showProductModal = false;
+        $this->reset(['pendingUpc', 'linkPendingUpc']);
+        $this->order->refresh();
+        Flux::toast(text: __('Démonstrateur ajouté à la commande.'), variant: 'success');
+    }
+
+    /**
+     * Démonstrateurs libres et liquidation des produits trouvés, dans le magasin du stock de la commande.
+     *
+     * @param  Collection<int, Product>  $products
+     * @return array<int, array{demos: Collection<int, ProductDemo>, clearance: ?ProductClearance}>
+     */
+    public function getMarkdownsFor(Collection $products): array
+    {
+        if ($products->isEmpty() || $this->order->store_id === null) {
+            return [];
+        }
+
+        $storeId = $this->order->stockStoreId();
+        $demos = ProductDemo::query()->available()->where('store_id', $storeId)->whereIn('product_id', $products->modelKeys())->orderBy('price')->get()->groupBy('product_id');
+        $clearances = ProductClearance::query()->active()->where('store_id', $storeId)->whereIn('product_id', $products->modelKeys())->get()->keyBy('product_id');
+
+        return $products->mapWithKeys(fn (Product $product): array => [$product->id => [
+            'demos' => $demos->get($product->id, new Collection),
+            'clearance' => $clearances->get($product->id),
+        ]])->all();
+    }
+
+    /**
      * Sans fournisseur, la recherche se fait uniquement par ID de produit.
      *
      * @return Collection<int, Product>
@@ -1437,7 +1482,7 @@ class Show extends Component
         $customProduct = $this->customProductId ? Product::with('supplier')->find($this->customProductId) : null;
         $defectiveLine = $this->defectiveLineId ? $this->order->lines()->with('product.supplier')->find($this->defectiveLineId) : null;
 
-        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines' => fn ($query) => $query->orderBy('id'), 'lines.product.supplier', 'lines.product.inventoryStocks', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.transfers.fromStore', 'lines.service', 'lines.supplier', 'lines.promotion', 'promotion', 'payments.paymentMethod', 'payments.receiver', 'notices.creator']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines' => fn ($query) => $query->orderBy('id'), 'lines.product.supplier', 'lines.product.inventoryStocks', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.transfers.fromStore', 'lines.service', 'lines.supplier', 'lines.promotion', 'lines.demo', 'lines.clearance', 'promotion', 'payments.paymentMethod', 'payments.receiver', 'notices.creator']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),

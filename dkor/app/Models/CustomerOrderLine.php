@@ -34,7 +34,9 @@ use Illuminate\Support\Carbon;
  * @property int $quantity_on_order
  * @property Money $unit_price
  * @property int|null $promotion_id Promotion qui a baissé le prix de la ligne (issue #84).
- * @property Money|null $regular_unit_price Prix unitaire avant la promotion.
+ * @property Money|null $regular_unit_price Prix unitaire avant la promotion, le démonstrateur ou la liquidation.
+ * @property int|null $product_demo_id Fiche du démonstrateur vendu (ADR 0018).
+ * @property int|null $product_clearance_id Liquidation qui a fixé le prix (ADR 0018).
  * @property bool $is_no_charge Pièce remise sans frais (ex. : sous garantie) : prix vendant à 0 $.
  * @property Money|null $cancellation_fee
  * @property string|null $note
@@ -57,7 +59,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, CustomerOrderDeliveryLine> $deliveryLines
  * @property-read Money $total
  */
-#[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'inventory_location_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'is_no_charge', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at', 'promotion_id', 'regular_unit_price'])]
+#[Fillable(['customer_order_id', 'product_id', 'part_id', 'service_id', 'supplier_id', 'description', 'supplier_order_line_id', 'customer_order_pickup_id', 'inventory_location_id', 'quantity', 'quantity_reserved', 'quantity_on_order', 'unit_price', 'is_no_charge', 'unit_cost', 'quote_number', 'is_taxable', 'is_custom', 'cancellation_fee', 'note', 'status', 'delivered_at', 'returned_at', 'promotion_id', 'regular_unit_price', 'product_demo_id', 'product_clearance_id'])]
 class CustomerOrderLine extends Model
 {
     /** @use HasFactory<CustomerOrderLineFactory> */
@@ -144,7 +146,27 @@ class CustomerOrderLine extends Model
             'note' => $this->note,
             'promotion_id' => $this->promotion_id,
             'regular_unit_price' => $this->regular_unit_price,
+            'product_demo_id' => $this->product_demo_id,
+            'product_clearance_id' => $this->product_clearance_id,
         ];
+    }
+
+    /** @return BelongsTo<ProductDemo, $this> */
+    public function demo(): BelongsTo
+    {
+        return $this->belongsTo(ProductDemo::class, 'product_demo_id');
+    }
+
+    /** @return BelongsTo<ProductClearance, $this> */
+    public function clearance(): BelongsTo
+    {
+        return $this->belongsTo(ProductClearance::class, 'product_clearance_id');
+    }
+
+    /** Démonstrateur ou article liquidé : vendu à un prix réduit qui exclut toute promotion (ADR 0018). */
+    public function isMarkedDown(): bool
+    {
+        return $this->product_demo_id !== null || $this->product_clearance_id !== null;
     }
 
     /** @return BelongsTo<Promotion, $this> */

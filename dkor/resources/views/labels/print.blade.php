@@ -53,12 +53,21 @@
 
         .label-price {
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             font-weight: 800;
             line-height: 1;
             white-space: nowrap;
             letter-spacing: -0.02em;
+        }
+
+        .label-clearance {
+            display: block;
+            font-size: 16pt;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
         }
 
         .label-details {
@@ -175,7 +184,7 @@
     </div>
 
     @foreach ($products as $product)
-        <x-labels.product :product="$product" />
+        <x-labels.product :product="$product" :clearance="$clearance ?? null" />
     @endforeach
 
     <script>
