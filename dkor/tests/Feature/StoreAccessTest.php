@@ -234,6 +234,8 @@ describe('commandes fournisseurs', function () {
 
         $this->get(route('supplier-orders.show', $mine))->assertOk();
         $this->get(route('supplier-orders.show', $other))->assertForbidden();
+        $this->get(route('supplier-orders.print', $mine))->assertOk();
+        $this->get(route('supplier-orders.print', $other))->assertForbidden();
     });
 
     it('refuse au commis une commande pour un autre magasin', function () {

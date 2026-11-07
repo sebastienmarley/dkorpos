@@ -3,7 +3,9 @@
 namespace App\Livewire\CustomerOrders;
 
 use App\Actions\CreateProductFromPriceListItem;
+use App\Actions\NotifyCustomer;
 use App\Concerns\SearchesCustomers;
+use App\Enums\CustomerNoticeStatus;
 use App\Enums\SupplierType;
 use App\Models\customer;
 use App\Models\CustomerOrder;
@@ -176,6 +178,40 @@ class Show extends Component
         abort_unless($order->isAccessibleTo(auth()->user()), 403);
 
         $this->order = $order;
+    }
+
+    /**
+     * Envoie la commande au courriel du client.
+     */
+    public function emailToCustomer(): void
+    {
+        $this->authorize('customer_orders.view');
+
+        if ($this->order->emailToCustomer()) {
+            Flux::toast(text: __('Commande envoyée à :email.', ['email' => $this->order->customer->email]), variant: 'success');
+        } else {
+            Flux::toast(text: __('Le courriel n\'a pas pu être envoyé : vérifiez le courriel du client.'), variant: 'danger');
+        }
+    }
+
+    /**
+     * Renvoie un avis échoué au courriel actuel du client.
+     */
+    public function resendNotice(int $noticeId): void
+    {
+        $this->authorize('customer_orders.view');
+
+        $notice = $this->order->notices()->findOrFail($noticeId);
+
+        abort_unless($notice->isResendable(), 403);
+
+        $notice = app(NotifyCustomer::class)->resend($notice);
+
+        if ($notice->status === CustomerNoticeStatus::Sent) {
+            Flux::toast(text: __('Avis renvoyé à :email.', ['email' => $notice->recipient]), variant: 'success');
+        } else {
+            Flux::toast(text: __('L\'avis n\'a pas pu être envoyé : vérifiez le courriel du client.'), variant: 'danger');
+        }
     }
 
     public function openSalespeopleModal(): void
@@ -1326,7 +1362,7 @@ class Show extends Component
         $customProduct = $this->customProductId ? Product::with('supplier')->find($this->customProductId) : null;
         $defectiveLine = $this->defectiveLineId ? $this->order->lines()->with('product.supplier')->find($this->defectiveLineId) : null;
 
-        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines' => fn ($query) => $query->orderBy('id'), 'lines.product.supplier', 'lines.product.inventoryStocks', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.transfers.fromStore', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver']);
+        $this->order->load(['customer', 'store', 'creator', 'salespeople', 'lines' => fn ($query) => $query->orderBy('id'), 'lines.product.supplier', 'lines.product.inventoryStocks', 'lines.part.supplier', 'lines.defectiveProducts', 'lines.location.zone', 'lines.transfers.fromStore', 'lines.service', 'lines.supplier', 'payments.paymentMethod', 'payments.receiver', 'notices.creator']);
 
         return view('livewire.customer-orders.show', [
             'customerResults' => $this->getCustomerResults(),

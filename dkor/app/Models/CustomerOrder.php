@@ -2,11 +2,17 @@
 
 namespace App\Models;
 
+use App\Actions\NotifyCustomer;
+use App\Actions\NotifyCustomerOfDelivery;
+use App\Actions\NotifyCustomerPickupReady;
 use App\Actions\NotifyDeliveryItemsReceived;
 use App\Actions\NotifyDeliveryTeam;
+use App\Actions\NotifySalespeopleOrderHandedOver;
 use App\Actions\NotifyShipmentReady;
 use App\Casts\MoneyCast;
 use App\Concerns\BelongsToStore;
+use App\Enums\CustomerNoticeStatus;
+use App\Enums\CustomerNoticeType;
 use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
@@ -201,6 +207,36 @@ class CustomerOrder extends Model
         }
 
         $this->unsetRelation('taxLines');
+    }
+
+    /**
+     * Charge ce qu'affiche la commande imprimée ou envoyée au client.
+     */
+    public function loadDocument(): static
+    {
+        return $this->load(['store.taxRegistrations', 'customer', 'salespeople', 'lines.product', 'lines.part', 'lines.service', 'taxLines', 'payments.paymentMethod', 'deliveries']);
+    }
+
+    /**
+     * Envoie la commande au courriel du client et l'inscrit à l'historique des avis.
+     *
+     * @return bool faux si le client n'a pas de courriel ou si l'envoi échoue
+     */
+    public function emailToCustomer(): bool
+    {
+        $notice = app(NotifyCustomer::class)->handle($this->customer, CustomerNoticeType::OrderSummary, $this, createdBy: auth()->id());
+
+        return $notice?->status === CustomerNoticeStatus::Sent;
+    }
+
+    /**
+     * Avis envoyés au client pour cette commande, du plus récent au plus ancien.
+     *
+     * @return HasMany<CustomerNotice, $this>
+     */
+    public function notices(): HasMany
+    {
+        return $this->hasMany(CustomerNotice::class)->latest('id');
     }
 
     /** @return HasMany<CustomerOrderLine, $this> */
@@ -435,6 +471,29 @@ class CustomerOrder extends Model
         });
 
         app(NotifyDeliveryItemsReceived::class)->handle($line, $received);
+
+        if ($received > 0) {
+            app(NotifyCustomerPickupReady::class)->handle($this);
+        }
+    }
+
+    /**
+     * Tout ce qui reste à remettre au client est en main, et rien n'est prévu en livraison ni en expédition : le
+     * client peut venir ramasser sa commande (issue #137).
+     */
+    public function isReadyForPickup(): bool
+    {
+        $remaining = $this->lines()->with('transfers')->get()->filter(
+            fn (CustomerOrderLine $line): bool => ! $line->isService()
+                && ($line->status->isPickable() || $line->status === CustomerOrderLineStatus::CancellationRequested),
+        );
+
+        return $remaining->isNotEmpty()
+            && $remaining->every(fn (CustomerOrderLine $line): bool => $line->status->isPickable()
+                && $line->quantity_on_order === 0
+                && $line->quantity_reserved > 0
+                && $line->transfers->doesntContain(fn (StoreTransfer $transfer): bool => $transfer->status->isOpen()))
+            && $this->deliveries()->active()->doesntExist();
     }
 
     /**
@@ -2252,12 +2311,18 @@ class CustomerOrder extends Model
         $allHandedOver = $statuses->every(fn (CustomerOrderLineStatus $status): bool => $status->isHandedOver());
         $reachedCustomer = $statuses->contains(fn (CustomerOrderLineStatus $status): bool => in_array($status, [CustomerOrderLineStatus::Delivered, CustomerOrderLineStatus::Shipped], true));
 
+        $wasHandedOver = in_array($this->status, [CustomerOrderStatus::PickedUp, CustomerOrderStatus::Delivered], true);
+
         if ($allHandedOver && $reachedCustomer) {
             $this->update(['status' => CustomerOrderStatus::Delivered]);
         } elseif ($allHandedOver && $statuses->contains(CustomerOrderLineStatus::PickedUp)) {
             $this->update(['status' => CustomerOrderStatus::PickedUp]);
         } elseif (in_array($this->status, [CustomerOrderStatus::PickedUp, CustomerOrderStatus::Delivered], true)) {
             $this->update(['status' => CustomerOrderStatus::Pending]);
+        }
+
+        if (! $wasHandedOver && $allHandedOver && ($reachedCustomer || $statuses->contains(CustomerOrderLineStatus::PickedUp))) {
+            app(NotifySalespeopleOrderHandedOver::class)->handle($this);
         }
     }
 
@@ -2353,6 +2418,8 @@ class CustomerOrder extends Model
 
             $this->syncDeliveries();
         });
+
+        app(NotifyCustomerOfDelivery::class)->handle($delivery, CustomerNoticeType::DeliveryOnTheWay);
     }
 
     /**

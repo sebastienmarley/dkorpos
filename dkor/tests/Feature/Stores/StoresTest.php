@@ -441,3 +441,51 @@ it('refuse de gérer les camions sans la permission de modifier le magasin', fun
         ->call('openTruckModal')
         ->assertForbidden();
 });
+
+it('sauvegarde le magasin facturé dans l\'onglet Comptabilité', function () {
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    $mainStore = Store::factory()->create();
+    $store = Store::factory()->create();
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->set('billingStoreId', (string) $mainStore->id)
+        ->call('saveAccounting')
+        ->assertHasNoErrors();
+
+    expect($store->refresh()->billing_store_id)->toBe($mainStore->id)
+        ->and($store->billingStoreId())->toBe($mainStore->id);
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->assertSet('billingStoreId', (string) $mainStore->id)
+        ->set('billingStoreId', '')
+        ->call('saveAccounting')
+        ->assertHasNoErrors();
+
+    expect($store->refresh()->billing_store_id)->toBeNull()
+        ->and($store->billingStoreId())->toBe($store->id);
+});
+
+it('refuse une chaîne de magasins facturés', function () {
+    $this->actingAs(User::factory()->withRole('owner')->create());
+    $mainStore = Store::factory()->create();
+    $billedStore = Store::factory()->create(['billing_store_id' => $mainStore->id]);
+    $store = Store::factory()->create();
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->set('billingStoreId', (string) $billedStore->id)
+        ->call('saveAccounting')
+        ->assertHasErrors(['billingStoreId']);
+
+    Livewire::test(Show::class, ['store' => $mainStore])
+        ->set('billingStoreId', (string) $store->id)
+        ->call('saveAccounting')
+        ->assertHasErrors(['billingStoreId']);
+
+    Livewire::test(Show::class, ['store' => $store])
+        ->set('billingStoreId', (string) $store->id)
+        ->call('saveAccounting')
+        ->assertHasErrors(['billingStoreId']);
+
+    expect($store->refresh()->billing_store_id)->toBeNull()
+        ->and($mainStore->refresh()->billing_store_id)->toBeNull();
+});

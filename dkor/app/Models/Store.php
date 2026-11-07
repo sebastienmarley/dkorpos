@@ -41,6 +41,7 @@ use Illuminate\Support\Collection;
  * @property array<string, array{open: bool, from: string, to: string}>|null $opening_hours
  * @property int|null $warehouse_store_id
  * @property int|null $shipping_warehouse_id
+ * @property int|null $billing_store_id Magasin à qui les fournisseurs facturent les commandes de ce magasin ; vide : lui-même.
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -51,7 +52,7 @@ use Illuminate\Support\Collection;
     'address_province', 'address_country', 'address_postal_code',
     'bank_account', 'cancellation_fee_percent', 'custom_deposit_percent', 'shipping_max_length', 'shipping_max_weight',
     'vacation_accrual_start', 'sick_accrual_start', 'sick_days_full_time', 'sick_days_part_time',
-    'opening_hours', 'warehouse_store_id', 'shipping_warehouse_id', 'is_active',
+    'opening_hours', 'warehouse_store_id', 'shipping_warehouse_id', 'billing_store_id', 'is_active',
 ])]
 class Store extends Model
 {
@@ -105,6 +106,24 @@ class Store extends Model
     public function stockStoreId(): int
     {
         return $this->warehouse_store_id ?? $this->id;
+    }
+
+    /**
+     * Magasin à qui les fournisseurs facturent les commandes de ce magasin.
+     *
+     * @return BelongsTo<Store, $this>
+     */
+    public function billingStore(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'billing_store_id');
+    }
+
+    /**
+     * Magasin facturé pour les commandes de ce magasin : son magasin de facturation, sinon lui-même.
+     */
+    public function billingStoreId(): int
+    {
+        return $this->billing_store_id ?? $this->id;
     }
 
     /** @return HasMany<InventoryZone, $this> */
@@ -165,6 +184,33 @@ class Store extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(self::class, 'warehouse_store_id');
+    }
+
+    /** Adresse sur une ligne (ex. : 25 rue Saint-Germain, Rimouski QC G5L1A1) ; vide sans adresse. */
+    public function addressLine(): string
+    {
+        return trim(trim($this->address_civic.' '.$this->address_street).', '.trim($this->address_city.' '.$this->address_province.' '.$this->address_postal_code), ', ');
+    }
+
+    /**
+     * Heures d'ouverture lisibles, un jour par ligne (ex. : « Lundi : 09:00 à 17:00 », « Dimanche : fermé »).
+     *
+     * @return list<string>
+     */
+    public function openingHoursLines(): array
+    {
+        $labels = [
+            'monday' => __('Lundi'), 'tuesday' => __('Mardi'), 'wednesday' => __('Mercredi'), 'thursday' => __('Jeudi'),
+            'friday' => __('Vendredi'), 'saturday' => __('Samedi'), 'sunday' => __('Dimanche'),
+        ];
+        $hours = array_replace_recursive(self::defaultOpeningHours(), $this->opening_hours ?? []);
+
+        return array_map(
+            fn (string $day): string => $hours[$day]['open']
+                ? __(':day : :from à :to', ['day' => $labels[$day], 'from' => $hours[$day]['from'], 'to' => $hours[$day]['to']])
+                : __(':day : fermé', ['day' => $labels[$day]]),
+            self::DAYS,
+        );
     }
 
     /**

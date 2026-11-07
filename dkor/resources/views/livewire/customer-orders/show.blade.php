@@ -35,6 +35,17 @@
         </div>
 
         <div class="flex flex-col items-start gap-2 md:items-end">
+            <div class="flex flex-wrap gap-2">
+                <flux:button variant="ghost" icon="printer" :href="route('customer-orders.print', $order)" target="_blank">
+                    {{ __('Imprimer') }}
+                </flux:button>
+                @if (filled($order->customer->email))
+                    <flux:button variant="ghost" icon="envelope" wire:click="emailToCustomer" wire:confirm="{{ __('Envoyer la commande à :email?', ['email' => $order->customer->email]) }}">
+                        {{ __('Envoyer par courriel') }}
+                    </flux:button>
+                @endif
+            </div>
+
             @can('customer_orders.edit')
                 <flux:button variant="primary" icon="user-plus" wire:click="openCustomerModal">
                     {{ __('Changer le client') }}
@@ -227,6 +238,39 @@
             </dl>
         </div>
     </div>
+
+    {{-- Avis au client --}}
+    @if ($order->notices->isNotEmpty())
+        <div class="mb-6">
+            <flux:heading size="sm" class="mb-2">{{ __('Avis au client') }}</flux:heading>
+
+            @if (blank($order->customer->email) && $order->notices->contains(fn ($notice) => $notice->status === \App\Enums\CustomerNoticeStatus::NoEmail))
+                <flux:callout icon="phone" color="amber" class="mb-3">
+                    <flux:callout.text>{{ __('Aucun avis envoyé : aviser le client par téléphone.') }}</flux:callout.text>
+                </flux:callout>
+            @endif
+
+            @foreach ($order->notices as $notice)
+                <div wire:key="notice-{{ $notice->id }}" class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 py-1 text-sm dark:border-zinc-800">
+                    <span class="text-zinc-600 dark:text-zinc-300">
+                        {{ $notice->created_at->format('Y-m-d H:i') }} · {{ $notice->type->label() }}
+                        @if ($notice->recipient)
+                            <span class="text-zinc-400">· {{ $notice->recipient }}</span>
+                        @endif
+                        @if ($notice->creator)
+                            <span class="text-zinc-400">· {{ $notice->creator->fullName() }}</span>
+                        @endif
+                    </span>
+                    <span class="flex items-center gap-2">
+                        <flux:badge size="sm" :color="$notice->status->color()">{{ $notice->status->label() }}</flux:badge>
+                        @if ($notice->isResendable())
+                            <flux:button size="xs" icon="arrow-path" wire:click="resendNotice({{ $notice->id }})">{{ __('Renvoyer') }}</flux:button>
+                        @endif
+                    </span>
+                </div>
+            @endforeach
+        </div>
+    @endif
 
     <livewire:customer-orders.deliveries :order="$order" />
 

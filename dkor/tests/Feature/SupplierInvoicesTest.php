@@ -116,7 +116,7 @@ it('facture une réception partielle: coûts réels, frais, écart et statut de 
         ->and($invoice->lines->first())->quantity->toBe(4)->unit_cost->toBeMoney(575)
         ->and($receptionLine->fresh()->unit_cost)->toBeMoney(575)
         ->and($line->fresh()->unit_cost)->toBeMoney(575)
-        ->and(InventoryUnit::pluck('cost')->map->cents()->all())->toBe([938, 938, 937, 937])
+        ->and(InventoryUnit::orderBy('id')->pluck('cost')->map->cents()->all())->toBe([938, 938, 937, 937])
         ->and($order->fresh()->status)->toBe(SupplierOrderStatus::PartiallyReceived);
 });
 

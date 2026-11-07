@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\CustomerNoticeType;
 use App\Models\CustomerOrderDelivery;
 use DomainException;
 
@@ -11,7 +12,7 @@ use DomainException;
  */
 class ShipShipment
 {
-    public function __construct(private NotifyShipmentReady $notifyShipmentReady) {}
+    public function __construct(private NotifyShipmentReady $notifyShipmentReady, private NotifyCustomerOfDelivery $notifyCustomer) {}
 
     /**
      * @param  array<int, int>  $quantities  quantité envoyée par ligne d'expédition
@@ -22,6 +23,8 @@ class ShipShipment
     public function handle(CustomerOrderDelivery $shipment, array $quantities, string $trackingNumber): ?CustomerOrderDelivery
     {
         $remainder = $shipment->order()->firstOrFail()->shipDelivery($shipment, $quantities, $trackingNumber);
+
+        $this->notifyCustomer->handle($shipment->refresh(), CustomerNoticeType::ShipmentSent);
 
         if ($remainder !== null) {
             $this->notifyShipmentReady->handle($remainder);

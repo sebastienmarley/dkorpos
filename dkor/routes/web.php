@@ -1,10 +1,12 @@
 <?php
 
 use App\Enums\StoreType;
+use App\Http\Controllers\CustomerOrderPrintController;
 use App\Http\Controllers\DeliverySignatureController;
 use App\Http\Controllers\LabelPrintController;
 use App\Http\Controllers\ProductLabelController;
 use App\Http\Controllers\SessionLockController;
+use App\Http\Controllers\SupplierOrderPrintController;
 use App\Livewire\Accounting\Currencies;
 use App\Livewire\Accounting\Invoices\Create as InvoiceCreate;
 use App\Livewire\Accounting\Invoices\Form as InvoiceForm;
@@ -81,6 +83,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('customer-orders', CustomerOrdersIndex::class)->middleware('can:customer_orders.view')->name('customer-orders.index');
     Route::get('customer-orders/{order}', CustomerOrderShow::class)->middleware('can:customer_orders.view')->name('customer-orders.show');
+    Route::get('customer-orders/{order}/print', CustomerOrderPrintController::class)->middleware('can:customer_orders.view')->name('customer-orders.print');
 
     Route::get('deliveries', DeliveriesIndex::class)->middleware('can:deliveries.view')->name('deliveries.index');
     Route::get('deliveries/mine', MyDeliveries::class)->middleware('can:deliveries.handle')->name('deliveries.mine');
@@ -92,6 +95,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('supplier-orders', SupplierOrdersIndex::class)->middleware('can:supplier_orders.view')->name('supplier-orders.index');
     Route::get('supplier-orders/{order}', SupplierOrderShow::class)->middleware('can:supplier_orders.view')->name('supplier-orders.show');
+    Route::get('supplier-orders/{order}/print', SupplierOrderPrintController::class)->middleware('can:supplier_orders.view')->name('supplier-orders.print');
 
     Route::get('receptions', ReceptionsIndex::class)->middleware('can:receptions.view')->name('receptions.index');
     Route::get('receptions/create', ReceptionCreate::class)->middleware('can:receptions.create')->name('receptions.create');

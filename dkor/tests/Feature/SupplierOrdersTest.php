@@ -12,6 +12,7 @@ use App\Mail\SupplierOrderPlaced;
 use App\Models\InventoryStock;
 use App\Models\InventoryUnit;
 use App\Models\Product;
+use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
@@ -923,7 +924,7 @@ it('envoie la commande par courriel au courriel de commande du fournisseur', fun
             && str_contains($mail->render(), $order->number)
             && str_contains($mail->render(), 'Q-77')
             && str_contains($mail->render(), '20.00')
-            && str_contains($mail->render(), 'Livrer à l\'arrière');
+            && str_contains($mail->render(), e('Livrer à l\'arrière'));
     });
     Mail::assertSentCount(1);
     expect($order->fresh()->status)->toBe(SupplierOrderStatus::Sent);
@@ -1270,4 +1271,45 @@ it('ne réapplique pas l\'envoi ni une modification de ligne depuis une instance
         ->and($product->inventoryStocks()->sole()->quantity_on_order)->toBe(12);
 
     expectInventoryIntegrity($product);
+});
+
+it('copie le magasin facturé sur la commande à sa création', function () {
+    $mainStore = Store::factory()->create();
+    $store = Store::factory()->create(['billing_store_id' => $mainStore->id]);
+
+    $billedOrder = SupplierOrder::factory()->create(['store_id' => $store->id]);
+    $ownOrder = SupplierOrder::factory()->create(['store_id' => $mainStore->id]);
+
+    $store->update(['billing_store_id' => null]);
+
+    expect($billedOrder->refresh()->billing_store_id)->toBe($mainStore->id)
+        ->and($billedOrder->billingStore->is($mainStore))->toBeTrue()
+        ->and($ownOrder->billing_store_id)->toBe($mainStore->id);
+});
+
+it('imprime et envoie le bon de commande facturé au magasin principal et livré au magasin de destination', function () {
+    config(['supplier_orders.email_enabled' => true]);
+    Mail::fake();
+    $mainStore = Store::factory()->create(['name' => 'Magasin principal', 'address_civic' => '100', 'address_street' => 'boulevard Principal', 'address_city' => 'Québec']);
+    $store = Store::factory()->create(['name' => 'Succursale Rimouski', 'address_civic' => '25', 'address_street' => 'rue Saint-Germain', 'address_city' => 'Rimouski', 'billing_store_id' => $mainStore->id]);
+    $order = SupplierOrder::factory()->create(['store_id' => $store->id]);
+    $order->supplier->update(['order_email' => 'commandes@fournisseur.test', 'account_number' => 'CLI-4321']);
+    $product = Product::factory()->create(['supplier_id' => $order->supplier_id, 'model' => 'SOFA-88']);
+    SupplierOrderLine::factory()->forProduct($product)->create(['supplier_order_id' => $order->id, 'quantity' => 3, 'unit_cost' => Money::parse(10)]);
+
+    $this->get(route('supplier-orders.print', $order))
+        ->assertOk()
+        ->assertSeeInOrder(['Facturer à', 'Magasin principal', '100 boulevard Principal', 'Livrer à', 'Succursale Rimouski', '25 rue Saint-Germain'])
+        ->assertSee(['CLI-4321', 'SOFA-88', '30.00', 'Imprimer']);
+
+    $order->markPending();
+    $order->fresh()->send();
+
+    Mail::assertSent(SupplierOrderPlaced::class, function ($mail): bool {
+        $html = $mail->render();
+
+        return str_contains($html, 'boulevard Principal')
+            && str_contains($html, 'rue Saint-Germain')
+            && ! str_contains($html, 'window.print()');
+    });
 });

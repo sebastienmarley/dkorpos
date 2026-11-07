@@ -396,7 +396,7 @@ class Appointments extends Component
         $this->ensureStoreEmployee();
 
         if ($this->editingAppointmentId) {
-            $this->employeeAppointments()->whereKey($this->editingAppointmentId)->delete();
+            $this->employeeAppointments()->find($this->editingAppointmentId)?->delete();
         }
 
         $this->closeModal();

@@ -76,6 +76,9 @@ class Show extends Component
 
     public string $shippingWarehouseId = '';
 
+    /** Magasin à qui les fournisseurs facturent ; vide : ce magasin. */
+    public string $billingStoreId = '';
+
     public bool $isActive = true;
 
     // Expédition
@@ -139,7 +142,7 @@ class Show extends Component
     {
         return [
             'identification' => ['save' => 'saveIdentification', 'fields' => ['name', 'type', 'province', 'address', 'phone', 'email']],
-            'accounting' => ['save' => 'saveAccounting', 'fields' => ['taxNumbers', 'bankAccount', 'vacationAccrualMonth', 'vacationAccrualDay', 'sickAccrualMonth', 'sickAccrualDay', 'sickDaysFullTime', 'sickDaysPartTime', 'cancellationFeePercent', 'customDepositPercent']],
+            'accounting' => ['save' => 'saveAccounting', 'fields' => ['taxNumbers', 'bankAccount', 'billingStoreId', 'vacationAccrualMonth', 'vacationAccrualDay', 'sickAccrualMonth', 'sickAccrualDay', 'sickDaysFullTime', 'sickDaysPartTime', 'cancellationFeePercent', 'customDepositPercent']],
             'hours' => ['save' => 'saveOpeningHours', 'fields' => ['openingHours']],
             'shipping' => ['save' => 'saveShippingLimits', 'fields' => ['shippingMaxLength', 'shippingMaxWeight']],
             'parameters' => ['save' => 'saveParameters', 'fields' => ['warehouseStoreId', 'shippingWarehouseId', 'isActive']],
@@ -202,6 +205,7 @@ class Show extends Component
         $this->validate([
             'taxNumbers.*.number' => ['nullable', 'string', 'max:255'],
             'bankAccount' => ['nullable', 'string', 'max:255'],
+            'billingStoreId' => ['nullable', 'integer', Rule::notIn([$this->store->id]), Rule::exists('stores', 'id')->whereNull('billing_store_id'), $this->notBilledToByOtherStores()],
             'vacationAccrualMonth' => ['nullable', 'integer', 'between:1,12', 'required_with:vacationAccrualDay'],
             'vacationAccrualDay' => ['nullable', 'integer', 'between:1,31', 'required_with:vacationAccrualMonth', $this->validDay($this->vacationAccrualMonth)],
             'sickAccrualMonth' => ['nullable', 'integer', 'between:1,12', 'required_with:sickAccrualDay'],
@@ -214,6 +218,7 @@ class Show extends Component
 
         $this->store->fill([
             'bank_account' => filled($this->bankAccount) ? $this->bankAccount : null,
+            'billing_store_id' => filled($this->billingStoreId) ? (int) $this->billingStoreId : null,
             'vacation_accrual_start' => $this->monthDay($this->vacationAccrualMonth, $this->vacationAccrualDay),
             'sick_accrual_start' => $this->monthDay($this->sickAccrualMonth, $this->sickAccrualDay),
             'sick_days_full_time' => filled($this->sickDaysFullTime) ? $this->sickDaysFullTime : null,
@@ -394,6 +399,18 @@ class Show extends Component
         }
     }
 
+    /**
+     * Un magasin que d'autres magasins choisissent comme magasin de facturation se facture lui-même : pas de chaîne.
+     */
+    private function notBilledToByOtherStores(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            if (Store::query()->where('billing_store_id', $this->store->id)->exists()) {
+                $fail(__('D\'autres magasins sont facturés à ce magasin : il doit se facturer lui-même.'));
+            }
+        };
+    }
+
     private function fillFromModel(): void
     {
         $this->name = $this->store->name;
@@ -412,6 +429,7 @@ class Show extends Component
         $this->province = $this->store->province->value;
         $this->loadTaxNumbers();
         $this->bankAccount = $this->store->bank_account ?? '';
+        $this->billingStoreId = (string) ($this->store->billing_store_id ?? '');
         [$this->vacationAccrualMonth, $this->vacationAccrualDay] = $this->splitMonthDay($this->store->vacation_accrual_start);
         [$this->sickAccrualMonth, $this->sickAccrualDay] = $this->splitMonthDay($this->store->sick_accrual_start);
         $this->sickDaysFullTime = (string) ($this->store->sick_days_full_time ?? '');
@@ -439,6 +457,12 @@ class Show extends Component
             'physicalStores' => Store::query()
                 ->where('type', StoreType::Physical)
                 ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->store->warehouse_store_id)->orWhere('id', $this->store->shipping_warehouse_id))
+                ->orderBy('name')
+                ->get(),
+            'billingStores' => Store::query()
+                ->whereKeyNot($this->store->id)
+                ->whereNull('billing_store_id')
+                ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->store->billing_store_id))
                 ->orderBy('name')
                 ->get(),
         ])->layout('layouts.app', ['title' => $this->store->name]);
