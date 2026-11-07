@@ -69,6 +69,7 @@ class AppServiceProvider extends ServiceProvider
             'color' => Models\Color::class,
             'currency' => Models\Currency::class,
             'customer' => Models\customer::class,
+            'customer_notice' => Models\CustomerNotice::class,
             'customer_order' => Models\CustomerOrder::class,
             'customer_order_delivery' => Models\CustomerOrderDelivery::class,
             'customer_order_delivery_line' => Models\CustomerOrderDeliveryLine::class,
