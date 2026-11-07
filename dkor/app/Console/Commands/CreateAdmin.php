@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 use function Laravel\Prompts\password;
 use function Laravel\Prompts\select;
@@ -143,7 +144,7 @@ class CreateAdmin extends Command
         $this->info("Administrateur créé. Nom d'utilisateur : {$user->username}");
 
         if ($generatePassword) {
-            $this->warn("Mot de passe (affiché une seule fois) : {$plainPassword}");
+            $this->warn('Mot de passe (affiché une seule fois) : '.OutputFormatter::escape($plainPassword));
             $this->line('Faites-le réinitialiser par un autre administrateur après la première connexion.');
         }
 
