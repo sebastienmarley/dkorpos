@@ -659,7 +659,7 @@ class DemoDataSeeder extends Seeder
     {
         return (int) SupplierOrderLine::query()
             ->where('product_id', $product->id)
-            ->whereNull('customer_order_line_id')
+            ->whereDoesntHave('customerOrderLine')
             ->whereHas('order', fn ($orders) => $orders->where('store_id', $store->id)->whereIn('status', [SupplierOrderStatus::Sent, SupplierOrderStatus::PartiallyReceived]))
             ->sum('quantity');
     }
