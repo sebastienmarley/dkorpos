@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+	<channel>
+		<title>Database on Projet DKOR</title>
+		<link>http://localhost:1313/tags/database/</link>
+		<description>Recent content in Database on Projet DKOR</description>
+		<generator>Hugo</generator>
+		<language>fr-ca</language>
+		
+		
+		
+		
+			<lastBuildDate>Sun, 18 Oct 2026 00:00:00 +0000</lastBuildDate>
+		
+			<atom:link href="http://localhost:1313/tags/database/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Réflexion technique schéma de donnée</title>
+				<link>http://localhost:1313/techno/dataschema/</link>
+				<pubDate>Sun, 18 Oct 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/techno/dataschema/</guid>
+				<description>&lt;h2 id=&#34;schéma&#34;&gt;Schéma&lt;/h2&gt;&#xA;&lt;p&gt;En faisant la construction du modèle de donnée je pensais simplement reprendre le &amp;ldquo;dump&amp;rdquo; du schéma SQLite et commenter la structure et les liens. En cherchant à avoir des exemples, l&amp;rsquo;IA m&amp;rsquo;a suggéré de passer par Mermaid pour rendre le tout plus graphique. Je regrette un peu le passage de l&amp;rsquo;IA qui a remaché mes commentaires initiaux, mais au final il y a eu tellement de passage d&amp;rsquo;IA par la suite que j&amp;rsquo;hésite à réécrire mes commentaires. Au final ça donne un résultat visuel correct, mais la vue d&amp;rsquo;ensemble est intense. Néanmoins, les autres représentations sont claires, les liens &amp;ldquo;belongs to&amp;rdquo; facile à voir, les clés primaires et étrangères bien identifiées, tout comme la structure des tables et les types des variables. Il suffit d&amp;rsquo;aller consulter : /docs/data-model.md pour voir de quoi je parle.&lt;/p&gt;</description>
+			</item>
+	</channel>
+</rss>

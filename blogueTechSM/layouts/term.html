@@ -1,0 +1,10 @@
+{{ define "main" }}
+<div class="wrap narrow">
+  <nav class="crumbs" aria-label="Fil d'Ariane">
+    <a href="{{ "/" | relURL }}">Accueil</a> <span aria-hidden="true">›</span>
+    <a href="{{ .Parent.RelPermalink }}">{{ if eq .Data.Plural "tags" }}Étiquettes{{ else }}Catégories{{ end }}</a>
+  </nav>
+  <header class="page-head"><h1>#{{ .LinkTitle }}</h1></header>
+  {{ partial "entries-by-month.html" (dict "pages" .Pages.ByDate.Reverse "showSection" true) }}
+</div>
+{{ end }}

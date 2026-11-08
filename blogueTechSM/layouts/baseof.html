@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="{{ site.Language.Locale | default "fr-ca" }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ block "title" . }}{{ if .IsHome }}{{ site.Title }}{{ else }}{{ partial "page-title.html" . }} · {{ site.Title }}{{ end }}{{ end }}</title>
+  <meta name="description" content="{{ partial "description.html" . | default site.Params.description }}">
+  <meta name="color-scheme" content="light dark">
+  {{- with .OutputFormats.Get "rss" }}
+  <link rel="alternate" type="application/rss+xml" href="{{ .RelPermalink }}" title="{{ site.Title }}">
+  {{- end }}
+  {{- $css := resources.Get "css/main.css" | minify | fingerprint }}
+  <link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}">
+  {{- template "_internal/opengraph.html" . }}
+</head>
+<body class="{{ block "bodyclass" . }}{{ end }}">
+  <a class="skip" href="#main">Aller au contenu</a>
+  {{ partial "header.html" . }}
+  <main id="main">
+    {{ block "main" . }}{{ end }}
+  </main>
+  <footer class="site-footer">
+    <div class="wrap">
+      <span>© {{ now.Year }} {{ site.Params.author }}</span>
+      <span>{{ site.Params.description }}</span>
+    </div>
+  </footer>
+</body>
+</html>

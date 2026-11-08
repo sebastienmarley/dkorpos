@@ -1,0 +1,60 @@
+{{ define "main" }}
+<div class="wrap">
+  <section class="hero">
+    <h1>{{ site.Title }}</h1>
+    <p>{{ site.Params.description }}</p>
+  </section>
+
+  <ul class="cards" role="list">
+    {{- range site.Menus.main }}
+    {{- with site.GetPage .PageRef }}
+    {{- $pages := .RegularPages.ByDate.Reverse }}
+    <li class="card card-{{ .Section }}">
+      <a class="card-link" href="{{ .RelPermalink }}">
+        <span class="card-title">{{ partial "page-title.html" . }}</span>
+        <span class="card-count">{{ len $pages }} entrée{{ if gt (len $pages) 1 }}s{{ end }}</span>
+      </a>
+      <p class="card-blurb">{{ partial "description.html" . }}</p>
+      {{- with index $pages 0 }}
+      <p class="card-latest">Dernière : <a href="{{ .RelPermalink }}">{{ .Title }}</a> <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date | time.Format ":date_medium" }}</time></p>
+      {{- end }}
+    </li>
+    {{- end }}
+    {{- end }}
+  </ul>
+
+  {{- $all := where site.RegularPages "Section" "in" (slice "blog" "techno" "journal") }}
+  <section class="timeline" aria-labelledby="chrono">
+    <div class="timeline-head">
+      <h2 id="chrono">Chronologie</h2>
+      <div class="filters" role="group" aria-label="Filtrer par section" hidden>
+        <button type="button" data-filter="all" aria-pressed="true">Tout</button>
+        {{- range site.Menus.main }}
+        <button type="button" data-filter="{{ .Identifier }}" aria-pressed="false">{{ .Name }}</button>
+        {{- end }}
+      </div>
+    </div>
+    {{ partial "entries-by-month.html" (dict "pages" $all.ByDate.Reverse "showSection" true) }}
+  </section>
+</div>
+
+<script>
+  (function () {
+    var bar = document.querySelector('.filters');
+    if (!bar) return;
+    bar.hidden = false;
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      var f = btn.dataset.filter;
+      bar.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b === btn); });
+      document.querySelectorAll('.timeline .entry').forEach(function (li) {
+        li.hidden = f !== 'all' && li.dataset.section !== f;
+      });
+      document.querySelectorAll('.timeline .month').forEach(function (m) {
+        m.hidden = !m.querySelector('.entry:not([hidden])');
+      });
+    });
+  })();
+</script>
+{{ end }}

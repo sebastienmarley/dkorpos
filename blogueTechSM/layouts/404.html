@@ -1,0 +1,10 @@
+{{ define "title" }}Page introuvable · {{ site.Title }}{{ end }}
+{{ define "main" }}
+<div class="wrap narrow">
+  <header class="page-head">
+    <h1>Page introuvable</h1>
+    <p class="lede">Cette page n'existe pas ou a été déplacée.</p>
+  </header>
+  <p><a href="{{ "/" | relURL }}">← Retour à l'accueil</a></p>
+</div>
+{{ end }}

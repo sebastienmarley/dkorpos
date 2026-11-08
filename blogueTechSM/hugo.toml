@@ -1,45 +1,49 @@
 baseURL = 'https://example.org/'
 locale = 'fr-ca'
 title = 'Projet DKOR'
+enableRobotsTXT = true
 
 [params]
-  title = 'Projet DKOR'
   description = 'Blogue technique et journal de projet.'
+  author = 'Sébastien Marley'
 
-  [params.author]
-    name = 'Sébastien Marley'
-
-  [params.header.title]
-    name = 'Projet DKOR'
-
-  [params.app]
-    title = 'Projet DKOR'
-
-  [params.home.profile]
-    title = 'Projet DKOR'
-    subtitle = 'Blogue technique et journal de projet'
-
-[module]
-  [[module.imports]]
-    path = 'github.com/dillonzq/LoveIt'
+  # Libellés et descriptions des sections, utilisés par les gabarits
+  # (les titres des fichiers _index.md restent intacts).
+  [params.sections.blog]
+    title = 'Blogue'
+    blurb = 'Retours hebdomadaires sur chaque itération : avancées, blocages, constats.'
+  [params.sections.techno]
+    title = 'Choix techniques'
+    blurb = 'Réflexions et décisions sur le framework, les données et la sécurité.'
+  [params.sections.journal]
+    title = 'Journal de projet'
+    blurb = 'Notes de travail détaillées, semaine après semaine.'
 
 [menu]
   [[menu.main]]
-    identifier = "Blog"
-    name = "Blogue"
-    url = "/blog/"
+    identifier = 'blog'
+    name = 'Blogue'
+    pageRef = '/blog'
     weight = 1
-
   [[menu.main]]
-    identifier = "techno"
-    name = "Choix techniques"
-    url = "/techno/"
+    identifier = 'techno'
+    name = 'Choix techniques'
+    pageRef = '/techno'
     weight = 2
-
   [[menu.main]]
-    identifier = "journal"
-    name = "Journal de Projet"
-    url = "/journal/"
+    identifier = 'journal'
+    name = 'Journal de projet'
+    pageRef = '/journal'
     weight = 3
 
+[markup.tableOfContents]
+  startLevel = 1
+  endLevel = 3
 
+# Fichier de notes locales (ignoré par git) : jamais publié ni listé.
+[[cascade]]
+  [cascade.build]
+    list = 'never'
+    render = 'never'
+  [cascade.target]
+    path = '/journal/commande'

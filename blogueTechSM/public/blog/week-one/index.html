@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="fr-ca">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="robots" content="noodp" />
-        <title>Itération 1 - semaine 1 - Projet DKOR</title><meta name="Description" content="Retour sur la première semaine de démarrage du projet, les blocages rencontrés et les premiers constats."><meta property="og:url" content="https://example.org/blog/week-one/">
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Itération 1 - semaine 1 · Projet DKOR</title>
+  <meta name="description" content="Retour sur la première semaine de démarrage du projet, les blocages rencontrés et les premiers constats.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="/css/main.min.d303de8e381cc7e38c6229d8886e3fd9d96c8b52ad84d1d0a8a1470eb99c877b.css" integrity="sha256-0wPejjgcx&#43;OMYinYiG4/2dlsi1KthNHQqKFHDrmch3s="><meta property="og:url" content="http://localhost:1313/blog/week-one/">
 	<meta property="og:site_name" content="Projet DKOR">
 	<meta property="og:title" content="Itération 1 - semaine 1">
 	<meta property="og:description" content="Retour sur la première semaine de démarrage du projet, les blocages rencontrés et les premiers constats.">
@@ -17,77 +19,104 @@
 		<meta property="article:tag" content="Hugo">
 		<meta property="article:tag" content="IA">
 		<meta property="article:tag" content="Démarrage">
-<meta name="application-name" content="Projet DKOR">
-        <meta name="apple-mobile-web-app-title" content="Projet DKOR">
-        <meta name="referrer" content="no-referrer" /><meta name="theme-color" content="#ffffff"><meta name="msapplication-TileColor" content="#da532c"><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"><link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"><link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5"><link rel="manifest" href="/site.webmanifest"><link rel="canonical" href="https://example.org/blog/week-one/" /><link rel="stylesheet" href="/css/style.min.css"><link rel="preload" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-        <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css"></noscript><link rel="preload" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-        <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css"></noscript><script type="application/ld+json">
-    {
-        "@context": "http://schema.org",
-        "@type": "BlogPosting",
-        "headline": "Itération 1 - semaine 1",
-        "inLanguage": "fr-ca",
-        "mainEntityOfPage": {
-            "@type": "WebPage",
-            "@id": "https:\/\/example.org\/blog\/week-one\/"
-        },"genre": "blog","keywords": "GitHub, Hugo, IA, démarrage","wordcount":  565 ,
-        "url": "https:\/\/example.org\/blog\/week-one\/","datePublished": "2026-09-22T00:00:00+00:00","dateModified": "2026-09-22T00:00:00+00:00","publisher": {
-            "@type": "Organization",
-            "name": ""},"author": {
-                "@type": "Person",
-                "name": "Sébastien Marley"
-            },"description": "Retour sur la première semaine de démarrage du projet, les blocages rencontrés et les premiers constats."
-    }
-    </script></head>
-    <body data-header-desktop="fixed" data-header-mobile="auto"><script>
-          const query = window.matchMedia('(prefers-color-scheme: dark)');
-          function applyTheme() {
-            let theme = window.localStorage?.getItem('theme') || 'auto';
-            let isDark = theme === 'dark' || (theme === 'auto' && query.matches);
-            document.body.setAttribute('theme', isDark? 'dark' : 'light');
-            document.body.setAttribute('cfg-theme', theme);
-          }
 
-          applyTheme();
-          query.addEventListener('change', applyTheme);
-        </script>
+</head>
+<body class="sec-blog">
+  <a class="skip" href="#main">Aller au contenu</a>
+  <header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/">Projet DKOR</a>
+    <nav aria-label="Navigation principale">
+      <ul>
+        <li><a class="nav-blog is-active" href="/blog/" aria-current="page">Blogue</a></li>
+        <li><a class="nav-techno" href="/techno/">Choix techniques</a></li>
+        <li><a class="nav-journal" href="/journal/">Journal de projet</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
 
-        <div id="mask"></div>
+  <main id="main">
+    
 
-        <div class="wrapper"><header class="desktop" id="header-desktop">
-    <div class="header-wrapper">
-        <div class="header-title">
-            <a href="/" title="Projet DKOR">Projet DKOR</a>
-        </div>
-        <div class="menu">
-            <div class="menu-inner"><a class="menu-item" href="/blog/"> Blogue </a><a class="menu-item" href="/techno/"> Choix techniques </a><a class="menu-item" href="/journal/"> Journal de Projet </a><span class="menu-item delimiter"></span><a href="javascript:void(0);" class="menu-item theme-switch" title="Switch Theme">
-                    <i class="fas fa-adjust" aria-hidden="true"></i>
-                </a></div>
-        </div>
-    </div>
-</header><header class="mobile" id="header-mobile">
-    <div class="header-container">
-        <div class="header-wrapper">
-            <div class="header-title">
-                <a href="/" title="Projet DKOR">Projet DKOR</a>
-            </div>
-            <div class="menu-toggle" id="menu-toggle-mobile">
-                <span></span><span></span><span></span>
-            </div>
-        </div>
-        <div class="menu" id="menu-mobile"><a class="menu-item" href="/blog/" title="">Blogue</a><a class="menu-item" href="/techno/" title="">Choix techniques</a><a class="menu-item" href="/journal/" title="">Journal de Projet</a><a href="javascript:void(0);" class="menu-item theme-switch" title="Switch Theme">
-                <i class="fas fa-adjust" aria-hidden="true"></i>
-            </a></div>
-    </div>
-</header><main class="main">
-                <div class="container"><div class="page single special"><h1 class="single-title animate__animated animate__pulse animate__faster">Itération 1 - semaine 1</h1><div class="content" id="content"><p>Voici le premier retour de cette aventure de projet. La semaine 1 a surtout été une semaine de mise en place, d’installation, d’essais, de blocages et de petits déclics. Je n’ai pas encore de résultat final spectaculaire, mais j’ai appris énormément sur ma manière de travailler, sur les outils à utiliser et sur la meilleure façon d’aborder la suite.</p>
-<h2 id="ce-que-jai-appris">Ce que j’ai appris</h2>
-<p>J’ai commencé par m’attaquer à l’environnement de travail. L’installation des outils a été plus compliquée que prévu : GitHub, les configurations de base, le choix d’un parcours de publication, puis la mise en place de l’environnement de développement. J’ai aussi découvert qu’il ne suffit pas de vouloir aller vite : il faut d’abord poser des bases solides pour éviter de devoir tout reprendre plus tard.</p>
-<p>La partie la plus intéressante pour moi, c’est l’usage de l’IA dans le cadre du projet. J’avais des appréhensions au départ, surtout parce que je ne savais pas bien comment dialoguer avec l’outil sans me laisser guider trop facilement. En l’utilisant de manière plus réfléchie, j’ai vu à quel point elle pouvait m’aider à gagner du temps, mais aussi à quel point il fallait rester critique sur ce qu’elle propose.</p>
+<div class="wrap layout has-toc">
+  <aside class="sidebar" aria-label="Entrées de la section">
+    <details class="side-box" open>
+      <summary><a href="/blog/">Blogue</a> <span class="muted">(5)</span></summary>
+      <ol class="side-list">
+        <li class="is-current">
+          <a href="/blog/week-one/" aria-current="page">
+            <span>Itération 1 - semaine 1</span>
+            <time datetime="2026-09-22">22 sept.</time>
+          </a>
+        </li>
+        <li>
+          <a href="/blog/week-two/">
+            <span>Itération 1 - semaine 2</span>
+            <time datetime="2026-09-27">27 sept.</time>
+          </a>
+        </li>
+        <li>
+          <a href="/blog/week-three/">
+            <span>Itération 1 - semaine 3</span>
+            <time datetime="2026-10-05">5 oct.</time>
+          </a>
+        </li>
+        <li>
+          <a href="/blog/week-four/">
+            <span>Itération 2 - semaine 1</span>
+            <time datetime="2026-10-11">11 oct.</time>
+          </a>
+        </li>
+        <li>
+          <a href="/blog/week-five/">
+            <span>Itération 2 - semaine 2</span>
+            <time datetime="2026-10-18">18 oct.</time>
+          </a>
+        </li>
+      </ol>
+    </details>
+  </aside>
+
+  <article class="article">
+    <nav class="crumbs" aria-label="Fil d'Ariane">
+      <a href="/">Accueil</a> <span aria-hidden="true">›</span>
+      <a href="/blog/">Blogue</a>
+    </nav>
+    <header class="article-head">
+      <h1>Itération 1 - semaine 1</h1>
+      <p class="meta">
+        <time datetime="2026-09-22">22 septembre 2026</time>
+        · 4 min de lecture
+      </p><p class="lede">Retour sur la première semaine de démarrage du projet, les blocages rencontrés et les premiers constats.</p>
+      <ul class="tags" aria-label="Étiquettes"><li><a href="/tags/github/">#GitHub</a></li><li><a href="/tags/hugo/">#Hugo</a></li><li><a href="/tags/ia/">#IA</a></li><li><a href="/tags/d%C3%A9marrage/">#Démarrage</a></li>
+      </ul>
+    </header>
+    <details class="toc toc-inline">
+      <summary>Sur cette page</summary>
+      <nav id="TableOfContents">
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#résumé-de-la-semaine">Résumé de la semaine</a></li>
+        <li><a href="#leçons-de-la-semaine">Leçons de la semaine</a></li>
+        <li><a href="#les-blocages-rencontrés">Les blocages rencontrés</a></li>
+        <li><a href="#les-progrès-concrets">Les progrès concrets</a></li>
+        <li><a href="#la-semaine-à-venir">La semaine à venir</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </details>
+
+    <div class="prose" id="content">
+      <h2 id="résumé-de-la-semaine">Résumé de la semaine</h2>
+<p>Première semaine de travail qui s&rsquo;achève, quelle aventure. Ma première semaine consistait surtout en installation de mes outils de développement, j&rsquo;ai reconfigurer une machine complète pour se faire. Beaucoup de temps investi pour arriver à mes fins, sans compter la documentation plus ou moins à jour parfois. Principaux écueils, GitHub Pages disponible seulement sur un git public. Ensuite MySQL, une chance mon collègue m&rsquo;a suggéré DBNGIN pour résoudre le problème et m&rsquo;éviter de prendre sqlite, à lire dans la page de mes choix techniques. Mais le plus difficile fut Hugo, un bon 5-6 heures pour comprendre comment déployer le tout, où composer le texte, etc. sans compter la méthode pour incorporer le &ldquo;template&rdquo; de base que j&rsquo;avais choisi. Si ce n&rsquo;était de l&rsquo;intégration à GitHub Pages je crois presque que du bon vieux HTML m&rsquo;aurait moins égaré. Mais bon, j&rsquo;ai appris. Pour preuve ce que vous lisez.</p>
+<h2 id="leçons-de-la-semaine">Leçons de la semaine</h2>
+<p>Ce n&rsquo;est pas parce qu&rsquo;on a un livre de recette qu&rsquo;on remplace le chef. Je ne le cacherai pas, c&rsquo;est tout un défi pour moi en ce moment, je dois apprendre comment fonctionne les outils que j&rsquo;utilise, en plus de la nomenclature et d&rsquo;un style de programmation que j&rsquo;ai seulement lu dans les 3 dernières années. Au moins si les choses ne fonctionnent pas, je suis encore à l&rsquo;étape de jeter et de repartir.</p>
+<p>La partie la plus intéressante pour moi, c’est l’usage de l’IA dans le cadre du projet. J’avais des appréhensions au départ, surtout parce que je n&rsquo;avais jamais utilisé cela. J&rsquo;avais peur aussi de ne pas comprendre le code qui m&rsquo;est retourné, pour preuve j&rsquo;ai jeté et recommencé ce projet Hugo 4 fois en 2 jours, c&rsquo;est maintenant ma 5e itérations. Heureusement à force de questionner l&rsquo;agent Copilot de VSCode j&rsquo;ai fini par comprendre un peu mieux la structure pour un site Hugo. En souhaitant avoir retiré les derniers artéfact d&rsquo;un site de base sur celle-ci sinon ce sera dans mes tâches de la semaine prochaine. Voici un exemple de ce que je n&rsquo;ai pas aimé de l&rsquo;IA : En l’utilisant de manière plus réfléchie, j’ai vu à quel point elle pouvait m’aider à gagner du temps, mais aussi à quel point il fallait rester critique sur ce qu’elle propose. Les résumés et modifications faites à mes textes, j&rsquo;ai réécrit ce blogue 3 fois jusqu&rsquo;à maintenant. Je prend note de ne plus écrire directement dans le projet. Autre point, je dois comprendre le code qui m&rsquo;est retourné, j&rsquo;ai souvent l&rsquo;impression de superflu dans ce que l&rsquo;IA me propose.</p>
 <h2 id="les-blocages-rencontrés">Les blocages rencontrés</h2>
-<p>Le plus gros frein a été la config initiale. J’ai perdu du temps sur des éléments de setup, sur des mauvaises pistes de solution et sur des outils qui semblaient simples au départ mais demandaient plus de finesse qu’attendu.</p>
+<p>J&rsquo;ai eu l&rsquo;impression de débuter mon projet directement en face d&rsquo;un mur. Les trois premières journées ont été investis dans la préparation de l&rsquo;environnement et dans la conception du cas. J&rsquo;ai tenté un premier jet, mais je vais repartir à neuf cette semaine.</p>
 <p>J’ai notamment traversé cette période avec :</p>
 <ul>
 <li>des difficultés d’installation et de configuration des outils</li>
@@ -95,41 +124,61 @@
 <li>des essais répétitifs sur Hugo avant d’obtenir un rendu exploitable</li>
 <li>une prise de conscience qu’il fallait repartir sur des fondations plus claires</li>
 </ul>
-<p>Il y a aussi un point qui m’a particulièrement marqué : le projet ne doit pas être piloté uniquement par la vitesse. Il vaut mieux avancer calmement, comprendre ce que l’on fait et ne pas être prisonnier du sentiment qu’il faut aller trop vite.</p>
 <h2 id="les-progrès-concrets">Les progrès concrets</h2>
-<p>Malgré les blocages, j’ai quand même progressé sur plusieurs points :</p>
+<p>Malgré tout, j’ai accompli quelques point du premier jalon :</p>
 <ul>
 <li>mise en place du blog et de la structure de publication</li>
 <li>compréhension des outils de base du projet</li>
 <li>prise en main de l’environnement de développement</li>
-<li>début de formalisation de la méthode de travail</li>
-<li>meilleure compréhension de mes propres habitudes de travail</li>
+<li>début du KanBan dans GitHub Project</li>
 </ul>
-<p>J’ai aussi commencé à poser les bases de la discipline qui me permettra de tenir le projet sur le long terme : documenter les étapes, noter les blocages, écrire les retours et garder une trace claire des décisions prises.</p>
+<p>J’ai aussi posé les bases de la structure du projet, fait une première tentative avec gestions des usages et canvas de base.</p>
 <h2 id="la-semaine-à-venir">La semaine à venir</h2>
-<p>La semaine prochaine, je veux surtout me concentrer sur la structure du projet et la qualité de la base. Je veux clarifier les objectifs, mieux organiser le travail et faire le point sur les outils qui seront réellement utiles pour la suite.</p>
-<p>Je vais aussi finaliser quelques éléments de cadrage, tester des pistes plus solides et commencer à mieux utiliser les outils techniques sans me laisser submerger par le bruit.</p>
+<p>La semaine 2 servira à terminer les dernières étapes du jalon 1, jeter les bases du projet refacto les usagers pour ajouter l&rsquo;auth. à 2 facteurs, avec toggle dans la gestion de profile, sera enforced rendu au build final. Compléter le Kanban pour être prêt pour la semaine 3. Je vais aussi débuter des enregistrements de mon travail via OBS j&rsquo;en mettrai un en évidence par semaine via un lien en fin d&rsquo;entrée de blogue.</p>
+<p>Mon collègue m&rsquo;a dit.</p>
 <blockquote>
-<p>“Tu es mieux de recommencer ta base 5 fois au début du projet que de regretter en plein milieu d’avoir été trop vite.”</p>
+<p>“Tu es mieux de recommencer ta base 5 fois au début du projet que de regretter en plein milieu d’avoir été trop vite.”
+Je dois lui donner raison.</p>
 </blockquote>
-<p>Je veux que cette publication serve de trace. Elle doit refléter mes progrès, mes blocages et les solutions que j’ai trouvées pour avancer. C’est aussi une manière de garder une mémoire de mon apprentissage, étape par étape.</p>
-<p><a href="https://www.youtube.com/shorts/EXEMPLE_LINK" target="_blank" rel="noopener noreffer ">Voir le short YouTube de la semaine</a></p>
-</div></div></div>
-            </main><footer class="footer">
-        <div class="footer-container"><div class="footer-line">Powered by <a href="https://gohugo.io/" target="_blank" rel="noopener noreffer" title="Hugo 0.166.0">Hugo</a> | Theme - <a href="https://github.com/dillonzq/LoveIt" target="_blank" rel="noopener noreffer" title="LoveIt 0.3.1-DEV"><i class="far fa-kiss-wink-heart" aria-hidden="true"></i> LoveIt</a>
-                </div><div class="footer-line" itemscope itemtype="http://schema.org/CreativeWork"><i class="far fa-copyright" aria-hidden="true"></i><span itemprop="copyrightYear">2022 - 2026</span><span class="author" itemprop="copyrightHolder">&nbsp;<a href="/" target="_blank">Sébastien Marley</a></span></div>
-        </div>
-    </footer></div>
+<p><a href="https://youtu.be/u6pVoEuRhOI">Voici un petit vidéo pour résumer ma semaine</a></p>
 
-        <div id="fixed-buttons">
-            <a href="#" id="back-to-top" class="fixed-button" title="Back to Top">
-                <i class="fas fa-arrow-up" aria-hidden="true"></i>
-            </a>
-        </div>
+    </div>
 
-        <div id="fixed-buttons-hidden">
-            <a href="#" id="view-comments" class="fixed-button" title="View Comments">
-                <i class="fas fa-comment" aria-hidden="true"></i>
-            </a>
-        </div><script src="https://cdn.jsdelivr.net/npm/lazysizes@5.3.2/lazysizes.min.js"></script><script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.11/dist/clipboard.min.js"></script><script src="https://cdn.jsdelivr.net/npm/sharer.js@0.5.2/sharer.min.js"></script><script>window.config={"comment":{}};</script><script src="/js/theme.min.js"></script></body>
+    <nav class="pager" aria-label="Entrée précédente et suivante"><span></span>
+      <a class="pager-next" href="/blog/week-two/"><small>Suivante →</small><span>Itération 1 - semaine 2</span></a>
+    </nav>
+  </article>
+  <aside class="toc toc-side" aria-label="Sur cette page">
+    <p class="toc-title">Sur cette page</p>
+    <nav id="TableOfContents">
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#résumé-de-la-semaine">Résumé de la semaine</a></li>
+        <li><a href="#leçons-de-la-semaine">Leçons de la semaine</a></li>
+        <li><a href="#les-blocages-rencontrés">Les blocages rencontrés</a></li>
+        <li><a href="#les-progrès-concrets">Les progrès concrets</a></li>
+        <li><a href="#la-semaine-à-venir">La semaine à venir</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+  </aside>
+</div>
+<script>
+   
+  if (window.matchMedia('(max-width: 900px)').matches) {
+    var box = document.querySelector('.side-box');
+    if (box) box.open = false;
+  }
+</script>
+
+  </main>
+  <footer class="site-footer">
+    <div class="wrap">
+      <span>© 2026 Sébastien Marley</span>
+      <span>Blogue technique et journal de projet.</span>
+    </div>
+  </footer>
+</body>
 </html>

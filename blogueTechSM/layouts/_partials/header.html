@@ -1,0 +1,14 @@
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="{{ "/" | relURL }}">{{ site.Title }}</a>
+    <nav aria-label="Navigation principale">
+      <ul>
+        {{- $current := . }}
+        {{- range site.Menus.main }}
+        {{- $active := or ($current.IsMenuCurrent "main" .) ($current.HasMenuCurrent "main" .) (eq $current.Section .Identifier) }}
+        <li><a class="nav-{{ .Identifier }}{{ if $active }} is-active{{ end }}" href="{{ .URL }}"{{ if $active }} aria-current="page"{{ end }}>{{ .Name }}</a></li>
+        {{- end }}
+      </ul>
+    </nav>
+  </div>
+</header>
