@@ -1018,7 +1018,11 @@ class DemoDataSeeder extends Seeder
 
         $this->pay($order, $this->quantitiesOf($lines));
 
-        $this->at($this->day + 3, function () use ($order, $lines): void {
+        // Jamais de retour le dernier jour : un remboursement peut effacer les ventes du jour (un dimanche, seul
+        // Rimouski vend), et l'accueil doit en montrer.
+        $returnDay = $this->day + 3 === self::DAYS ? self::DAYS - 1 : $this->day + 3;
+
+        $this->at($returnDay, function () use ($order, $lines): void {
             $pickedUp = $order->fresh()->lines()->where('product_id', $lines[0]->product_id)->where('status', CustomerOrderLineStatus::PickedUp)->firstOrFail();
             $refund = $order->fresh()->refundableFor($pickedUp, 1);
             $order->fresh()->returnLine($pickedUp, 1, refund: true, refunds: [['method_id' => $this->visa->id, 'amount' => $refund]]);
