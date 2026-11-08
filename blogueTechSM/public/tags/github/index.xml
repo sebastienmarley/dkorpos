@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 	<channel>
 		<title>GitHub on Projet DKOR</title>
-		<link>https://example.org/tags/github/</link>
+		<link>http://localhost:1313/tags/github/</link>
 		<description>Recent content in GitHub on Projet DKOR</description>
 		<generator>Hugo</generator>
 		<language>fr-ca</language>
@@ -10,15 +10,22 @@
 		
 		
 		
-			<lastBuildDate>Tue, 22 Sep 2026 00:00:00 +0000</lastBuildDate>
+			<lastBuildDate>Sun, 27 Sep 2026 00:00:00 +0000</lastBuildDate>
 		
-			<atom:link href="https://example.org/tags/github/index.xml" rel="self" type="application/rss+xml" />
+			<atom:link href="http://localhost:1313/tags/github/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Itération 1 - semaine 2</title>
+				<link>http://localhost:1313/blog/week-two/</link>
+				<pubDate>Sun, 27 Sep 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/blog/week-two/</guid>
+				<description>&lt;h2 id=&#34;résumé-de-la-semaine&#34;&gt;Résumé de la semaine&lt;/h2&gt;&#xA;&lt;p&gt;Deuxième semaine de travail sur le project, déjà des modules prennent forment, je prends un peu plus confiance et je maitrise un peu mieux mes outils. Début des films via OBS studio, j&amp;rsquo;ai inséré quelques courts vidéos d&amp;rsquo;ailleurs dans mes résumés. Formule à peaufiner, mais j&amp;rsquo;espère pouvoir présenté des sessions de travail avec plus d&amp;rsquo;exactitude lorsque je retournerai à mon autre poste de travail.&lt;/p&gt;&#xA;&lt;h2 id=&#34;leçons-de-la-semaine&#34;&gt;Leçons de la semaine&lt;/h2&gt;&#xA;&lt;p&gt;Je dois ralentir, prendre le temps de planifier ce que je fais, cela évite des va-et-vient et c&amp;rsquo;est plus encourageant. Le backend avant le frontend, les fonctions et les variables avant les vues. Un bon Model contribue à réduire mes interactions avec l&amp;rsquo;IA. Une requête détaillé pour réaliser 1 étape ou comprendre 1 comportement c&amp;rsquo;est 100x mieux qu&amp;rsquo;un paragraphe pour faire plein de choses. Je constate que plus je suis dans le détail, sur une partie minuscule du projet et mieux j&amp;rsquo;arrive à suivre ce qui se passe et corriger les moments d&amp;rsquo;errance.&lt;/p&gt;</description>
+			</item>
 			<item>
 				<title>Itération 1 - semaine 1</title>
-				<link>https://example.org/blog/week-one/</link>
+				<link>http://localhost:1313/blog/week-one/</link>
 				<pubDate>Tue, 22 Sep 2026 00:00:00 +0000</pubDate>
-				<guid>https://example.org/blog/week-one/</guid>
-				<description>&lt;p&gt;Voici le premier retour de cette aventure de projet. La semaine 1 a surtout été une semaine de mise en place, d’installation, d’essais, de blocages et de petits déclics. Je n’ai pas encore de résultat final spectaculaire, mais j’ai appris énormément sur ma manière de travailler, sur les outils à utiliser et sur la meilleure façon d’aborder la suite.&lt;/p&gt;&#xA;&lt;h2 id=&#34;ce-que-jai-appris&#34;&gt;Ce que j’ai appris&lt;/h2&gt;&#xA;&lt;p&gt;J’ai commencé par m’attaquer à l’environnement de travail. L’installation des outils a été plus compliquée que prévu : GitHub, les configurations de base, le choix d’un parcours de publication, puis la mise en place de l’environnement de développement. J’ai aussi découvert qu’il ne suffit pas de vouloir aller vite : il faut d’abord poser des bases solides pour éviter de devoir tout reprendre plus tard.&lt;/p&gt;</description>
+				<guid>http://localhost:1313/blog/week-one/</guid>
+				<description>&lt;h2 id=&#34;résumé-de-la-semaine&#34;&gt;Résumé de la semaine&lt;/h2&gt;&#xA;&lt;p&gt;Première semaine de travail qui s&amp;rsquo;achève, quelle aventure. Ma première semaine consistait surtout en installation de mes outils de développement, j&amp;rsquo;ai reconfigurer une machine complète pour se faire. Beaucoup de temps investi pour arriver à mes fins, sans compter la documentation plus ou moins à jour parfois. Principaux écueils, GitHub Pages disponible seulement sur un git public. Ensuite MySQL, une chance mon collègue m&amp;rsquo;a suggéré DBNGIN pour résoudre le problème et m&amp;rsquo;éviter de prendre sqlite, à lire dans la page de mes choix techniques. Mais le plus difficile fut Hugo, un bon 5-6 heures pour comprendre comment déployer le tout, où composer le texte, etc. sans compter la méthode pour incorporer le &amp;ldquo;template&amp;rdquo; de base que j&amp;rsquo;avais choisi. Si ce n&amp;rsquo;était de l&amp;rsquo;intégration à GitHub Pages je crois presque que du bon vieux HTML m&amp;rsquo;aurait moins égaré. Mais bon, j&amp;rsquo;ai appris. Pour preuve ce que vous lisez.&lt;/p&gt;</description>
 			</item>
 	</channel>
 </rss>

@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 	<channel>
 		<title>Categories on Projet DKOR</title>
-		<link>https://example.org/categories/</link>
+		<link>http://localhost:1313/categories/</link>
 		<description>Recent content in Categories on Projet DKOR</description>
 		<generator>Hugo</generator>
 		<language>fr-ca</language>
@@ -10,21 +10,28 @@
 		
 		
 		
-			<lastBuildDate>Tue, 22 Sep 2026 00:00:00 +0000</lastBuildDate>
+			<lastBuildDate>Sat, 07 Nov 2026 00:00:00 +0000</lastBuildDate>
 		
-			<atom:link href="https://example.org/categories/index.xml" rel="self" type="application/rss+xml" />
+			<atom:link href="http://localhost:1313/categories/index.xml" rel="self" type="application/rss+xml" />
 			<item>
-				<title>Projet</title>
-				<link>https://example.org/categories/projet/</link>
-				<pubDate>Tue, 22 Sep 2026 00:00:00 +0000</pubDate>
-				<guid>https://example.org/categories/projet/</guid>
+				<title>Project</title>
+				<link>http://localhost:1313/categories/project/</link>
+				<pubDate>Sat, 07 Nov 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/categories/project/</guid>
 				<description></description>
 			</item>
 			<item>
-				<title>Project</title>
-				<link>https://example.org/categories/project/</link>
-				<pubDate>Wed, 15 Apr 2026 00:00:00 +0000</pubDate>
-				<guid>https://example.org/categories/project/</guid>
+				<title>Techno</title>
+				<link>http://localhost:1313/categories/techno/</link>
+				<pubDate>Sat, 24 Oct 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/categories/techno/</guid>
+				<description></description>
+			</item>
+			<item>
+				<title>Projet</title>
+				<link>http://localhost:1313/categories/projet/</link>
+				<pubDate>Sun, 18 Oct 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/categories/projet/</guid>
 				<description></description>
 			</item>
 	</channel>

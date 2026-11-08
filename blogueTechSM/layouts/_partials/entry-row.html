@@ -1,0 +1,14 @@
+{{- /* Ligne d'entrée : date · [section] · titre · description. Contexte : dict "page" "showSection". */ -}}
+{{- $p := .page -}}
+<li class="entry" data-section="{{ $p.Section }}">
+  <time datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date | time.Format "2 Jan" }}</time>
+  <div class="entry-body">
+    <a class="entry-title" href="{{ $p.RelPermalink }}">{{ $p.Title }}</a>
+    {{- if .showSection }}
+    <span class="badge badge-{{ $p.Section }}">{{ (index site.Params.sections $p.Section).title }}</span>
+    {{- end }}
+    {{- with partial "description.html" $p }}
+    <p class="entry-desc">{{ . }}</p>
+    {{- end }}
+  </div>
+</li>

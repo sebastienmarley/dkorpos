@@ -1,0 +1,8 @@
+{{- /* Description réelle de la page, ou vide si elle n'est qu'un « . » de remplissage. */ -}}
+{{- $d := "" -}}
+{{- if .IsSection -}}
+  {{- with index site.Params.sections .Section }}{{ $d = .blurb }}{{ end -}}
+{{- else -}}
+  {{- $d = .Description | default "" | strings.TrimSpace -}}
+{{- end -}}
+{{- if gt (len (strings.Trim $d ". ")) 2 }}{{ $d }}{{ end -}}

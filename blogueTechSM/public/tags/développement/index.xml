@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+	<channel>
+		<title>Développement on Projet DKOR</title>
+		<link>http://localhost:1313/tags/d%C3%A9veloppement/</link>
+		<description>Recent content in Développement on Projet DKOR</description>
+		<generator>Hugo</generator>
+		<language>fr-ca</language>
+		
+		
+		
+		
+			<lastBuildDate>Sun, 18 Oct 2026 00:00:00 +0000</lastBuildDate>
+		
+			<atom:link href="http://localhost:1313/tags/d%C3%A9veloppement/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Itération 2 - semaine 2</title>
+				<link>http://localhost:1313/blog/week-five/</link>
+				<pubDate>Sun, 18 Oct 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/blog/week-five/</guid>
+				<description>&lt;h2 id=&#34;résumé-de-la-semaine&#34;&gt;Résumé de la semaine&lt;/h2&gt;&#xA;&lt;p&gt;Très peu de temps en soirée a été consacré au projet cette semaine, j&amp;rsquo;avais besoin d&amp;rsquo;un pas de recul, me ressourcer et retravailler les user story pour m&amp;rsquo;aligner avec les recommendations. J&amp;rsquo;ai donc raffiné mon github project, puis je me suis lancé dans les derniers modules de l&amp;rsquo;itération 2 afin de livrer un produit plus étoffé au client. Les livraisons et expéditions sont faites, l&amp;rsquo;inventaire annuelle, les ajustements d&amp;rsquo;inventaire et les mouvements ainsi que toutes les corrections que cela a engendrées. Le module d&amp;rsquo;impression d&amp;rsquo;étiquette pour les démonstrateurs, qui me donne envie de faire un gabarit pour les produits réservés des commandes clients. Ainsi que le développement des ADR liés à ces modules.&lt;/p&gt;</description>
+			</item>
+	</channel>
+</rss>
