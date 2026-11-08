@@ -972,7 +972,7 @@ class DemoDataSeeder extends Seeder
         $supplierOrder->send();
 
         $this->at($this->day + 7, function () use ($order, $line, $supplierOrder): void {
-            $orderLine = $supplierOrder->lines()->where('customer_order_line_id', $line->id)->first()
+            $orderLine = $supplierOrder->lines()->whereKey($line->fresh()->supplier_order_line_id)->first()
                 ?? $supplierOrder->lines()->where('product_id', $line->product_id)->firstOrFail();
             Reception::record($supplierOrder->supplier, [$orderLine->id => ['quantity' => $orderLine->quantity]]);
             $this->invoiceReception($supplierOrder);
