@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+	<channel>
+		<title>Décision Technique on Projet DKOR</title>
+		<link>http://localhost:1313/tags/d%C3%A9cision-technique/</link>
+		<description>Recent content in Décision Technique on Projet DKOR</description>
+		<generator>Hugo</generator>
+		<language>fr-ca</language>
+		
+		
+		
+		
+			<lastBuildDate>Thu, 01 Oct 2026 00:00:00 +0000</lastBuildDate>
+		
+			<atom:link href="http://localhost:1313/tags/d%C3%A9cision-technique/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Choix et décision de sécurité</title>
+				<link>http://localhost:1313/techno/securite/</link>
+				<pubDate>Thu, 01 Oct 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/techno/securite/</guid>
+				<description>&lt;h2 id=&#34;login&#34;&gt;Login&lt;/h2&gt;&#xA;&lt;p&gt;Password simple pour le moment, mais le 2 facteurs sera implémenté avant le déploiement et je vais ajouter le passkey via spatie/laravel-passkey. Je force un mot de passe complexe à la création d&amp;rsquo;un nouvel utilisateur et il est impossible de le modifier autre qu&amp;rsquo;en demandant au directeur/propriétaire. Le concept est de rendre l&amp;rsquo;accès à l&amp;rsquo;application le plus restrictif possible, tout en évitant de s&amp;rsquo;embarrer.&lt;/p&gt;&#xA;&lt;h2 id=&#34;qui-à-accès-à-quoi&#34;&gt;Qui à accès à quoi&lt;/h2&gt;&#xA;&lt;p&gt;Chaque employé occupe une position dans la compagnie, mais la position ne dicte pas le rôle. Un vendeur peut agir comme 3e clé, mais ne pas faire de gestion, alors que la personne au service à la clientèle s&amp;rsquo;occupe d&amp;rsquo;une portion de la comptabilité. C&amp;rsquo;est pourquoi il faut une gestion des permissions agile qui fait fit du titre d&amp;rsquo;emploi et s&amp;rsquo;adapte à la réalité du terrain. C&amp;rsquo;est pourquoi je vois les rôles comme un regroupement des permissions de bases pour effectuer une sorte de tâche. Mais au final la plupart des employés ont des accès très limité et ensuite la personne en charge distribue les permissions en fonction des tâches de chacun. Petite contrainte, personne ne peut modifier sa propre fiche d&amp;rsquo;usager sauf le propriétaire et l&amp;rsquo;administrateur.&lt;/p&gt;</description>
+			</item>
+			<item>
+				<title>Choix et décision semaine 2</title>
+				<link>http://localhost:1313/techno/choixs2/</link>
+				<pubDate>Sat, 26 Sep 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/techno/choixs2/</guid>
+				<description>&lt;p&gt;Certains choix et décisions pris en cours de semaine&lt;/p&gt;&#xA;&lt;h2 id=&#34;bd&#34;&gt;BD&lt;/h2&gt;&#xA;&lt;p&gt;Peu de décisions de base de donnée cette semaine. Toujours en sqlite pour l&amp;rsquo;instant, je prépare à migrer vers MySQL la semaine prochaine, ça va me permettre d&amp;rsquo;utiliser TablePlus pour consulter et ou modifier la BD, ça va m&amp;rsquo;aider pour constater certain comportement, principalement les mouvements d&amp;rsquo;inventaires, les écritures d&amp;rsquo;inventaire unitaire et éventuellement l&amp;rsquo;aspect comptabilité qui est plus sensible si je développe ce côté.&lt;/p&gt;</description>
+			</item>
+	</channel>
+</rss>

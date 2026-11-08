@@ -1,0 +1,6 @@
+{{- /* Titre affiché : pour une section, le libellé français défini dans hugo.toml. */ -}}
+{{- if and .IsSection (index site.Params.sections .Section) -}}
+  {{- (index site.Params.sections .Section).title -}}
+{{- else -}}
+  {{- .Title | default .Section -}}
+{{- end -}}

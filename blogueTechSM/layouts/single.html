@@ -1,0 +1,84 @@
+{{ define "bodyclass" }}sec-{{ .Section }}{{ end }}
+{{ define "main" }}
+{{- $section := .CurrentSection }}
+{{- $pages := $section.RegularPages.ByDate }}
+{{- $idx := -1 }}
+{{- range $i, $p := $pages }}{{ if eq $p $ }}{{ $idx = $i }}{{ end }}{{ end }}
+{{- $prev := cond (gt $idx 0) (index $pages (sub $idx 1)) nil }}
+{{- $next := cond (and (ge $idx 0) (lt (add $idx 1) (len $pages))) (index $pages (add $idx 1)) nil }}
+{{- $toc := .TableOfContents }}
+{{- $hasToc := gt (len (findRE "<li>" $toc)) 1 }}
+
+<div class="wrap layout{{ if $hasToc }} has-toc{{ end }}">
+  <aside class="sidebar" aria-label="Entrées de la section">
+    <details class="side-box" open>
+      <summary><a href="{{ $section.RelPermalink }}">{{ partial "page-title.html" $section }}</a> <span class="muted">({{ len $pages }})</span></summary>
+      <ol class="side-list">
+        {{- range $pages }}
+        <li{{ if eq . $ }} class="is-current"{{ end }}>
+          <a href="{{ .RelPermalink }}"{{ if eq . $ }} aria-current="page"{{ end }}>
+            <span>{{ .Title }}</span>
+            <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date | time.Format "2 Jan" }}</time>
+          </a>
+        </li>
+        {{- end }}
+      </ol>
+    </details>
+  </aside>
+
+  <article class="article">
+    <nav class="crumbs" aria-label="Fil d'Ariane">
+      <a href="{{ "/" | relURL }}">Accueil</a> <span aria-hidden="true">›</span>
+      <a href="{{ $section.RelPermalink }}">{{ partial "page-title.html" $section }}</a>
+    </nav>
+    <header class="article-head">
+      <h1>{{ .Title }}</h1>
+      <p class="meta">
+        <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date | time.Format ":date_long" }}</time>
+        · {{ .ReadingTime }} min de lecture
+        {{- if .Draft }} · <strong class="draft">Brouillon</strong>{{ end }}
+      </p>
+      {{- with partial "description.html" . }}<p class="lede">{{ . }}</p>{{ end }}
+      {{- with .GetTerms "tags" }}
+      <ul class="tags" aria-label="Étiquettes">
+        {{- range . }}<li><a href="{{ .RelPermalink }}">#{{ .LinkTitle }}</a></li>{{ end }}
+      </ul>
+      {{- end }}
+    </header>
+
+    {{- if $hasToc }}
+    <details class="toc toc-inline">
+      <summary>Sur cette page</summary>
+      {{ $toc }}
+    </details>
+    {{- end }}
+
+    <div class="prose" id="content">
+      {{ .Content }}
+    </div>
+
+    <nav class="pager" aria-label="Entrée précédente et suivante">
+      {{- with $prev }}
+      <a class="pager-prev" href="{{ .RelPermalink }}"><small>← Précédente</small><span>{{ .Title }}</span></a>
+      {{- else }}<span></span>{{ end }}
+      {{- with $next }}
+      <a class="pager-next" href="{{ .RelPermalink }}"><small>Suivante →</small><span>{{ .Title }}</span></a>
+      {{- end }}
+    </nav>
+  </article>
+
+  {{- if $hasToc }}
+  <aside class="toc toc-side" aria-label="Sur cette page">
+    <p class="toc-title">Sur cette page</p>
+    {{ $toc }}
+  </aside>
+  {{- end }}
+</div>
+<script>
+  /* Sur petit écran, la liste des entrées de la section démarre repliée. */
+  if (window.matchMedia('(max-width: 900px)').matches) {
+    var box = document.querySelector('.side-box');
+    if (box) box.open = false;
+  }
+</script>
+{{ end }}

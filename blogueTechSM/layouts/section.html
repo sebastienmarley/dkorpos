@@ -1,0 +1,17 @@
+{{ define "bodyclass" }}sec-{{ .Section }}{{ end }}
+{{ define "main" }}
+<div class="wrap narrow">
+  <nav class="crumbs" aria-label="Fil d'Ariane"><a href="{{ "/" | relURL }}">Accueil</a></nav>
+  <header class="page-head">
+    <h1>{{ partial "page-title.html" . }}</h1>
+    {{- with partial "description.html" . }}<p class="lede">{{ . }}</p>{{ end }}
+    {{- with .Content }}<div class="section-intro">{{ . }}</div>{{ end }}
+  </header>
+
+  {{- with .RegularPages }}
+  {{ partial "entries-by-month.html" (dict "pages" .ByDate.Reverse "showSection" false) }}
+  {{- else }}
+  <p>Aucune entrée pour l'instant.</p>
+  {{- end }}
+</div>
+{{ end }}

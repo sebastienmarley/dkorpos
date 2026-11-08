@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 	<channel>
 		<title>IA on Projet DKOR</title>
-		<link>https://example.org/tags/ia/</link>
+		<link>http://localhost:1313/tags/ia/</link>
 		<description>Recent content in IA on Projet DKOR</description>
 		<generator>Hugo</generator>
 		<language>fr-ca</language>
@@ -10,15 +10,43 @@
 		
 		
 		
-			<lastBuildDate>Tue, 22 Sep 2026 00:00:00 +0000</lastBuildDate>
+			<lastBuildDate>Sun, 18 Oct 2026 00:00:00 +0000</lastBuildDate>
 		
-			<atom:link href="https://example.org/tags/ia/index.xml" rel="self" type="application/rss+xml" />
+			<atom:link href="http://localhost:1313/tags/ia/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Itération 2 - semaine 2</title>
+				<link>http://localhost:1313/blog/week-five/</link>
+				<pubDate>Sun, 18 Oct 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/blog/week-five/</guid>
+				<description>&lt;h2 id=&#34;résumé-de-la-semaine&#34;&gt;Résumé de la semaine&lt;/h2&gt;&#xA;&lt;p&gt;Très peu de temps en soirée a été consacré au projet cette semaine, j&amp;rsquo;avais besoin d&amp;rsquo;un pas de recul, me ressourcer et retravailler les user story pour m&amp;rsquo;aligner avec les recommendations. J&amp;rsquo;ai donc raffiné mon github project, puis je me suis lancé dans les derniers modules de l&amp;rsquo;itération 2 afin de livrer un produit plus étoffé au client. Les livraisons et expéditions sont faites, l&amp;rsquo;inventaire annuelle, les ajustements d&amp;rsquo;inventaire et les mouvements ainsi que toutes les corrections que cela a engendrées. Le module d&amp;rsquo;impression d&amp;rsquo;étiquette pour les démonstrateurs, qui me donne envie de faire un gabarit pour les produits réservés des commandes clients. Ainsi que le développement des ADR liés à ces modules.&lt;/p&gt;</description>
+			</item>
+			<item>
+				<title>Itération 2 - semaine 1</title>
+				<link>http://localhost:1313/blog/week-four/</link>
+				<pubDate>Sun, 11 Oct 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/blog/week-four/</guid>
+				<description>&lt;h2 id=&#34;résumé-de-la-semaine&#34;&gt;Résumé de la semaine&lt;/h2&gt;&#xA;&lt;p&gt;Issue #13 voilà ! J&amp;rsquo;ai investi la semaine complète sur ce module et ce qui l&amp;rsquo;entoure. La commande du client, la commande chez le fournisseur, la réception des marchandises et la remise au client. En plus d&amp;rsquo;avoir refait le système pour compter l&amp;rsquo;argent, composer des ADR en prose, réécrire mon GitHub pour que ça ressemble plus à des User Story et j&amp;rsquo;utiliserai ce gabarit à l&amp;rsquo;avenir pour mes Issue supplémentaire, si le contexte s&amp;rsquo;y prête. Je relie beaucoup plus les commit et les Issue aussi, je fais des branches plus systématiquement et j&amp;rsquo;adopte une méthodologie plus facilement traçable, le tout sans utiliser l&amp;rsquo;IA pour ça, car je sais que ce pourrait être facile de lui faire écrire mes story, mes commits et mes Pull Request avec plein de détails techniques qui m&amp;rsquo;échappent, mais se serait me mentir quant à ma capacité à les composer et je ne suis pas à l&amp;rsquo;aise avec ça. J&amp;rsquo;ai fait le test avec l&amp;rsquo;Issue #41 pour le plaisir de la chose, et c&amp;rsquo;est stupéfiant, cependant certaine décision métier sont plus ou moins exacte et ont dû être reprise en cours de route. Ce fut somme toute une semaine très chargée, j&amp;rsquo;ai abattu énormément de travail et je suis pas mal certain de livrer un concept 100% fonctionnel la semaine prochaine. Mon objectif est d&amp;rsquo;ensuite prendre 4 semaines pour remodeler le projet et l&amp;rsquo;appronfondir en complexifiant chaque module afin de les rendre le plus complet possible au lieu d&amp;rsquo;être simplement fonctionnel.&lt;/p&gt;</description>
+			</item>
+			<item>
+				<title>Itération 1 - semaine 3</title>
+				<link>http://localhost:1313/blog/week-three/</link>
+				<pubDate>Mon, 05 Oct 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/blog/week-three/</guid>
+				<description>&lt;h1 id=&#34;résumé-de-la-semaine&#34;&gt;Résumé de la semaine&lt;/h1&gt;&#xA;&lt;p&gt;Semaine intense de développement d&amp;rsquo;expansion. Ajout de nombreux modules:&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;les fournisseurs&lt;/li&gt;&#xA;&lt;li&gt;les produits&lt;/li&gt;&#xA;&lt;li&gt;les listes de prix&lt;/li&gt;&#xA;&lt;li&gt;les gestions diverses (magasin, mouvements d&amp;rsquo;inventaire, rôles et permissions)&lt;/li&gt;&#xA;&lt;li&gt;la réception&lt;/li&gt;&#xA;&lt;li&gt;les commandes&lt;/li&gt;&#xA;&lt;li&gt;l&amp;rsquo;inventaire&lt;/li&gt;&#xA;&lt;li&gt;la comptabilité&lt;/li&gt;&#xA;&lt;li&gt;la facturation&lt;/li&gt;&#xA;&lt;li&gt;les devises&lt;/li&gt;&#xA;&lt;li&gt;la paie&#xA;C&amp;rsquo;est surtout de la base, mais ça me permettra de pleinement déployer le système de gestion d&amp;rsquo;horaire, rendez-vous et livraison.&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h1 id=&#34;leçons-de-la-semaine&#34;&gt;Leçons de la semaine&lt;/h1&gt;&#xA;&lt;p&gt;Vouloir développer trop vite, ce n&amp;rsquo;est pas optimal, je m&amp;rsquo;en rends compte, mon enthousiasme doit être retenue car j&amp;rsquo;ai l&amp;rsquo;impression que je vais en payer le prix tôt ou tard en ayant à revenir en arrière. Je me suis étalé, j&amp;rsquo;ai développé en largeur et je ne sais pas si c&amp;rsquo;est une méthodologie adéquate. Je sais ce que je veux, et je pense que je me projètte trop rapidement, les idées se bousculent, j&amp;rsquo;ai envie de tout faire et je dois vraiment ralentir. Dernier trucs, j&amp;rsquo;ai découvert que je pouvais transformer mes gitHub Issue en branche, ce fut une révélation.&lt;/p&gt;</description>
+			</item>
+			<item>
+				<title>Itération 1 - semaine 2</title>
+				<link>http://localhost:1313/blog/week-two/</link>
+				<pubDate>Sun, 27 Sep 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/blog/week-two/</guid>
+				<description>&lt;h2 id=&#34;résumé-de-la-semaine&#34;&gt;Résumé de la semaine&lt;/h2&gt;&#xA;&lt;p&gt;Deuxième semaine de travail sur le project, déjà des modules prennent forment, je prends un peu plus confiance et je maitrise un peu mieux mes outils. Début des films via OBS studio, j&amp;rsquo;ai inséré quelques courts vidéos d&amp;rsquo;ailleurs dans mes résumés. Formule à peaufiner, mais j&amp;rsquo;espère pouvoir présenté des sessions de travail avec plus d&amp;rsquo;exactitude lorsque je retournerai à mon autre poste de travail.&lt;/p&gt;&#xA;&lt;h2 id=&#34;leçons-de-la-semaine&#34;&gt;Leçons de la semaine&lt;/h2&gt;&#xA;&lt;p&gt;Je dois ralentir, prendre le temps de planifier ce que je fais, cela évite des va-et-vient et c&amp;rsquo;est plus encourageant. Le backend avant le frontend, les fonctions et les variables avant les vues. Un bon Model contribue à réduire mes interactions avec l&amp;rsquo;IA. Une requête détaillé pour réaliser 1 étape ou comprendre 1 comportement c&amp;rsquo;est 100x mieux qu&amp;rsquo;un paragraphe pour faire plein de choses. Je constate que plus je suis dans le détail, sur une partie minuscule du projet et mieux j&amp;rsquo;arrive à suivre ce qui se passe et corriger les moments d&amp;rsquo;errance.&lt;/p&gt;</description>
+			</item>
 			<item>
 				<title>Itération 1 - semaine 1</title>
-				<link>https://example.org/blog/week-one/</link>
+				<link>http://localhost:1313/blog/week-one/</link>
 				<pubDate>Tue, 22 Sep 2026 00:00:00 +0000</pubDate>
-				<guid>https://example.org/blog/week-one/</guid>
-				<description>&lt;p&gt;Voici le premier retour de cette aventure de projet. La semaine 1 a surtout été une semaine de mise en place, d’installation, d’essais, de blocages et de petits déclics. Je n’ai pas encore de résultat final spectaculaire, mais j’ai appris énormément sur ma manière de travailler, sur les outils à utiliser et sur la meilleure façon d’aborder la suite.&lt;/p&gt;&#xA;&lt;h2 id=&#34;ce-que-jai-appris&#34;&gt;Ce que j’ai appris&lt;/h2&gt;&#xA;&lt;p&gt;J’ai commencé par m’attaquer à l’environnement de travail. L’installation des outils a été plus compliquée que prévu : GitHub, les configurations de base, le choix d’un parcours de publication, puis la mise en place de l’environnement de développement. J’ai aussi découvert qu’il ne suffit pas de vouloir aller vite : il faut d’abord poser des bases solides pour éviter de devoir tout reprendre plus tard.&lt;/p&gt;</description>
+				<guid>http://localhost:1313/blog/week-one/</guid>
+				<description>&lt;h2 id=&#34;résumé-de-la-semaine&#34;&gt;Résumé de la semaine&lt;/h2&gt;&#xA;&lt;p&gt;Première semaine de travail qui s&amp;rsquo;achève, quelle aventure. Ma première semaine consistait surtout en installation de mes outils de développement, j&amp;rsquo;ai reconfigurer une machine complète pour se faire. Beaucoup de temps investi pour arriver à mes fins, sans compter la documentation plus ou moins à jour parfois. Principaux écueils, GitHub Pages disponible seulement sur un git public. Ensuite MySQL, une chance mon collègue m&amp;rsquo;a suggéré DBNGIN pour résoudre le problème et m&amp;rsquo;éviter de prendre sqlite, à lire dans la page de mes choix techniques. Mais le plus difficile fut Hugo, un bon 5-6 heures pour comprendre comment déployer le tout, où composer le texte, etc. sans compter la méthode pour incorporer le &amp;ldquo;template&amp;rdquo; de base que j&amp;rsquo;avais choisi. Si ce n&amp;rsquo;était de l&amp;rsquo;intégration à GitHub Pages je crois presque que du bon vieux HTML m&amp;rsquo;aurait moins égaré. Mais bon, j&amp;rsquo;ai appris. Pour preuve ce que vous lisez.&lt;/p&gt;</description>
 			</item>
 	</channel>
 </rss>
