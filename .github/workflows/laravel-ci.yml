@@ -19,6 +19,12 @@ permissions:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    # Une suite bloquée échoue vite au lieu de tourner jusqu'à la limite de 6 h de GitHub.
+    timeout-minutes: 15
+    # Un nouveau push sur la même branche annule la vérification précédente (jamais le déploiement).
+    concurrency:
+      group: tests-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: ./dkor
@@ -64,6 +70,10 @@ jobs:
   tests-pgsql:
     # La production roule sur PostgreSQL (ADR 0014) : la suite y roule aussi, pour attraper ce que SQLite tolère.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: tests-pgsql-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: ./dkor
@@ -126,8 +136,17 @@ jobs:
       - name: Build frontend assets
         run: npm run build
 
+      # Le seeder de démo roule seul, avec sa trace et sa propre limite : s'il s'attarde, le journal montre le jour et
+      # le geste où il bloque, sans retenir le reste de la suite.
+      - name: Run demo seeder test on PostgreSQL
+        timeout-minutes: 6
+        env:
+          DEMO_SEEDER_TRACE: '1'
+        run: php artisan test --compact --group=demo-seeder
+
       - name: Run tests on PostgreSQL
-        run: php artisan test --compact --parallel --processes=4
+        timeout-minutes: 8
+        run: php artisan test --compact --parallel --processes=4 --exclude-group=demo-seeder
 
   deploy:
     # Le déploiement automatique de Laravel Cloud est désactivé (ADR 0014) : seule cette tâche déploie, et seulement

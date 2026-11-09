@@ -1,8 +1,13 @@
 <?php
 
+use App\Enums\StoreType;
 use App\Models\CustomerOrder;
 use App\Models\Product;
+use App\Models\ProductClearance;
+use App\Models\ProductDemo;
 use App\Models\Schedule;
+use App\Models\Store;
+use App\Models\StoreTransfer;
 use App\Models\SupplierInvoice;
 use App\Models\User;
 use App\Support\SalesReport;
@@ -13,13 +18,23 @@ use Illuminate\Support\Carbon;
 it('crée des données de démonstration dont le grand livre concorde avec les documents', function () {
     $this->seed([DatabaseSeeder::class, DemoDataSeeder::class]);
 
-    expect(CustomerOrder::count())->toBeGreaterThan(20)
+    expect(CustomerOrder::count())->toBeGreaterThan(200)
         ->and(SupplierInvoice::count())->toBeGreaterThan(5)
         ->and(Product::query()->whereNull('clean_model')->exists())->toBeFalse()
         ->and(now()->isToday())->toBeTrue()
         ->and(SalesReport::forStore(null, today(), today())->isPositive())->toBeTrue()
         ->and(User::query()->where('email', 'testuser@dkor.ca')->exists())->toBeFalse()
         ->and(User::query()->where('email', 'vendeur@dkor.ca')->value('username'))->toBe('sophievendeuse');
+
+    $headOffice = Store::query()->where('type', StoreType::Virtual)->sole();
+    $salesStores = Store::query()->where('type', StoreType::Physical)->get();
+    expect($salesStores)->toHaveCount(3)
+        ->and(CustomerOrder::query()->where('store_id', $headOffice->id)->exists())->toBeFalse()
+        ->and($salesStores->every(fn (Store $store): bool => $store->billing_store_id === $headOffice->id && CustomerOrder::query()->where('store_id', $store->id)->exists()))->toBeTrue()
+        ->and($salesStores->whereNotNull('warehouse_store_id'))->toHaveCount(1)
+        ->and(StoreTransfer::query()->exists())->toBeTrue()
+        ->and(ProductDemo::query()->exists())->toBeTrue()
+        ->and(ProductClearance::query()->exists())->toBeTrue();
 
     foreach (array_keys(config('access.roles')) as $role) {
         expect(User::role($role)->exists())->toBeTrue("Aucun employé avec le rôle {$role}");
@@ -38,4 +53,4 @@ it('crée des données de démonstration dont le grand livre concorde avec les d
         ->and($weeklyMinutes->max())->toBeLessThanOrEqual(40 * 60);
 
     $this->artisan('ledger:check')->expectsOutputToContain('concorde avec les documents')->assertSuccessful();
-});
+})->group('demo-seeder');
