@@ -53,4 +53,4 @@ it('crée des données de démonstration dont le grand livre concorde avec les d
         ->and($weeklyMinutes->max())->toBeLessThanOrEqual(40 * 60);
 
     $this->artisan('ledger:check')->expectsOutputToContain('concorde avec les documents')->assertSuccessful();
-});
+})->group('demo-seeder');

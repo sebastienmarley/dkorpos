@@ -234,8 +234,18 @@ class DemoDataSeeder extends Seeder
      */
     private function runAgenda(): void
     {
+        // DEMO_SEEDER_TRACE=1 (le CI) : une ligne par geste sur stderr, pour voir où le seeder s'attarde.
+        $trace = getenv('DEMO_SEEDER_TRACE') === '1';
+        $started = microtime(true);
+
         for ($this->day = 0; $this->day <= self::DAYS; $this->day++) {
+            $gesture = 0;
+
             while (! empty($this->agenda[$this->day])) {
+                if ($trace) {
+                    fwrite(STDERR, sprintf("[seeder] jour %d, geste %d, %.1f s\n", $this->day, ++$gesture, microtime(true) - $started));
+                }
+
                 $this->on($this->day, array_shift($this->agenda[$this->day]));
             }
         }

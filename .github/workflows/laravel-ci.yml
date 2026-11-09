@@ -136,8 +136,17 @@ jobs:
       - name: Build frontend assets
         run: npm run build
 
+      # Le seeder de démo roule seul, avec sa trace et sa propre limite : s'il s'attarde, le journal montre le jour et
+      # le geste où il bloque, sans retenir le reste de la suite.
+      - name: Run demo seeder test on PostgreSQL
+        timeout-minutes: 6
+        env:
+          DEMO_SEEDER_TRACE: '1'
+        run: php artisan test --compact --group=demo-seeder
+
       - name: Run tests on PostgreSQL
-        run: php artisan test --compact --parallel --processes=4
+        timeout-minutes: 8
+        run: php artisan test --compact --parallel --processes=4 --exclude-group=demo-seeder
 
   deploy:
     # Le déploiement automatique de Laravel Cloud est désactivé (ADR 0014) : seule cette tâche déploie, et seulement
