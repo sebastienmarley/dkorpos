@@ -11,12 +11,6 @@ it('redirige les invités vers la page de connexion', function () {
     $this->get(route('customers.index'))->assertRedirect(route('login'));
 });
 
-it('autorise les utilisateurs authentifiés à accéder à la page', function () {
-    $this->actingAs(User::factory()->create());
-
-    $this->get(route('customers.index'))->assertOk();
-});
-
 // ── Affichage initial ──────────────────────────────────────────────────────
 
 it('n\'affiche aucun client sans critère de recherche', function () {

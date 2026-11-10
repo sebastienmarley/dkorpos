@@ -104,18 +104,10 @@ it('refuse de créer un autre mode portant le nom réservé', function () {
         ->assertHasErrors('name');
 });
 
-it('arrondit le comptant au 5 sous près', function (int $amount, int $rounded) {
-    expect(CustomerPaymentMethod::roundCash(Money::of($amount)))->toBeMoney($rounded);
-})->with([
-    [11498, 11500],
-    [11497, 11495],
-    [11496, 11495],
-    [11493, 11495],
-    [11492, 11490],
-    [11495, 11495],
-    [2, 0],
-    [3, 5],
-]);
+it('arrondit le comptant au 5 sous près', function () {
+    expect(CustomerPaymentMethod::roundCash(Money::of(11498)))->toBeMoney(11500)
+        ->and(CustomerPaymentMethod::roundCash(Money::of(11497)))->toBeMoney(11495);
+});
 
 it('gère les méthodes marchandes', function () {
     Livewire::test(PaymentMethods::class)

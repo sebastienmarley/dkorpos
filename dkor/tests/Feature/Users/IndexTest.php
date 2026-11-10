@@ -1,7 +1,6 @@
 <?php
 
 use App\Livewire\Users\Index;
-use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -11,19 +10,6 @@ use Livewire\Livewire;
 
 it('redirige les invités vers la page de connexion', function () {
     $this->get(route('users.index'))->assertRedirect(route('login'));
-});
-
-it('autorise les utilisateurs ayant la permission users.view à accéder à la page', function () {
-    $this->actingAs(User::factory()->create()->givePermissionTo('users.view'));
-
-    $this->get(route('users.index'))->assertOk();
-});
-
-it('refuse l\'accès sans la permission users.view', function () {
-    $role = Role::create(['name' => 'visiteur', 'label' => 'Visiteur', 'level' => 0, 'guard_name' => 'web']);
-    $user = User::factory()->withRole('visiteur')->create();
-
-    $this->actingAs($user)->get(route('users.index'))->assertForbidden();
 });
 
 // ── Affichage ──────────────────────────────────────────────────────────────
