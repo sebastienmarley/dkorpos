@@ -8,7 +8,11 @@ on:
     paths:
       - 'dkor/**'
       - '.github/workflows/laravel-ci.yml'
+  # Seulement les PR vers develop : une PR develop → main porte un commit déjà vérifié par le push sur develop, et le
+  # push sur main est revérifié avant le déploiement.
   pull_request:
+    branches:
+      - develop
     paths:
       - 'dkor/**'
       - '.github/workflows/laravel-ci.yml'
@@ -55,8 +59,6 @@ jobs:
         run: |
           cp .env.example .env
           php artisan key:generate
-          touch database/database.sqlite
-          php artisan migrate --force
 
       - name: Install frontend dependencies
         run: npm ci
@@ -127,8 +129,6 @@ jobs:
         run: |
           cp .env.example .env
           php artisan key:generate
-          php artisan migrate --force
-          php artisan db:seed --class=ReferenceDataSeeder --force
 
       - name: Install frontend dependencies
         run: npm ci
@@ -136,17 +136,11 @@ jobs:
       - name: Build frontend assets
         run: npm run build
 
-      # Le seeder de démo roule seul, avec sa trace et sa propre limite : s'il s'attarde, le journal montre le jour et
-      # le geste où il bloque, sans retenir le reste de la suite.
-      - name: Run demo seeder test on PostgreSQL
-        timeout-minutes: 6
-        env:
-          DEMO_SEEDER_TRACE: '1'
-        run: php artisan test --compact --group=demo-seeder
-
+      # Les tests migrent et sèment eux-mêmes leur base (RefreshDatabase), une par processus. L'autovacuum y est
+      # désactivé (tests/RefreshDatabaseWithoutAutovacuum.php) : c'est lui qui figeait le seeder de démo.
       - name: Run tests on PostgreSQL
         timeout-minutes: 8
-        run: php artisan test --compact --parallel --processes=4 --exclude-group=demo-seeder
+        run: php artisan test --compact --parallel --processes=4
 
   deploy:
     # Le déploiement automatique de Laravel Cloud est désactivé (ADR 0014) : seule cette tâche déploie, et seulement

@@ -9,13 +9,8 @@ use App\Models\Store;
 use App\Models\StoreTaxRegistration;
 use App\Models\Tax;
 use App\Models\User;
-use Database\Seeders\RoleSeeder;
 use Database\Seeders\TaxSeeder;
 use Livewire\Livewire;
-
-beforeEach(function () {
-    $this->seed(RoleSeeder::class);
-});
 
 dataset('privilegedRoles', ['owner', 'admin']);
 dataset('otherRoles', ['salesman', 'accounting']);

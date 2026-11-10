@@ -14,7 +14,7 @@ use App\Models\Store;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Support\Money;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\RefreshDatabaseWithoutAutovacuum;
 use Tests\TestCase;
 
 /*
@@ -29,7 +29,7 @@ use Tests\TestCase;
 */
 
 pest()->extend(TestCase::class)
-    ->use(RefreshDatabase::class)
+    ->use(RefreshDatabaseWithoutAutovacuum::class)
     ->in('Feature');
 
 /*
