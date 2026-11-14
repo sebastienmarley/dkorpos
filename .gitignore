@@ -1,3 +1,5 @@
 blogueTechSM/content/journal/commande.md
 /dkor/storage/db
 .DS_Store
+blogueTechSM/public/
+.hugo_build.lock
