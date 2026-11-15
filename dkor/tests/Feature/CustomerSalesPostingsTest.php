@@ -15,6 +15,7 @@ use App\Models\Role;
 use App\Models\Service;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\LedgerChecks;
 use App\Support\Money;
 
 beforeEach(function () {
@@ -95,6 +96,29 @@ it('renverse la vente, les taxes et le coût d\'un article retourné et rembours
     }
 
     expect(taxesPayable($this->order->fresh()))->each->toBe(0);
+});
+
+it('passe aux crédits de clients un retour remboursé au compte, puis les reprend quand le client utilise son crédit', function () {
+    $line = pickedUpLine($this->order, 1, 100, $this->cash);
+
+    $this->order->returnLine($line, 1, refund: true, refunds: [['method_id' => null, 'amount' => Money::parse(114.98)]]);
+
+    expect(salesBalance(LedgerAccount::CUSTOMER_CREDITS))->toBe(-11498)
+        ->and(salesBalance(LedgerAccount::CUSTOMER_DEPOSITS))->toBe(0)
+        ->and(salesBalance(LedgerAccount::CASH_CAD))->toBe(11500);
+
+    $next = CustomerOrder::factory()->create(['customer_id' => $this->order->customer_id, 'store_id' => $this->order->store_id]);
+    $nextLine = stockedLine($next, 1, 1, 50);
+    $next->pickUp([$nextLine->id => 1], [], creditUsed: $next->fresh()->balance_due);
+
+    expect(salesBalance(LedgerAccount::CUSTOMER_CREDITS))->toBe(-11498 + 5749)
+        ->and($this->order->customer->fresh()->credit_balance)->toBeMoney(11498 - 5749)
+        ->and(salesBalance(LedgerAccount::CUSTOMER_DEPOSITS))->toBe(0);
+
+    // I13 et I16 : les dépôts et les crédits de clients concordent avec les commandes et les comptes des clients.
+    foreach (collect((new LedgerChecks)->run())->whereIn('invariant', ['I13', 'I16']) as $check) {
+        expect($check['ledger']->cents())->toBe($check['expected']->cents(), $check['invariant']);
+    }
 });
 
 it('passe aux comptes clients un service complété non payé, puis au compte du mode de paiement à son paiement', function () {

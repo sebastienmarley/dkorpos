@@ -898,6 +898,7 @@ class CustomerOrder extends Model
 
             $this->syncDeliveries();
             $this->recalculateBalance();
+            $this->refreshStatusFromLines();
 
             return $fee;
         });
@@ -931,6 +932,7 @@ class CustomerOrder extends Model
 
             $this->syncDeliveries();
             $this->recalculateBalance();
+            $this->refreshStatusFromLines();
         });
     }
 
@@ -1049,6 +1051,7 @@ class CustomerOrder extends Model
             $line->delete();
 
             $this->recalculateBalance();
+            $this->refreshStatusFromLines();
         });
     }
 
@@ -1971,12 +1974,12 @@ class CustomerOrder extends Model
             $this->recordPayments($payments, CustomerPaymentType::Payment, $pickup);
 
             if ($creditUsed->isPositive()) {
-                $this->payments()->create([
+                $this->postCustomerCreditEntry($this->payments()->create([
                     'customer_order_pickup_id' => $pickup?->id,
                     'type' => CustomerPaymentType::CreditUse,
                     'amount' => $creditUsed,
                     'received_by' => auth()->id(),
-                ]);
+                ]));
 
                 $customer->forceFill(['credit_balance' => $customer->credit_balance->minus($creditUsed)])->save();
             }
@@ -1994,7 +1997,7 @@ class CustomerOrder extends Model
      * reste sur la commande (crédit pour le produit d'échange). Pour un remboursement, elle passe à « Remboursé » et
      * les montants remboursés sont enregistrés en paiements négatifs. Une ligne retournée en partie est séparée.
      *
-     * @param  array<int, array{method_id: int, amount: Money}>  $refunds
+     * @param  array<int, array{method_id: int|null, amount: Money}>  $refunds  remboursements ; `method_id` vide : au crédit du compte du client
      *
      * @throws DomainException si la ligne n'a pas été remise au client, si la quantité est invalide ou si le
      *                         remboursement dépasse le montant remboursable.
@@ -2053,7 +2056,7 @@ class CustomerOrder extends Model
                 ]);
             }
 
-            $this->recordPayments($refunds, CustomerPaymentType::Refund);
+            $this->recordRefunds($refunds);
 
             $this->recalculateBalance();
             $this->refreshStatusFromLines();
@@ -2339,7 +2342,7 @@ class CustomerOrder extends Model
      * Le client reçoit soit un produit de remplacement (nouvelle ligne au même prix, prise en stock ou commandée),
      * soit un remboursement sans frais.
      *
-     * @param  array<int, array{method_id: int, amount: Money}>  $refunds
+     * @param  array<int, array{method_id: int|null, amount: Money}>  $refunds  remboursements ; `method_id` vide : au crédit du compte du client
      *
      * @throws DomainException si l'article n'a pas été remis, si la raison manque ou si le remboursement dépasse le
      *                         montant remboursable.
@@ -2408,7 +2411,7 @@ class CustomerOrder extends Model
                     $this->addProduct($line->product, $quantity, $line->unit_price, $note);
                 }
             } else {
-                $this->recordPayments($refunds, CustomerPaymentType::Refund);
+                $this->recordRefunds($refunds);
             }
 
             $this->recalculateBalance();
@@ -2440,7 +2443,7 @@ class CustomerOrder extends Model
     /**
      * Rembourse tout ou partie du crédit de la commande, sur un ou plusieurs modes de paiement.
      *
-     * @param  array<int, array{method_id: int, amount: Money}>  $refunds
+     * @param  array<int, array{method_id: int|null, amount: Money}>  $refunds  remboursements ; `method_id` vide : au crédit du compte du client
      *
      * @throws DomainException si le remboursement est nul ou dépasse le crédit.
      */
@@ -2454,8 +2457,9 @@ class CustomerOrder extends Model
                 throw new DomainException(__('Le remboursement doit être entre 0,01 $ et le crédit de la commande (:credit $).', ['credit' => $this->credit()->toDecimal()]));
             }
 
-            $this->recordPayments($refunds, CustomerPaymentType::Refund);
+            $this->recordRefunds($refunds);
             $this->recalculateBalance();
+            $this->refreshStatusFromLines();
         });
     }
 
@@ -2475,19 +2479,97 @@ class CustomerOrder extends Model
                 throw new DomainException(__('Cette commande n\'a pas de crédit à porter au compte du client.'));
             }
 
-            $this->payments()->create([
+            $this->postCustomerCreditEntry($this->payments()->create([
                 'type' => CustomerPaymentType::CreditTransfer,
                 'amount' => $credit->negate(),
                 'received_by' => auth()->id(),
-            ]);
+            ]));
 
             $customer = customer::query()->whereKey($this->customer_id)->lockForUpdate()->firstOrFail();
             $customer->forceFill(['credit_balance' => $customer->credit_balance->plus($credit)])->save();
 
             $this->recalculateBalance();
+            $this->refreshStatusFromLines();
 
             return $credit;
         });
+    }
+
+    /**
+     * Montant encore remboursable par mode de paiement : ce que le client a payé avec ce mode sur la commande, moins
+     * ce qui lui a déjà été remboursé avec lui. Seuls les modes qui ont encore un montant sont retournés, du plus
+     * grand montant au plus petit.
+     *
+     * @return array<int, Money> montant par id de mode de paiement
+     */
+    public function refundableByMethod(): array
+    {
+        return $this->payments()
+            ->whereIn('type', [CustomerPaymentType::Payment, CustomerPaymentType::Refund])
+            ->whereNotNull('customer_payment_method_id')
+            ->get()
+            ->groupBy('customer_payment_method_id')
+            ->map(fn ($payments): Money => Money::sum($payments->pluck('amount')))
+            ->filter(fn (Money $net): bool => $net->isPositive())
+            ->sortByDesc(fn (Money $net): int => $net->cents())
+            ->all();
+    }
+
+    /**
+     * Enregistre des remboursements. Un client est remboursé sur le mode de paiement qu'il a utilisé, sans dépasser ce
+     * qu'il a payé avec lui (`refundableByMethod()`), ou au crédit de son compte (`method_id` vide).
+     *
+     * @param  array<int, array{method_id: int|null, amount: Money}>  $refunds
+     *
+     * @throws DomainException si un mode n'a pas servi à payer la commande ou si son remboursement dépasse ce qu'il a payé.
+     */
+    private function recordRefunds(array $refunds): void
+    {
+        $refundable = $this->refundableByMethod();
+        $byMethod = [];
+        $toStoreCredit = Money::zero();
+
+        foreach ($refunds as $refund) {
+            if (! $refund['amount']->isPositive()) {
+                continue;
+            }
+
+            if ($refund['method_id'] === null) {
+                $toStoreCredit = $toStoreCredit->plus($refund['amount']);
+
+                continue;
+            }
+
+            $byMethod[$refund['method_id']] = ($byMethod[$refund['method_id']] ?? Money::zero())->plus($refund['amount']);
+        }
+
+        foreach ($byMethod as $methodId => $amount) {
+            $available = $refundable[$methodId] ?? Money::zero();
+
+            if ($amount->greaterThan($available)) {
+                $method = CustomerPaymentMethod::query()->find($methodId)?->name ?? __('ce mode');
+
+                throw new DomainException($available->isPositive()
+                    ? __('Le remboursement en :method (:amount $) dépasse ce que le client a payé avec ce mode (:available $).', ['method' => $method, 'amount' => $amount->toDecimal(), 'available' => $available->toDecimal()])
+                    : __('Le client n\'a rien payé en :method sur cette commande : remboursez-le sur un mode qu\'il a utilisé ou au crédit de son compte.', ['method' => $method]));
+            }
+        }
+
+        $this->recordPayments(
+            array_values(array_filter($refunds, fn (array $refund): bool => $refund['method_id'] !== null)),
+            CustomerPaymentType::Refund,
+        );
+
+        if ($toStoreCredit->isPositive()) {
+            $this->postCustomerCreditEntry($this->payments()->create([
+                'type' => CustomerPaymentType::CreditTransfer,
+                'amount' => $toStoreCredit->negate(),
+                'received_by' => auth()->id(),
+            ]));
+
+            $customer = customer::query()->whereKey($this->customer_id)->lockForUpdate()->firstOrFail();
+            $customer->forceFill(['credit_balance' => $customer->credit_balance->plus($toStoreCredit)])->save();
+        }
     }
 
     /**
@@ -2506,7 +2588,11 @@ class CustomerOrder extends Model
                 continue;
             }
 
-            $method = CustomerPaymentMethod::query()->whereKey($payment['method_id'])->where('is_active', true)->first();
+            // Un remboursement retourne sur le mode d'origine, même s'il a été désactivé depuis.
+            $method = CustomerPaymentMethod::query()
+                ->whereKey($payment['method_id'])
+                ->when($type === CustomerPaymentType::Payment, fn ($query) => $query->where('is_active', true))
+                ->first();
 
             if ($method === null) {
                 throw new DomainException(__('Mode de paiement invalide.'));
@@ -2547,6 +2633,24 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Écriture d'un mouvement du crédit au compte du client (ADR 0016) : un crédit porté au compte
+     * (`CreditTransfer`, montant négatif) passe des Dépôts de clients aux Crédits de clients ; un crédit utilisé
+     * (`CreditUse`, montant positif) fait l'inverse.
+     */
+    private function postCustomerCreditEntry(CustomerOrderPayment $payment): void
+    {
+        LedgerEntry::post(
+            __(':type — commande #:id', ['type' => $payment->type->label(), 'id' => $this->id]),
+            LedgerEntry::signedLines([
+                [LedgerAccount::forKey(LedgerAccount::CUSTOMER_CREDITS), $payment->amount],
+                [LedgerAccount::forKey(LedgerAccount::CUSTOMER_DEPOSITS), $payment->amount->negate()],
+            ]),
+            $payment,
+            storeId: $this->store_id,
+        );
+    }
+
+    /**
      * Écriture d'un paiement ou d'un remboursement (ADR 0016) : le montant passe aux Dépôts de clients, l'argent
      * réellement perçu ou remis (arrondi au 5 ¢ en comptant) au compte du mode de paiement, l'écart aux Arrondis au
      * comptant.
@@ -2571,15 +2675,21 @@ class CustomerOrder extends Model
     /**
      * Passe la commande à « Livrée » une fois toutes ses lignes facturables remises au client, dès qu'une a été livrée
      * ou expédiée, sinon à « Ramassée » (les services complétés ne comptent pas pour le choix entre les deux); une
-     * commande qui l'était et qui reçoit un nouvel article (ex. un échange) revient « En attente ».
+     * commande qui l'était et qui reçoit un nouvel article (ex. un échange) revient « En attente ». Sans ligne qui
+     * compte encore, voir `closedStatusWithoutBillableLines()` (Annulée, Remboursée ou En attente).
      */
     private function refreshStatusFromLines(): void
     {
-        $statuses = $this->lines()->get()
+        $lines = $this->lines()->get();
+        $statuses = $lines
             ->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable())
             ->map(fn (CustomerOrderLine $line): CustomerOrderLineStatus => $line->status);
 
         if ($statuses->isEmpty()) {
+            if ($lines->isNotEmpty()) {
+                $this->update(['status' => $this->closedStatusWithoutBillableLines($lines)]);
+            }
+
             return;
         }
 
@@ -2592,13 +2702,32 @@ class CustomerOrder extends Model
             $this->update(['status' => CustomerOrderStatus::Delivered]);
         } elseif ($allHandedOver && $statuses->contains(CustomerOrderLineStatus::PickedUp)) {
             $this->update(['status' => CustomerOrderStatus::PickedUp]);
-        } elseif (in_array($this->status, [CustomerOrderStatus::PickedUp, CustomerOrderStatus::Delivered], true)) {
+        } elseif ($this->status->isClosed()) {
             $this->update(['status' => CustomerOrderStatus::Pending]);
         }
 
         if (! $wasHandedOver && $allHandedOver && ($reachedCustomer || $statuses->contains(CustomerOrderLineStatus::PickedUp))) {
             app(NotifySalespeopleOrderHandedOver::class)->handle($this);
         }
+    }
+
+    /**
+     * Statut d'une commande dont aucune ligne ne compte plus (toutes annulées, retournées ou remboursées). Tant
+     * qu'elle doit de l'argent au client ou que le client lui en doit (crédit à rembourser, frais d'annulation à
+     * payer), elle reste « En attente ». Soldée, elle est « Remboursée » si un article a été retourné, sinon
+     * « Annulée ».
+     *
+     * @param  Collection<int, CustomerOrderLine>  $lines
+     */
+    private function closedStatusWithoutBillableLines(Collection $lines): CustomerOrderStatus
+    {
+        if (! $this->balance_due->isZero()) {
+            return CustomerOrderStatus::Pending;
+        }
+
+        return $lines->contains(fn (CustomerOrderLine $line): bool => in_array($line->status, [CustomerOrderLineStatus::Returned, CustomerOrderLineStatus::Refunded], true))
+            ? CustomerOrderStatus::Refunded
+            : CustomerOrderStatus::Cancelled;
     }
 
     private function handOver(CustomerOrderLine $line, int $quantity, CustomerOrderPickup $pickup): void

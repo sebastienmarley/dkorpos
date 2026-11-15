@@ -714,8 +714,8 @@
                                 <div class="flex-1">
                                     <flux:select wire:model.live="returnRefunds.{{ $index }}.method_id">
                                         <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
-                                        @foreach ($this->getPaymentMethods() as $method)
-                                            <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
+                                        @foreach ($this->getRefundMethods() as $method)
+                                            <flux:select.option :value="$method['value']">{{ $method['label'] }}</flux:select.option>
                                         @endforeach
                                     </flux:select>
                                     <flux:error name="returnRefunds.{{ $index }}.method_id" />
@@ -953,8 +953,8 @@
                                 <div class="flex-1">
                                     <flux:select wire:model.live="defectiveRefunds.{{ $index }}.method_id">
                                         <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
-                                        @foreach ($this->getPaymentMethods() as $method)
-                                            <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
+                                        @foreach ($this->getRefundMethods() as $method)
+                                            <flux:select.option :value="$method['value']">{{ $method['label'] }}</flux:select.option>
                                         @endforeach
                                     </flux:select>
                                     <flux:error name="defectiveRefunds.{{ $index }}.method_id" />
@@ -1001,8 +1001,8 @@
                         <div class="flex-1">
                             <flux:select wire:model.live="creditRefunds.{{ $index }}.method_id">
                                 <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
-                                @foreach ($this->getPaymentMethods() as $method)
-                                    <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
+                                @foreach ($this->getRefundMethods() as $method)
+                                    <flux:select.option :value="$method['value']">{{ $method['label'] }}</flux:select.option>
                                 @endforeach
                             </flux:select>
                             <flux:error name="creditRefunds.{{ $index }}.method_id" />

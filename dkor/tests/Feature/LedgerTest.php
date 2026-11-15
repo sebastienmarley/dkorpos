@@ -23,6 +23,7 @@ it('crée les comptes système sans toucher à ceux que le comptable a modifiés
         '2100' => LedgerAccount::ACCOUNTS_PAYABLE,
         '2110' => LedgerAccount::GOODS_RECEIVED_NOT_INVOICED,
         '2400' => LedgerAccount::CUSTOMER_DEPOSITS,
+        '2410' => LedgerAccount::CUSTOMER_CREDITS,
         '3900' => LedgerAccount::OPENING_BALANCE,
         '4000' => LedgerAccount::MERCHANDISE_SALES,
         '4100' => LedgerAccount::SERVICE_SALES,
@@ -43,7 +44,7 @@ it('crée les comptes système sans toucher à ceux que le comptable a modifiés
 
     $this->seed(ReferenceDataSeeder::class);
 
-    expect(LedgerAccount::count())->toBe(22)
+    expect(LedgerAccount::count())->toBe(23)
         ->and(LedgerAccount::forKey(LedgerAccount::INVENTORY))
         ->code->toBe('1350')
         ->name->toBe('Stocks')

@@ -64,6 +64,8 @@ class LedgerAccount extends Model
 
     public const CUSTOMER_DEPOSITS = 'customer_deposits';
 
+    public const CUSTOMER_CREDITS = 'customer_credits';
+
     public const MERCHANDISE_SALES = 'merchandise_sales';
 
     public const SERVICE_SALES = 'service_sales';
@@ -98,6 +100,7 @@ class LedgerAccount extends Model
             self::ACCOUNTS_PAYABLE => ['2100', __('Comptes fournisseurs'), LedgerAccountType::Liability],
             self::GOODS_RECEIVED_NOT_INVOICED => ['2110', __('Achats non facturés'), LedgerAccountType::Liability],
             self::CUSTOMER_DEPOSITS => ['2400', __('Dépôts de clients'), LedgerAccountType::Liability],
+            self::CUSTOMER_CREDITS => ['2410', __('Crédits de clients'), LedgerAccountType::Liability],
             self::OPENING_BALANCE => ['3900', __('Solde d\'ouverture'), LedgerAccountType::Equity],
             self::MERCHANDISE_SALES => ['4000', __('Ventes de marchandises'), LedgerAccountType::Revenue],
             self::SERVICE_SALES => ['4100', __('Ventes de services'), LedgerAccountType::Revenue],

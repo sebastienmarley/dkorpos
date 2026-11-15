@@ -1041,7 +1041,9 @@ class DemoDataSeeder extends Seeder
         $this->at($returnDay, function () use ($order, $lines): void {
             $pickedUp = $order->fresh()->lines()->where('product_id', $lines[0]->product_id)->where('status', CustomerOrderLineStatus::PickedUp)->firstOrFail();
             $refund = $order->fresh()->refundableFor($pickedUp, 1);
-            $order->fresh()->returnLine($pickedUp, 1, refund: true, refunds: [['method_id' => $this->visa->id, 'amount' => $refund]]);
+            // Remboursé sur le mode qui a payé la commande, comme l'exige returnLine().
+            $methodId = array_key_first($order->fresh()->refundableByMethod());
+            $order->fresh()->returnLine($pickedUp, 1, refund: true, refunds: [['method_id' => $methodId, 'amount' => $refund]]);
         });
     }
 
