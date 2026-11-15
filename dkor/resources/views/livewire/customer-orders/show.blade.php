@@ -471,13 +471,23 @@
                 @endif
                 <flux:badge :color="$editingLine->status->color()" size="sm">{{ $editingLine->status->label() }}</flux:badge>
 
-                @unless ($editingLine->isService())
+                {{-- Article remis au client (ramassé, livré, expédié, complété) : il est sorti de l'inventaire. Seuls la note,
+                     le retour et le défectueux restent offerts. --}}
+                @php($handedOver = $editingLine->status->isHandedOver())
+
+                @if ($handedOver)
+                    <flux:text class="mt-3 text-sm text-zinc-500">
+                        {{ __('Remis au client : :count × :price', ['count' => $editingLine->quantity, 'price' => $editingLine->unit_price->format()]) }}
+                    </flux:text>
+                @endif
+
+                @unless ($editingLine->isService() || $handedOver)
                     <div class="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                         <livewire:line-placement :line-id="$editingLine->id" :key="'placement-'.$editingLine->id" />
                     </div>
                 @endunless
 
-                @if ($editingLine->product_id && ! $editingLine->is_custom)
+                @if ($editingLine->product_id && ! $editingLine->is_custom && ! $handedOver)
                     <div class="mt-4">
                         <livewire:customer-orders.line-transfer :line-id="$editingLine->id" :key="'transfer-'.$editingLine->id" />
                     </div>
@@ -486,7 +496,9 @@
                 <form wire:submit="saveLine" class="mt-6 space-y-4">
                     @php($editable = $editingLine->status->isEditable())
 
-                    @if ($editingLine->isService())
+                    @if ($handedOver)
+                        {{-- Rien à modifier : quantités, prix et rangement sont figés une fois l'article remis. --}}
+                    @elseif ($editingLine->isService())
                     <flux:field>
                         <flux:label>{{ __('Description') }}</flux:label>
                         <flux:input wire:model="editDescription" :disabled="! $editable" />

@@ -507,3 +507,32 @@ it('laisse ramasser dans un magasin qui a son stock sur place', function () {
     expect($this->order->store->hasStockOnSite())->toBeTrue()
         ->and($this->order->allowsPickup())->toBeTrue();
 });
+
+describe('modal d\'une ligne remise au client', function () {
+    beforeEach(function () {
+        $this->line = pickedUpLine($this->order, 1, 100, $this->cash);
+    });
+
+    it('n\'offre que la note, le retour et le défectueux', function () {
+        Livewire::test(Show::class, ['order' => $this->order->fresh()])
+            ->call('openLineModal', $this->line->id)
+            ->assertSee('Remis au client : 1 ×')
+            ->assertDontSeeHtml('wire:model="editReserved"')
+            ->assertDontSeeHtml('wire:model="editOnOrder"')
+            ->assertDontSeeHtml('wire:model="editUnitPrice"')
+            ->assertDontSeeHtml('wire:model="locationId"')
+            ->assertSee('Note')
+            ->assertSee('Retour')
+            ->assertSee('Défectueux')
+            ->set('editNote', 'Client satisfait')
+            ->call('saveLine')
+            ->assertHasNoErrors();
+
+        expect($this->line->fresh()->note)->toBe('Client satisfait');
+    });
+
+    it('refuse de ranger dans l\'entrepôt un article déjà remis', function () {
+        expect(fn () => $this->order->fresh()->placeLine($this->line->fresh(), null))
+            ->toThrow(DomainException::class, 'déjà remis au client');
+    });
+});

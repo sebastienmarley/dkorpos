@@ -122,6 +122,20 @@ it('affiche l\'écran de verrouillage au nom de l\'usager', function () {
         ->assertSee('Changer d\'utilisateur');
 });
 
+it('n\'offre pas au navigateur de remplir le NIP avec le mot de passe enregistré', function () {
+    $user = User::factory()->withPin()->create();
+
+    $this->actingAs($user)->get(route('home'))
+        ->assertSeeHtml('x-model="pin"')
+        ->assertDontSeeHtml('type="password"');
+
+    $this->travel(6)->minutes();
+
+    $this->get(route('session-lock.show'))
+        ->assertSeeHtml('name="pin"')
+        ->assertDontSeeHtml('type="password"');
+});
+
 it('déverrouille avec le bon NIP et revient à la page demandée', function () {
     leaveSessionIdle(User::factory()->withPin('1234')->create());
 

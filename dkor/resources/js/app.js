@@ -205,7 +205,7 @@ document.addEventListener('alpine:init', () => {
             }
 
             this.$root.showModal();
-            this.$nextTick(() => this.$root.querySelector('input[type="password"]')?.focus());
+            this.$nextTick(() => this.$root.querySelector('input[inputmode="numeric"]')?.focus());
         },
 
         async lock() {

@@ -29,7 +29,9 @@
             <form x-on:submit.prevent="unlock()" class="flex flex-col gap-6">
                 <flux:field>
                     <flux:label>{{ __('NIP') }}</flux:label>
-                    <flux:input x-ref="pin" x-model="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" required />
+                    {{-- Champ texte masqué plutôt que type="password" : le navigateur et les gestionnaires de mots de passe y
+                         injectaient le mot de passe enregistré (tronqué à 6 caractères), et le NIP tapé était refusé. --}}
+                    <flux:input x-ref="pin" x-model="pin" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore maxlength="6" required class="[&_input]:[-webkit-text-security:disc]" />
                     <p x-show="error" x-text="error" role="alert" class="mt-3 text-sm font-medium text-red-500 dark:text-red-400"></p>
                 </flux:field>
 

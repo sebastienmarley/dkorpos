@@ -1662,13 +1662,17 @@ class CustomerOrder extends Model
      * Note (ou efface, avec null) l'emplacement de l'entrepôt où une ligne est rangée (issue #96). Pour information
      * seulement : l'emplacement ne tient pas de quantités.
      *
-     * @throws DomainException si la ligne est un service ou si l'emplacement n'est pas un emplacement actif du
-     *                         magasin de la commande.
+     * @throws DomainException si la ligne est un service, si elle est déjà remise au client ou si l'emplacement n'est
+     *                         pas un emplacement actif du magasin de la commande.
      */
     public function placeLine(CustomerOrderLine $line, ?int $locationId): void
     {
         if ($line->customer_order_id !== $this->id || $line->isService()) {
             throw new DomainException(__('Seul un produit ou une pièce de la commande se range dans l\'entrepôt.'));
+        }
+
+        if ($line->status->isHandedOver()) {
+            throw new DomainException(__('Cet article est déjà remis au client : il n\'est plus dans l\'entrepôt.'));
         }
 
         if ($locationId !== null && ($this->store_id === null || ! InventoryLocation::query()->ofStore($this->store_id)->selectable()->whereKey($locationId)->exists())) {
