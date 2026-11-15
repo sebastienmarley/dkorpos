@@ -64,4 +64,9 @@ En faisant le ménage du code je trouve maintenant des petites perles laissé pa
 ### Un feature, message, fonction sans moyen de déclencher
 - Première trouvaille, dans le journal des mouvements d'inventaire il y avait un message préfait lorsqu'un tri par produit était fait, mais aucune façon de trier par produit, il fallait trafiquer l'URL pour accéder à cette vue... Correction, ajout d'un lien dans produit qui mène a inventory/movements?product={id} si on a la permission. Il sera déménagé dans interrogation d'inventaire lorsque je ferai le Issue #167 sur la refonte de produit.   
 
+### Construire mais échouer
+- Fabriquer un petit component pour rendre une ligne de tableau cliquable, mais même l'IA mélange ses conventions d'écriture si bien que du JavaScript écrit direct dans un composant Flux ça ne fonctionne pas, ce n'est pas la première fois que ça me fait ça. Bon pas de mal, on recommence, retrait du js remplacer par un data-href pour que Blade interprète comme il faut et hop c'est réglé j'ai mon component.  
+
+### Une fonction, feature avec un résultat erroné ou inattendu
+- La recherche retourne de drôle de résultat, dans commande client, jean propose Aurélie, raison la recherche se fait par un component commun bâti à l'origine dans le module des clients, donc le courriel était un élément de recherche sans être attendu, puisque les 3 critères sont le # de la commande, le nom ou le #téléphone. D'ailleurs cela va exiger une autre modification car chercher la commande 103 va aussi trouver toutes les commandes qui ont 103 et tous les # de tél. qui ont 103. 
 

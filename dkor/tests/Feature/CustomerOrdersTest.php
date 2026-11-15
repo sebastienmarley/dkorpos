@@ -50,6 +50,30 @@ describe('index', function () {
         expect($tremblay->id)->not->toBe($gagnon->id);
     });
 
+    it('n\'affiche la table qu\'une fois que la recherche trouve des commandes', function () {
+        CustomerOrder::factory()->for(customer::factory()->state(['lastname' => 'Tremblay']))->create();
+
+        Livewire::test(Index::class)
+            ->assertDontSeeHtml('data-flux-table')
+            ->assertDontSee('Aucune commande trouvée')
+            ->set('search', 'Introuvable')
+            ->assertDontSeeHtml('data-flux-table')
+            ->assertSee('Aucune commande trouvée pour ces critères.')
+            ->set('search', 'Tremb')
+            ->assertSeeHtml('data-flux-table')
+            ->assertSee('1 commande');
+    });
+
+    it('ne cherche pas dans le courriel du client', function () {
+        CustomerOrder::factory()->for(customer::factory()->state(['firstname' => 'Jean', 'lastname' => 'Tremblay', 'email' => 'jt@example.com']))->create();
+        CustomerOrder::factory()->for(customer::factory()->state(['firstname' => 'Aurélie', 'lastname' => 'Plante', 'email' => 'jean47@example.net']))->create();
+
+        Livewire::test(Index::class)
+            ->set('search', 'jean')
+            ->assertSee('Tremblay')
+            ->assertDontSee('Plante');
+    });
+
     it('trouve une commande par client sans égard à la casse ni aux accents', function () {
         CustomerOrder::factory()->for(customer::factory()->state(['firstname' => 'Hélène', 'lastname' => 'Côté']))->create();
 

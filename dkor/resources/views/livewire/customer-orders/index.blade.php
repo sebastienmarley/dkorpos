@@ -18,7 +18,8 @@
     {{-- Filtres --}}
     <div class="mb-4 flex flex-wrap gap-3">
         <div class="w-full sm:w-auto sm:flex-1">
-            <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher par numéro, client ou téléphone…') }}" icon="magnifying-glass" />
+            <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('client, # commande ou tél.') }}" icon="magnifying-glass" class="sm:hidden" />
+            <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher par nom de client,  # de commande ou téléphone…') }}" icon="magnifying-glass" class="max-sm:hidden" />
         </div>
 
         @if ($stores->isNotEmpty())
@@ -42,62 +43,51 @@
         </div>
     </div>
 
-    {{-- Tableau --}}
-    <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <flux:table :paginate="$orders">
-            <flux:table.columns>
-                <flux:table.column>{{ __('Numéro') }}</flux:table.column>
-                <flux:table.column>{{ __('Client') }}</flux:table.column>
-                @if ($stores->isNotEmpty())
-                    <flux:table.column class="max-md:hidden">{{ __('Magasin') }}</flux:table.column>
-                @endif
-                <flux:table.column class="max-md:hidden">{{ __('Vendeur(s)') }}</flux:table.column>
-                <flux:table.column>{{ __('Statut') }}</flux:table.column>
-                <flux:table.column align="end">{{ __('Solde à payer') }}</flux:table.column>
-                <flux:table.column class="max-md:hidden">{{ __('Créée le') }}</flux:table.column>
-            </flux:table.columns>
+    {{-- Tableau : affiché seulement quand la recherche donne des commandes --}}
+    @if ($orders->isNotEmpty())
+        <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <flux:table :paginate="$orders">
+                <flux:table.columns>
+                    <flux:table.column>{{ __('Numéro') }}</flux:table.column>
+                    <flux:table.column>{{ __('Client') }}</flux:table.column>
+                    @if ($stores->isNotEmpty())
+                        <flux:table.column class="max-md:hidden">{{ __('Magasin') }}</flux:table.column>
+                    @endif
+                    <flux:table.column class="max-md:hidden">{{ __('Vendeur(s)') }}</flux:table.column>
+                    <flux:table.column>{{ __('Statut') }}</flux:table.column>
+                    <flux:table.column align="end">{{ __('Solde à payer') }}</flux:table.column>
+                    <flux:table.column class="max-md:hidden">{{ __('Créée le') }}</flux:table.column>
+                </flux:table.columns>
 
-            <flux:table.rows>
-                @forelse ($orders as $order)
-                    <flux:table.row :key="$order->id">
-                        <flux:table.cell variant="strong">
-                            <flux:link :href="route('customer-orders.show', $order)" wire:navigate>#{{ $order->id }}</flux:link>
-                        </flux:table.cell>
-                        <flux:table.cell>{{ $order->customer->firstname }} {{ $order->customer->lastname }}</flux:table.cell>
-                        @if ($stores->isNotEmpty())
-                            <flux:table.cell class="max-md:hidden">{{ $order->store?->name ?? '—' }}</flux:table.cell>
-                        @endif
-                        <flux:table.cell class="max-md:hidden">{{ $order->salespeople->map(fn ($salesperson) => $salesperson->fullName())->join(', ') ?: '—' }}</flux:table.cell>
-                        <flux:table.cell>
-                            <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label() }}</flux:badge>
-                        </flux:table.cell>
-                        <flux:table.cell align="end">{{ $order->balance_due->format() }}</flux:table.cell>
-                        <flux:table.cell class="max-md:hidden">{{ $order->created_at->format('Y-m-d') }}</flux:table.cell>
-                    </flux:table.row>
-                @empty
-                    <flux:table.row>
-                        <flux:table.cell :colspan="$stores->isNotEmpty() ? 7 : 6" class="py-12 text-center">
-                            <div class="flex flex-col items-center gap-2">
-                                @if ($hasSearchCriteria)
-                                    <flux:icon name="shopping-cart" class="h-8 w-8 text-zinc-300" />
-                                    <flux:text class="text-zinc-400">{{ __('Aucune commande trouvée pour ces critères.') }}</flux:text>
-                                @else
-                                    <flux:icon name="magnifying-glass" class="h-8 w-8 text-zinc-300" />
-                                    <flux:text class="text-zinc-400">{{ __('Entrez un numéro, un client ou un téléphone, ou choisissez un statut pour afficher les commandes.') }}</flux:text>
-                                @endif
-                            </div>
-                        </flux:table.cell>
-                    </flux:table.row>
-                @endforelse
-            </flux:table.rows>
-        </flux:table>
-    </div>
+                <flux:table.rows>
+                    @foreach ($orders as $order)
+                        <flux:table.row :key="$order->id">
+                            <flux:table.cell variant="strong">
+                                <flux:link :href="route('customer-orders.show', $order)" wire:navigate>#{{ $order->id }}</flux:link>
+                            </flux:table.cell>
+                            <flux:table.cell>{{ $order->customer->firstname }} {{ $order->customer->lastname }}</flux:table.cell>
+                            @if ($stores->isNotEmpty())
+                                <flux:table.cell class="max-md:hidden">{{ $order->store?->name ?? '—' }}</flux:table.cell>
+                            @endif
+                            <flux:table.cell class="max-md:hidden">{{ $order->salespeople->map(fn ($salesperson) => $salesperson->fullName())->join(', ') ?: '—' }}</flux:table.cell>
+                            <flux:table.cell>
+                                <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label() }}</flux:badge>
+                            </flux:table.cell>
+                            <flux:table.cell align="end">{{ $order->balance_due->format() }}</flux:table.cell>
+                            <flux:table.cell class="max-md:hidden">{{ $order->created_at->format('Y-m-d') }}</flux:table.cell>
+                        </flux:table.row>
+                    @endforeach
+                </flux:table.rows>
+            </flux:table>
+        </div>
 
-    @if ($hasSearchCriteria)
-        <div class="mt-3">
-            <flux:text class="text-sm text-zinc-400">
-                {{ trans_choice(':count commande|:count commandes', $orders->total()) }}
-            </flux:text>
+        <flux:text class="mt-3 text-sm text-zinc-400">
+            {{ trans_choice(':count commande|:count commandes', $orders->total()) }}
+        </flux:text>
+    @elseif ($hasSearchCriteria)
+        <div class="flex flex-col items-center gap-2 py-12 text-center">
+            <flux:icon name="shopping-cart" class="h-8 w-8 text-zinc-300" />
+            <flux:text class="text-zinc-400">{{ __('Aucune commande trouvée pour ces critères.') }}</flux:text>
         </div>
     @endif
 
