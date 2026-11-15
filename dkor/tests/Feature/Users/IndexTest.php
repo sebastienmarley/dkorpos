@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Users\Index;
+use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -219,6 +220,45 @@ it('affiche les employés inactifs avec le filtre de statut', function () {
         ->set('statusFilter', 'all')
         ->assertSee($inactif->fullName())
         ->assertSee($actif->fullName());
+});
+
+it('compose le titre de la liste selon le rôle, le statut et le magasin', function () {
+    $store = Store::factory()->create(['name' => 'Rimouski']);
+    $this->actingAs(User::factory()->withRole('owner')->create());
+
+    $component = Livewire::test(Index::class);
+    expect($component->instance()->listHeading())->toBe('Employés actifs');
+
+    $component->set('statusFilter', 'all')->set('storeFilter', (string) $store->id);
+    expect($component->instance()->listHeading())->toBe('Employés de Rimouski');
+
+    $component->set('statusFilter', 'inactive')->set('sortRole', 'salesman');
+    expect($component->instance()->listHeading())->toBe('Vendeurs inactifs de Rimouski');
+});
+
+it('met au pluriel le libellé d\'un rôle créé dans l\'interface', function () {
+    expect(Role::create(['name' => 'gerant', 'label' => 'Gérant de magasin', 'level' => 10, 'guard_name' => 'web'])->pluralDisplayName())->toBe('Gérants de magasin')
+        ->and(Role::create(['name' => 'commis', 'label' => 'Commis', 'level' => 10, 'guard_name' => 'web'])->pluralDisplayName())->toBe('Commis');
+});
+
+it('ignore le magasin dans le titre sans accès à tous les magasins', function () {
+    $store = Store::factory()->create(['name' => 'Gaspé']);
+    $this->actingAs(User::factory()->withRole('manager')->create());
+
+    $component = Livewire::test(Index::class)->set('storeFilter', (string) $store->id);
+
+    expect($component->instance()->listHeading())->toBe('Employés actifs');
+});
+
+it('rend cliquable la ligne d\'un employé seulement si on peut ouvrir sa fiche', function () {
+    $store = Store::factory()->create();
+    $salesman = User::factory()->withRole('salesman')->create(['store_id' => $store->id]);
+
+    $this->actingAs(User::factory()->withRole('manager')->create(['store_id' => $store->id]));
+    Livewire::test(Index::class)->assertSeeHtml('data-href="'.route('users.show', $salesman).'"');
+
+    $this->actingAs(User::factory()->withRole('salesman')->create(['store_id' => $store->id]));
+    Livewire::test(Index::class)->assertDontSeeHtml('data-row-link');
 });
 
 // ── Mot de passe initial et réactivation ───────────────────────────────────

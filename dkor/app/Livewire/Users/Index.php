@@ -252,6 +252,33 @@ class Index extends Component
         return Position::query()->orderBy('name')->get();
     }
 
+    /**
+     * Titre de la liste selon les filtres : le rôle choisi (sinon « Employés »), le statut, puis le magasin.
+     * Ex. : « Vendeurs actifs de Rimouski », « Employés de Gaspé ».
+     */
+    public function listHeading(): string
+    {
+        $role = filled($this->sortRole) ? $this->visibleRoles()->firstWhere('name', $this->sortRole) : null;
+
+        $heading = $role?->pluralDisplayName() ?? __('Employés');
+
+        $heading .= match ($this->statusFilter) {
+            'inactive' => ' '.__('inactifs'),
+            'all' => '',
+            default => ' '.__('actifs'),
+        };
+
+        $store = $this->storeFilter !== '' && Auth::user()->hasAllStores()
+            ? $this->stores()->firstWhere('id', (int) $this->storeFilter)
+            : null;
+
+        if ($store !== null) {
+            $heading .= ' '.__('de :store', ['store' => $store->name]);
+        }
+
+        return $heading;
+    }
+
     private function defaultRole(): string
     {
         $assignable = $this->assignableRoles();

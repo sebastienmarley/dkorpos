@@ -59,3 +59,9 @@ C - Ainsi reconstruire mon GH desktop via une pull origin dans le main et dans d
 D - Ensuite, via un "feature" de VSCode (cmd+shift+p : revert file), j'ai pu récupérer mes changements de contenu de blog perdus.  
 Au final, j'en aurai été quitte pour une petite frousse et une trentaine de minute de manipulations, tout en expérimentant ce que j'essayais d'éviter à tout prix. Qu'on voit via mon PR #148 suivi de la correction en #149. 
 
+## Découvertes 
+En faisant le ménage du code je trouve maintenant des petites perles laissé par l'IA. Je vais donc tenter d'en garder le plus de traces possibles ici, sous diverses rubliques. Je vais aussi laisser une trace de mon correctif.  
+### Un feature, message, fonction sans moyen de déclencher
+- Première trouvaille, dans le journal des mouvements d'inventaire il y avait un message préfait lorsqu'un tri par produit était fait, mais aucune façon de trier par produit, il fallait trafiquer l'URL pour accéder à cette vue... Correction, ajout d'un lien dans produit qui mène a inventory/movements?product={id} si on a la permission. Il sera déménagé dans interrogation d'inventaire lorsque je ferai le Issue #167 sur la refonte de produit.   
+
+

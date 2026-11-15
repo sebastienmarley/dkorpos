@@ -242,15 +242,15 @@ return [
     ],
 
     'roles' => [
-        'admin' => ['label' => 'Administrateur', 'level' => 100, 'permissions' => '*'],
-        'owner' => ['label' => 'Propriétaire', 'level' => 100, 'permissions' => '*'],
-        'manager' => ['label' => 'Directeur', 'level' => 50, 'permissions' => ['users.view', 'users.create', 'users.edit', ...$pageAccess, ...$managementAccess]],
-        'design' => ['label' => 'Designer', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
-        'delivery' => ['label' => 'Livreur', 'level' => 10, 'permissions' => ['users.view', 'deliveries.handle', ...$pageAccess]],
-        'warehouse' => ['label' => 'Commis entrepôt', 'level' => 10, 'permissions' => [...$warehouseAccess]],
-        'salesman' => ['label' => 'Vendeur', 'level' => 10, 'permissions' => ['transfers.request', ...$pageAccess]],
-        'accounting' => ['label' => 'Comptabilité', 'level' => 10, 'permissions' => [...$accountingAccess]],
-        'thirdkey' => ['label' => 'Troisième clé', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
+        'admin' => ['label' => 'Administrateur', 'plural_label' => 'Administrateurs', 'level' => 100, 'permissions' => '*'],
+        'owner' => ['label' => 'Propriétaire', 'plural_label' => 'Propriétaires', 'level' => 100, 'permissions' => '*'],
+        'manager' => ['label' => 'Directeur', 'plural_label' => 'Directeurs', 'level' => 50, 'permissions' => ['users.view', 'users.create', 'users.edit', ...$pageAccess, ...$managementAccess]],
+        'design' => ['label' => 'Designer', 'plural_label' => 'Designers', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
+        'delivery' => ['label' => 'Livreur', 'plural_label' => 'Livreurs', 'level' => 10, 'permissions' => ['users.view', 'deliveries.handle', ...$pageAccess]],
+        'warehouse' => ['label' => 'Commis entrepôt', 'plural_label' => 'Commis entrepôt', 'level' => 10, 'permissions' => [...$warehouseAccess]],
+        'salesman' => ['label' => 'Vendeur', 'plural_label' => 'Vendeurs', 'level' => 10, 'permissions' => ['transfers.request', ...$pageAccess]],
+        'accounting' => ['label' => 'Comptabilité', 'plural_label' => 'Comptables', 'level' => 10, 'permissions' => [...$accountingAccess]],
+        'thirdkey' => ['label' => 'Troisième clé', 'plural_label' => 'Troisièmes clés', 'level' => 10, 'permissions' => ['users.view', ...$pageAccess]],
     ],
 
     /*
