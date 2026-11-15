@@ -101,9 +101,9 @@
             <flux:heading class="mb-1">{{ __('Nouvelle commande client') }}</flux:heading>
             <flux:text class="text-zinc-500">{{ __('Choisissez ou créez le client de la commande.') }}</flux:text>
 
-            @if ($stores->isNotEmpty())
+            @if ($createStores->isNotEmpty())
                 <flux:select wire:model="createStoreId" :label="__('Magasin')" class="mt-6">
-                    @foreach ($stores as $store)
+                    @foreach ($createStores as $store)
                         <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
                     @endforeach
                 </flux:select>

@@ -10,6 +10,7 @@ use App\Models\Store;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
@@ -53,7 +54,10 @@ class Index extends Component
         $this->authorize('customer_orders.create');
 
         $this->customerSearch = '';
-        $this->createStoreId = (string) ($this->storeFilter !== '' ? $this->storeFilter : (auth()->user()->store_id ?? ''));
+        $preferredStoreId = $this->storeFilter !== '' ? (int) $this->storeFilter : auth()->user()->store_id;
+        $createStoreIds = $this->createStores()->modelKeys();
+
+        $this->createStoreId = (string) (in_array($preferredStoreId, $createStoreIds, true) ? $preferredStoreId : ($createStoreIds[0] ?? ''));
         $this->showCreate = true;
     }
 
@@ -70,6 +74,12 @@ class Index extends Component
         $storeId = $user->hasAllStores() && $this->createStoreId !== '' ? (int) $this->createStoreId : $user->store_id;
 
         abort_unless($storeId === null || $user->canActForStore($storeId), 403);
+
+        if ($storeId !== null && ! Store::query()->takingCustomerOrders()->whereKey($storeId)->exists()) {
+            Flux::toast(text: __('Ce magasin virtuel n\'a pas d\'entrepôt : il ne prend pas de commandes clients.'), variant: 'danger');
+
+            return;
+        }
 
         try {
             $order = DB::transaction(function () use ($customer, $storeId): CustomerOrder {
@@ -90,6 +100,18 @@ class Index extends Component
         }
 
         $this->redirectRoute('customer-orders.show', $order, navigate: true);
+    }
+
+    /**
+     * Magasins offerts pour une nouvelle commande (avec stores.all seulement) : ceux qui prennent des commandes clients.
+     *
+     * @return Collection<int, Store>
+     */
+    private function createStores(): Collection
+    {
+        return auth()->user()->hasAllStores()
+            ? Store::query()->takingCustomerOrders()->orderBy('name')->get()
+            : new Collection;
     }
 
     #[On('customer-saved')]
@@ -133,6 +155,7 @@ class Index extends Component
             'statuses' => CustomerOrderStatus::cases(),
             'customerResults' => $this->getCustomerResults(),
             'stores' => $user->hasAllStores() ? Store::query()->orderBy('name')->get() : collect(),
+            'createStores' => $this->createStores(),
         ])->layout('layouts.app', ['title' => __('Commandes clients')]);
     }
 }

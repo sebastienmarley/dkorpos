@@ -98,6 +98,25 @@ describe('commandes clients', function () {
 
         expect(CustomerOrder::where('customer_id', $customer->id)->sole()->store_id)->toBe($this->rimouski->id);
     });
+
+    it('n\'offre pas un magasin virtuel sans entrepôt pour une nouvelle commande', function () {
+        $headOffice = Store::factory()->virtual()->create(['name' => 'Bureau chef']);
+        $onlineStore = Store::factory()->virtual()->create(['name' => 'En ligne', 'warehouse_store_id' => $this->rimouski->id]);
+        $this->owner->update(['store_id' => $headOffice->id]);
+        $this->actingAs($this->owner);
+        $customer = customer::factory()->create();
+
+        Livewire::test(CustomerOrdersIndex::class)
+            ->call('openCreate')
+            ->assertSet('createStoreId', (string) $onlineStore->id)
+            ->assertViewHas('createStores', fn ($stores): bool => ! $stores->contains($headOffice) && $stores->contains($onlineStore))
+            ->assertViewHas('stores', fn ($stores): bool => $stores->contains($headOffice))
+            ->set('createStoreId', (string) $headOffice->id)
+            ->call('create', $customer->id)
+            ->assertNoRedirect();
+
+        expect(CustomerOrder::where('customer_id', $customer->id)->exists())->toBeFalse();
+    });
 });
 
 describe('livraisons', function () {

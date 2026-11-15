@@ -109,6 +109,18 @@ class Store extends Model
     }
 
     /**
+     * Magasins qui prennent des commandes clients : les magasins physiques et les magasins virtuels servis par un
+     * entrepôt. Un magasin virtuel sans entrepôt (ex. : le bureau chef) n'a aucun stock pour servir une commande.
+     *
+     * @param  Builder<Store>  $query
+     */
+    #[Scope]
+    protected function takingCustomerOrders(Builder $query): void
+    {
+        $query->where(fn (Builder $query) => $query->where('type', StoreType::Physical)->orWhereNotNull('warehouse_store_id'));
+    }
+
+    /**
      * Le stock qui sert les ventes de ce magasin est-il sur place ? Faux pour un magasin servi par l'entrepôt d'un
      * autre magasin : ses articles ne se ramassent pas, ils se livrent ou s'expédient.
      */
