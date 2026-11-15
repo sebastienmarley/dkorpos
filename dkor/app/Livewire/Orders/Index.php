@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Orders;
 
-use App\Enums\StoreType;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
 use App\Models\Store;
@@ -110,13 +109,14 @@ class Index extends Component
     }
 
     /**
-     * Magasins de destination offerts : les magasins physiques actifs accessibles à l'usager.
+     * Magasins de destination offerts : les magasins actifs accessibles à l'usager qui tiennent du stock. Un magasin
+     * virtuel ou servi par l'entrepôt d'un autre ne reçoit rien : c'est son entrepôt qui commande.
      *
      * @return Collection<int, Store>
      */
     public function getStores(): Collection
     {
-        return Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
+        return Store::query()->accessibleTo(auth()->user())->holdingStock()->where('is_active', true)->orderBy('name')->get();
     }
 
     /** Magasin proposé : celui du filtre, sinon celui de l'usager (ADR 0012), s'il est offert. */

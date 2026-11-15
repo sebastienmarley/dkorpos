@@ -121,6 +121,24 @@ class Store extends Model
     }
 
     /**
+     * Magasins qui tiennent du stock : les magasins physiques qui ne sont pas servis par l'entrepôt d'un autre. Seuls
+     * eux reçoivent des commandes fournisseurs (ADR 0013).
+     *
+     * @param  Builder<Store>  $query
+     */
+    #[Scope]
+    protected function holdingStock(Builder $query): void
+    {
+        $query->where('type', StoreType::Physical)->whereNull('warehouse_store_id');
+    }
+
+    /** Ce magasin tient-il du stock ? Voir `holdingStock()`. */
+    public function holdsStock(): bool
+    {
+        return $this->type === StoreType::Physical && $this->warehouse_store_id === null;
+    }
+
+    /**
      * Le stock qui sert les ventes de ce magasin est-il sur place ? Faux pour un magasin servi par l'entrepôt d'un
      * autre magasin : ses articles ne se ramassent pas, ils se livrent ou s'expédient.
      */

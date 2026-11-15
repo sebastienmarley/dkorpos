@@ -77,12 +77,12 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
 | Domaine | Mon magasin seulement | Tous les magasins (`stores.all`) |
 |---|---|---|
 | **Usagers** | Ne voit et ne gère que les employés de son magasin (`User::visibleTo()`, `UserPolicy`). Embauche dans son magasin seulement. Ne change pas le magasin d'appartenance (`UserPolicy::changeStore()`). | Tous les employés, filtre par magasin. Embauche dans n'importe quel magasin et change le magasin d'appartenance. |
-| **Commandes clients** | Liste et fiche limitées à son magasin, **et aux magasins dont son magasin est l'entrepôt** (exception ci-dessous). Une nouvelle commande est créée dans son magasin. | Toutes les commandes, filtre par magasin. Choix du magasin à la création. |
+| **Commandes clients** | Liste et fiche limitées à son magasin, **et aux magasins dont son magasin est l'entrepôt** (exception ci-dessous). Une nouvelle commande est créée dans son magasin. | Toutes les commandes, filtre par magasin. Choix du magasin à la création, parmi ceux qui prennent des commandes (ci-dessous). |
 | **Gestion des horaires** | Grille, remplissage, publication, réassignation et rendez-vous à couvrir des employés actifs de son magasin (`ScheduleEdit`). | Sélecteur de magasin : chaque magasin publie sa semaine. |
 | **Rendez-vous** | Le sélecteur d'employés n'offre que les employés actifs de son magasin (`Schedules\Appointments`). | Sélecteur de magasin, puis d'employé de ce magasin. |
 | **Livraisons et expéditions** | Livraisons, Mes livraisons et Expéditions de son magasin. | Sélecteur de magasin. |
 | **Inventaire** | Ajustements, déplacements d'état et prises d'inventaire dans son magasin (listes, formulaires, fiche d'une prise et feuilles de compte). Zones et emplacements de son magasin. Le journal montre le magasin de chaque mouvement. | Tous les magasins. Le journal se filtre par magasin. |
-| **Commandes fournisseurs** | Liste et fiche des commandes destinées à son magasin. Une nouvelle commande est destinée à son magasin. | Toutes les commandes, filtre par magasin de destination (colonne du tableau). Choix du magasin de destination à la création ; le brouillon unique par fournisseur se vérifie dans ce magasin. |
+| **Commandes fournisseurs** | Liste et fiche des commandes destinées à son magasin. Une nouvelle commande est destinée à son magasin, s'il tient du stock (ci-dessous). | Toutes les commandes, filtre par magasin de destination (colonne du tableau). Choix du magasin de destination à la création, parmi ceux qui tiennent du stock ; le brouillon unique par fournisseur se vérifie dans ce magasin. |
 | **Réceptions** | Liste, fiche et réception des commandes destinées à son magasin : la nouvelle réception n'offre ni les fournisseurs ni les lignes des autres magasins, et `Reception::start()` refuse un receveur d'un autre magasin. | Tous les magasins. La première ligne cochée d'une commande d'un autre magasin que le sien demande une confirmation (« La commande … est celle du magasin …. Êtes-vous certain ? »). |
 | **Transferts** | Agit pour son magasin (`StoreTransferGuard::actingFor()`). Pour un client, le magasin de la commande demande, même si son entrepôt reçoit. | Agit pour chaque magasin, avec le sélecteur. |
 
@@ -106,6 +106,22 @@ ramasser ses articles à Mont-Joli, mais il peut choisir d'aller les chercher à
 - **Limite :** l'employé de l'entrepôt a les mêmes droits sur ces commandes que sur les siennes (changer le client,
   ajouter des produits…). La règle ne s'applique qu'aux commandes clients : les autres tables `BelongsToStore`
   gardent la règle de base.
+
+### Magasins qui prennent des commandes : selon leur stock
+
+*Ajoutée le 2026-11-15.*
+
+Choisir un magasin ne suffit pas : il faut aussi que ce magasin puisse servir la commande avec du stock.
+
+- **Commandes clients :** seuls les magasins physiques et les magasins virtuels servis par un entrepôt prennent des
+  commandes clients (`Store::takingCustomerOrders()`). Un magasin virtuel sans entrepôt (ex. : le bureau chef) n'a
+  aucun stock : il n'est pas offert à la création, et `create()` refuse une requête qui le choisit quand même. Il reste
+  dans le filtre de la liste, pour retrouver ses anciennes commandes.
+- **Commandes fournisseurs :** seuls les magasins qui tiennent du stock reçoivent des commandes fournisseurs
+  (`Store::holdingStock()`) : les magasins physiques qui ne sont pas servis par l'entrepôt d'un autre. Un magasin
+  virtuel ou servi par un entrepôt (Mont-Joli) n'est pas offert comme destination : c'est son entrepôt qui commande.
+  Les commandes spéciales d'une commande client vont déjà à l'entrepôt (`CustomerOrder::stockStoreId()`). La garde est
+  aussi dans le modèle : `SupplierOrder` refuse d'être créée pour un magasin qui ne tient pas de stock.
 
 **Restent communs à tous les magasins :** le catalogue, les clients, le stock des autres magasins en consultation
 (onglet **Inventaire** d'un produit, sources d'un transfert), les modèles d'horaire et les jours fériés.
@@ -150,4 +166,6 @@ ramasser ses articles à Mont-Joli, mais il peut choisir d'aller les chercher à
 - `app/Livewire/Orders/Index.php` (commandes fournisseurs), `app/Livewire/Schedules/ScheduleEdit.php`,
   `app/Livewire/Schedules/Appointments.php`, `app/Actions/StoreTransferGuard.php`
 - `app/Models/CustomerOrder.php` (`accessibleTo()`, `isAccessibleTo()`, `allowsPickup()`), `Store::hasStockOnSite()`
+- `Store::takingCustomerOrders()`, `Store::holdingStock()`, `app/Livewire/CustomerOrders/Index.php`,
+  `app/Models/SupplierOrder.php` (création)
 - `tests/Feature/StoreAccessTest.php`, `tests/Feature/CustomerOrderPickupsTest.php` (magasin servi par un entrepôt)

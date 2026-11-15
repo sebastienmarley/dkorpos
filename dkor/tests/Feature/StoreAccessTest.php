@@ -271,6 +271,33 @@ describe('commandes fournisseurs', function () {
         expect(SupplierOrder::count())->toBe(0);
     });
 
+    it('n\'offre comme destination que les magasins qui tiennent du stock', function () {
+        $montJoli = Store::factory()->create(['name' => 'Mont-Joli', 'warehouse_store_id' => $this->rimouski->id]);
+        $headOffice = Store::factory()->virtual()->create(['name' => 'Bureau chef']);
+        $this->actingAs($this->owner);
+
+        Livewire::test(SupplierOrdersIndex::class)
+            ->call('openCreate')
+            ->assertViewHas('stores', fn ($stores): bool => $stores->modelKeys() === [$this->gaspe->id, $this->rimouski->id])
+            ->set('newSupplierId', (string) $this->supplier->id)
+            ->set('newStoreId', (string) $montJoli->id)
+            ->call('create')
+            ->assertHasErrors(['newStoreId' => 'in'])
+            ->set('newStoreId', (string) $headOffice->id)
+            ->call('create')
+            ->assertHasErrors(['newStoreId' => 'in']);
+
+        expect(SupplierOrder::count())->toBe(0);
+    });
+
+    it('refuse de créer une commande fournisseur pour un magasin servi par un entrepôt', function () {
+        $montJoli = Store::factory()->create(['name' => 'Mont-Joli', 'warehouse_store_id' => $this->rimouski->id]);
+        $this->actingAs($this->owner);
+
+        expect(fn () => SupplierOrder::factory()->create(['store_id' => $montJoli->id]))
+            ->toThrow(DomainException::class, 'ne tient pas de stock');
+    });
+
     it('laisse le propriétaire créer et filtrer les commandes du magasin de son choix', function () {
         $this->actingAs($this->owner);
 
