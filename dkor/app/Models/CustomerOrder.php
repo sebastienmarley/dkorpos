@@ -29,6 +29,7 @@ use App\Support\Money;
 use Database\Factories\CustomerOrderFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -132,6 +133,44 @@ class CustomerOrder extends Model
     public function deliveries(): HasMany
     {
         return $this->hasMany(CustomerOrderDelivery::class);
+    }
+
+    /**
+     * Commandes que l'usager peut voir : celles de son magasin (ADR 0013), et aussi celles des magasins servis par
+     * l'entrepôt de son magasin, puisque le client peut venir y ramasser ses articles. Tout, avec stores.all.
+     *
+     * @param  Builder<static>  $query
+     */
+    #[Scope]
+    protected function accessibleTo(Builder $query, User $user): void
+    {
+        if ($user->hasAllStores()) {
+            return;
+        }
+
+        $query->whereIn($this->qualifyColumn('store_id'), self::storeIdsServedFrom($user->store_id));
+    }
+
+    /**
+     * L'usager peut-il voir cette commande ou agir dessus ? Son magasin, ou l'entrepôt qui sert son magasin.
+     */
+    public function isAccessibleTo(User $user): bool
+    {
+        return $user->hasAllStores() || in_array($this->store_id, self::storeIdsServedFrom($user->store_id), true);
+    }
+
+    /**
+     * Magasins dont un usager rattaché à ce magasin voit les commandes : lui-même et ceux dont il est l'entrepôt.
+     *
+     * @return list<int>
+     */
+    private static function storeIdsServedFrom(?int $storeId): array
+    {
+        if ($storeId === null) {
+            return [];
+        }
+
+        return [$storeId, ...Store::query()->where('warehouse_store_id', $storeId)->pluck('id')->map(fn ($id): int => (int) $id)->all()];
     }
 
     /**
@@ -1737,13 +1776,35 @@ class CustomerOrder extends Model
     }
 
     /**
+     * Les articles de cette commande peuvent-ils être ramassés par cet usager (par défaut, l'usager connecté) ? Oui au
+     * magasin qui a son stock sur place. Pour un magasin servi par l'entrepôt d'un autre, seulement par un usager de
+     * cet entrepôt : le client vient y chercher ses articles. Sinon, ils se livrent ou s'expédient.
+     */
+    public function allowsPickup(?User $user = null): bool
+    {
+        $store = $this->relationLoaded('store') ? $this->store : $this->store()->first();
+
+        if ($store === null || $store->hasStockOnSite()) {
+            return true;
+        }
+
+        $user ??= auth()->user();
+
+        return $user !== null && (int) $user->store_id === $store->stockStoreId();
+    }
+
+    /**
      * Quantités qui peuvent être ramassées en magasin, par ligne : le stock réservé au client, sans ce qui est prévu
-     * dans une livraison active.
+     * dans une livraison active. Aucune quand le stock du magasin n'est pas sur place (allowsPickup()).
      *
      * @return array<int, int>
      */
     public function pickableQuantities(): array
     {
+        if (! $this->allowsPickup()) {
+            return [];
+        }
+
         $delivering = $this->deliveringQuantities();
 
         return $this->lines()->orderBy('id')->get()
@@ -1839,8 +1900,9 @@ class CustomerOrder extends Model
      * @param  array<int, array{method_id: int, amount: Money, tendered?: Money|null}>  $payments  (tendered : comptant reçu)
      * @param  Money|null  $creditUsed  montant payé avec le crédit au compte du client (déduit de ce crédit)
      *
-     * @throws DomainException si une quantité n'est pas disponible, si le crédit utilisé dépasse celui du client ou
-     *                         si le paiement ne couvre pas le montant exigé.
+     * @throws DomainException si le magasin n'a pas son stock sur place (articles seulement), si une quantité n'est pas
+     *                         disponible, si le crédit utilisé dépasse celui du client ou si le paiement ne couvre pas
+     *                         le montant exigé.
      */
     public function pickUp(array $quantities, array $payments, ?Money $creditUsed = null): ?CustomerOrderPickup
     {
@@ -1852,6 +1914,10 @@ class CustomerOrder extends Model
         }
 
         $paid = Money::sum(array_column($payments, 'amount'))->plus($creditUsed);
+
+        if ($quantities !== [] && ! $this->allowsPickup()) {
+            throw new DomainException(__('Les articles de ce magasin sont à son entrepôt : ils se ramassent à l\'entrepôt, se livrent ou s\'expédient.'));
+        }
 
         if ($quantities === [] && ! $paid->isPositive()) {
             throw new DomainException(__('Choisissez au moins un article à ramasser ou entrez un paiement.'));

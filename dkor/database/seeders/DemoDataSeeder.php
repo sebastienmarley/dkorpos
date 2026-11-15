@@ -769,7 +769,7 @@ class DemoDataSeeder extends Seeder
                     default => fake()->numberBetween(0, 1),
                 } + ($date->isSaturday() ? 1 : 0);
 
-                if ($day >= self::DAYS - 6) {
+                if ($day >= self::DAYS - 6 && $store->hasStockOnSite()) {
                     $this->at($day, fn () => $this->pickup($this->newOrder($store)));
                 }
 
@@ -784,6 +784,12 @@ class DemoDataSeeder extends Seeder
     {
         $scenarios = ['pickup', 'delivery', 'deposit', 'pickup', 'demo', 'shipment', 'specialOrder', 'pickup', 'clearance', 'service', 'customerTransfer', 'delivery', 'return', 'pickup', 'cancellation', 'custom'];
         $scenario = $scenarios[$this->orderCount % count($scenarios)];
+
+        /** Un magasin servi par l'entrepôt d'un autre (Mont-Joli) n'a rien à remettre sur place : il livre ou expédie. */
+        if (! $store->hasStockOnSite() && in_array($scenario, ['pickup', 'specialOrder', 'return', 'demo', 'clearance', 'customerTransfer'], true)) {
+            $scenario = $this->orderCount % 2 === 0 ? 'delivery' : 'shipment';
+        }
+
         $order = $this->newOrder($store);
 
         $this->{$scenario}($order);

@@ -65,6 +65,9 @@
                         <x-table.row-link :key="$order->id" :href="route('customer-orders.show', $order)">
                             <flux:table.cell variant="strong">
                                 <flux:link :href="route('customer-orders.show', $order)" wire:navigate>#{{ $order->id }}</flux:link>
+                                @if (! auth()->user()->hasAllStores() && $order->store && $order->store_id !== (int) auth()->user()->store_id)
+                                    <flux:badge color="sky" size="sm" icon="building-storefront" class="ms-1">{{ $order->store->name }}</flux:badge>
+                                @endif
                             </flux:table.cell>
                             <flux:table.cell>{{ $order->customer->firstname }} {{ $order->customer->lastname }}</flux:table.cell>
                             @if ($stores->isNotEmpty())

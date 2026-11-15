@@ -8,6 +8,10 @@
             <div class="mt-1 flex items-center gap-3 max-sm:justify-center">
                 <flux:heading level="1" size="xl">{{ __('Commande #:id', ['id' => $order->id]) }}</flux:heading>
                 <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label() }}</flux:badge>
+                @if ($order->store && $order->store_id !== (int) auth()->user()->store_id)
+                    {{-- Commande d'un autre magasin (ex. ouverte à l'entrepôt qui le sert) : on voit d'où elle vient. --}}
+                    <flux:badge color="sky" size="sm" icon="building-storefront">{{ $order->store->name }}</flux:badge>
+                @endif
             </div>
             <flux:text class="mt-1 text-zinc-500 max-sm:text-center">
                 {{ __('Créée le :date', ['date' => $order->created_at->format('Y-m-d')]) }}
@@ -1023,7 +1027,13 @@
             @if ($pickupStep === 'items')
                 <flux:text class="text-zinc-500">{{ __('Quantités remises au client (stock réservé seulement). Laissez à 0 pour encaisser un paiement sans ramassage.') }}</flux:text>
 
-                @if ($pickupQuantities === [])
+                @if (! $order->allowsPickup())
+                    <flux:callout icon="truck" color="amber" class="mt-4">
+                        <flux:callout.text>
+                            {{ __('Les articles de ce magasin sont à l\'entrepôt de :warehouse : le client peut aller les y ramasser (la commande s\'ouvre là-bas), sinon utilisez Livraison ou Expédition. Vous pouvez encaisser un paiement.', ['warehouse' => $order->store->warehouse?->name]) }}
+                        </flux:callout.text>
+                    </flux:callout>
+                @elseif ($pickupQuantities === [])
                     <flux:text class="mt-4 text-sm text-zinc-400">{{ __('Aucun article disponible à ramasser : vous pouvez encaisser un paiement.') }}</flux:text>
                 @endif
 

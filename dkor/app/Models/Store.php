@@ -109,6 +109,15 @@ class Store extends Model
     }
 
     /**
+     * Le stock qui sert les ventes de ce magasin est-il sur place ? Faux pour un magasin servi par l'entrepôt d'un
+     * autre magasin : ses articles ne se ramassent pas, ils se livrent ou s'expédient.
+     */
+    public function hasStockOnSite(): bool
+    {
+        return $this->stockStoreId() === $this->id;
+    }
+
+    /**
      * Magasin à qui les fournisseurs facturent les commandes de ce magasin.
      *
      * @return BelongsTo<Store, $this>

@@ -4,6 +4,7 @@ use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
 use App\Enums\InventoryMovementType;
+use App\Livewire\CustomerOrders\Index;
 use App\Livewire\CustomerOrders\Show;
 use App\Models\CustomerOrder;
 use App\Models\CustomerPaymentMethod;
@@ -11,6 +12,7 @@ use App\Models\InventoryMovement;
 use App\Models\InventoryUnit;
 use App\Models\Product;
 use App\Models\Role;
+use App\Models\Store;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
@@ -431,4 +433,77 @@ it('exige les frais d\'annulation au ramassage, sans que le dépôt de l\'articl
     expect($this->order->fresh())
         ->status->toBe(CustomerOrderStatus::PickedUp)
         ->balance_due->toBeMoney(0);
+});
+
+describe('magasin servi par l\'entrepôt d\'un autre magasin', function () {
+    beforeEach(function () {
+        $this->warehouse = Store::factory()->create(['name' => 'Entrepôt Rimouski']);
+        $this->order->store->update(['warehouse_store_id' => $this->warehouse->id]);
+        $this->order->refresh();
+        $this->line = stockedLine($this->order, 1, 1, 100);
+    });
+
+    it('ne propose aucun article à ramasser, même réservé à l\'entrepôt', function () {
+        expect($this->line->quantity_reserved)->toBe(1)
+            ->and($this->order->fresh()->allowsPickup())->toBeFalse()
+            ->and($this->order->fresh()->pickableQuantities())->toBe([]);
+    });
+
+    it('refuse de remettre un article, mais encaisse un paiement sans article', function () {
+        expect(fn () => $this->order->fresh()->pickUp([$this->line->id => 1], [['method_id' => $this->cash->id, 'amount' => Money::parse(114.98)]]))
+            ->toThrow(DomainException::class, 'se ramassent à l\'entrepôt');
+
+        $this->order->fresh()->pickUp([], [['method_id' => $this->cash->id, 'amount' => Money::parse(34.49)]]);
+
+        expect($this->order->fresh()->amount_paid)->toBeMoney(3449)
+            ->and($this->line->fresh()->status)->toBe(CustomerOrderLineStatus::InStock);
+    });
+
+    it('laisse un employé de l\'entrepôt ouvrir la commande et remettre les articles au client', function () {
+        $warehouseClerk = User::factory()->withRole('visiteur')->create(['store_id' => $this->warehouse->id]);
+        $warehouseClerk->givePermissionTo(['customer_orders.view', 'customer_orders.edit']);
+        $otherStoreClerk = User::factory()->withRole('visiteur')->create(['store_id' => Store::factory()->create()->id]);
+        $order = $this->order->fresh();
+
+        expect($order->isAccessibleTo($warehouseClerk))->toBeTrue()
+            ->and(CustomerOrder::query()->accessibleTo($warehouseClerk)->pluck('id')->all())->toBe([$order->id])
+            ->and($order->isAccessibleTo($otherStoreClerk))->toBeFalse()
+            ->and(CustomerOrder::query()->accessibleTo($otherStoreClerk)->count())->toBe(0);
+
+        $this->actingAs($warehouseClerk);
+
+        expect($order->allowsPickup())->toBeTrue()
+            ->and($order->pickableQuantities())->toBe([$this->line->id => 1]);
+
+        $order->pickUp([$this->line->id => 1], [['method_id' => $this->cash->id, 'amount' => Money::parse(114.98)]]);
+
+        expect($this->line->fresh()->status)->toBe(CustomerOrderLineStatus::PickedUp);
+    });
+
+    it('montre à l\'entrepôt un badge avec le magasin de provenance de la commande', function () {
+        $this->order->store->update(['name' => 'DKOR Mont-Joli']);
+        $warehouseClerk = User::factory()->withRole('visiteur')->create(['store_id' => $this->warehouse->id]);
+        $warehouseClerk->givePermissionTo(['customer_orders.view', 'customer_orders.edit']);
+        $this->actingAs($warehouseClerk);
+
+        Livewire::test(Show::class, ['order' => $this->order->fresh()])
+            ->assertSee('DKOR Mont-Joli');
+
+        Livewire::test(Index::class)
+            ->set('search', (string) $this->order->id)
+            ->assertSee('DKOR Mont-Joli');
+    });
+
+    it('explique dans le modal que les articles se livrent ou s\'expédient', function () {
+        Livewire::test(Show::class, ['order' => $this->order->fresh()])
+            ->call('openPickupModal')
+            ->assertSet('pickupQuantities', [])
+            ->assertSee('Entrepôt Rimouski')
+            ->assertSee('le client peut aller les y ramasser');
+    });
+});
+
+it('laisse ramasser dans un magasin qui a son stock sur place', function () {
+    expect($this->order->store->hasStockOnSite())->toBeTrue()
+        ->and($this->order->allowsPickup())->toBeTrue();
 });

@@ -65,7 +65,7 @@ Nous retenons l'**option C**.
 - Le scope `accessibleTo($user)` : `Store::accessibleTo()` pour les magasins, et le trait `App\Concerns\BelongsToStore`
   pour les tables qui ont un `store_id` (`CustomerOrder`, `CustomerOrderDelivery`, `SupplierOrder`, `Reception`,
   `InventoryCount`, `InventoryAdjustment`, `InventoryMovement`), avec `isAccessibleTo($user)` pour un seul
-  enregistrement.
+  enregistrement. `CustomerOrder` redéfinit les deux pour l'exception de l'entrepôt (ci-dessous).
 - Le trait Livewire `App\Concerns\ChoosesStore` pour les pages qui affichent un magasin (`$storeId`). Le sélecteur
   n'est montré qu'avec `stores.all`. Un magasin inaccessible (lien modifié, requête trafiquée) est ramené au magasin
   d'appartenance.
@@ -77,7 +77,7 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
 | Domaine | Mon magasin seulement | Tous les magasins (`stores.all`) |
 |---|---|---|
 | **Usagers** | Ne voit et ne gère que les employés de son magasin (`User::visibleTo()`, `UserPolicy`). Embauche dans son magasin seulement. Ne change pas le magasin d'appartenance (`UserPolicy::changeStore()`). | Tous les employés, filtre par magasin. Embauche dans n'importe quel magasin et change le magasin d'appartenance. |
-| **Commandes clients** | Liste et fiche limitées à son magasin. Une nouvelle commande est créée dans son magasin. | Toutes les commandes, filtre par magasin. Choix du magasin à la création. |
+| **Commandes clients** | Liste et fiche limitées à son magasin, **et aux magasins dont son magasin est l'entrepôt** (exception ci-dessous). Une nouvelle commande est créée dans son magasin. | Toutes les commandes, filtre par magasin. Choix du magasin à la création. |
 | **Gestion des horaires** | Grille, remplissage, publication, réassignation et rendez-vous à couvrir des employés actifs de son magasin (`ScheduleEdit`). | Sélecteur de magasin : chaque magasin publie sa semaine. |
 | **Rendez-vous** | Le sélecteur d'employés n'offre que les employés actifs de son magasin (`Schedules\Appointments`). | Sélecteur de magasin, puis d'employé de ce magasin. |
 | **Livraisons et expéditions** | Livraisons, Mes livraisons et Expéditions de son magasin. | Sélecteur de magasin. |
@@ -85,6 +85,27 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
 | **Commandes fournisseurs** | Liste et fiche des commandes destinées à son magasin. Une nouvelle commande est destinée à son magasin. | Toutes les commandes, filtre par magasin de destination (colonne du tableau). Choix du magasin de destination à la création ; le brouillon unique par fournisseur se vérifie dans ce magasin. |
 | **Réceptions** | Liste, fiche et réception des commandes destinées à son magasin : la nouvelle réception n'offre ni les fournisseurs ni les lignes des autres magasins, et `Reception::start()` refuse un receveur d'un autre magasin. | Tous les magasins. La première ligne cochée d'une commande d'un autre magasin que le sien demande une confirmation (« La commande … est celle du magasin …. Êtes-vous certain ? »). |
 | **Transferts** | Agit pour son magasin (`StoreTransferGuard::actingFor()`). Pour un client, le magasin de la commande demande, même si son entrepôt reçoit. | Agit pour chaque magasin, avec le sélecteur. |
+
+### Exception : l'entrepôt voit les commandes des magasins qu'il sert
+
+*Ajoutée le 2026-11-15.*
+
+Un magasin peut être servi par l'entrepôt d'un autre (`stores.warehouse_store_id`, ADR 0012) : Mont-Joli est servi
+par Rimouski. Le stock réservé à ses clients est alors à Rimouski, pas à Mont-Joli. Le client ne peut donc pas
+ramasser ses articles à Mont-Joli, mais il peut choisir d'aller les chercher à Rimouski.
+
+- **Accès :** un employé sans `stores.all` voit les commandes clients de son magasin **et** celles des magasins dont
+  son magasin est l'entrepôt (`CustomerOrder::accessibleTo()` et `isAccessibleTo()`). Un employé de Rimouski trouve
+  et ouvre une commande de Mont-Joli. L'inverse n'est pas vrai.
+- **Ramassage :** `CustomerOrder::allowsPickup($user)`. Au magasin qui a son stock sur place
+  (`Store::hasStockOnSite()`), c'est permis comme avant. Pour un magasin servi par un entrepôt, seul un employé
+  rattaché à cet entrepôt peut remettre les articles. À Mont-Joli, la commande se paie, se livre ou s'expédie, mais
+  aucun article ne se remet (`pickableQuantities()` est vide et `pickUp()` refuse toute quantité).
+- **Repère visuel :** dans la liste et la fiche, une commande d'un autre magasin que celui de l'employé porte un badge
+  avec le nom de son magasin de provenance.
+- **Limite :** l'employé de l'entrepôt a les mêmes droits sur ces commandes que sur les siennes (changer le client,
+  ajouter des produits…). La règle ne s'applique qu'aux commandes clients : les autres tables `BelongsToStore`
+  gardent la règle de base.
 
 **Restent communs à tous les magasins :** le catalogue, les clients, le stock des autres magasins en consultation
 (onglet **Inventaire** d'un produit, sources d'un transfert), les modèles d'horaire et les jours fériés.
@@ -128,4 +149,5 @@ Une nouvelle page qui touche un magasin réutilise ces outils au lieu de récrir
   `app/Concerns/ChoosesStore.php`
 - `app/Livewire/Orders/Index.php` (commandes fournisseurs), `app/Livewire/Schedules/ScheduleEdit.php`,
   `app/Livewire/Schedules/Appointments.php`, `app/Actions/StoreTransferGuard.php`
-- `tests/Feature/StoreAccessTest.php`
+- `app/Models/CustomerOrder.php` (`accessibleTo()`, `isAccessibleTo()`, `allowsPickup()`), `Store::hasStockOnSite()`
+- `tests/Feature/StoreAccessTest.php`, `tests/Feature/CustomerOrderPickupsTest.php` (magasin servi par un entrepôt)
