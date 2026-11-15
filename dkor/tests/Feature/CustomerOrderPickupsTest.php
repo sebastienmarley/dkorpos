@@ -204,6 +204,22 @@ describe('modal de ramassage', function () {
             ->assertSet('pickupRequiredCents', 3449);
     });
 
+    it('remplit le solde restant de la commande, moins les autres paiements saisis', function () {
+        $line = stockedLine($this->order, 1, 1, 100);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openPickupModal')
+            ->set("pickupQuantities.{$line->id}", 0)
+            ->call('continueToPayment')
+            ->assertSet('pickupPayments.0.amount', '34.49')
+            ->call('fillRemainingBalance', 0)
+            ->assertSet('pickupPayments.0.amount', '114.98')
+            ->set('pickupPayments.0.amount', '50')
+            ->call('addPickupPayment')
+            ->call('fillRemainingBalance', 1)
+            ->assertSet('pickupPayments.1.amount', '64.98');
+    });
+
     it('propose les lignes avec du stock réservé, calcule le montant, enregistre le ramassage puis revient à la liste', function () {
         $line = stockedLine($this->order, 1, 1, 100);
         stockedLine($this->order, 0, 1, 50);
@@ -388,4 +404,31 @@ it('arrondit au 5 ¢ un remboursement comptant', function () {
         ->amount->toBeMoney(-11498)
         ->rounding_adjustment->toBeMoney(2)
         ->cash_tendered->toBeNull();
+});
+
+it('exige les frais d\'annulation au ramassage, sans que le dépôt de l\'article annulé les efface', function () {
+    $this->order->store->update(['cancellation_fee_percent' => 15]);
+
+    // Article commandé à 100 $ : dépôt de 30 % sur 114,98 $ = 34,49 $
+    $cancelled = $this->order->addProduct(Product::factory()->create(), 1);
+    $this->order->updateLine($cancelled->fresh(), 0, 1, Money::parse(100), null);
+    SupplierOrder::sole()->send();
+    $this->order->fresh()->pickUp([], [['method_id' => $this->cash->id, 'amount' => Money::parse(34.49)]]);
+
+    // Annulé avec 15 % de frais : 15 $, taxés
+    $this->order->fresh()->cancelLineWithFee($cancelled->fresh());
+
+    // Nouvel article à 100 $ ramassé : 100 $ + 15 $ de frais = 115 $ taxés (132,22 $), moins 34,49 $ payés
+    $picked = stockedLine($this->order->fresh(), 1, 1, 100);
+    $order = $this->order->fresh();
+
+    expect($order->amountRequiredFor([$picked->id => 1]))->toBeMoney(9773)
+        ->and(fn () => $order->pickUp([$picked->id => 1], [['method_id' => $this->cash->id, 'amount' => Money::parse(80.49)]]))
+        ->toThrow(DomainException::class);
+
+    $order->fresh()->pickUp([$picked->id => 1], [['method_id' => $this->cash->id, 'amount' => Money::parse(97.73)]]);
+
+    expect($this->order->fresh())
+        ->status->toBe(CustomerOrderStatus::PickedUp)
+        ->balance_due->toBeMoney(0);
 });

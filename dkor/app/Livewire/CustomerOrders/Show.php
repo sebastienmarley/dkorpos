@@ -1355,6 +1355,21 @@ class Show extends Component
         $this->pickupPayments[] = ['method_id' => '', 'amount' => $remaining->toDecimal()];
     }
 
+    /**
+     * Bouton « Solde restant » : ce paiement prend tout le solde de la commande, moins le crédit client et les
+     * autres paiements déjà saisis.
+     */
+    public function fillRemainingBalance(int $index): void
+    {
+        if (! isset($this->pickupPayments[$index])) {
+            return;
+        }
+
+        $others = $this->pickupPaymentsTotal()->minus(Money::tryParse($this->pickupPayments[$index]['amount']) ?? Money::zero());
+
+        $this->pickupPayments[$index]['amount'] = $this->order->balance_due->minus($others)->max(Money::zero())->toDecimal();
+    }
+
     public function removePickupPayment(int $index): void
     {
         unset($this->pickupPayments[$index]);

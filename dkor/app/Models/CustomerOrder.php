@@ -1777,17 +1777,22 @@ class CustomerOrder extends Model
     }
 
     /**
-     * Total que le client doit avoir payé : 100 % de la valeur remise (selon $handedOverValue par ligne) et le dépôt
-     * minimum sur le reste des lignes facturables (celui du magasin pour le sur-mesure), taxes incluses sur les lignes
-     * taxables. $excludedValue (de la ligne $excludedLine) est retiré du total facturable (articles en cours de retour).
+     * Total que le client doit avoir payé : 100 % de la valeur remise (selon $handedOverValue par ligne) et des frais
+     * d'annulation (acquis dès l'annulation, taxables comme dans recalculateBalance()), et le dépôt minimum sur le
+     * reste des lignes facturables (celui du magasin pour le sur-mesure), taxes incluses sur les lignes taxables.
+     * $excludedValue (de la ligne $excludedLine) est retiré du total facturable (articles en cours de retour).
      *
      * @param  callable(CustomerOrderLine): Money  $handedOverValue
      */
     private function requiredPaidTotal(callable $handedOverValue, ?CustomerOrderLine $excludedLine = null, ?Money $excludedValue = null): Money
     {
-        $lines = $this->lines()->get()->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable());
+        $allLines = $this->lines()->get();
+        $lines = $allLines->filter(fn (CustomerOrderLine $line): bool => $line->status->isBillable());
 
-        $handedOver = ['taxable' => Money::zero(), 'exempt' => Money::zero()];
+        $handedOver = [
+            'taxable' => Money::sum($allLines->map(fn (CustomerOrderLine $line): Money => $line->cancellation_fee ?? Money::zero())),
+            'exempt' => Money::zero(),
+        ];
         $remaining = [];
 
         foreach ($lines as $line) {

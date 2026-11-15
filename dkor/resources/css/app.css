@@ -65,6 +65,18 @@ select:focus[data-flux-control] {
     @apply size-4;
 } */
 
+/*
+ * Lisibilité sur téléphone (xs) : texte un peu plus grand et police système
+ * (San Francisco sur iOS, Roboto sur Android), conçue pour les petits écrans.
+ */
+@media (max-width: 639px) {
+    :root {
+        --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+        --text-xs: 0.8125rem;
+        --text-sm: 0.9375rem;
+    }
+}
+
 /* Sur iOS, un champ sous 16px fait zoomer la page au focus. */
 @media (max-width: 767px) {
     input[data-flux-control],
