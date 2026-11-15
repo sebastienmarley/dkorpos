@@ -1,7 +1,8 @@
 <div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 grid grid-cols-1 items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
-        <div>
+    <div class="mb-6 grid grid-cols-1 items-center gap-4 sm:grid-cols-2 md:grid-cols-[1fr_auto_1fr]">
+        {{-- En sm, le titre prend la ligne ; client et vendeurs à gauche, Imprimer et Envoyer à droite en dessous. --}}
+        <div class="sm:max-md:col-span-2">
             <flux:link :href="route('customer-orders.index')" wire:navigate class="text-sm">
                 ← {{ __('Commandes clients') }}
             </flux:link>
@@ -22,23 +23,26 @@
         </div>
 
         {{-- Client et vendeurs --}}
-        <div class="flex flex-col items-center gap-2">
-            <div class="flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 max-sm:w-full dark:border-zinc-700 dark:bg-zinc-800">
-                <flux:icon.user class="h-4 w-4 text-zinc-400" />
-                <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $order->customer->firstname }} {{ $order->customer->lastname }}</span>
+        <div class="flex flex-col items-center gap-2 sm:max-md:items-start">
+            {{-- Les vendeurs à droite du client à partir de sm ; en dessous en xs, où le client prend la largeur. --}}
+            <div class="flex flex-col items-center gap-2 max-sm:w-full sm:flex-row sm:flex-wrap sm:gap-x-4">
+                <div class="flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 max-sm:w-full dark:border-zinc-700 dark:bg-zinc-800">
+                    <flux:icon.user class="h-4 w-4 text-zinc-400" />
+                    <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $order->customer->firstname }} {{ $order->customer->lastname }}</span>
+                </div>
+
+                <div class="text-center text-sm text-zinc-600 sm:text-left dark:text-zinc-300">
+                    <span class="font-medium">{{ __('Vendeur(s)') }} :</span>
+                    {{ $order->salespeople->map(fn ($salesperson) => $salesperson->fullName())->join(', ') ?: '—' }}
+                </div>
             </div>
 
             @if ($order->customer->credit_balance->isPositive())
                 <flux:badge color="green" size="sm" icon="wallet">{{ __('Crédit au compte : :amount $', ['amount' => $order->customer->credit_balance->toDecimal()]) }}</flux:badge>
             @endif
-
-            <div class="text-center text-sm text-zinc-600 dark:text-zinc-300">
-                <span class="font-medium">{{ __('Vendeur(s)') }} :</span>
-                {{ $order->salespeople->map(fn ($salesperson) => $salesperson->fullName())->join(', ') ?: '—' }}
-            </div>
         </div>
 
-        <div class="flex flex-col items-start gap-2 md:items-end">
+        <div class="flex flex-col items-start gap-2 sm:items-end">
             <div class="flex flex-wrap gap-2">
                 <flux:button variant="ghost" icon="printer" :href="route('customer-orders.print', $order)" target="_blank">
                     {{ __('Imprimer') }}
@@ -52,41 +56,41 @@
         </div>
     </div>
 
-    {{-- Actions : la commande sur la première ligne, les articles sur la deuxième. Pleine largeur à partir de md. --}}
+    {{-- Actions : la commande sur la première ligne, les articles sur la deuxième. Pleine largeur à partir de md ; en sm, les boutons d'ajout remplissent leur ligne et le scan UPC prend la suivante. --}}
     @php($showsShippingActions = $order->lines->contains(fn ($line) => ! $line->isService() && $line->status->isPickable()))
     <div class="mb-3 space-y-2">
         <div class="flex flex-wrap gap-2">
             @can('customer_orders.edit')
-                <flux:button variant="primary" icon="user-plus" wire:click="openCustomerModal" class="max-sm:w-full md:flex-1">
+                <flux:button variant="primary" icon="user-plus" wire:click="openCustomerModal" class="max-sm:w-full sm:flex-1">
                     {{ __('Changer le client') }}
                 </flux:button>
             @endcan
 
             @can('customer_orders.assign_salespeople')
-                <flux:button icon="users" wire:click="openSalespeopleModal" class="max-sm:w-full md:flex-1">
+                <flux:button icon="users" wire:click="openSalespeopleModal" class="max-sm:w-full sm:flex-1">
                     {{ __('Ajouter un vendeur') }}
                 </flux:button>
             @endcan
 
             @can('customer_orders.edit')
                 @if ($showsShippingActions && $order->store?->offersDelivery())
-                    <flux:button icon="truck" x-on:click="$dispatch('open-delivery-modal')" class="max-sm:flex-1 md:flex-1">{{ __('Livraison') }}</flux:button>
+                    <flux:button icon="truck" x-on:click="$dispatch('open-delivery-modal')" class="flex-1">{{ __('Livraison') }}</flux:button>
                 @endif
                 @if ($showsShippingActions && $order->store?->offersShipping())
-                    <flux:button icon="paper-airplane" x-on:click="$dispatch('open-delivery-modal', { method: 'shipping' })" class="max-sm:flex-1 md:flex-1">{{ __('Expédition') }}</flux:button>
+                    <flux:button icon="paper-airplane" x-on:click="$dispatch('open-delivery-modal', { method: 'shipping' })" class="flex-1">{{ __('Expédition') }}</flux:button>
                 @endif
             @endcan
         </div>
 
         @can('customer_orders.edit')
             <div class="flex flex-wrap items-start gap-2">
-                <flux:button icon="plus" wire:click="openProductModal" class="max-sm:w-full md:flex-1">{{ __('Ajouter un produit') }}</flux:button>
-                <flux:button icon="wrench" wire:click="openServiceModal" class="max-sm:w-full md:flex-1">{{ __('Ajouter un service') }}</flux:button>
+                <flux:button icon="plus" wire:click="openProductModal" class="max-sm:w-full sm:flex-1">{{ __('Ajouter un produit') }}</flux:button>
+                <flux:button icon="wrench" wire:click="openServiceModal" class="max-sm:w-full sm:flex-1">{{ __('Ajouter un service') }}</flux:button>
                 @can('parts.view')
-                    <flux:button icon="puzzle-piece" x-on:click="$dispatch('open-part-picker')" class="max-sm:w-full md:flex-1">{{ __('Ajouter une pièce') }}</flux:button>
+                    <flux:button icon="puzzle-piece" x-on:click="$dispatch('open-part-picker')" class="max-sm:w-full sm:flex-1">{{ __('Ajouter une pièce') }}</flux:button>
                 @endcan
 
-                <form wire:submit="scanUpc" class="w-full sm:w-64 md:w-auto md:flex-1">
+                <form wire:submit="scanUpc" class="w-full md:w-auto md:flex-1">
                     <flux:field>
                         <flux:input wire:model="upcScan" icon="qr-code" inputmode="numeric" autocomplete="off" autofocus :placeholder="__('Scanner un UPC…')" />
                         <flux:error name="upcScan" />
@@ -1193,7 +1197,7 @@
 
                     <div class="flex justify-between gap-3 pt-2">
                         <flux:button type="button" variant="ghost" icon="arrow-left" wire:click="backToPickupItems">{{ __('Retour') }}</flux:button>
-                        <flux:button type="submit" variant="primary">{{ __('Confirmer le ramassage') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Terminer la transaction') }}</flux:button>
                     </div>
                 </form>
             @endif
