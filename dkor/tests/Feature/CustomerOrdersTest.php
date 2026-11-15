@@ -51,7 +51,7 @@ describe('index', function () {
     });
 
     it('n\'affiche la table qu\'une fois que la recherche trouve des commandes', function () {
-        CustomerOrder::factory()->for(customer::factory()->state(['lastname' => 'Tremblay']))->create();
+        $order = CustomerOrder::factory()->for(customer::factory()->state(['lastname' => 'Tremblay']))->create();
 
         Livewire::test(Index::class)
             ->assertDontSeeHtml('data-flux-table')
@@ -61,6 +61,7 @@ describe('index', function () {
             ->assertSee('Aucune commande trouvée pour ces critères.')
             ->set('search', 'Tremb')
             ->assertSeeHtml('data-flux-table')
+            ->assertSeeHtml('data-href="'.route('customer-orders.show', $order).'"')
             ->assertSee('1 commande');
     });
 

@@ -57,11 +57,12 @@
                     <flux:table.column>{{ __('Statut') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Solde à payer') }}</flux:table.column>
                     <flux:table.column class="max-md:hidden">{{ __('Créée le') }}</flux:table.column>
+                    <flux:table.column />
                 </flux:table.columns>
 
                 <flux:table.rows>
                     @foreach ($orders as $order)
-                        <flux:table.row :key="$order->id">
+                        <x-table.row-link :key="$order->id" :href="route('customer-orders.show', $order)">
                             <flux:table.cell variant="strong">
                                 <flux:link :href="route('customer-orders.show', $order)" wire:navigate>#{{ $order->id }}</flux:link>
                             </flux:table.cell>
@@ -75,7 +76,7 @@
                             </flux:table.cell>
                             <flux:table.cell align="end">{{ $order->balance_due->format() }}</flux:table.cell>
                             <flux:table.cell class="max-md:hidden">{{ $order->created_at->format('Y-m-d') }}</flux:table.cell>
-                        </flux:table.row>
+                        </x-table.row-link>
                     @endforeach
                 </flux:table.rows>
             </flux:table>
