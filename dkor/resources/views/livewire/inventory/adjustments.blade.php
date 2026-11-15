@@ -1,8 +1,10 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Ajustements d\'inventaire') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Pertes, vols, usage magasin, corrections de comptage et stock initial, avec leur écriture au grand livre.') }}</flux:text>
+            <flux:tooltip :content="__('Pertes, vols, usage magasin, corrections de comptage et stock initial, avec leur écriture au grand livre.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
 
         <flux:button variant="primary" icon="adjustments-horizontal" wire:click="openAdjust">{{ __('Nouvel ajustement') }}</flux:button>

@@ -1,8 +1,10 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Rôles') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Chaque employé a un rôle. Le niveau détermine quels rôles il peut gérer.') }}</flux:text>
+            <flux:tooltip :content="__('Chaque employé a un rôle. Le niveau détermine quels rôles il peut gérer.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
         <flux:button variant="primary" icon="plus" wire:click="openCreate">
             {{ __('Ajouter') }}

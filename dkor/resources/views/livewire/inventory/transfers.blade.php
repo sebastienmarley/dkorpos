@@ -1,8 +1,10 @@
 <div class="mx-auto max-w-5xl sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Transferts') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Marchandise échangée avec les autres magasins. Le magasin qui reçoit demande; celui qui expédie accepte, puis le magasin qui reçoit confirme la réception.') }}</flux:text>
+            <flux:tooltip :content="__('Marchandise échangée avec les autres magasins. Le magasin qui reçoit demande; celui qui expédie accepte, puis le magasin qui reçoit confirme la réception.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">

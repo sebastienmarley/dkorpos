@@ -1,8 +1,10 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div>
+      <div class="flex items-center gap-2">
         <flux:heading level="1" size="xl">{{ __('Facturation fournisseurs') }}</flux:heading>
-        <flux:text class="mt-1 text-zinc-500">{{ __('Cherchez une réception de produits ou une commande de services par son numéro, son bon de commande ou son quote #, puis ouvrez sa facturation.') }}</flux:text>
+        <flux:tooltip :content="__('Cherchez une réception de produits ou une commande de services par son numéro, son bon de commande ou son quote #, puis ouvrez sa facturation.')">
+            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+        </flux:tooltip>
       </div>
 
         @can('invoices.create')

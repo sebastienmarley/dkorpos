@@ -1,8 +1,10 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Réceptions') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Réception des produits commandés aux fournisseurs') }}</flux:text>
+            <flux:tooltip :content="__('Réception des produits commandés aux fournisseurs')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
 
         @can('receptions.create')

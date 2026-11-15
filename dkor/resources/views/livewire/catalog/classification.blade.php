@@ -1,7 +1,9 @@
 <div class="sm:p-6">
-    <div class="mb-6">
+    <div class="mb-6 flex items-center gap-2">
         <flux:heading level="1" size="xl">{{ __('Classification') }}</flux:heading>
-        <flux:text class="mt-1 text-zinc-500">{{ __('Départements, catégories, couleurs et styles des produits') }}</flux:text>
+        <flux:tooltip :content="__('Départements, catégories, couleurs et styles des produits')">
+            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+        </flux:tooltip>
     </div>
 
     {{-- Onglets --}}

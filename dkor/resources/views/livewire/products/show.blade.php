@@ -321,6 +321,13 @@
         <div x-show="tab === 'inventory'" x-cloak class="mt-6">
             @php($stockStatuses = [\App\Enums\InventoryStatus::InStock, \App\Enums\InventoryStatus::InDemo, \App\Enums\InventoryStatus::ReservedCustomer, \App\Enums\InventoryStatus::InDelivery, \App\Enums\InventoryStatus::DefectiveStock, \App\Enums\InventoryStatus::Lost, \App\Enums\InventoryStatus::OnOrder])
             @php($stocks = $product->inventoryStocks()->with('store')->get()->sortBy(fn ($stock) => $stock->store?->name))
+            @can('inventory.view')
+                <div class="mb-3 flex justify-end">
+                    <flux:button size="sm" variant="ghost" icon="clipboard-document-list" :href="route('inventory.movements', ['product' => $product->id])" wire:navigate>
+                        {{ __('Voir les mouvements') }}
+                    </flux:button>
+                </div>
+            @endcan
             <div class="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                 <flux:table>
                     <flux:table.columns>

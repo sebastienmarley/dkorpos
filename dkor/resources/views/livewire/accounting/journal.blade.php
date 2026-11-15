@@ -1,8 +1,10 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Journal général') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Écritures manuelles pour ce qui n\'a pas de document dans l\'application : soldes d\'ouverture, dépôts des processeurs de paiement, virements, frais bancaires, paie. Une écriture ne se modifie pas : elle se renverse.') }}</flux:text>
+            <flux:tooltip :content="__('Écritures manuelles pour ce qui n\'a pas de document dans l\'application : soldes d\'ouverture, dépôts des processeurs de paiement, virements, frais bancaires, paie. Une écriture ne se modifie pas : elle se renverse.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
         @can('ledger.journal')
             <flux:button variant="primary" icon="plus" wire:click="openEntry">{{ __('Nouvelle écriture') }}</flux:button>

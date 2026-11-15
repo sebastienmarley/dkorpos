@@ -1,8 +1,10 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Services') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Services vendus aux clients : rendus par le magasin ou par des fournisseurs') }}</flux:text>
+            <flux:tooltip :content="__('Services vendus aux clients : rendus par le magasin ou par des fournisseurs')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
         @can('services.create')
             <flux:button variant="primary" icon="plus" wire:click="openCreate">{{ __('Ajouter') }}</flux:button>
