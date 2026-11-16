@@ -74,7 +74,9 @@
                 <flux:error name="storeId" />
             </flux:field>
 
+            {{-- Une clé par branche : Livewire ne réutilise pas les champs de la recherche pour ceux de la fiche, et inversement. --}}
             @if ($selectedProduct)
+                <div wire:key="adjust-selected-product">
                 <div class="flex items-center justify-between rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                     <div>
                         <flux:text class="font-medium">{{ $selectedProduct->display_name }}</flux:text>
@@ -130,7 +132,9 @@
                         <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @else
+                <div wire:key="adjust-product-search">
                 <flux:input wire:model.live.debounce.300ms="productSearch" icon="magnifying-glass" :placeholder="__('Rechercher un produit…')" />
 
                 <div class="max-h-72 divide-y divide-zinc-200 overflow-y-auto rounded-lg border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
@@ -142,6 +146,7 @@
                     @empty
                         <div class="p-4 text-center"><flux:text class="text-zinc-400">{{ __('Aucun produit trouvé.') }}</flux:text></div>
                     @endforelse
+                </div>
                 </div>
             @endif
         </div>

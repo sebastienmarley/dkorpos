@@ -469,7 +469,7 @@
         @endif
 
         @if ($substituteProduct)
-            <div class="mt-6 space-y-4">
+            <div class="mt-6 space-y-4" wire:key="substitute-selected">
                 <flux:callout icon="arrows-right-left">
                     <flux:callout.text>
                         {{ __('Remplacer :old par :new (quantité : :quantity, coût : :cost $)?', [
@@ -487,7 +487,7 @@
                 </div>
             </div>
         @else
-            <div class="mt-6 space-y-3">
+            <div class="mt-6 space-y-3" wire:key="substitute-search">
                 <flux:input wire:model.live.debounce.300ms="substituteSearch" icon="magnifying-glass" :placeholder="__('Rechercher un produit du fournisseur…')" />
 
                 <div class="max-h-72 divide-y divide-zinc-200 overflow-y-auto rounded-lg border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">

@@ -348,7 +348,8 @@
                     </flux:field>
                 @endif
 
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {{-- Clés : les heures d'un quart et la date de fin d'une absence ne partagent pas leurs champs. --}}
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2" wire:key="schedule-hours">
                     <flux:field>
                         <flux:label>{{ __('Début') }}</flux:label>
                         <flux:input wire:model="startTime" type="time" />
@@ -362,7 +363,7 @@
                     </flux:field>
                 </div>
             @else
-                <flux:field>
+                <flux:field wire:key="schedule-until-date">
                     <flux:label>{{ __('Jusqu\'au (inclus)') }}</flux:label>
                     <flux:input wire:model="untilDate" type="date" :min="$editingDate" />
                     <flux:description>{{ __('Laissez vide pour un seul jour.') }}</flux:description>

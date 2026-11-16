@@ -104,14 +104,15 @@
                 <flux:text class="text-sm text-zinc-500">{{ __('Service géré par l\'application : il reste interne et actif. Son prix est proposé à chaque expédition.') }}</flux:text>
             @endif
 
+            {{-- Clés : le prix d'un service interne et les fournisseurs d'un service externe ne partagent pas leurs champs. --}}
             @if ($isInternal)
-                <flux:field class="max-w-xs">
+                <flux:field class="max-w-xs" wire:key="internal-price">
                     <flux:label>{{ __('Prix vendant') }}</flux:label>
                     <flux:input wire:model="sellingPrice" inputmode="decimal" />
                     <flux:error name="sellingPrice" />
                 </flux:field>
             @else
-                <div>
+                <div wire:key="supplier-offers">
                     <flux:heading size="sm" class="mb-2">{{ __('Fournisseurs') }}</flux:heading>
 
                     <div class="space-y-2">

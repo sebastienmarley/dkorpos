@@ -244,3 +244,17 @@ describe('prix de vente', function () {
             ->is_no_charge->toBeFalse();
     });
 });
+
+it('ouvre l\'édition d\'une pièce commandée avec sa quantité et son prix, dans des champs propres à la ligne', function () {
+    $product = stockedLine($this->order, 1, 1, 116);
+    $line = $this->order->addPart($this->part);
+    $price = $line->fresh()->unit_price->toDecimal();
+
+    Livewire::test(Show::class, ['order' => $this->order])
+        ->call('openLineModal', $product->id)
+        ->call('openLineModal', $line->id)
+        ->assertSet('editOnOrder', '1')
+        ->assertSet('editUnitPrice', $price)
+        ->assertSeeHtml('wire:key="edit-line-'.$line->id.'"')
+        ->assertSee('calculé : '.$this->part->selling_price->toDecimal().' $');
+});

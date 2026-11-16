@@ -126,14 +126,15 @@ it('n\'offre pas au navigateur de remplir le NIP avec le mot de passe enregistr�
     $user = User::factory()->withPin()->create();
 
     $this->actingAs($user)->get(route('home'))
-        ->assertSeeHtml('x-model="pin"')
-        ->assertDontSeeHtml('type="password"');
+        ->assertSeeHtml('<template x-if="locked">')
+        ->assertSeeHtml('autocomplete="one-time-code"')
+        ->assertDontSeeHtml('-webkit-text-security');
 
     $this->travel(6)->minutes();
 
     $this->get(route('session-lock.show'))
-        ->assertSeeHtml('name="pin"')
-        ->assertDontSeeHtml('type="password"');
+        ->assertSeeHtml('autocomplete="one-time-code"')
+        ->assertDontSeeHtml('-webkit-text-security');
 });
 
 it('déverrouille avec le bon NIP et revient à la page demandée', function () {

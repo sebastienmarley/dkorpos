@@ -29,9 +29,14 @@
             <form x-on:submit.prevent="unlock()" class="flex flex-col gap-6">
                 <flux:field>
                     <flux:label>{{ __('NIP') }}</flux:label>
-                    {{-- Champ texte masqué plutôt que type="password" : le navigateur et les gestionnaires de mots de passe y
-                         injectaient le mot de passe enregistré (tronqué à 6 caractères), et le NIP tapé était refusé. --}}
-                    <flux:input x-ref="pin" x-model="pin" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore maxlength="6" required class="[&_input]:[-webkit-text-security:disc]" />
+                    {{-- Le champ n'existe que pendant le verrouillage : le navigateur ne peut pas y injecter un mot de passe
+                         enregistré au chargement de la page. autocomplete="one-time-code" : un code, pas un mot de passe à
+                         proposer. (Un champ texte masqué par -webkit-text-security faisait reculer le curseur dans Safari.) --}}
+                    <template x-if="locked">
+                        <div>
+                            <flux:input x-model="pin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore maxlength="6" required />
+                        </div>
+                    </template>
                     <p x-show="error" x-text="error" role="alert" class="mt-3 text-sm font-medium text-red-500 dark:text-red-400"></p>
                 </flux:field>
 

@@ -465,6 +465,9 @@
     @can('customer_orders.edit')
         <flux:modal wire:model="showLineModal" class="w-full max-w-lg">
             @if ($editingLine)
+                {{-- Une clé par ligne : sans elle, Livewire réutilise les champs de la ligne éditée avant (ex. En stock / En
+                     commande d'un produit à la place de Quantité à commander / Prix vendant d'une pièce) et en garde les valeurs. --}}
+                <div wire:key="edit-line-{{ $editingLine->id }}">
                 @if ($editingLine->isService())
                     <flux:heading class="mb-1">{{ $editingLine->service->name }} <span class="font-normal text-zinc-500">· {{ $editingLine->supplier?->name ?? __('Interne') }}</span></flux:heading>
                 @elseif ($editingLine->isPart())
@@ -572,9 +575,11 @@
                         </flux:field>
 
                         <flux:field>
-                            <flux:label>{{ __('Prix vendant') }}</flux:label>
+                            <flux:label>
+                                {{ __('Prix vendant') }}
+                                <span class="ms-1 font-normal text-zinc-400">{{ __('calculé : :price $', ['price' => $editingLine->part->selling_price->toDecimal()]) }}</span>
+                            </flux:label>
                             <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $partPriceEditable || $editNoCharge" />
-                            <flux:description>{{ __('Prix calculé : :price $', ['price' => $editingLine->part->selling_price->toDecimal()]) }}</flux:description>
                             <flux:error name="editUnitPrice" />
                         </flux:field>
                     </div>
@@ -671,6 +676,7 @@
                         <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @endif
         </flux:modal>
     @endcan
@@ -682,7 +688,9 @@
                 <flux:heading class="mb-1">{{ __('Retour') }} — {{ $returnLine->product->model }} <span class="font-normal text-zinc-500">#{{ $returnLine->product_id }}</span></flux:heading>
                 <flux:text class="text-zinc-500">{{ __(':count remis au client à :price $', ['count' => $returnLine->quantity, 'price' => $returnLine->unit_price->toDecimal()]) }}</flux:text>
 
+                {{-- Une clé par étape : Livewire ne réutilise pas les champs d'une étape pour ceux d'une autre. --}}
                 @if ($returnStep === 'choice')
+                    <div wire:key="return-step-choice">
                     <form wire:submit="continueReturn" class="mt-6 space-y-4">
                         <flux:field>
                             <flux:label>{{ __('Quantité retournée') }}</flux:label>
@@ -701,7 +709,9 @@
                             <flux:button type="submit" variant="primary">{{ $returnType === 'refund' ? __('Continuer vers le remboursement') : __('Reprendre l\'article') }}</flux:button>
                         </div>
                     </form>
+                    </div>
                 @else
+                    <div wire:key="return-step-refund">
                     <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
                         <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Quantité reprise') }}</dt><dd>{{ $returnQuantity }}</dd></div>
                         <div class="flex justify-between font-semibold"><dt>{{ __('Remboursable') }}</dt><dd>{{ \App\Support\Money::of($returnRefundableCents)->format() }}</dd></div>
@@ -745,6 +755,7 @@
                             <flux:button type="submit" variant="primary">{{ __('Reprendre et rembourser') }}</flux:button>
                         </div>
                     </form>
+                    </div>
                 @endif
             @endif
         </flux:modal>
@@ -884,7 +895,9 @@
                 <flux:heading class="mb-1">{{ __('Défectueux') }} — {{ $defectiveLine->product->model }} <span class="font-normal text-zinc-500">#{{ $defectiveLine->product_id }}</span></flux:heading>
                 <flux:text class="text-zinc-500">{{ __(':count remis au client à :price $', ['count' => $defectiveLine->quantity, 'price' => $defectiveLine->unit_price->toDecimal()]) }}</flux:text>
 
+                {{-- Une clé par étape : Livewire ne réutilise pas les champs d'une étape pour ceux d'une autre. --}}
                 @if ($defectiveStep === 'choice')
+                    <div wire:key="defective-step-choice">
                     <form wire:submit="continueDefective" class="mt-6 space-y-4">
                         <flux:field>
                             <flux:label>{{ __('Quantité défectueuse') }}</flux:label>
@@ -898,19 +911,19 @@
                         </flux:radio.group>
 
                         @if ($defectivePath === 'part')
-                            <flux:field>
+                            <flux:field wire:key="defective-part">
                                 <flux:label>{{ __('Pièce à commander') }}</flux:label>
                                 <flux:input wire:model="defectivePart" :placeholder="__('No de pièce, description…')" />
                                 <flux:error name="defectivePart" />
                             </flux:field>
 
-                            <flux:field>
+                            <flux:field wire:key="defective-part-reason">
                                 <flux:label>{{ __('Raison (optionnel)') }}</flux:label>
                                 <flux:textarea wire:model="defectiveReason" rows="2" />
                                 <flux:error name="defectiveReason" />
                             </flux:field>
                         @else
-                            <flux:field>
+                            <flux:field wire:key="defective-return-reason">
                                 <flux:label>{{ __('Raison du défaut') }}</flux:label>
                                 <flux:textarea wire:model="defectiveReason" rows="3" />
                                 <flux:error name="defectiveReason" />
@@ -922,7 +935,7 @@
                                 <flux:description>{{ __('Bientôt disponible.') }}</flux:description>
                             </flux:field>
 
-                            <flux:radio.group wire:model.live="defectiveOutcome" :label="__('Le client veut')">
+                            <flux:radio.group wire:key="defective-outcome" wire:model.live="defectiveOutcome" :label="__('Le client veut')">
                                 <flux:radio value="replace" :label="__('Un remplacement')" :description="__('Même produit au même prix, pris en stock ou commandé.')" />
                                 <flux:radio value="refund" :label="__('Un remboursement sans frais')" />
                             </flux:radio.group>
@@ -941,7 +954,9 @@
                             </flux:button>
                         </div>
                     </form>
+                    </div>
                 @else
+                    <div wire:key="defective-step-refund">
                     <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
                         <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Quantité reprise') }}</dt><dd>{{ $defectiveQuantity }}</dd></div>
                         <div class="flex justify-between font-semibold"><dt>{{ __('Remboursable') }}</dt><dd>{{ \App\Support\Money::of($defectiveRefundableCents)->format() }}</dd></div>
@@ -984,6 +999,7 @@
                             <flux:button type="submit" variant="primary">{{ __('Reprendre et rembourser') }}</flux:button>
                         </div>
                     </form>
+                    </div>
                 @endif
             @endif
         </flux:modal>
@@ -1040,7 +1056,9 @@
         <flux:modal wire:model="showPickupModal" class="w-full max-w-2xl">
             <flux:heading class="mb-1">{{ __('Ramassage') }}</flux:heading>
 
+            {{-- Une clé par étape : Livewire ne réutilise pas les champs d'une étape pour ceux d'une autre. --}}
             @if ($pickupStep === 'items')
+                <div wire:key="pickup-step-items">
                 <flux:text class="text-zinc-500">{{ __('Quantités remises au client (stock réservé seulement). Laissez à 0 pour encaisser un paiement sans ramassage.') }}</flux:text>
 
                 @if (! $order->allowsPickup())
@@ -1086,7 +1104,9 @@
                         <flux:button type="submit" variant="primary">{{ __('Continuer vers le paiement') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @else
+                <div wire:key="pickup-step-payment">
                 <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
                     <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Total de la commande') }}</dt><dd>{{ $order->total->format() }}</dd></div>
                     <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Déjà payé') }}</dt><dd>{{ $order->amount_paid->format() }}</dd></div>
@@ -1200,6 +1220,7 @@
                         <flux:button type="submit" variant="primary">{{ __('Terminer la transaction') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @endif
         </flux:modal>
     @endcan

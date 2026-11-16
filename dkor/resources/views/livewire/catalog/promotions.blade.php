@@ -85,14 +85,15 @@
                 <flux:error name="type" />
             </flux:field>
 
+            {{-- Clés par type : sans elles, Livewire réutiliserait le champ d'un type pour celui d'un autre. --}}
             @if ($type === 'percent')
-                <flux:field class="max-w-xs">
+                <flux:field class="max-w-xs" wire:key="discount-percent">
                     <flux:label>{{ __('Rabais (%)') }}</flux:label>
                     <flux:input wire:model="percent" inputmode="decimal" />
                     <flux:error name="percent" />
                 </flux:field>
             @elseif ($type === 'fixed_amount')
-                <div class="flex flex-wrap gap-4">
+                <div class="flex flex-wrap gap-4" wire:key="discount-fixed-amount">
                     <flux:field class="w-40">
                         <flux:label>{{ __('Rabais total') }}</flux:label>
                         <flux:input wire:model="amount" inputmode="decimal" />
@@ -139,9 +140,9 @@
                             </div>
                             <div class="flex-1">
                                 @if ($target['type'] === 'product')
-                                    <flux:input wire:model="targets.{{ $index }}.value" :placeholder="__('Modèle du produit')" />
+                                    <flux:input wire:key="target-{{ $index }}-product" wire:model="targets.{{ $index }}.value" :placeholder="__('Modèle du produit')" />
                                 @else
-                                    <flux:select wire:model="targets.{{ $index }}.value">
+                                    <flux:select wire:key="target-{{ $index }}-{{ $target['type'] }}" wire:model="targets.{{ $index }}.value">
                                         <flux:select.option value="">{{ __('Choisir…') }}</flux:select.option>
                                         @foreach ($targetOptions[$target['type']] ?? [] as $option)
                                             <flux:select.option :value="$option->id">{{ $option instanceof \App\Models\Category ? $option->department->name.' › '.$option->name : $option->name }}</flux:select.option>
