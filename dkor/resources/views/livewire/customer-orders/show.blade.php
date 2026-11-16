@@ -584,7 +584,12 @@
                         </flux:field>
                     </div>
 
-                    <flux:checkbox wire:model.live="editNoCharge" :label="__('Sans frais')" :description="__('Pièce remise gratuitement au client (ex. : sous garantie) : prix de 0 $.')" :disabled="! $partPriceEditable" />
+                    <div class="flex items-center gap-2">
+                        <flux:checkbox wire:model.live="editNoCharge" :label="__('Sans frais')" :disabled="! $partPriceEditable" />
+                        <flux:tooltip :content="__('Pièce remise gratuitement au client (ex. : sous garantie) : prix de 0 $.')">
+                            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                        </flux:tooltip>
+                    </div>
                     @else
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>

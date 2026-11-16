@@ -46,7 +46,8 @@
                 <flux:text class="text-sm text-zinc-500">{{ __('Ventes :year à ce jour', ['year' => $year]) }}</flux:text>
                 <flux:heading size="xl" class="mt-1">{{ $total->format() }}</flux:heading>
             </div>
-            <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            {{-- En xs, on s'en tient aux ventes de l'année : la comparaison avec l'an dernier est cachée. --}}
+            <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm max-sm:hidden dark:border-zinc-700 dark:bg-zinc-900">
                 <flux:text class="text-sm text-zinc-500">{{ __('Mêmes mois en :year', ['year' => $year - 1]) }}</flux:text>
                 <flux:heading size="xl" class="mt-1">{{ $previousTotal->format() }}</flux:heading>
             </div>
@@ -58,7 +59,7 @@
                     <flux:table.column>{{ __('Mois') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Ventes') }}</flux:table.column>
                     <flux:table.column class="hidden w-1/3 sm:table-cell" />
-                    <flux:table.column align="end">{{ __(':year', ['year' => $year - 1]) }}</flux:table.column>
+                    <flux:table.column align="end" class="hidden sm:table-cell">{{ __(':year', ['year' => $year - 1]) }}</flux:table.column>
                 </flux:table.columns>
 
                 <flux:table.rows>
@@ -71,7 +72,7 @@
                                     <div class="h-2 rounded-full bg-accent" style="width: {{ max(0, round($row['sales']->cents() / $maxSales * 100)) }}%"></div>
                                 </div>
                             </flux:table.cell>
-                            <flux:table.cell align="end" class="text-zinc-500">{{ $row['previous']->format() }}</flux:table.cell>
+                            <flux:table.cell align="end" class="hidden text-zinc-500 sm:table-cell">{{ $row['previous']->format() }}</flux:table.cell>
                         </flux:table.row>
                     @empty
                         <flux:table.row>

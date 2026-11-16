@@ -1,7 +1,10 @@
 {{-- Écran de verrouillage superposé à la page (ADR 0015) : la page garde son état pendant le verrouillage. Le serveur
      refuse quand même toute requête d'une session verrouillée ; cet écran n'est pas la protection.
      Un <dialog> ouvert par showModal() passe par-dessus les modals Flux déjà ouverts et rend le reste de la page inerte.
-     Chrome laisse Échap le fermer malgré cancel.prevent : il est rouvert tant que la session est verrouillée. --}}
+     Chrome laisse Échap le fermer malgré cancel.prevent : il est rouvert tant que la session est verrouillée.
+     L'événement close n'arrive qu'après coup : showLock() a souvent déjà rouvert le dialogue (fermé puis rouvert pour
+     repasser par-dessus un modal). Sans le test « ! $el.open », chaque close relançait showLock(), qui fermait et
+     rouvrait encore : une boucle sans fin qui reprenait le focus et remettait le curseur au début du NIP dans Safari. --}}
 @if (app(\App\Support\SessionLock::class)->appliesTo(auth()->user()))
     <dialog
         x-data="sessionLock(@js([
@@ -15,7 +18,7 @@
         x-on:lock-session.window="lock()"
         x-on:session-locked.window="showLock()"
         x-on:cancel.prevent
-        x-on:close="locked && showLock()"
+        x-on:close="locked && ! $el.open && showLock()"
         class="m-0 h-dvh max-h-none w-dvw max-w-none items-center justify-center bg-white p-6 open:flex dark:bg-zinc-900"
         aria-labelledby="session-lock-title"
     >

@@ -199,13 +199,35 @@ document.addEventListener('alpine:init', () => {
 
             this.locked = true;
 
-            // Rouvert même s'il l'est déjà, pour repasser par-dessus un modal ouvert entre-temps.
+            // Déjà affiché, focus à l'intérieur : on n'y touche pas. Le fermer et le rouvrir pendant la saisie (requête
+            // refusée, battement de cœur, autre onglet) reprenait le focus, et Safari remettait alors le curseur au début
+            // du champ : chaque chiffre s'écrivait devant les autres (123456 devenait 654321).
+            if (this.$root.open && this.$root.contains(document.activeElement)) {
+                return;
+            }
+
+            // Rouvert s'il l'est déjà, pour repasser par-dessus un modal ouvert entre-temps.
             if (this.$root.open) {
                 this.$root.close();
             }
 
             this.$root.showModal();
-            this.$nextTick(() => this.$root.querySelector('input[inputmode="numeric"]')?.focus());
+            this.$nextTick(() => {
+                const input = this.$root.querySelector('input[inputmode="numeric"]');
+
+                if (!input || document.activeElement === input) {
+                    return;
+                }
+
+                input.focus();
+
+                // Curseur à la fin du NIP déjà tapé, jamais au début.
+                try {
+                    input.setSelectionRange(input.value.length, input.value.length);
+                } catch {
+                    // Type de champ sans sélection : rien à faire.
+                }
+            });
         },
 
         async lock() {
