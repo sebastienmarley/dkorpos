@@ -38,7 +38,8 @@
             </flux:text>
         </div>
 
-        <div class="flex flex-wrap gap-2">
+        {{-- En xs, les boutons sont en pleine largeur, un sous l'autre. --}}
+        <div class="flex flex-wrap gap-2 max-sm:w-full max-sm:flex-col max-sm:[&>*]:w-full">
             <flux:button variant="ghost" icon="printer" :href="route('supplier-orders.print', $order)" target="_blank">
                 {{ __('Imprimer') }}
             </flux:button>
@@ -517,7 +518,12 @@
     {{-- Réception --}}
     <flux:modal wire:model="showReceive" class="w-full max-w-2xl">
         <flux:heading class="mb-1">{{ __('Réceptionner la commande') }}</flux:heading>
-        <flux:text class="text-zinc-500">{{ __('Saisissez les quantités reçues de chaque produit, dont celles arrivées endommagées.') }}</flux:text>
+        <div class="flex items-start gap-2">
+            <flux:text class="text-zinc-500">{{ __('Saisissez les quantités reçues de chaque produit, dont celles arrivées endommagées.') }}</flux:text>
+            <flux:tooltip :content="__('Les articles endommagés comptent comme reçus, entrent en inventaire défectueux et ouvrent un dossier « Endommagé à l\'arrivée ». Photo : bientôt disponible.')">
+                <flux:icon name="information-circle" variant="mini" class="mt-0.5 shrink-0 text-zinc-400" />
+            </flux:tooltip>
+        </div>
 
         <form wire:submit="receive" class="mt-6 space-y-4">
             @foreach ($order->lines as $line)
@@ -535,7 +541,7 @@
                     </div>
                     @if ($line->product_id)
                         <div class="w-28">
-                            <flux:input wire:model="receipts.{{ $line->id }}.damaged" type="number" min="0" step="1" :label="__('dont endommagé')" />
+                            <flux:input wire:model="receipts.{{ $line->id }}.damaged" type="number" min="0" step="1" :label="__('endommagé')" />
                             <flux:error name="receipts.{{ $line->id }}.damaged" />
                         </div>
                     @else
@@ -543,8 +549,6 @@
                     @endif
                 </div>
             @endforeach
-
-            <flux:text class="text-xs text-zinc-400">{{ __('Les articles endommagés comptent comme reçus, entrent en inventaire défectueux et ouvrent un dossier « Endommagé à l\'arrivée ». Photo : bientôt disponible.') }}</flux:text>
 
             <div class="flex justify-end gap-3 pt-2">
                 <flux:button type="button" variant="ghost" wire:click="$set('showReceive', false)">{{ __('Annuler') }}</flux:button>

@@ -265,17 +265,43 @@ it('refuse de commencer une réception avec une ligne forgée d\'un autre fourni
 
     expect(Reception::count())->toBe(0);
 });
-it('liste et recherche les réceptions', function () {
+it('n\'affiche la table qu\'une fois que la recherche trouve des réceptions', function () {
     [$order, [$line]] = sentOrder();
     $reception = Reception::record($order->supplier, [$line->id => ['quantity' => 1]], ['reference' => 'BL-777']);
     $other = Reception::factory()->create(['reference' => 'ZZZ-1']);
 
     Livewire::test(Index::class)
-        ->assertSee($reception->number)->assertSee($other->number)
+        ->assertDontSeeHtml('data-flux-table')
+        ->assertDontSee('Aucune réception trouvée')
+        ->set('search', 'Introuvable')
+        ->assertDontSeeHtml('data-flux-table')
+        ->assertSee('Aucune réception trouvée pour ces critères.')
         ->set('search', 'BL-777')
-        ->assertSee($reception->number)->assertDontSee($other->number);
+        ->assertSeeHtml('data-flux-table')
+        ->assertSee($reception->number)->assertDontSee($other->number)
+        ->assertSeeHtml('data-href="'.route('receptions.show', $reception).'"')
+        ->assertSee('1 réception');
 
     $this->get(route('receptions.show', $reception))->assertOk()->assertSee($reception->number)->assertSee($order->number);
+});
+
+it('filtre les réceptions par fournisseur et par statut, sans chercher dans le nom du fournisseur', function () {
+    $acme = Supplier::factory()->create(['name' => 'Acme Meubles']);
+    $other = Supplier::factory()->create(['name' => 'Bois Nord']);
+    $acmeInProgress = Reception::factory()->for($acme)->create(['status' => ReceptionStatus::InProgress, 'reference' => 'BL-1']);
+    $acmeCompleted = Reception::factory()->for($acme)->create(['status' => ReceptionStatus::Completed, 'reference' => 'BL-2']);
+    $otherCompleted = Reception::factory()->for($other)->create(['status' => ReceptionStatus::Completed, 'reference' => 'BL-3']);
+
+    Livewire::test(Index::class)
+        ->set('search', 'Acme')
+        ->assertSee('Aucune réception trouvée pour ces critères.')
+        ->set('search', '')
+        ->set('supplierFilter', (string) $acme->id)
+        ->assertSee($acmeInProgress->number)->assertSee($acmeCompleted->number)->assertDontSee($otherCompleted->number)
+        ->set('statusFilter', ReceptionStatus::Completed->value)
+        ->assertSee($acmeCompleted->number)->assertDontSee($acmeInProgress->number)->assertDontSee($otherCompleted->number)
+        ->set('supplierFilter', '')
+        ->assertSee($acmeCompleted->number)->assertSee($otherCompleted->number)->assertDontSee($acmeInProgress->number);
 });
 
 it('renverse une réception partielle: unités, stock, en commande, ligne et statut', function () {

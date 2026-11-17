@@ -155,6 +155,12 @@ class Supplier extends Model
         return $this->hasMany(SupplierOrder::class);
     }
 
+    /** @return HasMany<Reception, $this> */
+    public function receptions(): HasMany
+    {
+        return $this->hasMany(Reception::class);
+    }
+
     /** @return HasMany<Product, $this> */
     public function products(): HasMany
     {

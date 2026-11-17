@@ -14,54 +14,71 @@
         @endcan
     </div>
 
-    <div class="mb-4">
-        <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher par numéro, bordereau ou fournisseur…') }}" icon="magnifying-glass" />
+    {{-- Filtres --}}
+    <div class="mb-4 flex flex-wrap gap-3">
+        <div class="w-full sm:w-auto sm:flex-1">
+            <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher par numéro ou bordereau…') }}" icon="magnifying-glass" />
+        </div>
+
+        <div class="min-w-0 flex-1 sm:w-52 sm:flex-none">
+            <flux:select wire:model.live="supplierFilter">
+                <flux:select.option value="">{{ __('Tous les fournisseurs') }}</flux:select.option>
+                @foreach ($suppliers as $supplier)
+                    <flux:select.option :value="$supplier->id">{{ $supplier->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        </div>
+
+        <div class="min-w-0 flex-1 sm:w-52 sm:flex-none">
+            <flux:select wire:model.live="statusFilter">
+                <flux:select.option value="">{{ __('Tous les statuts') }}</flux:select.option>
+                @foreach ($statuses as $status)
+                    <flux:select.option :value="$status->value">{{ $status->label() }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        </div>
     </div>
 
-    <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <flux:table :paginate="$receptions">
-            <flux:table.columns>
-                <flux:table.column>{{ __('Numéro') }}</flux:table.column>
-                <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
-                <flux:table.column>{{ __('Statut') }}</flux:table.column>
-                <flux:table.column>{{ __('Bordereau') }}</flux:table.column>
-                <flux:table.column align="end">{{ __('Unités') }}</flux:table.column>
-                <flux:table.column>{{ __('Reçue le') }}</flux:table.column>
-                <flux:table.column>{{ __('Par') }}</flux:table.column>
-            </flux:table.columns>
+    {{-- Résultats : rien avant une recherche, la table seulement s'il y a des réceptions --}}
+    @if ($receptions->isNotEmpty())
+        <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <flux:table :paginate="$receptions">
+                <flux:table.columns>
+                    <flux:table.column>{{ __('Numéro') }}</flux:table.column>
+                    <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
+                    <flux:table.column>{{ __('Statut') }}</flux:table.column>
+                    <flux:table.column>{{ __('Bordereau') }}</flux:table.column>
+                    <flux:table.column align="end">{{ __('Unités') }}</flux:table.column>
+                    <flux:table.column>{{ __('Reçue le') }}</flux:table.column>
+                    <flux:table.column>{{ __('Par') }}</flux:table.column>
+                    <flux:table.column />
+                </flux:table.columns>
 
-            <flux:table.rows>
-                @forelse ($receptions as $reception)
-                    <flux:table.row :key="$reception->id">
-                        <flux:table.cell variant="strong">
-                            <flux:link :href="route('receptions.show', $reception)" wire:navigate>{{ $reception->number }}</flux:link>
-                        </flux:table.cell>
-                        <flux:table.cell>{{ $reception->supplier->name }}</flux:table.cell>
-                        <flux:table.cell><flux:badge :color="$reception->status->color()" size="sm">{{ $reception->status->label() }}</flux:badge></flux:table.cell>
-                        <flux:table.cell>{{ $reception->reference ?: '—' }}</flux:table.cell>
-                        <flux:table.cell align="end">{{ $reception->lines->sum('quantity_net') }}</flux:table.cell>
-                        <flux:table.cell>{{ $reception->received_at->format('Y-m-d H:i') }}</flux:table.cell>
-                        <flux:table.cell>{{ $reception->receiver ? $reception->receiver->firstname.' '.$reception->receiver->lastname : '—' }}</flux:table.cell>
-                    </flux:table.row>
-                @empty
-                    <flux:table.row>
-                        <flux:table.cell colspan="7" class="py-12 text-center">
-                            <div class="flex flex-col items-center gap-2">
-                                <flux:icon name="inbox-arrow-down" class="h-8 w-8 text-zinc-300" />
-                                <flux:text class="text-zinc-400">
-                                    {{ filled($search) ? __('Aucune réception trouvée pour cette recherche.') : __('Aucune réception. Cliquez sur « Nouvelle réception » pour commencer.') }}
-                                </flux:text>
-                            </div>
-                        </flux:table.cell>
-                    </flux:table.row>
-                @endforelse
-            </flux:table.rows>
-        </flux:table>
-    </div>
+                <flux:table.rows>
+                    @foreach ($receptions as $reception)
+                        <x-table.row-link :key="$reception->id" :href="route('receptions.show', $reception)">
+                            <flux:table.cell variant="strong">
+                                <flux:link :href="route('receptions.show', $reception)" wire:navigate>{{ $reception->number }}</flux:link>
+                            </flux:table.cell>
+                            <flux:table.cell>{{ $reception->supplier->name }}</flux:table.cell>
+                            <flux:table.cell><flux:badge :color="$reception->status->color()" size="sm">{{ $reception->status->label() }}</flux:badge></flux:table.cell>
+                            <flux:table.cell>{{ $reception->reference ?: '—' }}</flux:table.cell>
+                            <flux:table.cell align="end">{{ $reception->lines->sum('quantity_net') }}</flux:table.cell>
+                            <flux:table.cell>{{ $reception->received_at->format('Y-m-d H:i') }}</flux:table.cell>
+                            <flux:table.cell>{{ $reception->receiver ? $reception->receiver->firstname.' '.$reception->receiver->lastname : '—' }}</flux:table.cell>
+                        </x-table.row-link>
+                    @endforeach
+                </flux:table.rows>
+            </flux:table>
+        </div>
 
-    <div class="mt-3">
-        <flux:text class="text-sm text-zinc-400">
+        <flux:text class="mt-3 text-sm text-zinc-400">
             {{ trans_choice(':count réception|:count réceptions', $receptions->total()) }}
         </flux:text>
-    </div>
+    @elseif ($hasSearchCriteria)
+        <div class="flex flex-col items-center gap-2 py-12 text-center">
+            <flux:icon name="inbox-arrow-down" class="h-8 w-8 text-zinc-300" />
+            <flux:text class="text-zinc-400">{{ __('Aucune réception trouvée pour ces critères.') }}</flux:text>
+        </div>
+    @endif
 </div>
