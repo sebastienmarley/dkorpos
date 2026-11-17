@@ -17,7 +17,7 @@
     {{-- Filtres --}}
     <div class="mb-4 flex flex-wrap gap-3">
         <div class="w-full sm:w-auto sm:flex-1">
-            <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher par numéro ou bordereau…') }}" icon="magnifying-glass" />
+            <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('# Commande ou bordereau…') }}" icon="magnifying-glass" />
         </div>
 
         <div class="min-w-0 flex-1 sm:w-52 sm:flex-none">
