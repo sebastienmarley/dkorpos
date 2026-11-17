@@ -680,6 +680,19 @@ it('refuse de substituer une ligne en demande d\'annulation ou sur une commande 
     expect(fn () => $service->fresh()->substituteLine($serviceLine->fresh(), Product::factory()->create(['supplier_id' => $service->supplier_id])))->toThrow(DomainException::class);
 });
 
+it('filtre la liste par fournisseur, sans chercher dans son nom', function () {
+    $acme = Supplier::factory()->create(['name' => 'Acme Meubles', 'type' => SupplierType::Product]);
+    $mine = SupplierOrder::factory()->create(['supplier_id' => $acme->id]);
+    $other = SupplierOrder::factory()->create();
+
+    Livewire::test(Index::class)
+        ->set('search', 'Acme')
+        ->assertSee('Aucune commande trouvée pour ces critères.')
+        ->set('search', '')
+        ->set('supplierFilter', (string) $acme->id)
+        ->assertSee($mine->number)->assertDontSee($other->number);
+});
+
 it('refuse une deuxième commande en brouillon pour le même fournisseur', function () {
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product]);
     SupplierOrder::factory()->create(['supplier_id' => $supplier->id]);

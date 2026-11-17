@@ -9,19 +9,29 @@
         </div>
 
         @can('supplier_orders.create')
-            <flux:button variant="primary" icon="plus" wire:click="openCreate">
+            <flux:button variant="primary" icon="plus" wire:click="openCreate" class="max-sm:w-full">
                 {{ __('Nouvelle commande') }}
             </flux:button>
         @endcan
     </div>
 
     {{-- Filtres --}}
+    {{-- Sous xl, la recherche est sur sa propre ligne. Les menus vont deux par ligne en sm, et se partagent une seule ligne en md et en lg. --}}
     <div class="mb-4 flex flex-wrap gap-3">
-        <div class="flex-1">
-            <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher par numéro, quote # ou fournisseur…') }}" icon="magnifying-glass" />
+        <div class="flex-1 sm:max-xl:basis-full">
+            <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('# commande ou devis...') }}" icon="magnifying-glass" />
         </div>
 
-        <div class="w-full sm:w-44">
+        <div class="w-full sm:w-52 sm:max-md:w-auto sm:max-md:flex-1 sm:max-md:basis-[calc(50%-0.375rem)] md:max-xl:w-auto md:max-xl:min-w-0 md:max-xl:flex-1">
+            <flux:select wire:model.live="supplierFilter">
+                <flux:select.option value="">{{ __('Tous les fournisseurs') }}</flux:select.option>
+                @foreach ($suppliers as $supplier)
+                    <flux:select.option :value="$supplier->id">{{ $supplier->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        </div>
+
+        <div class="w-full sm:w-44 sm:max-md:w-auto sm:max-md:flex-1 sm:max-md:basis-[calc(50%-0.375rem)] md:max-xl:w-auto md:max-xl:min-w-0 md:max-xl:flex-1">
             <flux:select wire:model.live="typeFilter">
                 <flux:select.option value="">{{ __('Tous les types') }}</flux:select.option>
                 @foreach ($this->getOrderTypes() as $type)
@@ -31,7 +41,7 @@
         </div>
 
         @if (auth()->user()->hasAllStores())
-            <div class="w-full sm:w-52">
+            <div class="w-full sm:w-52 sm:max-md:w-auto sm:max-md:flex-1 sm:max-md:basis-[calc(50%-0.375rem)] md:max-xl:w-auto md:max-xl:min-w-0 md:max-xl:flex-1">
                 <flux:select wire:model.live="storeFilter">
                     <flux:select.option value="">{{ __('Tous les magasins') }}</flux:select.option>
                     @foreach ($stores as $store)
@@ -41,7 +51,7 @@
             </div>
         @endif
 
-        <div class="w-full sm:w-52">
+        <div class="w-full sm:w-52 sm:max-md:w-auto sm:max-md:flex-1 sm:max-md:basis-[calc(50%-0.375rem)] md:max-xl:w-auto md:max-xl:min-w-0 md:max-xl:flex-1">
             <flux:select wire:model.live="statusFilter">
                 <flux:select.option value="">{{ __('Tous les statuts') }}</flux:select.option>
                 @foreach ($statuses as $status)

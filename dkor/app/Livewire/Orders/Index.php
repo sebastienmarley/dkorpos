@@ -24,6 +24,8 @@ class Index extends Component
 
     public string $statusFilter = '';
 
+    public string $supplierFilter = '';
+
     /** Magasin de destination affiché (vide : tous), offert seulement avec stores.all (ADR 0013). */
     public string $storeFilter = '';
 
@@ -52,6 +54,11 @@ class Index extends Component
     }
 
     public function updatedStoreFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSupplierFilter(): void
     {
         $this->resetPage();
     }
@@ -148,7 +155,7 @@ class Index extends Component
         $filtersByStore = $this->storeFilter !== '' && $user->hasAllStores();
 
         /** Aucune commande n'est listée tant qu'aucun critère de recherche n'est saisi. */
-        $hasSearchCriteria = $term !== '' || filled($this->typeFilter) || filled($this->statusFilter) || $filtersByStore;
+        $hasSearchCriteria = $term !== '' || filled($this->typeFilter) || filled($this->statusFilter) || filled($this->supplierFilter) || $filtersByStore;
 
         $orders = $hasSearchCriteria
             ? SupplierOrder::query()
@@ -157,11 +164,11 @@ class Index extends Component
                 ->when($filtersByStore, fn ($query) => $query->where('store_id', (int) $this->storeFilter))
                 ->when(filled($this->typeFilter), fn ($query) => $query->where('type', $this->typeFilter))
                 ->when(filled($this->statusFilter), fn ($query) => $query->where('status', $this->statusFilter))
+                ->when(filled($this->supplierFilter), fn ($query) => $query->where('supplier_id', (int) $this->supplierFilter))
                 ->when($term !== '', function ($query) use ($term) {
                     $query->where(function ($q) use ($term) {
                         $q->whereLike('number', '%'.$term.'%')
-                            ->orWhereLike('quote_number', '%'.$term.'%')
-                            ->orWhereHas('supplier', fn ($s) => $s->whereLike('name', '%'.$term.'%'));
+                            ->orWhereLike('quote_number', '%'.$term.'%');
                     });
                 })
                 ->latest('id')
@@ -171,6 +178,10 @@ class Index extends Component
         return view('livewire.orders.index', [
             'orders' => $orders,
             'hasSearchCriteria' => $hasSearchCriteria,
+            'suppliers' => Supplier::query()
+                ->whereHas('orders', fn ($query) => $query->accessibleTo($user))
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'statuses' => SupplierOrderStatus::cases(),
             'stores' => $this->getStores(),
             'creatableSuppliers' => Supplier::query()
