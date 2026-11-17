@@ -2,7 +2,9 @@
 
 use App\Livewire\Customers\Index;
 use App\Models\customer;
+use App\Models\Role;
 use App\Models\User;
+use Database\Seeders\RoleSeeder;
 use Livewire\Livewire;
 
 // ── Accès ──────────────────────────────────────────────────────────────────
@@ -22,11 +24,20 @@ it('n\'affiche aucun client sans critère de recherche', function () {
         ->assertDontSee('Alice Tremblay');
 });
 
-it('affiche le message d\'invite quand la recherche est vide', function () {
+it('n\'affiche la table qu\'une fois que la recherche trouve des clients', function () {
+    customer::factory()->create(['firstname' => 'Alice', 'lastname' => 'Tremblay']);
+
     $this->actingAs(User::factory()->create());
 
     Livewire::test(Index::class)
-        ->assertSee('Entrez un nom');
+        ->assertDontSeeHtml('data-flux-table')
+        ->assertDontSee('Aucun client trouvé')
+        ->set('search', 'Introuvable')
+        ->assertDontSeeHtml('data-flux-table')
+        ->assertSee('Aucun client trouvé pour cette recherche.')
+        ->set('search', 'Tremb')
+        ->assertSeeHtml('data-flux-table')
+        ->assertSee('1 client');
 });
 
 // ── Recherche ──────────────────────────────────────────────────────────────
@@ -101,4 +112,22 @@ it('cherche dans la page clients sans égard aux accents', function () {
     Livewire::test(Index::class)
         ->set('search', 'andre paquet')
         ->assertSee('André');
+});
+
+it('rend les lignes cliquables vers le modal d\'édition seulement avec customers.edit', function () {
+    $this->seed(RoleSeeder::class);
+    $customer = customer::factory()->create(['firstname' => 'Alice', 'lastname' => 'Tremblay']);
+
+    $this->actingAs(User::factory()->create());
+    Livewire::test(Index::class)
+        ->set('search', 'Tremblay')
+        ->assertSeeHtml('data-row-link')
+        ->assertSeeHtml("\$dispatch(&#039;open-customer-edit&#039;, { id: {$customer->id} })");
+
+    Role::findByName('salesman')->revokePermissionTo('customers.edit');
+    $this->actingAs(User::factory()->create());
+    Livewire::test(Index::class)
+        ->set('search', 'Tremblay')
+        ->assertSee('Alice Tremblay')
+        ->assertDontSeeHtml('data-row-link');
 });
