@@ -245,13 +245,20 @@ it('complète une commande de services sans effet sur l\'inventaire', function (
         ->assertDontSee('Saisir la facture');
 });
 
-it('filtre la liste par type et par statut', function () {
+it('filtre la liste par type et par statut, sans table avant un critère', function () {
     $product = SupplierOrder::factory()->create();
     $service = SupplierOrder::factory()->service()->status(SupplierOrderStatus::Sent)->create();
 
     Livewire::test(Index::class)
-        ->assertSee($product->number)->assertSee($service->number)
+        ->assertDontSeeHtml('data-flux-table')
+        ->assertDontSee('Aucune commande trouvée')
+        ->set('search', 'Introuvable')
+        ->assertDontSeeHtml('data-flux-table')
+        ->assertSee('Aucune commande trouvée pour ces critères.')
+        ->set('search', '')
         ->set('typeFilter', 'service')
+        ->assertSeeHtml('data-flux-table')
+        ->assertSeeHtml('data-href="'.route('supplier-orders.show', $service).'"')
         ->assertDontSee($product->number)->assertSee($service->number)
         ->set('typeFilter', '')
         ->set('statusFilter', 'draft')
@@ -1003,7 +1010,7 @@ it('conserve la date d\'envoi et l\'affiche', function () {
     expect($order->fresh()->sent_at->format('Y-m-d H:i'))->toBe('2026-10-05 14:30');
 
     Livewire::test(Show::class, ['order' => $order->fresh()])->assertSee('2026-10-05 14:30');
-    Livewire::test(Index::class)->assertSee('2026-10-05');
+    Livewire::test(Index::class)->set('search', $order->number)->assertSee('2026-10-05');
 });
 
 it('conserve la date du dernier courriel réellement envoyé', function () {
@@ -1312,4 +1319,13 @@ it('imprime et envoie le bon de commande facturé au magasin principal et livré
             && str_contains($html, 'rue Saint-Germain')
             && ! str_contains($html, 'window.print()');
     });
+});
+
+it('affiche seulement le modèle fournisseur des produits dans la table de la commande', function () {
+    [$order, $product] = productOrderWithLine();
+    $product->update(['model' => 'DKOR-SOFA-1', 'supplier_model' => 'ACME-7788']);
+
+    Livewire::test(Show::class, ['order' => $order])
+        ->assertSeeHtml('>ACME-7788</a>')
+        ->assertDontSeeHtml('>DKOR-SOFA-1 (ACME-7788)</a>');
 });

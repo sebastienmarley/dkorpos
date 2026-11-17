@@ -104,14 +104,14 @@
         <flux:table>
             <flux:table.columns>
                 <flux:table.column>{{ $isProduct ? __('Produit') : __('Description') }}</flux:table.column>
-                <flux:table.column align="end">{{ __('Quantité') }}</flux:table.column>
+                <flux:table.column align="end"><span class="sm:hidden">{{ __('Qté') }}</span><span class="max-sm:hidden">{{ __('Quantité') }}</span></flux:table.column>
                 @if ($isProduct && ! $status->isEditable())
                     <flux:table.column align="end">{{ __('Reçue') }}</flux:table.column>
                 @endif
-                <flux:table.column align="end">{{ __('Coût unitaire') }}</flux:table.column>
-                <flux:table.column align="end">{{ __('Total') }}</flux:table.column>
+                <flux:table.column align="end"><span class="sm:hidden">{{ __('Coût') }}</span><span class="max-sm:hidden">{{ __('Coût unitaire') }}</span></flux:table.column>
+                <flux:table.column align="end" class="max-md:hidden">{{ __('Total') }}</flux:table.column>
                 @if ($status->isEditable() || $status->isOpen())
-                    <flux:table.column />
+                    <flux:table.column align="center">{{ __('Actions') }}</flux:table.column>
                 @endif
             </flux:table.columns>
 
@@ -120,9 +120,9 @@
                     <flux:table.row :key="$line->id">
                         <flux:table.cell variant="strong" @class(['line-through opacity-60' => $line->status->isClosed()])>
                             @if ($line->product)
-                                <flux:link :href="route('products.show', $line->product)" wire:navigate>{{ $line->label }}</flux:link>
+                                <flux:link :href="route('products.show', $line->product)" wire:navigate>{{ $line->supplier_label }}</flux:link>
                             @else
-                                {{ $line->label }}
+                                {{ $line->supplier_label }}
                             @endif
                             @if ($line->status !== LineStatus::Active)
                                 <flux:badge :color="$line->status->color()" size="sm" class="ms-2">{{ $line->status->label() }}</flux:badge>
@@ -157,7 +157,7 @@
                                 <flux:input wire:model="editUnitCost" type="number" min="0" step="0.01" class="w-28" />
                                 <flux:error name="editUnitCost" />
                             </flux:table.cell>
-                            <flux:table.cell align="end">—</flux:table.cell>
+                            <flux:table.cell align="end" class="max-md:hidden">—</flux:table.cell>
                             <flux:table.cell align="end">
                                 <flux:button size="xs" variant="primary" icon="check" wire:click="saveLine" />
                                 <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="cancelEditLine" />
@@ -168,7 +168,7 @@
                                 <flux:table.cell align="end">{{ $line->quantity_received }}</flux:table.cell>
                             @endif
                             <flux:table.cell align="end">{{ $line->unit_cost->format() }}</flux:table.cell>
-                            <flux:table.cell align="end">{{ $line->total->format() }}</flux:table.cell>
+                            <flux:table.cell align="end" class="max-md:hidden">{{ $line->total->format() }}</flux:table.cell>
                             @if ($status->isEditable() || $status->isOpen())
                                 <flux:table.cell align="end">
                                     @can('supplier_orders.edit')
@@ -208,7 +208,8 @@
         @if ($status->isEditable() || $status->isOpen())
             @can('supplier_orders.edit')
                 <form wire:submit="addLine" class="flex flex-wrap items-start gap-3 border-t border-zinc-200 p-4 dark:border-zinc-700">
-                    <div class="min-w-64 flex-1">
+                    {{-- Sous md, la recherche est sur sa propre ligne. En sm, Qté, Coût et Ajouter se partagent la deuxième ligne. En xs, Qté et Coût sont à 40/60 et Ajouter est sur sa propre ligne. --}}
+                    <div class="min-w-64 flex-1 max-md:w-full max-md:min-w-0 max-md:basis-full">
                         @if ($isProduct)
                             @if ($selectedProduct)
                                 <div class="flex items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700">
@@ -242,15 +243,15 @@
                             <flux:error name="description" />
                         @endif
                     </div>
-                    <div class="w-28" data-line-quantity>
+                    <div class="w-28 max-md:w-auto max-md:min-w-0 max-md:flex-[2]" data-line-quantity>
                         <flux:input wire:model="quantity" type="number" min="1" step="1" :placeholder="__('Qté')" />
                         <flux:error name="quantity" />
                     </div>
-                    <div class="w-36">
+                    <div class="w-36 max-md:w-auto max-md:min-w-0 max-md:flex-[3]">
                         <flux:input wire:model="unitCost" type="number" min="0" step="0.01" :placeholder="__('Coût unitaire')" />
                         <flux:error name="unitCost" />
                     </div>
-                    <flux:button type="submit" icon="plus">{{ __('Ajouter') }}</flux:button>
+                    <flux:button type="submit" icon="plus" class="max-sm:w-full sm:max-md:flex-[2]">{{ __('Ajouter') }}</flux:button>
                 </form>
             @endcan
         @endif

@@ -248,6 +248,7 @@ describe('commandes fournisseurs', function () {
         $this->actingAs($this->clerk);
 
         Livewire::test(SupplierOrdersIndex::class)
+            ->set('search', 'CF-')
             ->assertViewHas('orders', fn (LengthAwarePaginator $orders): bool => listedOrderIds($orders) === [$mine->id])
             ->assertDontSee('Tous les magasins');
 
@@ -313,6 +314,7 @@ describe('commandes fournisseurs', function () {
         expect($order->store_id)->toBe($this->gaspe->id);
 
         Livewire::test(SupplierOrdersIndex::class)
+            ->set('search', 'CF-')
             ->set('storeFilter', (string) $this->rimouski->id)
             ->assertViewHas('orders', fn (LengthAwarePaginator $orders): bool => listedOrderIds($orders) === [])
             ->set('storeFilter', '')
