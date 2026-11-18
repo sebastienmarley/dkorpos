@@ -9,7 +9,6 @@ use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\PromotionTarget;
 use App\Models\Supplier;
-use App\Rules\UniqueCleanProductModel;
 use App\Support\Money;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -18,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * Promotions temporaires (issue #84). Une promotion n'est jamais supprimée : les commandes qui l'ont reçue la
@@ -25,10 +25,29 @@ use Livewire\Component;
  */
 class Promotions extends Component
 {
+    use WithPagination;
+
+    /** Promotions par page sur un téléphone (xs). Plus large, la liste est complète. */
+    public const int MOBILE_PER_PAGE = 5;
+
+    /** Mis par la page selon la largeur de l'écran : 5 en xs, aucune limite (null) au-delà. */
+    public ?int $perPage = null;
+
+    public const string STATUS_CURRENT = 'current';
+
+    public const string STATUS_UPCOMING = 'upcoming';
+
+    public const string STATUS_ENDED = 'ended';
+
+    public const string STATUS_ARCHIVED = 'archived';
+
     /** Sortes de cibles qu'une promotion peut viser. */
     public const array TARGET_TYPES = ['department', 'category', 'supplier', 'product'];
 
     public string $search = '';
+
+    /** Statut affiché : la page s'ouvre sur les promotions en cours. Les archivées sont réservées à la gestion. */
+    public string $statusFilter = self::STATUS_CURRENT;
 
     public bool $showModal = false;
 
@@ -78,11 +97,14 @@ class Promotions extends Component
         $this->startsOn = $promotion->starts_on->toDateString();
         $this->endsOn = $promotion->ends_on->toDateString();
         $this->isActive = $promotion->is_active;
+        // « Tout le magasin » revient dans le menu des départements, où il a été choisi.
         $this->targets = $promotion->targets()->with('target')->orderBy('id')->get()
-            ->map(fn (PromotionTarget $target): array => [
-                'type' => $target->target_type,
-                'value' => $target->target instanceof Product ? $target->target->model : $target->target_id,
-            ])
+            ->map(fn (PromotionTarget $target): array => $target->target_type === PromotionTarget::ALL
+                ? ['type' => 'department', 'value' => PromotionTarget::ALL]
+                : [
+                    'type' => $target->target_type,
+                    'value' => (string) $target->target_id,
+                ])
             ->all();
         $this->resetValidation();
         $this->showModal = true;
@@ -161,9 +183,9 @@ class Promotions extends Component
     }
 
     /**
-     * Identifiant de chaque cible. Un produit est saisi par son modèle, comparé sans espaces ni ponctuation.
+     * Identifiant de chaque cible. Un produit est saisi par son ID.
      *
-     * @return list<array{target_type: string, target_id: int}>
+     * @return list<array{target_type: string, target_id: int|null}>
      */
     private function resolveTargets(): array
     {
@@ -171,11 +193,26 @@ class Promotions extends Component
         $resolved = [];
 
         foreach ($this->targets as $index => $target) {
+            // « Tous » des menus département et catégorie : tout le magasin, pour un rabais en pourcentage seulement.
+            if (in_array($target['type'], ['department', 'category'], true) && $target['value'] === PromotionTarget::ALL) {
+                if ($this->type !== PromotionType::Percent->value) {
+                    $errors["targets.{$index}.value"] = __('Tout le magasin n\'est offert que pour un rabais en pourcentage.');
+
+                    continue;
+                }
+
+                $resolved[PromotionTarget::ALL] = ['target_type' => PromotionTarget::ALL, 'target_id' => null];
+
+                continue;
+            }
+
             $id = match ($target['type']) {
                 'department' => Department::query()->whereKey((int) $target['value'])->value('id'),
                 'category' => Category::query()->whereKey((int) $target['value'])->value('id'),
                 'supplier' => Supplier::query()->whereKey((int) $target['value'])->value('id'),
-                'product' => $this->productIdForModel((string) $target['value']) ?? __('Aucun produit avec ce modèle ou plusieurs fournisseurs l\'ont : ciblez plutôt le fournisseur.'),
+                'product' => ctype_digit((string) $target['value'])
+                    ? (Product::query()->whereKey((int) $target['value'])->value('id') ?? __('Aucun produit avec cet ID.'))
+                    : __('Entrez l\'ID du produit.'),
                 default => null,
             };
 
@@ -195,14 +232,6 @@ class Promotions extends Component
         return array_values($resolved);
     }
 
-    /** Identifiant du seul produit qui a ce modèle (null si aucun ou si plusieurs fournisseurs l'ont). */
-    private function productIdForModel(string $model): ?int
-    {
-        $ids = Product::query()->where('clean_model', UniqueCleanProductModel::clean($model))->orderBy('id')->limit(2)->pluck('id');
-
-        return $ids->count() === 1 ? (int) $ids->first() : null;
-    }
-
     /** @return array<string, Collection<int, Department>|Collection<int, Category>|Collection<int, Supplier>> */
     public function getTargetOptions(): array
     {
@@ -213,16 +242,64 @@ class Promotions extends Component
         ];
     }
 
+    public function updated(string $property): void
+    {
+        if (in_array($property, ['search', 'statusFilter', 'perPage'], true)) {
+            $this->resetPage();
+        }
+    }
+
+    /** Créer ou modifier des promotions donne la recherche et les archivées ; la consultation seule ne les a pas. */
+    private function canManagePromotions(): bool
+    {
+        $user = auth()->user();
+
+        return $user->can('promotions.edit') || $user->can('promotions.create');
+    }
+
+    /**
+     * Statuts offerts dans le filtre, selon les droits.
+     *
+     * @return array<string, string>
+     */
+    private function statusOptions(): array
+    {
+        return [
+            self::STATUS_CURRENT => __('En cours'),
+            self::STATUS_UPCOMING => __('À venir'),
+            self::STATUS_ENDED => __('Terminées'),
+            ...($this->canManagePromotions() ? [self::STATUS_ARCHIVED => __('Archivées')] : []),
+        ];
+    }
+
     public function render(): View
     {
+        $canManage = $this->canManagePromotions();
+        $statusOptions = $this->statusOptions();
+        $status = array_key_exists($this->statusFilter, $statusOptions) ? $this->statusFilter : self::STATUS_CURRENT;
+        $term = $canManage ? trim($this->search) : '';
+        $today = today();
+
+        $promotions = Promotion::query()
+            ->with('targets.target')
+            ->when($term !== '', fn ($query) => $query->whereLike('name', '%'.$term.'%'))
+            ->tap(fn ($query) => match ($status) {
+                self::STATUS_CURRENT => $query->inEffectOn($today)->orderBy('ends_on'),
+                self::STATUS_UPCOMING => $query->where('is_active', true)->whereDate('starts_on', '>', $today)->orderBy('starts_on'),
+                self::STATUS_ENDED => $query->where('is_active', true)->whereDate('ends_on', '<', $today)->orderByDesc('ends_on'),
+                self::STATUS_ARCHIVED => $query->where('is_active', false)->orderByDesc('starts_on'),
+            })
+            ->orderBy('name');
+
+        // Seule la limite mobile est acceptée : une autre valeur envoyée par la page redonne la liste complète.
+        $promotions = $this->perPage === self::MOBILE_PER_PAGE
+            ? $promotions->paginate(self::MOBILE_PER_PAGE)
+            : $promotions->get();
+
         return view('livewire.catalog.promotions', [
-            'promotions' => Promotion::query()
-                ->with('targets.target')
-                ->when(filled($this->search), fn ($query) => $query->whereLike('name', '%'.trim($this->search).'%'))
-                ->orderByDesc('is_active')
-                ->orderByDesc('starts_on')
-                ->orderBy('name')
-                ->get(),
+            'promotions' => $promotions,
+            'canManage' => $canManage,
+            'statusOptions' => $statusOptions,
             'promotionTypes' => PromotionType::cases(),
         ])->layout('layouts.app', ['title' => __('Promotions')]);
     }

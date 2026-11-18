@@ -67,6 +67,10 @@ Nous retenons l'**option B**.
   **département, une catégorie, un fournisseur ou un produit**. Un produit est visé s'il correspond à l'une des
   cibles (son département passe par sa catégorie). Les alias `promotion` et `promotion_target` sont ajoutés au
   morph map ([ADR 0014](0014-production.md)).
+  Une promotion **en pourcentage** peut aussi viser **tout le magasin** : cible `target_type = all`, sans
+  `target_id`, choisie par « Tous les départements » ou « Toutes les catégories ». Elle couvre tous les produits ;
+  les règles des lignes admissibles s'appliquent quand même. Le montant fixe et « nous payons les taxes » ne
+  l'offrent pas.
 - `customer_orders.promotion_id` : la promotion appliquée à la commande.
 - `customer_order_lines.promotion_id` et `regular_unit_price` : la promotion de la ligne et son prix avant la
   promotion.
@@ -114,9 +118,8 @@ Les commandes qui l'ont reçue la gardent.
 ### L'interface
 
 - Page **Catalogue › Promotions** (`Catalog\Promotions`) : liste avec l'état (en cours, à venir, terminée,
-  inactive), création et modification. Un produit se vise par son modèle, comparé sans espaces ni ponctuation
-  (`UniqueCleanProductModel::clean()`). Un modèle commun à plusieurs fournisseurs est refusé : il faut viser le
-  fournisseur.
+  inactive), création et modification. Un produit se vise par son **ID** : contrairement au modèle, il désigne
+  toujours un seul produit, même quand plusieurs fournisseurs ont le même modèle.
 - Permissions `promotions.view`, `promotions.create`, `promotions.edit`, accordées au rôle Directeur.
 - Étape du paiement du ramassage (`CustomerOrders\Show`) : bouton « Promotion », grisé sans promotion admissible.
   Une seule promotion s'applique directement, plusieurs affichent un choix. Le montant à encaisser et le paiement
