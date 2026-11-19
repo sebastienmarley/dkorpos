@@ -33,6 +33,28 @@ function writeStorage(key, value) {
     }
 }
 
+/**
+ * Un champ décimal (montant, taux…) ne change que si on tape : ni les flèches du clavier ni la molette ne le modifient.
+ * La molette retire plutôt le focus du champ, pour que la page continue de défiler.
+ */
+const DECIMAL_INPUT = "input[type='number'][step^='0.']";
+
+document.addEventListener('keydown', (event) => {
+    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && event.target.matches?.(DECIMAL_INPUT)) {
+        event.preventDefault();
+    }
+});
+
+document.addEventListener(
+    'wheel',
+    (event) => {
+        if (event.target === document.activeElement && event.target.matches?.(DECIMAL_INPUT)) {
+            event.target.blur();
+        }
+    },
+    { passive: true },
+);
+
 document.addEventListener('livewire:init', () => {
     // Une requête Livewire refusée parce que la session est verrouillée : on affiche l'écran sans perdre la page.
     window.Livewire.interceptRequest(({ onError }) => {
