@@ -77,6 +77,17 @@ select:focus[data-flux-control] {
     }
 }
 
+/* Tables : les valeurs de la première et de la dernière colonne ne touchent pas le bord. */
+[data-flux-table] [data-flux-column]:first-child,
+[data-flux-table] [data-flux-cell]:first-child {
+    padding-inline-start: 0.75rem;
+}
+
+[data-flux-table] [data-flux-column]:last-child,
+[data-flux-table] [data-flux-cell]:last-child {
+    padding-inline-end: 0.75rem;
+}
+
 /*
  * Montants et autres valeurs décimales : pas de flèches d'incrément, on tape la valeur.
  * Les champs de quantité (pas entier ou sans pas) gardent les leurs.
