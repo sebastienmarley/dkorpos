@@ -159,8 +159,9 @@
                 return [...this.$root.querySelectorAll('tbody > tr')];
             },
 
+            // Seulement les jours affichés : en xs, un seul jour est visible.
             columns() {
-                return [...this.$root.querySelectorAll('thead th[data-date]')];
+                return [...this.$root.querySelectorAll('thead th[data-date]')].filter((th) => th.getClientRects().length > 0);
             },
 
             locate(event) {
@@ -196,6 +197,33 @@
     </script>
     @endassets
 
+    {{-- En xs, un seul jour à la fois : le choix reste dans le navigateur et app.css cache les autres colonnes.
+         wire:ignore.self garde le jour choisi quand Livewire redessine la page. --}}
+    @php $initialMobileDay = (int) $days->search(fn ($day) => $day->isToday()); @endphp
+    <div
+        wire:ignore.self
+        x-data="{ mobileDay: {{ $initialMobileDay }} }"
+        data-mobile-day="{{ $initialMobileDay }}"
+        x-bind:data-mobile-day="mobileDay"
+        x-on:appointment-date-changed.window="mobileDay = $event.detail.day"
+    >
+    <div class="sticky top-14 z-10 mb-2 grid grid-cols-7 gap-1 bg-white py-1 sm:hidden dark:bg-zinc-800" data-day-picker>
+        @foreach ($days as $dayIndex => $day)
+            <button
+                type="button"
+                wire:key="mobile-day-{{ $dayIndex }}"
+                x-on:click="mobileDay = {{ $dayIndex }}"
+                x-bind:aria-pressed="mobileDay === {{ $dayIndex }}"
+                x-bind:class="mobileDay === {{ $dayIndex }} ? 'bg-blue-600 text-white' : 'text-zinc-600 dark:text-zinc-300'"
+                class="flex min-h-12 flex-col items-center justify-center rounded-lg text-xs font-medium"
+            >
+                <span>{{ mb_substr(ucfirst($day->translatedFormat('l')), 0, 3) }}</span>
+                <span @class(['font-bold', 'underline' => $day->isToday()])>{{ $day->translatedFormat('d') }}</span>
+                <span @class(['mt-0.5 size-1 rounded-full', 'bg-current' => $appointments->get($day->toDateString())?->isNotEmpty(), 'bg-transparent' => ! $appointments->get($day->toDateString())?->isNotEmpty()])></span>
+            </button>
+        @endforeach
+    </div>
+
     {{-- Grille --}}
     <div
         x-data="appointmentGrid({{ $slotMinutes }}, {{ \App\Livewire\Schedules\Appointments::DAY_START_MINUTE }})"
@@ -204,12 +232,12 @@
         <table class="min-w-full table-fixed border-collapse text-sm">
             <thead>
                 <tr class="border-b border-zinc-200 dark:border-zinc-700">
-                    <th class="w-20 px-3 py-2 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                    <th class="w-20 px-3 py-2 text-left max-sm:w-16 max-sm:px-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                         {{ __('Heure') }}
                     </th>
-                    @foreach ($days as $day)
+                    @foreach ($days as $dayIndex => $day)
                         @php $isToday = $day->isToday(); @endphp
-                        <th data-date="{{ $day->toDateString() }}" class="px-2 py-2 text-center text-xs font-semibold @if($isToday) text-blue-600 dark:text-blue-400 @else text-zinc-500 dark:text-zinc-400 @endif">
+                        <th data-date="{{ $day->toDateString() }}" data-day-index="{{ $dayIndex }}" class="px-2 py-2 text-center text-xs font-semibold @if($isToday) text-blue-600 dark:text-blue-400 @else text-zinc-500 dark:text-zinc-400 @endif">
                             <div>{{ ucfirst($day->translatedFormat('l')) }}</div>
                             @if (isset($dayNotes[$day->toDateString()]))
                                 <div @class([
@@ -228,10 +256,10 @@
             <tbody>
                 @foreach ($timeSlots as $slotStart)
                     <tr class="border-b border-zinc-100 last:border-0 dark:border-zinc-800">
-                        <td class="px-3 py-1 text-xs font-medium text-zinc-400 dark:text-zinc-500">
+                        <td class="px-3 py-1 text-xs font-medium text-zinc-400 max-sm:px-2 dark:text-zinc-500">
                             {{ sprintf('%02d:%02d', intdiv($slotStart, 60), $slotStart % 60) }}
                         </td>
-                        @foreach ($days as $day)
+                        @foreach ($days as $dayIndex => $day)
                             @php
                                 $dateKey = $day->toDateString();
                                 $cellKey = $dateKey.':'.$slotStart;
@@ -249,6 +277,7 @@
                             @endphp
 
                             <td
+                                data-day-index="{{ $dayIndex }}"
                                 @if ($rowspan > 1) rowspan="{{ $rowspan }}" @endif
                                 @class([
                                     'relative px-1 py-0.5 align-top transition-colors' => true,
@@ -293,7 +322,7 @@
                                                 <div
                                                     x-on:pointerdown.stop="start($event, 'resize')"
                                                     x-on:click.stop
-                                                    class="absolute inset-x-0 bottom-0 flex h-2 cursor-ns-resize items-end justify-center"
+                                                    class="absolute inset-x-0 bottom-0 flex h-2 cursor-ns-resize max-sm:h-5 items-end justify-center"
                                                     title="{{ __('Ajuster la durée') }}"
                                                 >
                                                     <span class="mb-0.5 h-0.5 w-6 rounded bg-blue-400/60"></span>
@@ -320,6 +349,7 @@
             x-bind:class="preview && !preview.valid ? 'border-red-500 bg-red-500/20' : 'border-blue-500 bg-blue-500/10'"
             x-bind:style="preview && `left:${preview.left}px;top:${preview.top}px;width:${preview.width}px;height:${preview.height}px`"
         ></div>
+    </div>
     </div>
 
     {{-- Modal ajout/édition --}}
@@ -358,6 +388,15 @@
                     <flux:input wire:model="title" autofocus placeholder="{{ __('Ex: Consultation, Réunion…') }}" />
                     <flux:error name="title" />
                 </flux:field>
+
+                {{-- En xs, un seul jour est visible : le rendez-vous change de jour ici plutôt qu'en le glissant. --}}
+                @if ($editingAppointmentId)
+                    <flux:field class="col-span-2 sm:hidden" wire:key="appointment-date">
+                        <flux:label>{{ __('Date') }}</flux:label>
+                        <flux:input wire:model.live="editingDate" type="date" min="{{ today()->toDateString() }}" />
+                        <flux:error name="editingDate" />
+                    </flux:field>
+                @endif
 
                 <flux:field>
                     <flux:label>{{ __('Durée') }}</flux:label>

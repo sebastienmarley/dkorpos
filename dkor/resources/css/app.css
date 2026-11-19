@@ -77,6 +77,19 @@ select:focus[data-flux-control] {
     }
 }
 
+/* Rendez-vous en xs : seule la colonne du jour choisi reste affichée. */
+@media (max-width: 639px) {
+    [data-mobile-day='0'] [data-day-index]:not([data-day-index='0']),
+    [data-mobile-day='1'] [data-day-index]:not([data-day-index='1']),
+    [data-mobile-day='2'] [data-day-index]:not([data-day-index='2']),
+    [data-mobile-day='3'] [data-day-index]:not([data-day-index='3']),
+    [data-mobile-day='4'] [data-day-index]:not([data-day-index='4']),
+    [data-mobile-day='5'] [data-day-index]:not([data-day-index='5']),
+    [data-mobile-day='6'] [data-day-index]:not([data-day-index='6']) {
+        display: none;
+    }
+}
+
 /* Sur iOS, un champ sous 16px fait zoomer la page au focus. */
 @media (max-width: 767px) {
     input[data-flux-control],

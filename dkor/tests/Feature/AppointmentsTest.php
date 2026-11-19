@@ -33,6 +33,54 @@ it('redirige les invités vers la connexion', function () {
     $this->get(route('schedules.appointments'))->assertRedirect(route('login'));
 });
 
+it('ouvre la vue mobile sur aujourd\'hui et marque les jours qui ont des rendez-vous', function () {
+    Appointment::factory()->create(['user_id' => $this->employee->id, 'date' => '2026-09-30', 'start_minute' => 540, 'duration_minutes' => 30]);
+
+    $html = Livewire::test(Appointments::class)
+        ->set('selectedUserId', $this->employee->id)
+        ->assertSeeHtml('data-mobile-day="1"')
+        ->assertSeeHtml('data-day-picker')
+        ->assertSeeHtml('data-day-index="6"')
+        ->html();
+
+    expect(substr_count($html, 'bg-current'))->toBe(1);
+});
+
+it('change la date d\'un rendez-vous depuis le modal et amène la grille sur son jour', function () {
+    $appointment = Appointment::factory()->create(['user_id' => $this->employee->id, 'date' => $this->futureDate, 'start_minute' => 540, 'duration_minutes' => 30]);
+
+    bookingComponent($this->employee, $this->futureDate, 540)
+        ->assertSeeHtml('wire:model.live="editingDate"')
+        ->set('editingDate', '2026-10-07')
+        ->assertHasNoErrors()
+        ->call('save')
+        ->assertHasNoErrors()
+        ->assertSet('showModal', false)
+        ->assertSet('weekStart', '2026-10-04')
+        ->assertDispatched('appointment-date-changed', day: 3);
+
+    expect($appointment->fresh()->date)->toStartWith('2026-10-07');
+});
+
+it('refuse une date passée ou occupée et annule une date illisible dans le modal', function () {
+    $appointment = Appointment::factory()->create(['user_id' => $this->employee->id, 'date' => $this->futureDate, 'start_minute' => 540, 'duration_minutes' => 30]);
+    Appointment::factory()->create(['user_id' => $this->employee->id, 'date' => '2026-10-14', 'start_minute' => 540, 'duration_minutes' => 30]);
+
+    bookingComponent($this->employee, $this->futureDate, 540)
+        ->set('editingDate', 'pas-une-date')
+        ->assertSet('editingDate', $this->futureDate)
+        ->set('editingDate', '2026-09-01')
+        ->assertHasErrors('editingDate')
+        ->call('save')
+        ->assertHasErrors('editingDate')
+        ->set('editingDate', '2026-10-14')
+        ->assertHasErrors('editingDate')
+        ->call('save')
+        ->assertSet('showModal', true);
+
+    expect($appointment->fresh()->date)->toStartWith($this->futureDate);
+});
+
 it('enregistre un rendez-vous de 30 minutes à une heure non ronde', function () {
     bookingComponent($this->employee, $this->futureDate, 9 * 60 + 30)
         ->set('title', 'Consultation')

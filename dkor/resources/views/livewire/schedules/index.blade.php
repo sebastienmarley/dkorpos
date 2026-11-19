@@ -55,9 +55,11 @@
                         <flux:table.cell variant="strong">
                             <div class="flex items-center gap-2">
                                 @if ($isToday)
-                                    <flux:badge size="sm" color="blue" inset="top bottom">{{ __("Aujourd'hui") }}</flux:badge>
+                                    <flux:badge size="sm" color="blue" inset="top bottom" class="max-sm:hidden">{{ __("Aujourd'hui") }}</flux:badge>
                                 @endif
-                                {{ ucfirst($day->translatedFormat('l')) }}
+                                @php($dayName = ucfirst($day->translatedFormat('l')))
+                                <span class="sm:hidden">{{ mb_substr($dayName, 0, 3) }}</span>
+                                <span class="max-sm:hidden">{{ $dayName }}</span>
                                 @if ($holiday = $holidays->get($dateKey))
                                     <flux:badge size="sm" color="violet" inset="top bottom">{{ $holiday->name }}</flux:badge>
                                 @endif
