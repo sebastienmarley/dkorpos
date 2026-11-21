@@ -53,6 +53,18 @@ describe('catalogue de services', function () {
             ->assertSee('Installation maison')->assertSee('Livraison gants blancs')->assertSee('Réparation tissu');
     });
 
+    it('ouvre l\'édition d\'un service en cliquant sa ligne, seulement avec la permission', function () {
+        $service = Service::factory()->create(['is_internal' => true]);
+
+        Livewire::test(Services::class)->assertSeeHtml('$wire.openEdit('.$service->id.')');
+
+        $this->actingAs(User::factory()->withRole('salesman')->create());
+
+        Livewire::test(Services::class)
+            ->assertSee($service->name)
+            ->assertDontSeeHtml('data-row-link');
+    });
+
     it('crée un service interne non taxable avec son prix', function () {
         Livewire::test(Services::class)
             ->call('openCreate')
