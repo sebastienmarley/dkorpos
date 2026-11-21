@@ -253,20 +253,24 @@ class Movements extends Component
         return CarbonImmutable::today()->subDays($days);
     }
 
-    /** @return array<string, string> */
+    /**
+     * Libellés des périodes, indexés par nombre de jours (PHP en fait des clés entières) ou par PERIOD_ARCHIVES.
+     *
+     * @return array<int|string, string>
+     */
     private function periodOptions(): array
     {
         $options = [];
 
         foreach (self::PERIOD_DAYS as $days) {
             $options[(string) $days] = match ($days) {
-                365 => __('Dernière année'),
-                InventoryMovement::CURRENT_DAYS => __(':days derniers jours (tout le courant)', ['days' => $days]),
-                default => __(':days derniers jours', ['days' => $days]),
+                365 => (string) __('Dernière année'),
+                InventoryMovement::CURRENT_DAYS => (string) __(':days derniers jours (tout le courant)', ['days' => $days]),
+                default => (string) __(':days derniers jours', ['days' => $days]),
             };
         }
 
-        return $options + [self::PERIOD_ARCHIVES => __('Archives (plus de :days jours)', ['days' => InventoryMovement::CURRENT_DAYS])];
+        return $options + [self::PERIOD_ARCHIVES => (string) __('Archives (plus de :days jours)', ['days' => InventoryMovement::CURRENT_DAYS])];
     }
 
     private function isFilteringBy(string $filter): bool

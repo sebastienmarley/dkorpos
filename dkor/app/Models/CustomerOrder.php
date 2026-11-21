@@ -170,7 +170,7 @@ class CustomerOrder extends Model
             return [];
         }
 
-        return [$storeId, ...Store::query()->where('warehouse_store_id', $storeId)->pluck('id')->map(fn ($id): int => (int) $id)->all()];
+        return [$storeId, ...Store::query()->where('warehouse_store_id', $storeId)->pluck('id')->map(fn ($id): int => (int) $id)->values()->all()];
     }
 
     /**
@@ -2547,7 +2547,7 @@ class CustomerOrder extends Model
             $available = $refundable[$methodId] ?? Money::zero();
 
             if ($amount->greaterThan($available)) {
-                $method = CustomerPaymentMethod::query()->find($methodId)?->name ?? __('ce mode');
+                $method = CustomerPaymentMethod::query()->find($methodId)->name ?? __('ce mode');
 
                 throw new DomainException($available->isPositive()
                     ? __('Le remboursement en :method (:amount $) dépasse ce que le client a payé avec ce mode (:available $).', ['method' => $method, 'amount' => $amount->toDecimal(), 'available' => $available->toDecimal()])

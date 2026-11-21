@@ -284,10 +284,10 @@ class Promotions extends Component
             ->with('targets.target')
             ->when($term !== '', fn ($query) => $query->whereLike('name', '%'.$term.'%'))
             ->tap(fn ($query) => match ($status) {
-                self::STATUS_CURRENT => $query->inEffectOn($today)->orderBy('ends_on'),
                 self::STATUS_UPCOMING => $query->where('is_active', true)->whereDate('starts_on', '>', $today)->orderBy('starts_on'),
                 self::STATUS_ENDED => $query->where('is_active', true)->whereDate('ends_on', '<', $today)->orderByDesc('ends_on'),
                 self::STATUS_ARCHIVED => $query->where('is_active', false)->orderByDesc('starts_on'),
+                default => $query->inEffectOn($today)->orderBy('ends_on'),
             })
             ->orderBy('name');
 
