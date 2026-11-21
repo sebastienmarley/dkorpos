@@ -9,6 +9,7 @@ use App\Models\CustomerOrderLine;
 use App\Models\Department;
 use App\Models\Product;
 use App\Models\Promotion;
+use App\Models\PromotionTarget;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\Money;
@@ -61,6 +62,17 @@ describe('application à une commande', function () {
             ->and($this->order->fresh())
             ->promotion_id->toBe($promotion->id)
             ->total->toBeMoney(10348);
+    });
+
+    it('couvre tous les produits quand la promotion vise tout le magasin', function () {
+        $line = regularLine($this->order, 1, 100);
+        $promotion = Promotion::factory()->create(['percent' => 10]);
+        $promotion->targets()->create(['target_type' => PromotionTarget::ALL, 'target_id' => null]);
+
+        $this->order->applyPromotion($promotion);
+
+        expect($line->fresh()->unit_price)->toBeMoney(9000)
+            ->and($promotion->targets()->sole()->label())->toBe('Tout le magasin');
     });
 
     it('ne touche ni les produits déjà escomptés ni les produits hors promotion', function () {
@@ -233,7 +245,7 @@ describe('gestion des promotions', function () {
             ->assertForbidden();
     });
 
-    it('crée un montant fixe qui vise un département et un produit saisi par son modèle', function () {
+    it('crée un montant fixe qui vise un département et un produit saisi par son ID', function () {
         $department = Department::factory()->create();
         $product = Product::factory()->create(['model' => 'WRF-555 SDF']);
 
@@ -243,7 +255,7 @@ describe('gestion des promotions', function () {
             ->set('type', 'fixed_amount')
             ->set('amount', '100,00')
             ->set('minimumQuantity', '2')
-            ->set('targets', [['type' => 'department', 'value' => $department->id], ['type' => 'product', 'value' => 'wrf555sdf']])
+            ->set('targets', [['type' => 'department', 'value' => $department->id], ['type' => 'product', 'value' => (string) $product->id]])
             ->call('save')
             ->assertHasNoErrors();
 
@@ -272,16 +284,105 @@ describe('gestion des promotions', function () {
         expect(Promotion::query()->count())->toBe(0);
     });
 
-    it('refuse un modèle introuvable', function () {
+    it('vise tout le magasin avec « Tous » pour un rabais en pourcentage seulement', function () {
+        Livewire::test(Promotions::class)
+            ->call('openCreate')
+            ->assertSeeHtml('Tous les départements')
+            ->set('name', '15 % sur tout')
+            ->set('percent', '15')
+            ->set('targets', [['type' => 'category', 'value' => 'all']])
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $promotion = Promotion::query()->sole();
+        expect($promotion->targets()->sole())
+            ->target_type->toBe(PromotionTarget::ALL)
+            ->target_id->toBeNull();
+
+        Livewire::test(Promotions::class)
+            ->set('search', 'sur tout')
+            ->assertSee('Tout le magasin')
+            ->call('openEdit', $promotion->id)
+            ->assertSet('targets', [['type' => 'department', 'value' => 'all']])
+            ->set('type', 'fixed_amount')
+            ->set('amount', '50')
+            ->set('minimumQuantity', '1')
+            ->assertDontSeeHtml('Tous les départements')
+            ->call('save')
+            ->assertHasErrors(['targets.0.value']);
+
+        expect($promotion->fresh()->type)->toBe(PromotionType::Percent);
+    });
+
+    it('refuse un ID de produit introuvable ou qui n\'est pas un nombre', function (string $value) {
         Livewire::test(Promotions::class)
             ->call('openCreate')
             ->set('name', '10 %')
             ->set('percent', '10')
-            ->set('targets', [['type' => 'product', 'value' => 'inexistant']])
+            ->set('targets', [['type' => 'product', 'value' => $value]])
             ->call('save')
             ->assertHasErrors(['targets.0.value']);
 
         expect(Promotion::query()->count())->toBe(0);
+    })->with(['999999', 'WRF-555']);
+
+    it('ouvre sur les promotions en cours et filtre par statut, avec des lignes qui ouvrent l\'édition', function () {
+        $department = Department::factory()->create();
+        $current = promotionOn($department, ['name' => 'Boxing Day', 'starts_on' => today()->subDay(), 'ends_on' => today()->addDay()]);
+        $upcoming = promotionOn($department, ['name' => 'Printemps', 'starts_on' => today()->addWeek(), 'ends_on' => today()->addWeeks(2)]);
+        $ended = promotionOn($department, ['name' => 'Rentrée', 'starts_on' => today()->subMonth(), 'ends_on' => today()->subWeek()]);
+        $archived = promotionOn($department, ['name' => 'Ancienne', 'is_active' => false]);
+
+        Livewire::test(Promotions::class)
+            ->assertSet('statusFilter', Promotions::STATUS_CURRENT)
+            ->assertSee('Boxing Day')->assertDontSee('Printemps')->assertDontSee('Rentrée')->assertDontSee('Ancienne')
+            ->assertSeeHtml('$wire.openEdit('.$current->id.')')
+            ->assertSee('1 promotion')
+            ->set('search', 'introuvable')
+            ->assertSee('Aucune promotion pour ces critères.')
+            ->set('search', '')
+            ->set('statusFilter', Promotions::STATUS_UPCOMING)
+            ->assertSee('Printemps')->assertDontSee('Boxing Day')
+            ->set('statusFilter', Promotions::STATUS_ENDED)
+            ->assertSee('Rentrée')->assertDontSee('Printemps')
+            ->set('statusFilter', Promotions::STATUS_ARCHIVED)
+            ->assertSee('Ancienne')->assertDontSee('Rentrée');
+    });
+
+    it('limite à 5 promotions par page quand la page signale un écran de téléphone', function () {
+        $department = Department::factory()->create();
+        foreach (range(1, 6) as $number) {
+            promotionOn($department, ['name' => "Promo {$number}"]);
+        }
+
+        Livewire::test(Promotions::class)
+            ->assertSee('6 promotions')
+            ->assertViewHas('promotions', fn ($promotions): bool => $promotions->count() === 6)
+            ->set('perPage', Promotions::MOBILE_PER_PAGE)
+            ->assertViewHas('promotions', fn ($promotions): bool => $promotions->count() === 5 && $promotions->total() === 6)
+            ->assertSee('6 promotions')
+            ->set('perPage', 1000)
+            ->assertViewHas('promotions', fn ($promotions): bool => $promotions->count() === 6);
+    });
+
+    it('réserve la recherche et les archivées à ceux qui créent ou modifient des promotions', function () {
+        $department = Department::factory()->create();
+        promotionOn($department, ['name' => 'Boxing Day']);
+        promotionOn($department, ['name' => 'Ancienne', 'is_active' => false]);
+
+        $viewer = User::factory()->withRole('visiteur')->create();
+        $viewer->givePermissionTo('promotions.view');
+
+        Livewire::actingAs($viewer)->test(Promotions::class)
+            ->assertDontSeeHtml('wire:model.live.debounce.300ms="search"')
+            ->assertDontSeeHtml('value="archived"')
+            ->assertSee('Boxing Day')
+            ->assertDontSeeHtml('data-row-link')
+            ->set('search', 'introuvable')
+            ->assertSee('Boxing Day')
+            ->set('statusFilter', Promotions::STATUS_ARCHIVED)
+            ->assertSee('Boxing Day')
+            ->assertDontSee('Ancienne');
     });
 
     it('désactive une promotion plutôt que de la supprimer', function () {

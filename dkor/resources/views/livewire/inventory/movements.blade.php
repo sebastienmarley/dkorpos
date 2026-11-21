@@ -18,10 +18,28 @@
     </div>
 
     <div class="mb-4 flex flex-wrap gap-3">
+        <div class="w-full sm:w-64">
+            <flux:select wire:model.live="periodFilter">
+                @foreach ($periodOptions as $value => $label)
+                    <flux:select.option :value="$value">{{ $label }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        </div>
+        @if ($isSearchingArchives)
+            <div class="w-full sm:w-40">
+                <flux:select wire:model.live="archiveYear">
+                    <flux:select.option value="">{{ __('Choisir l\'année…') }}</flux:select.option>
+                    @foreach ($archiveYears as $year)
+                        <flux:select.option :value="$year">{{ $year }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            </div>
+        @endif
         @if (auth()->user()->hasAllStores())
             <div class="w-full sm:w-56">
                 <flux:select wire:model.live="storeFilter">
-                    <flux:select.option value="">{{ __('Tous les magasins') }}</flux:select.option>
+                    <flux:select.option value="">{{ __('Choisir le magasin…') }}</flux:select.option>
+                    <flux:select.option value="{{ \App\Livewire\Inventory\Movements::ALL }}">{{ __('Tous les magasins') }}</flux:select.option>
                     @foreach ($stores as $store)
                         <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
                     @endforeach
@@ -30,7 +48,8 @@
         @endif
         <div class="w-full sm:w-56">
             <flux:select wire:model.live="statusFilter">
-                <flux:select.option value="">{{ __('Tous les états') }}</flux:select.option>
+                <flux:select.option value="">{{ __('Choisir l\'état…') }}</flux:select.option>
+                <flux:select.option value="{{ \App\Livewire\Inventory\Movements::ALL }}">{{ __('Tous les états') }}</flux:select.option>
                 @foreach ($statuses as $status)
                     <flux:select.option :value="$status->value">{{ $status->label() }}</flux:select.option>
                 @endforeach
@@ -38,7 +57,8 @@
         </div>
         <div class="w-full sm:w-64">
             <flux:select wire:model.live="typeFilter">
-                <flux:select.option value="">{{ __('Tous les types') }}</flux:select.option>
+                <flux:select.option value="">{{ __('Choisir le type…') }}</flux:select.option>
+                <flux:select.option value="{{ \App\Livewire\Inventory\Movements::ALL }}">{{ __('Tous les types') }}</flux:select.option>
                 @foreach ($types as $type)
                     <flux:select.option :value="$type->value">{{ $type->label() }}</flux:select.option>
                 @endforeach
@@ -46,6 +66,7 @@
         </div>
     </div>
 
+    @if ($movements->isNotEmpty())
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <flux:table :paginate="$movements">
             <flux:table.columns>
@@ -61,7 +82,7 @@
             </flux:table.columns>
 
             <flux:table.rows>
-                @forelse ($movements as $movement)
+                @foreach ($movements as $movement)
                     <flux:table.row :key="$movement->id">
                         <flux:table.cell>{{ $movement->created_at->format('Y-m-d H:i') }}</flux:table.cell>
                         <flux:table.cell>{{ $movement->store?->name ?? '—' }}</flux:table.cell>
@@ -106,23 +127,23 @@
                         </flux:table.cell>
                         <flux:table.cell>{{ $movement->user ? $movement->user->firstname.' '.$movement->user->lastname : '—' }}</flux:table.cell>
                     </flux:table.row>
-                @empty
-                    <flux:table.row>
-                        <flux:table.cell colspan="9" class="py-12 text-center">
-                            <div class="flex flex-col items-center gap-2">
-                                <flux:icon name="clipboard-document-list" class="h-8 w-8 text-zinc-300" />
-                                <flux:text class="text-zinc-400">{{ __('Aucun mouvement d\'inventaire.') }}</flux:text>
-                            </div>
-                        </flux:table.cell>
-                    </flux:table.row>
-                @endforelse
+                @endforeach
             </flux:table.rows>
         </flux:table>
     </div>
 
-    <div class="mt-3">
-        <flux:text class="text-sm text-zinc-400">{{ trans_choice(':count mouvement|:count mouvements', $movements->total()) }}</flux:text>
-    </div>
+    @elseif ($hasSearchCriteria)
+        <div class="flex flex-col items-center gap-2 py-12 text-center">
+            <flux:icon name="clipboard-document-list" class="h-8 w-8 text-zinc-300" />
+            <flux:text class="text-zinc-400">{{ __('Aucun mouvement pour ces critères.') }}</flux:text>
+        </div>
+    @elseif ($isSearchingArchives)
+        <flux:text class="py-12 text-center text-zinc-400">
+            {{ $archiveYears === []
+                ? __('Aucun mouvement archivé.')
+                : __('Dans les archives, choisir une année et au moins un critère précis : magasin, état ou type (« Tous » ne compte pas).') }}
+        </flux:text>
+    @endif
 
     {{-- Nouveau mouvement --}}
     <flux:modal wire:model="showMove" class="w-full max-w-lg">
@@ -140,7 +161,9 @@
                 <flux:error name="storeId" />
             </flux:field>
 
+            {{-- Une clé par branche : Livewire ne réutilise pas les champs de la recherche pour ceux de la fiche, et inversement. --}}
             @if ($selectedProduct)
+                <div wire:key="move-selected-product">
                 <div class="flex items-center justify-between rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                     <div>
                         <flux:text class="font-medium">{{ $selectedProduct->display_name }}</flux:text>
@@ -189,7 +212,9 @@
                         <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @else
+                <div wire:key="move-product-search">
                 <flux:input wire:model.live.debounce.300ms="productSearch" icon="magnifying-glass" :placeholder="__('Rechercher un produit…')" />
 
                 <div class="max-h-72 divide-y divide-zinc-200 overflow-y-auto rounded-lg border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
@@ -201,6 +226,7 @@
                     @empty
                         <div class="p-4 text-center"><flux:text class="text-zinc-400">{{ __('Aucun produit trouvé.') }}</flux:text></div>
                     @endforelse
+                </div>
                 </div>
             @endif
         </div>

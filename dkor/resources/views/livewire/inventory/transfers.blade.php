@@ -1,8 +1,10 @@
 <div class="mx-auto max-w-5xl sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Transferts') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Marchandise échangée avec les autres magasins. Le magasin qui reçoit demande; celui qui expédie accepte, puis le magasin qui reçoit confirme la réception.') }}</flux:text>
+            <flux:tooltip :content="__('Marchandise échangée avec les autres magasins. Le magasin qui reçoit demande; celui qui expédie accepte, puis le magasin qui reçoit confirme la réception.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
@@ -107,7 +109,9 @@
             <flux:heading>{{ __('Demander un transfert de stock') }}</flux:heading>
             <flux:text class="text-sm text-zinc-500">{{ __('La marchandise « En stock » d\'un autre magasin vient dans le vôtre. Pour un client, demandez le transfert depuis sa commande.') }}</flux:text>
 
+            {{-- Une clé par branche : Livewire ne réutilise pas les champs de la recherche pour ceux de la fiche, et inversement. --}}
             @if ($selectedProduct)
+                <div wire:key="transfer-selected-product">
                 <div class="flex items-center justify-between rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                     <span class="font-medium">{{ $selectedProduct->model }}</span>
                     <flux:button size="xs" variant="ghost" wire:click="$set('requestProductId', null)">{{ __('Changer') }}</flux:button>
@@ -128,7 +132,9 @@
                     <flux:input wire:model="quantity" type="number" min="1" />
                     <flux:error name="quantity" />
                 </flux:field>
+                </div>
             @else
+                <div wire:key="transfer-product-search">
                 <flux:input wire:model.live.debounce.300ms="productSearch" icon="magnifying-glass" :placeholder="__('Modèle du produit…')" />
                 <div class="space-y-1">
                     @foreach ($this->getProductResults() as $product)
@@ -136,6 +142,7 @@
                     @endforeach
                 </div>
                 <flux:error name="requestProductId" />
+                </div>
             @endif
 
             <div class="flex justify-end gap-3 pt-2">

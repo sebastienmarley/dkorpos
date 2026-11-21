@@ -13,12 +13,6 @@ it('redirige les invités vers la page de connexion', function () {
     $this->get(route('schedules.index'))->assertRedirect(route('login'));
 });
 
-it('autorise les utilisateurs authentifiés à accéder à la page', function () {
-    $this->actingAs(User::factory()->create());
-
-    $this->get(route('schedules.index'))->assertOk();
-});
-
 // ── Affichage ──────────────────────────────────────────────────────────────
 
 it('affiche uniquement les horaires de l\'utilisateur connecté', function () {

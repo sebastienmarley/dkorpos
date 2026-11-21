@@ -17,6 +17,7 @@ use App\Models\InventoryZone;
 use App\Models\LedgerEntry;
 use App\Models\Product;
 use App\Models\Reception;
+use App\Models\Role;
 use App\Models\Store;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
@@ -71,12 +72,27 @@ it('montre les quantités du produit par magasin et le total de l\'entreprise', 
     expectInventoryIntegrity($this->product);
 });
 
+it('montre le lien vers les mouvements du produit seulement avec inventory.view', function () {
+    $movementsUrl = route('inventory.movements', ['product' => $this->product->id]);
+
+    Livewire::test(ProductShow::class, ['product' => $this->product->fresh()])
+        ->assertSee($movementsUrl, escape: false);
+
+    Role::create(['name' => 'visiteur', 'label' => 'Visiteur', 'level' => 0, 'guard_name' => 'web']);
+    $viewer = User::factory()->withRole('visiteur')->create();
+    $viewer->givePermissionTo('products.view');
+
+    Livewire::actingAs($viewer)->test(ProductShow::class, ['product' => $this->product->fresh()])
+        ->assertDontSee($movementsUrl, escape: false);
+});
+
 it('indique le magasin de chaque mouvement du journal, limité au magasin de l\'usager et filtrable avec stores.all', function () {
     stockIn($this->product, $this->rimouski, 3);
     stockIn($this->product, $this->gaspe, 2);
 
     Livewire::actingAs(User::factory()->withRole('salesman')->create(['store_id' => $this->rimouski->id]))
         ->test(Movements::class)
+        ->set('typeFilter', Movements::ALL)
         ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->unique()->all() === [$this->rimouski->id])
         ->assertSee('Rimouski')
         ->assertDontSee('Gaspé')
@@ -85,6 +101,7 @@ it('indique le magasin de chaque mouvement du journal, limité au magasin de l\'
         ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->unique()->all() === [$this->rimouski->id]);
 
     Livewire::actingAs($this->owner)->test(Movements::class)
+        ->set('storeFilter', Movements::ALL)
         ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->sort()->values()->all() === [$this->rimouski->id, $this->gaspe->id])
         ->assertSee('Gaspé')
         ->set('storeFilter', (string) $this->gaspe->id)

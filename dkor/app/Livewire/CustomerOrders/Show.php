@@ -35,6 +35,9 @@ class Show extends Component
 {
     use SearchesCustomers;
 
+    /** Valeur du choix « Crédit au compte du client » dans un remboursement. */
+    public const STORE_CREDIT = 'store_credit';
+
     public const MAX_SALESPEOPLE = 3;
 
     /** @var array<int, int> */
@@ -919,8 +922,7 @@ class Show extends Component
 
         if ($this->returnType === 'refund') {
             $this->returnRefundableCents = $this->order->refundableFor($line, (int) $this->returnQuantity)->cents();
-            $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
-            $this->returnRefunds = [['method_id' => $firstMethod ?? '', 'amount' => Money::of($this->returnRefundableCents)->toDecimal()]];
+            $this->returnRefunds = [['method_id' => $this->defaultRefundMethod(), 'amount' => Money::of($this->returnRefundableCents)->toDecimal()]];
             $this->returnStep = 'refund';
 
             return;
@@ -971,7 +973,7 @@ class Show extends Component
         );
 
         $this->validate([
-            'returnRefunds.*.method_id' => ['required', 'integer', Rule::exists('customer_payment_methods', 'id')->where('is_active', true)],
+            'returnRefunds.*.method_id' => ['required', Rule::in($this->refundMethodValues())],
             'returnRefunds.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
         ]);
 
@@ -1043,8 +1045,7 @@ class Show extends Component
 
         if ($this->defectivePath === 'return' && $this->defectiveOutcome === 'refund') {
             $this->defectiveRefundableCents = $this->order->refundableFor($line, (int) $this->defectiveQuantity)->cents();
-            $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
-            $this->defectiveRefunds = [['method_id' => $firstMethod ?? '', 'amount' => Money::of($this->defectiveRefundableCents)->toDecimal()]];
+            $this->defectiveRefunds = [['method_id' => $this->defaultRefundMethod(), 'amount' => Money::of($this->defectiveRefundableCents)->toDecimal()]];
             $this->defectiveStep = 'refund';
 
             return;
@@ -1095,7 +1096,7 @@ class Show extends Component
         );
 
         $this->validate([
-            'defectiveRefunds.*.method_id' => ['required', 'integer', Rule::exists('customer_payment_methods', 'id')->where('is_active', true)],
+            'defectiveRefunds.*.method_id' => ['required', Rule::in($this->refundMethodValues())],
             'defectiveRefunds.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
         ]);
 
@@ -1126,8 +1127,7 @@ class Show extends Component
     {
         $this->authorize('customer_orders.edit');
 
-        $firstMethod = CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->value('id');
-        $this->creditRefunds = [['method_id' => $firstMethod ?? '', 'amount' => $this->order->credit()->toDecimal()]];
+        $this->creditRefunds = [['method_id' => $this->defaultRefundMethod(), 'amount' => $this->order->credit()->toDecimal()]];
         $this->resetErrorBag();
         $this->showCreditRefundModal = true;
     }
@@ -1153,7 +1153,7 @@ class Show extends Component
         );
 
         $this->validate([
-            'creditRefunds.*.method_id' => ['required', 'integer', Rule::exists('customer_payment_methods', 'id')->where('is_active', true)],
+            'creditRefunds.*.method_id' => ['required', Rule::in($this->refundMethodValues())],
             'creditRefunds.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
         ]);
 
@@ -1355,6 +1355,21 @@ class Show extends Component
         $this->pickupPayments[] = ['method_id' => '', 'amount' => $remaining->toDecimal()];
     }
 
+    /**
+     * Bouton « Solde restant » : ce paiement prend tout le solde de la commande, moins le crédit client et les
+     * autres paiements déjà saisis.
+     */
+    public function fillRemainingBalance(int $index): void
+    {
+        if (! isset($this->pickupPayments[$index])) {
+            return;
+        }
+
+        $others = $this->pickupPaymentsTotal()->minus(Money::tryParse($this->pickupPayments[$index]['amount']) ?? Money::zero());
+
+        $this->pickupPayments[$index]['amount'] = $this->order->balance_due->minus($others)->max(Money::zero())->toDecimal();
+    }
+
     public function removePickupPayment(int $index): void
     {
         unset($this->pickupPayments[$index]);
@@ -1420,6 +1435,39 @@ class Show extends Component
         return CustomerPaymentMethod::query()->where('is_active', true)->orderBy('name')->get();
     }
 
+    /**
+     * Choix d'un remboursement : les modes de paiement qui ont servi à payer la commande, avec ce qui reste à
+     * rembourser sur chacun, puis le crédit au compte du client. On ne rembourse jamais sur un autre mode.
+     *
+     * @return list<array{value: string, label: string}>
+     */
+    public function getRefundMethods(): array
+    {
+        $refundable = $this->order->refundableByMethod();
+        $names = CustomerPaymentMethod::query()->whereKey(array_keys($refundable))->pluck('name', 'id');
+        $options = [];
+
+        foreach ($refundable as $methodId => $available) {
+            $options[] = ['value' => (string) $methodId, 'label' => __(':method (jusqu\'à :amount $)', ['method' => $names[$methodId] ?? '—', 'amount' => $available->toDecimal()])];
+        }
+
+        $options[] = ['value' => self::STORE_CREDIT, 'label' => __('Crédit au compte du client')];
+
+        return $options;
+    }
+
+    /** @return list<string> */
+    private function refundMethodValues(): array
+    {
+        return array_column($this->getRefundMethods(), 'value');
+    }
+
+    /** Mode proposé : celui qui a payé le plus sur la commande, sinon le crédit au compte du client. */
+    private function defaultRefundMethod(): string
+    {
+        return (string) (array_key_first($this->order->refundableByMethod()) ?? self::STORE_CREDIT);
+    }
+
     public function cashMethodId(): int
     {
         return CustomerPaymentMethod::cash()->id;
@@ -1466,7 +1514,10 @@ class Show extends Component
      */
     private static function refundsFrom(array $refunds): array
     {
-        return array_map(fn (array $refund): array => ['method_id' => (int) $refund['method_id'], 'amount' => Money::parse($refund['amount'])], $refunds);
+        return array_map(fn (array $refund): array => [
+            'method_id' => (string) $refund['method_id'] === self::STORE_CREDIT ? null : (int) $refund['method_id'],
+            'amount' => Money::parse($refund['amount']),
+        ], $refunds);
     }
 
     /** @return array<int, int> */

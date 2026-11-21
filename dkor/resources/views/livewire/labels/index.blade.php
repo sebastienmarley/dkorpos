@@ -26,9 +26,11 @@
     x-on:print-labels.window="print($event.detail.url)"
 >
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Étiquettes à imprimer') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Les démonstrateurs dont le prix a changé s\'ajoutent automatiquement à la file.') }}</flux:text>
+            <flux:tooltip :content="__('Les démonstrateurs dont le prix a changé s\'ajoutent automatiquement à la file.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
 
         @can('labels.print')
@@ -44,7 +46,7 @@
                 <flux:table.columns>
                     <flux:table.column class="w-0"><flux:checkbox.all /></flux:table.column>
                     <flux:table.column>{{ __('Modèle') }}</flux:table.column>
-                    <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
+                    <flux:table.column class="max-lg:hidden">{{ __('Fournisseur') }}</flux:table.column>
                     <flux:table.column>{{ __('Prix') }}</flux:table.column>
                     <flux:table.column>{{ __('Raison') }}</flux:table.column>
                     <flux:table.column>{{ __('Demandée') }}</flux:table.column>
@@ -59,7 +61,7 @@
                             <flux:table.cell variant="strong">
                                 <flux:link :href="route('products.show', $request->product)" wire:navigate>{{ $request->product->model }}</flux:link>
                             </flux:table.cell>
-                            <flux:table.cell>{{ $request->product->supplier->name }}</flux:table.cell>
+                            <flux:table.cell class="max-lg:hidden">{{ $request->product->supplier->name }}</flux:table.cell>
                             <flux:table.cell>
                                 @if ($request->reason === \App\Enums\LabelReason::PriceChange && $request->product->displayed_price)
                                     <span class="text-zinc-400 line-through">{{ $request->product->displayed_price->format() }}</span>

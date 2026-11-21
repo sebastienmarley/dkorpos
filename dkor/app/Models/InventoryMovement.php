@@ -7,6 +7,7 @@ use App\Concerns\BelongsToStore;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryStatus;
 use App\Support\Money;
+use Carbon\CarbonImmutable;
 use Database\Factories\InventoryMovementFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -53,6 +54,17 @@ class InventoryMovement extends Model
     use HasFactory;
 
     public const UPDATED_AT = null;
+
+    /** Jours de mouvements courants du journal ; les plus anciens passent aux archives, cherchées avec des critères plus stricts. */
+    public const CURRENT_DAYS = 1000;
+
+    /**
+     * Premier instant des mouvements courants : avant, le mouvement est archivé.
+     */
+    public static function archiveCutoff(): CarbonImmutable
+    {
+        return CarbonImmutable::today()->subDays(self::CURRENT_DAYS);
+    }
 
     protected $casts = [
         'from_status' => InventoryStatus::class,

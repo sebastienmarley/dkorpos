@@ -1,8 +1,10 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Modes de paiement') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Modes de paiement acceptés des clients') }}</flux:text>
+            <flux:tooltip :content="__('Modes de paiement acceptés des clients')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
         @can('payment_methods.create')
             <flux:button variant="primary" icon="plus" wire:click="openCreate">

@@ -1,8 +1,12 @@
 <div class="sm:p-6">
     <div class="mb-6">
         <flux:link :href="route('receptions.index')" wire:navigate class="text-sm">← {{ __('Réceptions') }}</flux:link>
-        <flux:heading level="1" size="xl" class="mt-1">{{ __('Nouvelle réception') }}</flux:heading>
-        <flux:text class="mt-1 text-zinc-500">{{ __('Choisissez un fournisseur, cherchez un bon de commande, cochez les produits attendus et saisissez leur quantité prévue (bordereau du fournisseur), puis commencez la réception : vous compterez ensuite ce qui est réellement reçu.') }}</flux:text>
+        <div class="mt-1 flex items-center gap-2">
+            <flux:heading level="1" size="xl">{{ __('Nouvelle réception') }}</flux:heading>
+            <flux:tooltip :content="__('Choisissez un fournisseur, cherchez un bon de commande, cochez les produits attendus et saisissez leur quantité prévue (bordereau du fournisseur), puis commencez la réception : vous compterez ensuite ce qui est réellement reçu.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
+        </div>
     </div>
 
     <form wire:submit="start" class="space-y-6">

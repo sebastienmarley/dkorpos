@@ -1,8 +1,10 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Paie') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Verrouillez les horaires d\'une période de 2 semaines puis téléchargez le rapport.') }}</flux:text>
+            <flux:tooltip :content="__('Verrouillez les horaires d\'une période de 2 semaines puis téléchargez le rapport.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
 
         <div class="w-full sm:w-72">

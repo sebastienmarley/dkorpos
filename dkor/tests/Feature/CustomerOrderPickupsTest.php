@@ -4,6 +4,7 @@ use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
 use App\Enums\InventoryMovementType;
+use App\Livewire\CustomerOrders\Index;
 use App\Livewire\CustomerOrders\Show;
 use App\Models\CustomerOrder;
 use App\Models\CustomerPaymentMethod;
@@ -11,6 +12,7 @@ use App\Models\InventoryMovement;
 use App\Models\InventoryUnit;
 use App\Models\Product;
 use App\Models\Role;
+use App\Models\Store;
 use App\Models\SupplierOrder;
 use App\Models\SupplierOrderLine;
 use App\Models\User;
@@ -204,6 +206,22 @@ describe('modal de ramassage', function () {
             ->assertSet('pickupRequiredCents', 3449);
     });
 
+    it('remplit le solde restant de la commande, moins les autres paiements saisis', function () {
+        $line = stockedLine($this->order, 1, 1, 100);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openPickupModal')
+            ->set("pickupQuantities.{$line->id}", 0)
+            ->call('continueToPayment')
+            ->assertSet('pickupPayments.0.amount', '34.49')
+            ->call('fillRemainingBalance', 0)
+            ->assertSet('pickupPayments.0.amount', '114.98')
+            ->set('pickupPayments.0.amount', '50')
+            ->call('addPickupPayment')
+            ->call('fillRemainingBalance', 1)
+            ->assertSet('pickupPayments.1.amount', '64.98');
+    });
+
     it('propose les lignes avec du stock réservé, calcule le montant, enregistre le ramassage puis revient à la liste', function () {
         $line = stockedLine($this->order, 1, 1, 100);
         stockedLine($this->order, 0, 1, 50);
@@ -388,4 +406,133 @@ it('arrondit au 5 ¢ un remboursement comptant', function () {
         ->amount->toBeMoney(-11498)
         ->rounding_adjustment->toBeMoney(2)
         ->cash_tendered->toBeNull();
+});
+
+it('exige les frais d\'annulation au ramassage, sans que le dépôt de l\'article annulé les efface', function () {
+    $this->order->store->update(['cancellation_fee_percent' => 15]);
+
+    // Article commandé à 100 $ : dépôt de 30 % sur 114,98 $ = 34,49 $
+    $cancelled = $this->order->addProduct(Product::factory()->create(), 1);
+    $this->order->updateLine($cancelled->fresh(), 0, 1, Money::parse(100), null);
+    SupplierOrder::sole()->send();
+    $this->order->fresh()->pickUp([], [['method_id' => $this->cash->id, 'amount' => Money::parse(34.49)]]);
+
+    // Annulé avec 15 % de frais : 15 $, taxés
+    $this->order->fresh()->cancelLineWithFee($cancelled->fresh());
+
+    // Nouvel article à 100 $ ramassé : 100 $ + 15 $ de frais = 115 $ taxés (132,22 $), moins 34,49 $ payés
+    $picked = stockedLine($this->order->fresh(), 1, 1, 100);
+    $order = $this->order->fresh();
+
+    expect($order->amountRequiredFor([$picked->id => 1]))->toBeMoney(9773)
+        ->and(fn () => $order->pickUp([$picked->id => 1], [['method_id' => $this->cash->id, 'amount' => Money::parse(80.49)]]))
+        ->toThrow(DomainException::class);
+
+    $order->fresh()->pickUp([$picked->id => 1], [['method_id' => $this->cash->id, 'amount' => Money::parse(97.73)]]);
+
+    expect($this->order->fresh())
+        ->status->toBe(CustomerOrderStatus::PickedUp)
+        ->balance_due->toBeMoney(0);
+});
+
+describe('magasin servi par l\'entrepôt d\'un autre magasin', function () {
+    beforeEach(function () {
+        $this->warehouse = Store::factory()->create(['name' => 'Entrepôt Rimouski']);
+        $this->order->store->update(['warehouse_store_id' => $this->warehouse->id]);
+        $this->order->refresh();
+        $this->line = stockedLine($this->order, 1, 1, 100);
+    });
+
+    it('ne propose aucun article à ramasser, même réservé à l\'entrepôt', function () {
+        expect($this->line->quantity_reserved)->toBe(1)
+            ->and($this->order->fresh()->allowsPickup())->toBeFalse()
+            ->and($this->order->fresh()->pickableQuantities())->toBe([]);
+    });
+
+    it('refuse de remettre un article, mais encaisse un paiement sans article', function () {
+        expect(fn () => $this->order->fresh()->pickUp([$this->line->id => 1], [['method_id' => $this->cash->id, 'amount' => Money::parse(114.98)]]))
+            ->toThrow(DomainException::class, 'se ramassent à l\'entrepôt');
+
+        $this->order->fresh()->pickUp([], [['method_id' => $this->cash->id, 'amount' => Money::parse(34.49)]]);
+
+        expect($this->order->fresh()->amount_paid)->toBeMoney(3449)
+            ->and($this->line->fresh()->status)->toBe(CustomerOrderLineStatus::InStock);
+    });
+
+    it('laisse un employé de l\'entrepôt ouvrir la commande et remettre les articles au client', function () {
+        $warehouseClerk = User::factory()->withRole('visiteur')->create(['store_id' => $this->warehouse->id]);
+        $warehouseClerk->givePermissionTo(['customer_orders.view', 'customer_orders.edit']);
+        $otherStoreClerk = User::factory()->withRole('visiteur')->create(['store_id' => Store::factory()->create()->id]);
+        $order = $this->order->fresh();
+
+        expect($order->isAccessibleTo($warehouseClerk))->toBeTrue()
+            ->and(CustomerOrder::query()->accessibleTo($warehouseClerk)->pluck('id')->all())->toBe([$order->id])
+            ->and($order->isAccessibleTo($otherStoreClerk))->toBeFalse()
+            ->and(CustomerOrder::query()->accessibleTo($otherStoreClerk)->count())->toBe(0);
+
+        $this->actingAs($warehouseClerk);
+
+        expect($order->allowsPickup())->toBeTrue()
+            ->and($order->pickableQuantities())->toBe([$this->line->id => 1]);
+
+        $order->pickUp([$this->line->id => 1], [['method_id' => $this->cash->id, 'amount' => Money::parse(114.98)]]);
+
+        expect($this->line->fresh()->status)->toBe(CustomerOrderLineStatus::PickedUp);
+    });
+
+    it('montre à l\'entrepôt un badge avec le magasin de provenance de la commande', function () {
+        $this->order->store->update(['name' => 'DKOR Mont-Joli']);
+        $warehouseClerk = User::factory()->withRole('visiteur')->create(['store_id' => $this->warehouse->id]);
+        $warehouseClerk->givePermissionTo(['customer_orders.view', 'customer_orders.edit']);
+        $this->actingAs($warehouseClerk);
+
+        Livewire::test(Show::class, ['order' => $this->order->fresh()])
+            ->assertSee('DKOR Mont-Joli');
+
+        Livewire::test(Index::class)
+            ->set('search', (string) $this->order->id)
+            ->assertSee('DKOR Mont-Joli');
+    });
+
+    it('explique dans le modal que les articles se livrent ou s\'expédient', function () {
+        Livewire::test(Show::class, ['order' => $this->order->fresh()])
+            ->call('openPickupModal')
+            ->assertSet('pickupQuantities', [])
+            ->assertSee('Entrepôt Rimouski')
+            ->assertSee('le client peut aller les y ramasser');
+    });
+});
+
+it('laisse ramasser dans un magasin qui a son stock sur place', function () {
+    expect($this->order->store->hasStockOnSite())->toBeTrue()
+        ->and($this->order->allowsPickup())->toBeTrue();
+});
+
+describe('modal d\'une ligne remise au client', function () {
+    beforeEach(function () {
+        $this->line = pickedUpLine($this->order, 1, 100, $this->cash);
+    });
+
+    it('n\'offre que la note, le retour et le défectueux', function () {
+        Livewire::test(Show::class, ['order' => $this->order->fresh()])
+            ->call('openLineModal', $this->line->id)
+            ->assertSee('Remis au client : 1 ×')
+            ->assertDontSeeHtml('wire:model="editReserved"')
+            ->assertDontSeeHtml('wire:model="editOnOrder"')
+            ->assertDontSeeHtml('wire:model="editUnitPrice"')
+            ->assertDontSeeHtml('wire:model="locationId"')
+            ->assertSee('Note')
+            ->assertSee('Retour')
+            ->assertSee('Défectueux')
+            ->set('editNote', 'Client satisfait')
+            ->call('saveLine')
+            ->assertHasNoErrors();
+
+        expect($this->line->fresh()->note)->toBe('Client satisfait');
+    });
+
+    it('refuse de ranger dans l\'entrepôt un article déjà remis', function () {
+        expect(fn () => $this->order->fresh()->placeLine($this->line->fresh(), null))
+            ->toThrow(DomainException::class, 'déjà remis au client');
+    });
 });

@@ -35,6 +35,7 @@ use Illuminate\Support\Carbon;
  * @property-read int $quantity_net
  * @property-read int $billable_quantity
  * @property-read string $label
+ * @property-read string $supplier_label
  */
 #[Fillable(['reception_id', 'supplier_order_line_id', 'product_id', 'quantity', 'quantity_expected', 'quantity_damaged', 'quantity_short', 'checked_at', 'unit_cost', 'quantity_reversed', 'reversed_at', 'reversed_by', 'reversal_reason'])]
 class ReceptionLine extends Model
@@ -101,6 +102,12 @@ class ReceptionLine extends Model
     public function getLabelAttribute(): string
     {
         return $this->orderLine->label;
+    }
+
+    /** Libellé court pour le fournisseur : celui de la ligne de commande. */
+    public function getSupplierLabelAttribute(): string
+    {
+        return $this->orderLine->supplier_label;
     }
 
     public function getTotalAttribute(): Money

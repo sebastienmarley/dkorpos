@@ -1,8 +1,12 @@
 <div class="sm:p-6">
     <div class="mb-6">
         <flux:link :href="route('accounting.invoices')" wire:navigate class="text-sm">← {{ __('Facturation fournisseurs') }}</flux:link>
-        <flux:heading level="1" size="xl" class="mt-1">{{ __('Nouvelle facture') }}</flux:heading>
-        <flux:text class="mt-1 text-zinc-500">{{ __('Facture rattachée à un fournisseur, sans lien avec une réception ni une commande.') }}</flux:text>
+        <div class="mt-1 flex items-center gap-2">
+            <flux:heading level="1" size="xl">{{ __('Nouvelle facture') }}</flux:heading>
+            <flux:tooltip :content="__('Facture rattachée à un fournisseur, sans lien avec une réception ni une commande.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
+        </div>
     </div>
 
     <form wire:submit="save" class="space-y-6">

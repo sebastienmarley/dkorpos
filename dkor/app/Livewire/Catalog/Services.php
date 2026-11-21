@@ -16,7 +16,13 @@ use Livewire\Component;
 
 class Services extends Component
 {
+    /** Valeur du filtre « Rendu par » pour les services du magasin. */
+    public const string PROVIDER_INTERNAL = 'internal';
+
     public string $search = '';
+
+    /** Rendu par : « internal » (par défaut), l'ID d'un fournisseur, ou vide pour tous. */
+    public string $providerFilter = self::PROVIDER_INTERNAL;
 
     public bool $showModal = false;
 
@@ -163,9 +169,14 @@ class Services extends Component
             'services' => Service::query()
                 ->with('suppliers')
                 ->when(filled($this->search), fn ($query) => $query->whereLike('name', '%'.trim($this->search).'%'))
+                ->when($this->providerFilter === self::PROVIDER_INTERNAL, fn ($query) => $query->where('is_internal', true))
+                ->when(ctype_digit($this->providerFilter), fn ($query) => $query
+                    ->where('is_internal', false)
+                    ->whereRelation('suppliers', 'suppliers.id', (int) $this->providerFilter))
                 ->orderByDesc('is_active')
                 ->orderBy('name')
                 ->get(),
+            'providers' => Supplier::query()->whereHas('services')->orderBy('name')->get(['id', 'name']),
         ])->layout('layouts.app', ['title' => __('Services')]);
     }
 }

@@ -16,7 +16,7 @@ use App\Models\SupplierPaymentAllocation;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Contrôles d'exactitude du grand livre (ADR 0016, I11 à I15) : le solde de chaque compte de contrôle comparé à la
+ * Contrôles d'exactitude du grand livre (ADR 0016, I11 à I16) : le solde de chaque compte de contrôle comparé à la
  * valeur que donnent les documents. Les soldes sont en débits moins crédits.
  */
 class LedgerChecks
@@ -29,7 +29,8 @@ class LedgerChecks
         return [
             ['invariant' => 'I11', 'label' => __('Stock = valeur FIFO des unités en main'), 'ledger' => $this->balance(LedgerAccount::INVENTORY), 'expected' => $this->inventoryValue()],
             ['invariant' => 'I12', 'label' => __('Achats non facturés = réceptions sans facture'), 'ledger' => $this->balance(LedgerAccount::GOODS_RECEIVED_NOT_INVOICED)->negate(), 'expected' => $this->uninvoicedReceptions()],
-            ['invariant' => 'I13', 'label' => __('Dépôts moins comptes clients = payé moins vendu, plus crédits des clients'), 'ledger' => $this->balance(LedgerAccount::CUSTOMER_DEPOSITS)->negate()->minus($this->balance(LedgerAccount::ACCOUNTS_RECEIVABLE)), 'expected' => $this->customerDeposits()],
+            ['invariant' => 'I13', 'label' => __('Dépôts moins comptes clients = payé moins vendu'), 'ledger' => $this->balance(LedgerAccount::CUSTOMER_DEPOSITS)->negate()->minus($this->balance(LedgerAccount::ACCOUNTS_RECEIVABLE)), 'expected' => $this->customerDeposits()],
+            ['invariant' => 'I16', 'label' => __('Crédits de clients = crédits au compte des clients'), 'ledger' => $this->balance(LedgerAccount::CUSTOMER_CREDITS)->negate(), 'expected' => $this->customerCredits()],
             ['invariant' => 'I15', 'label' => __('Comptes fournisseurs = soldes dus des factures au grand livre'), 'ledger' => $this->balance(LedgerAccount::ACCOUNTS_PAYABLE)->negate(), 'expected' => $this->payables()],
         ];
     }
@@ -65,8 +66,12 @@ class LedgerChecks
     {
         $orders = CustomerOrder::query()->get();
 
-        return Money::sum($orders->map(fn (CustomerOrder $order): Money => $order->amount_paid->minus($order->recognizedSales()))->all())
-            ->plus(Money::sum(customer::query()->get()->map(fn (customer $customer): Money => $customer->credit_balance)->all()));
+        return Money::sum($orders->map(fn (CustomerOrder $order): Money => $order->amount_paid->minus($order->recognizedSales()))->all());
+    }
+
+    private function customerCredits(): Money
+    {
+        return Money::sum(customer::query()->get()->map(fn (customer $customer): Money => $customer->credit_balance)->all());
     }
 
     /**

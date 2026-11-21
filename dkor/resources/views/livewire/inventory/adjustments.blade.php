@@ -1,11 +1,21 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Ajustements d\'inventaire') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Pertes, vols, usage magasin, corrections de comptage et stock initial, avec leur écriture au grand livre.') }}</flux:text>
+            <flux:tooltip :content="__('Pertes, vols, usage magasin, corrections de comptage et stock initial, avec leur écriture au grand livre.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
 
         <flux:button variant="primary" icon="adjustments-horizontal" wire:click="openAdjust">{{ __('Nouvel ajustement') }}</flux:button>
+    </div>
+
+    <div class="mb-4 w-full sm:w-40">
+        <flux:select wire:model.live="yearFilter" :aria-label="__('Année')">
+            @foreach ($years as $year)
+                <flux:select.option :value="$year">{{ $year }}</flux:select.option>
+            @endforeach
+        </flux:select>
     </div>
 
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -13,7 +23,7 @@
             <flux:table.columns>
                 <flux:table.column>{{ __('Date') }}</flux:table.column>
                 <flux:table.column>{{ __('Produit') }}</flux:table.column>
-                <flux:table.column>{{ __('Motif') }}</flux:table.column>
+                <flux:table.column class="max-md:hidden">{{ __('Motif') }}</flux:table.column>
                 <flux:table.column>{{ __('État') }}</flux:table.column>
                 <flux:table.column align="end">{{ __('Qté') }}</flux:table.column>
                 <flux:table.column align="end">{{ __('Valeur') }}</flux:table.column>
@@ -25,9 +35,9 @@
                     <flux:table.row :key="$adjustment->id">
                         <flux:table.cell>{{ $adjustment->created_at->format('Y-m-d H:i') }}</flux:table.cell>
                         <flux:table.cell variant="strong">
-                            <flux:link :href="route('products.show', $adjustment->product)" wire:navigate>{{ $adjustment->product->display_name }}</flux:link>
+                            <flux:link :href="route('products.show', $adjustment->product)" wire:navigate>{{ $adjustment->product->model }}</flux:link>
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="max-md:hidden">
                             {{ $adjustment->reason->label() }}
                             <flux:text class="text-xs text-zinc-400">{{ $adjustment->note }}</flux:text>
                         </flux:table.cell>
@@ -47,7 +57,7 @@
                         <flux:table.cell colspan="7" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="adjustments-horizontal" class="h-8 w-8 text-zinc-300" />
-                                <flux:text class="text-zinc-400">{{ __('Aucun ajustement d\'inventaire.') }}</flux:text>
+                                <flux:text class="text-zinc-400">{{ __('Aucun ajustement d\'inventaire pour :year.', ['year' => $yearFilter]) }}</flux:text>
                             </div>
                         </flux:table.cell>
                     </flux:table.row>
@@ -72,7 +82,9 @@
                 <flux:error name="storeId" />
             </flux:field>
 
+            {{-- Une clé par branche : Livewire ne réutilise pas les champs de la recherche pour ceux de la fiche, et inversement. --}}
             @if ($selectedProduct)
+                <div wire:key="adjust-selected-product">
                 <div class="flex items-center justify-between rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                     <div>
                         <flux:text class="font-medium">{{ $selectedProduct->display_name }}</flux:text>
@@ -128,7 +140,9 @@
                         <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @else
+                <div wire:key="adjust-product-search">
                 <flux:input wire:model.live.debounce.300ms="productSearch" icon="magnifying-glass" :placeholder="__('Rechercher un produit…')" />
 
                 <div class="max-h-72 divide-y divide-zinc-200 overflow-y-auto rounded-lg border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
@@ -140,6 +154,7 @@
                     @empty
                         <div class="p-4 text-center"><flux:text class="text-zinc-400">{{ __('Aucun produit trouvé.') }}</flux:text></div>
                     @endforelse
+                </div>
                 </div>
             @endif
         </div>

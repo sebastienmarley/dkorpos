@@ -71,6 +71,7 @@ nom, pas la clé.
 | `supplier_credits_receivable` | 1250 | Crédits à recevoir des fournisseurs | Actif |
 | `goods_received_not_invoiced` | 2110 | Achats non facturés | Passif |
 | `customer_deposits` | 2400 | Dépôts de clients | Passif |
+| `customer_credits` | 2410 | Crédits de clients | Passif |
 | `merchandise_sales` | 4000 | Ventes de marchandises | Produit |
 | `service_sales` | 4100 | Ventes de services | Produit |
 | `cancellation_fees` | 4200 | Frais d'annulation | Produit |
@@ -120,6 +121,8 @@ Avant, l'argent reçu est un dépôt.
 |---|---|---|---|
 | Paiement reçu (`CustomerPaymentType::Payment`) | Compte du mode de paiement | Dépôts de clients | Paiement |
 | Remboursement (`Refund`) | Dépôts de clients | Compte du mode de paiement | Remboursement |
+| Crédit porté au compte du client (`CreditTransfer` : retour remboursé au compte, « Porter au compte du client ») | Dépôts de clients | Crédits de clients | Transfert |
+| Crédit du compte utilisé (`CreditUse`, au ramassage) | Crédits de clients | Dépôts de clients | Utilisation |
 | Arrondi au comptant (`rounding_adjustment`) | Arrondis au comptant (ou l'inverse) | Compte du mode de paiement | Paiement |
 | Ligne livrée, ramassée, expédiée ou service complété | Dépôts de clients, puis Comptes clients pour ce qui n'est pas payé | Ventes de marchandises (produit, pièce) ou Ventes de services ; une taxe à payer par taxe | Remise |
 | Sortie des unités (même événement) | Coût des marchandises vendues | Stock (valeur FIFO des unités sorties) | Remise |
@@ -188,9 +191,10 @@ Nouveaux invariants, vérifiés par des tests et par la commande `php artisan le
 |---|---|
 | I11 | Solde de Stock = somme des coûts des unités ouvertes. |
 | I12 | Solde d'Achats non facturés = valeur nette des unités reçues des réceptions sans facture. |
-| I13 | Dépôts de clients moins Comptes clients = montants payés moins ventes comptabilisées, sur toutes les commandes, plus les crédits au compte des clients. |
+| I13 | Dépôts de clients moins Comptes clients = montants payés moins ventes comptabilisées, sur toutes les commandes. |
 | I14 | Solde de chaque taxe à payer ou à recevoir = taxes des documents comptabilisés (vérifié par les tests seulement). |
 | I15 | Solde de Comptes fournisseurs = total CAD des factures au grand livre, moins les notes de crédit reçues et les paiements actifs (#132). |
+| I16 | Solde de Crédits de clients = somme des crédits au compte des clients (`customers.credit_balance`), *ajouté le 2026-11-15*. |
 
 ### Les états
 

@@ -8,12 +8,17 @@
         <form method="POST" action="{{ route('session-lock.unlock') }}" class="flex flex-col gap-6">
             @csrf
 
+            {{-- autocomplete="one-time-code" : un code, pas un mot de passe enregistré à proposer (voir partials/session-lock). --}}
             <flux:input
                 name="pin"
                 :label="__('NIP')"
                 type="password"
                 inputmode="numeric"
-                autocomplete="off"
+                pattern="[0-9]*"
+                autocomplete="one-time-code"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore
                 maxlength="6"
                 required
                 autofocus

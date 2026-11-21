@@ -209,6 +209,44 @@ it('refuse un renversement de réception si le stock n\'est plus « en stock »'
         ->and(InventoryMovement::count())->toBe(3);
 });
 
+it('limite le journal à la période choisie, 90 jours par défaut', function () {
+    InventoryMovement::factory()->create(['product_id' => Product::factory()->create(['model' => 'Mouvement récent'])->id, 'created_at' => now()->subDays(10)]);
+    InventoryMovement::factory()->create(['product_id' => Product::factory()->create(['model' => 'Mouvement de l\'an passé'])->id, 'created_at' => now()->subDays(200)]);
+
+    Livewire::test(Movements::class)
+        ->assertSet('periodFilter', Movements::DEFAULT_PERIOD)
+        ->set('typeFilter', Movements::ALL)
+        ->assertSee('Mouvement récent')->assertDontSee('Mouvement de l\'an passé')
+        ->set('periodFilter', '365')
+        ->assertSee('Mouvement récent')->assertSee('Mouvement de l\'an passé');
+
+    $product = Product::where('model', 'Mouvement de l\'an passé')->first();
+
+    Livewire::withQueryParams(['product' => $product->id])->test(Movements::class)
+        ->assertSet('periodFilter', (string) InventoryMovement::CURRENT_DAYS)
+        ->assertSee('Mouvement de l\'an passé');
+});
+
+it('cherche les mouvements de plus de 1000 jours dans les archives, par année et avec un critère précis', function () {
+    $archivedAt = InventoryMovement::archiveCutoff()->subDays(30);
+    InventoryMovement::factory()->create(['product_id' => Product::factory()->create(['model' => 'Mouvement archivé'])->id, 'created_at' => $archivedAt]);
+    InventoryMovement::factory()->create(['product_id' => Product::factory()->create(['model' => 'Mouvement courant'])->id, 'created_at' => now()->subDays(10)]);
+
+    Livewire::test(Movements::class)
+        ->set('periodFilter', '1000')
+        ->set('typeFilter', Movements::ALL)
+        ->assertSee('Mouvement courant')->assertDontSee('Mouvement archivé')
+        ->set('periodFilter', Movements::PERIOD_ARCHIVES)
+        ->assertSet('archiveYear', '')
+        ->assertDontSeeHtml('data-flux-table')
+        ->set('archiveYear', (string) $archivedAt->year)
+        ->assertDontSeeHtml('data-flux-table')->assertSee('au moins un critère précis')
+        ->set('typeFilter', InventoryMovementType::Transfer->value)
+        ->assertSee('Mouvement archivé')->assertDontSee('Mouvement courant')
+        ->set('archiveYear', (string) ($archivedAt->year - 5))
+        ->assertDontSeeHtml('data-flux-table');
+});
+
 it('affiche, filtre et alimente le journal depuis la page', function () {
     $a = Product::factory()->create(['model' => 'Produit Alpha']);
     $b = Product::factory()->create(['model' => 'Produit Bêta']);
@@ -217,7 +255,12 @@ it('affiche, filtre et alimente le journal depuis la page', function () {
     InventoryMovement::factory()->create(['product_id' => $b->id, 'from_status' => InventoryStatus::InStock, 'to_status' => InventoryStatus::InDemo]);
 
     Livewire::test(Movements::class)
+        ->assertDontSeeHtml('data-flux-table')->assertDontSee('Aucun mouvement pour ces critères.')
+        ->set('typeFilter', Movements::ALL)
         ->assertSee('Produit Alpha')->assertSee('Produit Bêta')
+        ->set('typeFilter', InventoryMovementType::Receipt->value)
+        ->assertSee('Aucun mouvement pour ces critères.')
+        ->set('typeFilter', '')
         ->set('productFilter', (string) $a->id)
         ->assertSee('Produit Alpha')->assertDontSee('Produit Bêta')
         ->set('productFilter', '')

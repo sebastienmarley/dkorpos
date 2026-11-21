@@ -98,6 +98,25 @@ describe('commandes clients', function () {
 
         expect(CustomerOrder::where('customer_id', $customer->id)->sole()->store_id)->toBe($this->rimouski->id);
     });
+
+    it('n\'offre pas un magasin virtuel sans entrepôt pour une nouvelle commande', function () {
+        $headOffice = Store::factory()->virtual()->create(['name' => 'Bureau chef']);
+        $onlineStore = Store::factory()->virtual()->create(['name' => 'En ligne', 'warehouse_store_id' => $this->rimouski->id]);
+        $this->owner->update(['store_id' => $headOffice->id]);
+        $this->actingAs($this->owner);
+        $customer = customer::factory()->create();
+
+        Livewire::test(CustomerOrdersIndex::class)
+            ->call('openCreate')
+            ->assertSet('createStoreId', (string) $onlineStore->id)
+            ->assertViewHas('createStores', fn ($stores): bool => ! $stores->contains($headOffice) && $stores->contains($onlineStore))
+            ->assertViewHas('stores', fn ($stores): bool => $stores->contains($headOffice))
+            ->set('createStoreId', (string) $headOffice->id)
+            ->call('create', $customer->id)
+            ->assertNoRedirect();
+
+        expect(CustomerOrder::where('customer_id', $customer->id)->exists())->toBeFalse();
+    });
 });
 
 describe('livraisons', function () {
@@ -229,6 +248,7 @@ describe('commandes fournisseurs', function () {
         $this->actingAs($this->clerk);
 
         Livewire::test(SupplierOrdersIndex::class)
+            ->set('search', 'CF-')
             ->assertViewHas('orders', fn (LengthAwarePaginator $orders): bool => listedOrderIds($orders) === [$mine->id])
             ->assertDontSee('Tous les magasins');
 
@@ -252,6 +272,33 @@ describe('commandes fournisseurs', function () {
         expect(SupplierOrder::count())->toBe(0);
     });
 
+    it('n\'offre comme destination que les magasins qui tiennent du stock', function () {
+        $montJoli = Store::factory()->create(['name' => 'Mont-Joli', 'warehouse_store_id' => $this->rimouski->id]);
+        $headOffice = Store::factory()->virtual()->create(['name' => 'Bureau chef']);
+        $this->actingAs($this->owner);
+
+        Livewire::test(SupplierOrdersIndex::class)
+            ->call('openCreate')
+            ->assertViewHas('stores', fn ($stores): bool => $stores->modelKeys() === [$this->gaspe->id, $this->rimouski->id])
+            ->set('newSupplierId', (string) $this->supplier->id)
+            ->set('newStoreId', (string) $montJoli->id)
+            ->call('create')
+            ->assertHasErrors(['newStoreId' => 'in'])
+            ->set('newStoreId', (string) $headOffice->id)
+            ->call('create')
+            ->assertHasErrors(['newStoreId' => 'in']);
+
+        expect(SupplierOrder::count())->toBe(0);
+    });
+
+    it('refuse de créer une commande fournisseur pour un magasin servi par un entrepôt', function () {
+        $montJoli = Store::factory()->create(['name' => 'Mont-Joli', 'warehouse_store_id' => $this->rimouski->id]);
+        $this->actingAs($this->owner);
+
+        expect(fn () => SupplierOrder::factory()->create(['store_id' => $montJoli->id]))
+            ->toThrow(DomainException::class, 'ne tient pas de stock');
+    });
+
     it('laisse le propriétaire créer et filtrer les commandes du magasin de son choix', function () {
         $this->actingAs($this->owner);
 
@@ -267,6 +314,7 @@ describe('commandes fournisseurs', function () {
         expect($order->store_id)->toBe($this->gaspe->id);
 
         Livewire::test(SupplierOrdersIndex::class)
+            ->set('search', 'CF-')
             ->set('storeFilter', (string) $this->rimouski->id)
             ->assertViewHas('orders', fn (LengthAwarePaginator $orders): bool => listedOrderIds($orders) === [])
             ->set('storeFilter', '')

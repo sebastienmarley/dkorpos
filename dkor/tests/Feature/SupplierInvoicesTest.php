@@ -88,6 +88,17 @@ it('affiche les réceptions d\'une commande partiellement reçue et cache les r�
         ->assertSee($invoiced->number)->assertSee('F-1');
 });
 
+it('affiche seulement le modèle fournisseur dans le tableau des produits de la facture', function () {
+    [$order, [$line]] = orderToInvoice(quantities: [2]);
+    $line->product->update(['model' => 'DKOR-SOFA-1', 'supplier_model' => 'ACME-7788']);
+    $line->update(['description' => 'Note interne']);
+
+    Livewire::test(Form::class, ['reception' => receive($order, $line->fresh(), 2)])
+        ->assertSee('ACME-7788')
+        ->assertDontSee('DKOR-SOFA-1')
+        ->assertDontSee('Note interne');
+});
+
 it('facture une réception partielle: coûts réels, frais, écart et statut de la commande', function () {
     [$order, [$line]] = orderToInvoice(quantities: [10], cost: 5.0);
     $reception = receive($order, $line, 4);

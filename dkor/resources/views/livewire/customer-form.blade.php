@@ -27,7 +27,12 @@
             <flux:error name="email" />
         </flux:field>
 
-        <flux:checkbox wire:model="notificationsOptOut" :label="__('Refuse les avis automatiques')" :description="__('Aucun avis de livraison, de ramassage ou de rendez-vous. La commande peut quand même lui être envoyée à la main.')" />
+        <div class="flex items-center gap-2">
+            <flux:checkbox wire:model="notificationsOptOut" :label="__('Refuse les avis automatiques')" />
+            <flux:tooltip :content="__('Aucun avis de livraison, de ramassage ou de rendez-vous. La commande peut quand même lui être envoyée à la main.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
+        </div>
 
         <div>
             <flux:heading size="sm" class="mb-4">{{ __('Adresse') }}</flux:heading>

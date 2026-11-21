@@ -1,15 +1,20 @@
 <div class="sm:p-6">
     {{-- En-tête --}}
-    <div class="mb-6 grid grid-cols-1 items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
-        <div>
+    <div class="mb-6 grid grid-cols-1 items-center gap-4 sm:grid-cols-2 md:grid-cols-[1fr_auto_1fr]">
+        {{-- En sm, le titre prend la ligne ; client et vendeurs à gauche, Imprimer et Envoyer à droite en dessous. --}}
+        <div class="sm:max-md:col-span-2">
             <flux:link :href="route('customer-orders.index')" wire:navigate class="text-sm">
                 ← {{ __('Commandes clients') }}
             </flux:link>
-            <div class="mt-1 flex items-center gap-3">
+            <div class="mt-1 flex items-center gap-3 max-sm:justify-center">
                 <flux:heading level="1" size="xl">{{ __('Commande #:id', ['id' => $order->id]) }}</flux:heading>
                 <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label() }}</flux:badge>
+                @if ($order->store && $order->store_id !== (int) auth()->user()->store_id)
+                    {{-- Commande d'un autre magasin (ex. ouverte à l'entrepôt qui le sert) : on voit d'où elle vient. --}}
+                    <flux:badge color="sky" size="sm" icon="building-storefront">{{ $order->store->name }}</flux:badge>
+                @endif
             </div>
-            <flux:text class="mt-1 text-zinc-500">
+            <flux:text class="mt-1 text-zinc-500 max-sm:text-center">
                 {{ __('Créée le :date', ['date' => $order->created_at->format('Y-m-d')]) }}
                 @if ($order->creator)
                     {{ __('par :name', ['name' => $order->creator->fullName()]) }}
@@ -18,23 +23,26 @@
         </div>
 
         {{-- Client et vendeurs --}}
-        <div class="flex flex-col items-center gap-2">
-            <div class="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
-                <flux:icon.user class="h-4 w-4 text-zinc-400" />
-                <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $order->customer->firstname }} {{ $order->customer->lastname }}</span>
+        <div class="flex flex-col items-center gap-2 sm:max-md:items-start">
+            {{-- Les vendeurs à droite du client à partir de sm ; en dessous en xs, où le client prend la largeur. --}}
+            <div class="flex flex-col items-center gap-2 max-sm:w-full sm:flex-row sm:flex-wrap sm:gap-x-4">
+                <div class="flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 max-sm:w-full dark:border-zinc-700 dark:bg-zinc-800">
+                    <flux:icon.user class="h-4 w-4 text-zinc-400" />
+                    <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $order->customer->firstname }} {{ $order->customer->lastname }}</span>
+                </div>
+
+                <div class="text-center text-sm text-zinc-600 sm:text-left dark:text-zinc-300">
+                    <span class="font-medium">{{ __('Vendeur(s)') }} :</span>
+                    {{ $order->salespeople->map(fn ($salesperson) => $salesperson->fullName())->join(', ') ?: '—' }}
+                </div>
             </div>
 
             @if ($order->customer->credit_balance->isPositive())
                 <flux:badge color="green" size="sm" icon="wallet">{{ __('Crédit au compte : :amount $', ['amount' => $order->customer->credit_balance->toDecimal()]) }}</flux:badge>
             @endif
-
-            <div class="text-center text-sm text-zinc-600 dark:text-zinc-300">
-                <span class="font-medium">{{ __('Vendeur(s)') }} :</span>
-                {{ $order->salespeople->map(fn ($salesperson) => $salesperson->fullName())->join(', ') ?: '—' }}
-            </div>
         </div>
 
-        <div class="flex flex-col items-start gap-2 md:items-end">
+        <div class="flex flex-col items-start gap-2 sm:items-end">
             <div class="flex flex-wrap gap-2">
                 <flux:button variant="ghost" icon="printer" :href="route('customer-orders.print', $order)" target="_blank">
                     {{ __('Imprimer') }}
@@ -45,54 +53,55 @@
                     </flux:button>
                 @endif
             </div>
+        </div>
+    </div>
 
+    {{-- Actions : la commande sur la première ligne, les articles sur la deuxième. Pleine largeur à partir de md ; en sm, les boutons d'ajout remplissent leur ligne et le scan UPC prend la suivante. --}}
+    @php($showsShippingActions = $order->lines->contains(fn ($line) => ! $line->isService() && $line->status->isPickable()))
+    <div class="mb-3 space-y-2">
+        <div class="flex flex-wrap gap-2">
             @can('customer_orders.edit')
-                <flux:button variant="primary" icon="user-plus" wire:click="openCustomerModal">
+                <flux:button variant="primary" icon="user-plus" wire:click="openCustomerModal" class="max-sm:w-full sm:flex-1">
                     {{ __('Changer le client') }}
                 </flux:button>
             @endcan
 
             @can('customer_orders.assign_salespeople')
-                <flux:button icon="users" wire:click="openSalespeopleModal">
+                <flux:button icon="users" wire:click="openSalespeopleModal" class="max-sm:w-full sm:flex-1">
                     {{ __('Ajouter un vendeur') }}
                 </flux:button>
             @endcan
-        </div>
-    </div>
 
-    {{-- Produits --}}
-    <div class="mb-6">
+            @can('customer_orders.edit')
+                @if ($showsShippingActions && $order->store?->offersDelivery())
+                    <flux:button icon="truck" x-on:click="$dispatch('open-delivery-modal')" class="flex-1">{{ __('Livraison') }}</flux:button>
+                @endif
+                @if ($showsShippingActions && $order->store?->offersShipping())
+                    <flux:button icon="paper-airplane" x-on:click="$dispatch('open-delivery-modal', { method: 'shipping' })" class="flex-1">{{ __('Expédition') }}</flux:button>
+                @endif
+            @endcan
+        </div>
+
         @can('customer_orders.edit')
-            <div class="mb-3 flex flex-wrap items-start gap-3">
-                <flux:button icon="plus" wire:click="openProductModal">{{ __('Ajouter un produit') }}</flux:button>
-                <flux:button icon="wrench" wire:click="openServiceModal">{{ __('Ajouter un service') }}</flux:button>
+            <div class="flex flex-wrap items-start gap-2">
+                <flux:button icon="plus" wire:click="openProductModal" class="max-sm:w-full sm:flex-1">{{ __('Ajouter un produit') }}</flux:button>
+                <flux:button icon="wrench" wire:click="openServiceModal" class="max-sm:w-full sm:flex-1">{{ __('Ajouter un service') }}</flux:button>
                 @can('parts.view')
-                    <flux:button icon="puzzle-piece" x-on:click="$dispatch('open-part-picker')">{{ __('Ajouter une pièce') }}</flux:button>
+                    <flux:button icon="puzzle-piece" x-on:click="$dispatch('open-part-picker')" class="max-sm:w-full sm:flex-1">{{ __('Ajouter une pièce') }}</flux:button>
                 @endcan
 
-                <form wire:submit="scanUpc" class="w-full sm:w-64">
+                <form wire:submit="scanUpc" class="w-full md:w-auto md:flex-1">
                     <flux:field>
                         <flux:input wire:model="upcScan" icon="qr-code" inputmode="numeric" autocomplete="off" autofocus :placeholder="__('Scanner un UPC…')" />
                         <flux:error name="upcScan" />
                     </flux:field>
                 </form>
-
-                <div class="ms-auto flex flex-wrap gap-2">
-                    @if ($order->lines->contains(fn ($line) => ! $line->isService() && $line->status->isPickable()))
-                        @if ($order->store?->offersDelivery())
-                            <flux:button icon="truck" x-on:click="$dispatch('open-delivery-modal')">{{ __('Livraison') }}</flux:button>
-                        @endif
-                        @if ($order->store?->offersShipping())
-                            <flux:button icon="paper-airplane" x-on:click="$dispatch('open-delivery-modal', { method: 'shipping' })">{{ __('Expédition') }}</flux:button>
-                        @endif
-                    @endif
-                    @if ($order->balance_due->isPositive() || $order->lines->contains(fn ($line) => $line->status->isPickable() && $line->quantity_reserved > 0))
-                        <flux:button variant="primary" icon="shopping-cart" wire:click="openPickupModal">{{ __('Poursuivre') }}</flux:button>
-                    @endif
-                </div>
             </div>
         @endcan
+    </div>
 
+    {{-- Produits --}}
+    <div class="mb-6">
         <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <flux:table>
                 <flux:table.columns>
@@ -284,6 +293,15 @@
 
     <livewire:customer-orders.deliveries :order="$order" />
 
+    {{-- Poursuivre : en bas à droite du contenu, pleine largeur sur téléphone --}}
+    @can('customer_orders.edit')
+        @if ($order->balance_due->isPositive() || $order->lines->contains(fn ($line) => $line->status->isPickable() && $line->quantity_reserved > 0))
+            <div class="mb-6 flex justify-end">
+                <flux:button variant="primary" icon="shopping-cart" wire:click="openPickupModal" class="max-sm:w-full">{{ __('Poursuivre') }}</flux:button>
+            </div>
+        @endif
+    @endcan
+
     @can('customer_orders.assign_salespeople')
         <flux:modal wire:model="showSalespeopleModal" class="w-full max-w-lg">
             <flux:heading class="mb-1">{{ __('Vendeurs') }}</flux:heading>
@@ -447,6 +465,9 @@
     @can('customer_orders.edit')
         <flux:modal wire:model="showLineModal" class="w-full max-w-lg">
             @if ($editingLine)
+                {{-- Une clé par ligne : sans elle, Livewire réutilise les champs de la ligne éditée avant (ex. En stock / En
+                     commande d'un produit à la place de Quantité à commander / Prix vendant d'une pièce) et en garde les valeurs. --}}
+                <div wire:key="edit-line-{{ $editingLine->id }}">
                 @if ($editingLine->isService())
                     <flux:heading class="mb-1">{{ $editingLine->service->name }} <span class="font-normal text-zinc-500">· {{ $editingLine->supplier?->name ?? __('Interne') }}</span></flux:heading>
                 @elseif ($editingLine->isPart())
@@ -457,13 +478,23 @@
                 @endif
                 <flux:badge :color="$editingLine->status->color()" size="sm">{{ $editingLine->status->label() }}</flux:badge>
 
-                @unless ($editingLine->isService())
+                {{-- Article remis au client (ramassé, livré, expédié, complété) : il est sorti de l'inventaire. Seuls la note,
+                     le retour et le défectueux restent offerts. --}}
+                @php($handedOver = $editingLine->status->isHandedOver())
+
+                @if ($handedOver)
+                    <flux:text class="mt-3 text-sm text-zinc-500">
+                        {{ __('Remis au client : :count × :price', ['count' => $editingLine->quantity, 'price' => $editingLine->unit_price->format()]) }}
+                    </flux:text>
+                @endif
+
+                @unless ($editingLine->isService() || $handedOver)
                     <div class="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                         <livewire:line-placement :line-id="$editingLine->id" :key="'placement-'.$editingLine->id" />
                     </div>
                 @endunless
 
-                @if ($editingLine->product_id && ! $editingLine->is_custom)
+                @if ($editingLine->product_id && ! $editingLine->is_custom && ! $handedOver)
                     <div class="mt-4">
                         <livewire:customer-orders.line-transfer :line-id="$editingLine->id" :key="'transfer-'.$editingLine->id" />
                     </div>
@@ -472,7 +503,9 @@
                 <form wire:submit="saveLine" class="mt-6 space-y-4">
                     @php($editable = $editingLine->status->isEditable())
 
-                    @if ($editingLine->isService())
+                    @if ($handedOver)
+                        {{-- Rien à modifier : quantités, prix et rangement sont figés une fois l'article remis. --}}
+                    @elseif ($editingLine->isService())
                     <flux:field>
                         <flux:label>{{ __('Description') }}</flux:label>
                         <flux:input wire:model="editDescription" :disabled="! $editable" />
@@ -542,14 +575,21 @@
                         </flux:field>
 
                         <flux:field>
-                            <flux:label>{{ __('Prix vendant') }}</flux:label>
+                            <flux:label>
+                                {{ __('Prix vendant') }}
+                                <span class="ms-1 font-normal text-zinc-400">{{ __('calculé : :price $', ['price' => $editingLine->part->selling_price->toDecimal()]) }}</span>
+                            </flux:label>
                             <flux:input wire:model="editUnitPrice" inputmode="decimal" :disabled="! $partPriceEditable || $editNoCharge" />
-                            <flux:description>{{ __('Prix calculé : :price $', ['price' => $editingLine->part->selling_price->toDecimal()]) }}</flux:description>
                             <flux:error name="editUnitPrice" />
                         </flux:field>
                     </div>
 
-                    <flux:checkbox wire:model.live="editNoCharge" :label="__('Sans frais')" :description="__('Pièce remise gratuitement au client (ex. : sous garantie) : prix de 0 $.')" :disabled="! $partPriceEditable" />
+                    <div class="flex items-center gap-2">
+                        <flux:checkbox wire:model.live="editNoCharge" :label="__('Sans frais')" :disabled="! $partPriceEditable" />
+                        <flux:tooltip :content="__('Pièce remise gratuitement au client (ex. : sous garantie) : prix de 0 $.')">
+                            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                        </flux:tooltip>
+                    </div>
                     @else
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>
@@ -641,6 +681,7 @@
                         <flux:button type="submit" variant="primary">{{ __('Enregistrer') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @endif
         </flux:modal>
     @endcan
@@ -652,7 +693,9 @@
                 <flux:heading class="mb-1">{{ __('Retour') }} — {{ $returnLine->product->model }} <span class="font-normal text-zinc-500">#{{ $returnLine->product_id }}</span></flux:heading>
                 <flux:text class="text-zinc-500">{{ __(':count remis au client à :price $', ['count' => $returnLine->quantity, 'price' => $returnLine->unit_price->toDecimal()]) }}</flux:text>
 
+                {{-- Une clé par étape : Livewire ne réutilise pas les champs d'une étape pour ceux d'une autre. --}}
                 @if ($returnStep === 'choice')
+                    <div wire:key="return-step-choice">
                     <form wire:submit="continueReturn" class="mt-6 space-y-4">
                         <flux:field>
                             <flux:label>{{ __('Quantité retournée') }}</flux:label>
@@ -671,7 +714,9 @@
                             <flux:button type="submit" variant="primary">{{ $returnType === 'refund' ? __('Continuer vers le remboursement') : __('Reprendre l\'article') }}</flux:button>
                         </div>
                     </form>
+                    </div>
                 @else
+                    <div wire:key="return-step-refund">
                     <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
                         <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Quantité reprise') }}</dt><dd>{{ $returnQuantity }}</dd></div>
                         <div class="flex justify-between font-semibold"><dt>{{ __('Remboursable') }}</dt><dd>{{ \App\Support\Money::of($returnRefundableCents)->format() }}</dd></div>
@@ -684,8 +729,8 @@
                                 <div class="flex-1">
                                     <flux:select wire:model.live="returnRefunds.{{ $index }}.method_id">
                                         <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
-                                        @foreach ($this->getPaymentMethods() as $method)
-                                            <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
+                                        @foreach ($this->getRefundMethods() as $method)
+                                            <flux:select.option :value="$method['value']">{{ $method['label'] }}</flux:select.option>
                                         @endforeach
                                     </flux:select>
                                     <flux:error name="returnRefunds.{{ $index }}.method_id" />
@@ -715,6 +760,7 @@
                             <flux:button type="submit" variant="primary">{{ __('Reprendre et rembourser') }}</flux:button>
                         </div>
                     </form>
+                    </div>
                 @endif
             @endif
         </flux:modal>
@@ -854,7 +900,9 @@
                 <flux:heading class="mb-1">{{ __('Défectueux') }} — {{ $defectiveLine->product->model }} <span class="font-normal text-zinc-500">#{{ $defectiveLine->product_id }}</span></flux:heading>
                 <flux:text class="text-zinc-500">{{ __(':count remis au client à :price $', ['count' => $defectiveLine->quantity, 'price' => $defectiveLine->unit_price->toDecimal()]) }}</flux:text>
 
+                {{-- Une clé par étape : Livewire ne réutilise pas les champs d'une étape pour ceux d'une autre. --}}
                 @if ($defectiveStep === 'choice')
+                    <div wire:key="defective-step-choice">
                     <form wire:submit="continueDefective" class="mt-6 space-y-4">
                         <flux:field>
                             <flux:label>{{ __('Quantité défectueuse') }}</flux:label>
@@ -868,19 +916,19 @@
                         </flux:radio.group>
 
                         @if ($defectivePath === 'part')
-                            <flux:field>
+                            <flux:field wire:key="defective-part">
                                 <flux:label>{{ __('Pièce à commander') }}</flux:label>
                                 <flux:input wire:model="defectivePart" :placeholder="__('No de pièce, description…')" />
                                 <flux:error name="defectivePart" />
                             </flux:field>
 
-                            <flux:field>
+                            <flux:field wire:key="defective-part-reason">
                                 <flux:label>{{ __('Raison (optionnel)') }}</flux:label>
                                 <flux:textarea wire:model="defectiveReason" rows="2" />
                                 <flux:error name="defectiveReason" />
                             </flux:field>
                         @else
-                            <flux:field>
+                            <flux:field wire:key="defective-return-reason">
                                 <flux:label>{{ __('Raison du défaut') }}</flux:label>
                                 <flux:textarea wire:model="defectiveReason" rows="3" />
                                 <flux:error name="defectiveReason" />
@@ -892,7 +940,7 @@
                                 <flux:description>{{ __('Bientôt disponible.') }}</flux:description>
                             </flux:field>
 
-                            <flux:radio.group wire:model.live="defectiveOutcome" :label="__('Le client veut')">
+                            <flux:radio.group wire:key="defective-outcome" wire:model.live="defectiveOutcome" :label="__('Le client veut')">
                                 <flux:radio value="replace" :label="__('Un remplacement')" :description="__('Même produit au même prix, pris en stock ou commandé.')" />
                                 <flux:radio value="refund" :label="__('Un remboursement sans frais')" />
                             </flux:radio.group>
@@ -911,7 +959,9 @@
                             </flux:button>
                         </div>
                     </form>
+                    </div>
                 @else
+                    <div wire:key="defective-step-refund">
                     <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
                         <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Quantité reprise') }}</dt><dd>{{ $defectiveQuantity }}</dd></div>
                         <div class="flex justify-between font-semibold"><dt>{{ __('Remboursable') }}</dt><dd>{{ \App\Support\Money::of($defectiveRefundableCents)->format() }}</dd></div>
@@ -923,8 +973,8 @@
                                 <div class="flex-1">
                                     <flux:select wire:model.live="defectiveRefunds.{{ $index }}.method_id">
                                         <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
-                                        @foreach ($this->getPaymentMethods() as $method)
-                                            <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
+                                        @foreach ($this->getRefundMethods() as $method)
+                                            <flux:select.option :value="$method['value']">{{ $method['label'] }}</flux:select.option>
                                         @endforeach
                                     </flux:select>
                                     <flux:error name="defectiveRefunds.{{ $index }}.method_id" />
@@ -954,6 +1004,7 @@
                             <flux:button type="submit" variant="primary">{{ __('Reprendre et rembourser') }}</flux:button>
                         </div>
                     </form>
+                    </div>
                 @endif
             @endif
         </flux:modal>
@@ -971,8 +1022,8 @@
                         <div class="flex-1">
                             <flux:select wire:model.live="creditRefunds.{{ $index }}.method_id">
                                 <flux:select.option value="">{{ __('Mode de remboursement…') }}</flux:select.option>
-                                @foreach ($this->getPaymentMethods() as $method)
-                                    <flux:select.option :value="$method->id">{{ $method->name }}</flux:select.option>
+                                @foreach ($this->getRefundMethods() as $method)
+                                    <flux:select.option :value="$method['value']">{{ $method['label'] }}</flux:select.option>
                                 @endforeach
                             </flux:select>
                             <flux:error name="creditRefunds.{{ $index }}.method_id" />
@@ -1010,10 +1061,18 @@
         <flux:modal wire:model="showPickupModal" class="w-full max-w-2xl">
             <flux:heading class="mb-1">{{ __('Ramassage') }}</flux:heading>
 
+            {{-- Une clé par étape : Livewire ne réutilise pas les champs d'une étape pour ceux d'une autre. --}}
             @if ($pickupStep === 'items')
+                <div wire:key="pickup-step-items">
                 <flux:text class="text-zinc-500">{{ __('Quantités remises au client (stock réservé seulement). Laissez à 0 pour encaisser un paiement sans ramassage.') }}</flux:text>
 
-                @if ($pickupQuantities === [])
+                @if (! $order->allowsPickup())
+                    <flux:callout icon="truck" color="amber" class="mt-4">
+                        <flux:callout.text>
+                            {{ __('Les articles de ce magasin sont à l\'entrepôt de :warehouse : le client peut aller les y ramasser (la commande s\'ouvre là-bas), sinon utilisez Livraison ou Expédition. Vous pouvez encaisser un paiement.', ['warehouse' => $order->store->warehouse?->name]) }}
+                        </flux:callout.text>
+                    </flux:callout>
+                @elseif ($pickupQuantities === [])
                     <flux:text class="mt-4 text-sm text-zinc-400">{{ __('Aucun article disponible à ramasser : vous pouvez encaisser un paiement.') }}</flux:text>
                 @endif
 
@@ -1050,7 +1109,9 @@
                         <flux:button type="submit" variant="primary">{{ __('Continuer vers le paiement') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @else
+                <div wire:key="pickup-step-payment">
                 <dl class="mt-4 space-y-1 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
                     <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Total de la commande') }}</dt><dd>{{ $order->total->format() }}</dd></div>
                     <div class="flex justify-between"><dt class="text-zinc-500">{{ __('Déjà payé') }}</dt><dd>{{ $order->amount_paid->format() }}</dd></div>
@@ -1090,7 +1151,12 @@
                     @endif
                 </div>
 
-                <form wire:submit="confirmPickup" class="mt-6 space-y-3">
+                {{-- Entrée dans un champ valide la saisie sans confirmer le ramassage : seul le bouton confirme. --}}
+                <form
+                    wire:submit="confirmPickup"
+                    class="mt-6 space-y-3"
+                    x-on:keydown.enter="if ($event.target.tagName === 'INPUT') { $event.preventDefault(); $event.target.blur(); }"
+                >
                     @if ($order->customer->credit_balance->isPositive())
                         <div class="flex items-start gap-2">
                             <div class="flex flex-1 items-center gap-2 text-sm">
@@ -1119,6 +1185,10 @@
                                 </flux:select>
                                 <flux:error name="pickupPayments.{{ $index }}.method_id" />
                             </div>
+                            {{-- En xs : pleine largeur, au-dessus de la ligne de paiement (sous la promotion). --}}
+                            <flux:button type="button" icon="banknotes" wire:click="fillRemainingBalance({{ $index }})" class="max-sm:order-first max-sm:w-full">
+                                {{ __('Solde restant') }}
+                            </flux:button>
                             <div class="w-32">
                                 <flux:input wire:model.blur="pickupPayments.{{ $index }}.amount" inputmode="decimal" />
                                 <flux:error name="pickupPayments.{{ $index }}.amount" />
@@ -1152,9 +1222,10 @@
 
                     <div class="flex justify-between gap-3 pt-2">
                         <flux:button type="button" variant="ghost" icon="arrow-left" wire:click="backToPickupItems">{{ __('Retour') }}</flux:button>
-                        <flux:button type="submit" variant="primary">{{ __('Confirmer le ramassage') }}</flux:button>
+                        <flux:button type="submit" variant="primary">{{ __('Terminer la transaction') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @endif
         </flux:modal>
     @endcan

@@ -1,16 +1,31 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Services') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Services vendus aux clients : rendus par le magasin ou par des fournisseurs') }}</flux:text>
+            <flux:tooltip :content="__('Services vendus aux clients : rendus par le magasin ou par des fournisseurs')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
         @can('services.create')
             <flux:button variant="primary" icon="plus" wire:click="openCreate">{{ __('Ajouter') }}</flux:button>
         @endcan
     </div>
 
-    <div class="mb-4">
-        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Rechercher un service…')" />
+    {{-- Filtres : la page s'ouvre sur les services rendus par le magasin. Jusqu'à md, la ligne est pleine. --}}
+    <div class="mb-4 flex flex-wrap gap-3">
+        <div class="w-full sm:w-auto sm:flex-1 lg:w-72 lg:flex-none">
+            <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Rechercher un service…')" />
+        </div>
+
+        <div class="w-full sm:w-56">
+            <flux:select wire:model.live="providerFilter">
+                <flux:select.option value="{{ \App\Livewire\Catalog\Services::PROVIDER_INTERNAL }}">{{ __('Interne') }}</flux:select.option>
+                @foreach ($providers as $provider)
+                    <flux:select.option :value="$provider->id">{{ $provider->name }}</flux:select.option>
+                @endforeach
+                <flux:select.option value="">{{ __('Tous les fournisseurs') }}</flux:select.option>
+            </flux:select>
+        </div>
     </div>
 
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -19,20 +34,22 @@
                 <flux:table.column>{{ __('Service') }}</flux:table.column>
                 <flux:table.column>{{ __('Rendu par') }}</flux:table.column>
                 <flux:table.column align="end">{{ __('Prix') }}</flux:table.column>
-                <flux:table.column>{{ __('Taxes') }}</flux:table.column>
                 <flux:table.column />
             </flux:table.columns>
 
             <flux:table.rows>
+                @php
+                    $canEditServices = auth()->user()->can('services.edit');
+                @endphp
                 @forelse ($services as $service)
-                    <flux:table.row :key="$service->id" @class(['opacity-50' => ! $service->is_active])>
+                    <x-table.row-link :key="$service->id" :action="$canEditServices ? '$wire.openEdit('.$service->id.')' : null" @class(['opacity-50' => ! $service->is_active])>
                         <flux:table.cell variant="strong">
                             {{ $service->name }}
                             @unless ($service->is_active)
                                 <flux:badge size="sm" class="ms-2">{{ __('Inactif') }}</flux:badge>
                             @endunless
                             @if ($service->isSystem())
-                                <flux:badge size="sm" color="zinc" icon="lock-closed" class="ms-2">{{ __('Géré par l\'application') }}</flux:badge>
+                                <flux:badge size="sm" color="zinc" icon="lock-closed" class="ms-2" :title="__('Géré par l\'application')"><span class="max-sm:hidden">{{ __('Géré par l\'application') }}</span></flux:badge>
                             @endif
                             @if ($service->description_template)
                                 <div class="max-w-md truncate text-xs font-normal text-zinc-400">{{ $service->description_template }}</div>
@@ -55,19 +72,13 @@
                                 —
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>{{ $service->is_taxable ? __('Taxable') : __('Non taxable') }}</flux:table.cell>
-                        <flux:table.cell class="text-right">
-                            @can('services.edit')
-                                <flux:button variant="ghost" size="sm" icon="pencil" wire:click="openEdit({{ $service->id }})" />
-                            @endcan
-                        </flux:table.cell>
-                    </flux:table.row>
+                    </x-table.row-link>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="5" class="py-12 text-center">
+                        <flux:table.cell colspan="4" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="wrench" class="h-8 w-8 text-zinc-300" />
-                                <flux:text class="text-zinc-400">{{ __('Aucun service.') }}</flux:text>
+                                <flux:text class="text-zinc-400">{{ __('Aucun service pour ces critères.') }}</flux:text>
                             </div>
                         </flux:table.cell>
                     </flux:table.row>
@@ -102,20 +113,21 @@
                 <flux:text class="text-sm text-zinc-500">{{ __('Service géré par l\'application : il reste interne et actif. Son prix est proposé à chaque expédition.') }}</flux:text>
             @endif
 
+            {{-- Clés : le prix d'un service interne et les fournisseurs d'un service externe ne partagent pas leurs champs. --}}
             @if ($isInternal)
-                <flux:field class="max-w-xs">
+                <flux:field class="max-w-xs" wire:key="internal-price">
                     <flux:label>{{ __('Prix vendant') }}</flux:label>
                     <flux:input wire:model="sellingPrice" inputmode="decimal" />
                     <flux:error name="sellingPrice" />
                 </flux:field>
             @else
-                <div>
+                <div wire:key="supplier-offers">
                     <flux:heading size="sm" class="mb-2">{{ __('Fournisseurs') }}</flux:heading>
 
                     <div class="space-y-2">
                         @foreach ($offers as $index => $offer)
-                            <div wire:key="offer-{{ $index }}" class="flex items-start gap-2">
-                                <div class="flex-1">
+                            <div wire:key="offer-{{ $index }}" class="flex flex-wrap items-start gap-2 sm:flex-nowrap">
+                                <div class="max-sm:basis-full sm:flex-1">
                                     <flux:select wire:model="offers.{{ $index }}.supplier_id">
                                         <flux:select.option value="">{{ __('Fournisseur…') }}</flux:select.option>
                                         @foreach ($this->getServiceSuppliers() as $supplier)
@@ -124,11 +136,11 @@
                                     </flux:select>
                                     <flux:error name="offers.{{ $index }}.supplier_id" />
                                 </div>
-                                <div class="w-28">
+                                <div class="max-sm:flex-1 sm:w-28">
                                     <flux:input wire:model="offers.{{ $index }}.cost" inputmode="decimal" :placeholder="__('Coût')" />
                                     <flux:error name="offers.{{ $index }}.cost" />
                                 </div>
-                                <div class="w-28">
+                                <div class="max-sm:flex-1 sm:w-28">
                                     <flux:input wire:model="offers.{{ $index }}.selling_price" inputmode="decimal" :placeholder="__('Prix vendant')" />
                                     <flux:error name="offers.{{ $index }}.selling_price" />
                                 </div>

@@ -39,6 +39,32 @@ describe('catalogue de services', function () {
         $this->actingAs(User::factory()->withRole('admin')->create());
     });
 
+    it('ouvre sur les services internes et filtre par fournisseur', function () {
+        $internal = Service::factory()->create(['name' => 'Installation maison', 'is_internal' => true]);
+        [$external, $supplier] = externalService(attributes: ['name' => 'Livraison gants blancs', 'is_internal' => false]);
+        [$other] = externalService(attributes: ['name' => 'Réparation tissu', 'is_internal' => false]);
+
+        Livewire::test(Services::class)
+            ->assertSet('providerFilter', Services::PROVIDER_INTERNAL)
+            ->assertSee('Installation maison')->assertDontSee('Livraison gants blancs')
+            ->set('providerFilter', (string) $supplier->id)
+            ->assertSee('Livraison gants blancs')->assertDontSee('Installation maison')->assertDontSee('Réparation tissu')
+            ->set('providerFilter', '')
+            ->assertSee('Installation maison')->assertSee('Livraison gants blancs')->assertSee('Réparation tissu');
+    });
+
+    it('ouvre l\'édition d\'un service en cliquant sa ligne, seulement avec la permission', function () {
+        $service = Service::factory()->create(['is_internal' => true]);
+
+        Livewire::test(Services::class)->assertSeeHtml('$wire.openEdit('.$service->id.')');
+
+        $this->actingAs(User::factory()->withRole('salesman')->create());
+
+        Livewire::test(Services::class)
+            ->assertSee($service->name)
+            ->assertDontSeeHtml('data-row-link');
+    });
+
     it('crée un service interne non taxable avec son prix', function () {
         Livewire::test(Services::class)
             ->call('openCreate')

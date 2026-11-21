@@ -1,10 +1,10 @@
 <div class="sm:p-6">
     <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Jours fériés') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">
-                {{ __('Un férié fermé bloque les rendez-vous pour tous. Un férié ouvert s\'attribue comme un congé aux employés qui ne travaillent pas.') }}
-            </flux:text>
+            <flux:tooltip :content="__('Un férié fermé bloque les rendez-vous pour tous. Un férié ouvert s\'attribue comme un congé aux employés qui ne travaillent pas.')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">

@@ -127,7 +127,7 @@
                     <flux:table.column>{{ __('Commande') }}</flux:table.column>
                     <flux:table.column>{{ __('Produit') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Quantité reçue') }}</flux:table.column>
-                    <flux:table.column align="end">{{ __('dont endommagé') }}</flux:table.column>
+                    <flux:table.column align="end">{{ __('endommagé') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Manquant') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Renversée') }}</flux:table.column>
                 </flux:table.columns>
@@ -291,7 +291,7 @@
                             </flux:field>
                             @if ($first->product_id)
                                 <flux:field>
-                                    <flux:label>{{ __('dont endommagé') }}</flux:label>
+                                    <flux:label>{{ __('endommagé') }}</flux:label>
                                     <flux:input wire:model="damaged" type="number" min="0" step="1" inputmode="numeric" />
                                 </flux:field>
                             @endif

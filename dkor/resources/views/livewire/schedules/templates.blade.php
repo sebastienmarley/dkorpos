@@ -1,9 +1,9 @@
 <div class="space-y-10 sm:p-6">
-    <div>
+    <div class="flex items-center gap-2">
         <flux:heading level="1" size="xl">{{ __('Modèles d\'horaire') }}</flux:heading>
-        <flux:text class="mt-1 text-zinc-500">
-            {{ __('Préparez des quarts type et des semaines type pour remplir les horaires plus vite.') }}
-        </flux:text>
+        <flux:tooltip :content="__('Préparez des quarts type et des semaines type pour remplir les horaires plus vite.')">
+            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+        </flux:tooltip>
     </div>
 
     {{-- Quarts type --}}

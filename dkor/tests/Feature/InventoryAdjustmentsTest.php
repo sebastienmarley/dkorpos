@@ -178,3 +178,17 @@ it('enregistre un ajustement depuis la page et garde le sens permis par le motif
 
     expect(InventoryAdjustment::count())->toBe(1);
 });
+
+it('n\'affiche que les ajustements de l\'année choisie, l\'année en cours par défaut', function () {
+    LedgerAccount::ensureSystemAccounts();
+    $lastYear = Product::factory()->create(['model' => 'Ajusté l\'an passé', 'cost' => Money::parse(9)]);
+    adjust($lastYear, InventoryAdjustmentReason::OpeningBalance, InventoryStatus::InStock, true, 1, 'Ancien')
+        ->forceFill(['created_at' => now()->subYear()])->saveQuietly();
+    adjust($this->product, InventoryAdjustmentReason::OpeningBalance, InventoryStatus::InStock, true, 1, 'Récent');
+
+    Livewire::test(Adjustments::class)
+        ->assertSet('yearFilter', (string) now()->year)
+        ->assertSee($this->product->model)->assertDontSee('Ajusté l\'an passé')
+        ->set('yearFilter', (string) now()->subYear()->year)
+        ->assertSee('Ajusté l\'an passé')->assertDontSee('Récent');
+});

@@ -89,7 +89,8 @@ class Promotion extends Model
     }
 
     /**
-     * Le produit fait partie de la promotion : lui-même, son fournisseur, sa catégorie ou son département est ciblé.
+     * Le produit fait partie de la promotion : lui-même, son fournisseur, sa catégorie ou son département est ciblé, ou
+     * la promotion vise tout le magasin.
      */
     public function covers(Product $product): bool
     {
@@ -100,6 +101,7 @@ class Promotion extends Model
             'supplier' => $target->target_id === $product->supplier_id,
             'category' => $target->target_id === $product->category_id,
             'department' => $target->target_id === $departmentId,
+            PromotionTarget::ALL => true,
             default => false,
         });
     }

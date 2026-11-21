@@ -147,6 +147,37 @@ class Appointments extends Component
         $this->showModal = true;
     }
 
+    /**
+     * Nouvelle date choisie dans le modal (téléphone). Une date illisible est annulée ; une date où le rendez-vous ne
+     * tient pas est signalée tout de suite, et l'enregistrement la refusera.
+     */
+    public function updatedEditingDate(): void
+    {
+        $this->resetValidation('editingDate');
+
+        if (validator(['date' => $this->editingDate], ['date' => ['required', 'date_format:Y-m-d']])->fails()) {
+            $this->editingDate = $this->storedAppointmentDate() ?? '';
+
+            return;
+        }
+
+        if (! $this->canBookAt($this->editingDate, $this->editingStartMinute)) {
+            $this->addError('editingDate', __('Ce créneau n\'est pas disponible à cette date.'));
+        } elseif ($this->durationMinutes > $this->maxDurationMinutes($this->editingDate, $this->editingStartMinute, $this->editingAppointmentId)) {
+            $this->addError('editingDate', __('Le rendez-vous chevauche un autre rendez-vous ou dépasse l\'horaire à cette date.'));
+        }
+    }
+
+    /** Date enregistrée du rendez-vous ouvert (null pour un nouveau rendez-vous). */
+    private function storedAppointmentDate(): ?string
+    {
+        $date = $this->editingAppointmentId !== null
+            ? $this->employeeAppointments()->whereKey($this->editingAppointmentId)->value('date')
+            : null;
+
+        return $date !== null ? Carbon::parse($date)->toDateString() : null;
+    }
+
     public function selectCustomer(int $id): void
     {
         $c = customer::findOrFail($id);
@@ -178,8 +209,12 @@ class Appointments extends Component
             $this->validate(['assignedUserId' => ['integer', Rule::in($this->storeEmployees()->pluck('id'))]]);
         }
 
-        if (! $this->editingDate || ! $this->canBookAt($this->editingDate, $this->editingStartMinute)) {
-            $this->addError('title', __('Ce créneau n\'est pas disponible.'));
+        $storedDate = $this->storedAppointmentDate();
+        $isChangingDate = $storedDate !== null && $storedDate !== $this->editingDate;
+
+        if (validator(['date' => $this->editingDate], ['date' => ['required', 'date_format:Y-m-d']])->fails()
+            || ! $this->canBookAt($this->editingDate, $this->editingStartMinute)) {
+            $this->addError($isChangingDate ? 'editingDate' : 'title', __('Ce créneau n\'est pas disponible.'));
 
             return;
         }
@@ -234,6 +269,13 @@ class Appointments extends Component
             $this->addError('durationMinutes', __('Cette plage vient d\'être prise par un autre rendez-vous. Choisissez un autre créneau.'));
 
             return;
+        }
+
+        // La grille suit le rendez-vous : sa semaine et, sur téléphone, son jour.
+        if ($isChangingDate) {
+            $newDate = Carbon::parse($this->editingDate);
+            $this->weekStart = $newDate->copy()->startOfWeek(Carbon::SUNDAY)->toDateString();
+            $this->dispatch('appointment-date-changed', day: $newDate->dayOfWeek);
         }
 
         if ($isReassigning && ! $this->reassignToAssignedEmployee()) {

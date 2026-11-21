@@ -4,12 +4,15 @@ use App\Enums\CustomerOrderLineStatus;
 use App\Enums\CustomerOrderStatus;
 use App\Enums\CustomerPaymentType;
 use App\Enums\InventoryMovementType;
+use App\Enums\SupplierType;
 use App\Livewire\CustomerOrders\Show;
 use App\Models\CustomerOrder;
 use App\Models\CustomerPaymentMethod;
 use App\Models\InventoryMovement;
 use App\Models\InventoryUnit;
+use App\Models\Product;
 use App\Models\Role;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Support\Money;
 use Livewire\Livewire;
@@ -169,20 +172,55 @@ describe('crédit de la commande', function () {
         $this->order->refresh();
     });
 
-    it('rembourse le crédit sur plusieurs modes', function () {
-        $visa = CustomerPaymentMethod::factory()->create(['name' => 'Visa']);
-
+    it('rembourse le crédit sur le mode d\'origine et au compte du client', function () {
         expect($this->order->credit())->toBeMoney(11498);
 
         $this->order->refundCredit([
             ['method_id' => $this->cash->id, 'amount' => Money::parse(14.98)],
-            ['method_id' => $visa->id, 'amount' => Money::parse(100)],
+            ['method_id' => null, 'amount' => Money::parse(100)],
         ]);
 
         $order = $this->order->fresh();
 
-        expect($order)->balance_due->toBeMoney(0)->amount_paid->toBeMoney(0)
-            ->and($order->payments()->where('type', CustomerPaymentType::Refund)->sum('amount'))->toEqual(-11498);
+        expect($order)->balance_due->toBeMoney(0)
+            ->and($order->payments()->where('type', CustomerPaymentType::Refund)->sum('amount'))->toEqual(-1498)
+            ->and($order->payments()->where('type', CustomerPaymentType::CreditTransfer)->sum('amount'))->toEqual(-10000)
+            ->and($order->customer->fresh()->credit_balance)->toBeMoney(10000);
+    });
+
+    it('refuse de rembourser sur un mode qui n\'a pas payé la commande', function () {
+        $visa = CustomerPaymentMethod::factory()->create(['name' => 'Visa']);
+
+        expect(fn () => $this->order->refundCredit([['method_id' => $visa->id, 'amount' => Money::parse(10)]]))
+            ->toThrow(DomainException::class, 'Le client n\'a rien payé en Visa');
+
+        expect($this->order->fresh()->balance_due)->toBeMoney(-11498);
+    });
+
+    it('refuse de rembourser plus que ce que le mode a payé', function () {
+        $visa = CustomerPaymentMethod::factory()->create(['name' => 'Visa']);
+        $this->order->payments()->create(['customer_payment_method_id' => $visa->id, 'type' => CustomerPaymentType::Payment, 'amount' => Money::parse(5)]);
+
+        expect(fn () => $this->order->refundCredit([['method_id' => $visa->id, 'amount' => Money::parse(10)]]))
+            ->toThrow(DomainException::class, 'dépasse ce que le client a payé avec ce mode (5.00 $)');
+    });
+
+    it('n\'offre au remboursement que les modes qui ont payé la commande et le crédit au compte', function () {
+        CustomerPaymentMethod::factory()->create(['name' => 'Visa']);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openCreditRefundModal')
+            ->assertSet('creditRefunds.0.method_id', (string) $this->cash->id)
+            ->assertSee('Crédit au compte du client')
+            ->assertDontSee('Visa (jusqu')
+            ->set('creditRefunds.0.method_id', (string) CustomerPaymentMethod::where('name', 'Visa')->value('id'))
+            ->call('refundCredit')
+            ->assertHasErrors(['creditRefunds.0.method_id' => 'in'])
+            ->set('creditRefunds.0.method_id', Show::STORE_CREDIT)
+            ->call('refundCredit')
+            ->assertHasNoErrors();
+
+        expect($this->order->customer->fresh()->credit_balance)->toBeMoney(11498);
     });
 
     it('refuse un remboursement supérieur au crédit', function () {
@@ -238,5 +276,64 @@ describe('crédit de la commande', function () {
             ->assertSee('Crédit au compte : 114.98 $');
 
         expect($this->order->customer->fresh()->credit_balance)->toBeMoney(11498);
+    });
+});
+
+describe('statut de la commande sans ligne qui compte', function () {
+    it('passe à « Remboursée » une commande entièrement retournée et remboursée', function () {
+        $line = pickedUpLine($this->order, 1, 100, $this->cash);
+
+        $this->order->returnLine($line, 1, refund: true, refunds: [['method_id' => $this->cash->id, 'amount' => Money::parse(114.98)]]);
+
+        expect($this->order->fresh()->status)->toBe(CustomerOrderStatus::Refunded);
+    });
+
+    it('garde « En attente » une commande retournée tant que son crédit n\'est pas remboursé ou porté au compte', function () {
+        $line = pickedUpLine($this->order, 1, 100, $this->cash);
+
+        $this->order->returnLine($line, 1, refund: false);
+
+        expect($this->order->fresh()->status)->toBe(CustomerOrderStatus::Pending);
+
+        $this->order->fresh()->transferCreditToCustomer();
+
+        expect($this->order->fresh()->status)->toBe(CustomerOrderStatus::Refunded);
+    });
+
+    it('passe à « Annulée » une commande dont la seule ligne est annulée sans frais', function () {
+        $product = Product::factory()->create(['supplier_id' => Supplier::factory()->create(['type' => SupplierType::Product])->id]);
+        $line = $this->order->addProduct($product, 1);
+        $line->fresh()->supplierOrderLine->order->send();
+        $this->order->store->update(['cancellation_fee_percent' => 0]);
+
+        $this->order->fresh()->cancelLineWithFee($line->fresh());
+
+        expect($this->order->fresh()->status)->toBe(CustomerOrderStatus::Cancelled);
+    });
+
+    it('garde « En attente » une commande annulée tant que ses frais d\'annulation ne sont pas payés', function () {
+        $this->order->store->update(['cancellation_fee_percent' => 15]);
+        $product = Product::factory()->create(['supplier_id' => Supplier::factory()->create(['type' => SupplierType::Product])->id]);
+        $line = $this->order->addProduct($product, 1);
+        $this->order->updateLine($line, 0, 1, Money::parse(100), null);
+        $line->fresh()->supplierOrderLine->order->send();
+
+        $this->order->fresh()->cancelLineWithFee($line->fresh());
+
+        expect($this->order->fresh()->status)->toBe(CustomerOrderStatus::Pending);
+
+        $order = $this->order->fresh();
+        $order->pickUp([], [['method_id' => $this->cash->id, 'amount' => $order->balance_due]]);
+
+        expect($this->order->fresh()->status)->toBe(CustomerOrderStatus::Cancelled);
+    });
+
+    it('rouvre « En attente » une commande remboursée qui reçoit un nouvel article', function () {
+        $line = pickedUpLine($this->order, 1, 100, $this->cash);
+        $this->order->returnLine($line, 1, refund: true, refunds: [['method_id' => $this->cash->id, 'amount' => Money::parse(114.98)]]);
+
+        stockedLine($this->order->fresh(), 1, 1, 50);
+
+        expect($this->order->fresh()->status)->toBe(CustomerOrderStatus::Pending);
     });
 });

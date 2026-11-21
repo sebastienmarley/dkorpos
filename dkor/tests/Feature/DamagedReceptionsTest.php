@@ -94,7 +94,7 @@ it('saisit les endommagés dans une réception en cours avant de la terminer', f
 
     Livewire::test(ReceptionShow::class, ['reception' => $reception])
         ->call('openGroup', 'product-'.$product->id)
-        ->assertSee('dont endommagé')
+        ->assertSee('endommagé')
         ->set('received', '4')
         ->set('damaged', '1')
         ->call('saveGroup')

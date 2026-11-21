@@ -65,6 +65,57 @@ select:focus[data-flux-control] {
     @apply size-4;
 } */
 
+/*
+ * Lisibilité sur téléphone (xs) : texte un peu plus grand et police système
+ * (San Francisco sur iOS, Roboto sur Android), conçue pour les petits écrans.
+ */
+@media (max-width: 639px) {
+    :root {
+        --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+        --text-xs: 0.8125rem;
+        --text-sm: 0.9375rem;
+    }
+}
+
+/* Tables : les valeurs de la première et de la dernière colonne ne touchent pas le bord. */
+[data-flux-table] [data-flux-column]:first-child,
+[data-flux-table] [data-flux-cell]:first-child {
+    padding-inline-start: 0.75rem;
+}
+
+[data-flux-table] [data-flux-column]:last-child,
+[data-flux-table] [data-flux-cell]:last-child {
+    padding-inline-end: 0.75rem;
+}
+
+/*
+ * Montants et autres valeurs décimales : pas de flèches d'incrément, on tape la valeur.
+ * Les champs de quantité (pas entier ou sans pas) gardent les leurs.
+ */
+input[type='number'][step^='0.'] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+input[type='number'][step^='0.']::-webkit-outer-spin-button,
+input[type='number'][step^='0.']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Rendez-vous en xs : seule la colonne du jour choisi reste affichée. */
+@media (max-width: 639px) {
+    [data-mobile-day='0'] [data-day-index]:not([data-day-index='0']),
+    [data-mobile-day='1'] [data-day-index]:not([data-day-index='1']),
+    [data-mobile-day='2'] [data-day-index]:not([data-day-index='2']),
+    [data-mobile-day='3'] [data-day-index]:not([data-day-index='3']),
+    [data-mobile-day='4'] [data-day-index]:not([data-day-index='4']),
+    [data-mobile-day='5'] [data-day-index]:not([data-day-index='5']),
+    [data-mobile-day='6'] [data-day-index]:not([data-day-index='6']) {
+        display: none;
+    }
+}
+
 /* Sur iOS, un champ sous 16px fait zoomer la page au focus. */
 @media (max-width: 767px) {
     input[data-flux-control],

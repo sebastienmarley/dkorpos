@@ -1,8 +1,10 @@
 <div class="mx-auto max-w-4xl sm:p-6">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Expéditions') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Expéditions à faire et envois des :days derniers jours', ['days' => \App\Livewire\Shipments\Index::RECENT_DAYS]) }}</flux:text>
+            <flux:tooltip :content="__('Expéditions à faire et envois des :days derniers jours', ['days' => \App\Livewire\Shipments\Index::RECENT_DAYS])">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
 
         @if ($this->canChooseStore())

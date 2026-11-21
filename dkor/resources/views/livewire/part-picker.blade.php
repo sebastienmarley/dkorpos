@@ -1,7 +1,9 @@
 <flux:modal wire:model="showModal" class="w-full max-w-lg">
     <flux:heading class="mb-1">{{ __('Ajouter une pièce') }}</flux:heading>
 
+    {{-- Une clé par branche : Livewire ne réutilise pas les champs de la recherche pour ceux de la fiche, et inversement. --}}
     @if (! $creating)
+        <div wire:key="part-search">
         <flux:text class="text-zinc-500">{{ __('Cherchez par modèle, description ou produit (SKU).') }}</flux:text>
 
         <div class="mt-6 space-y-4">
@@ -30,7 +32,9 @@
                 </div>
             @endcan
         </div>
+        </div>
     @else
+        <div wire:key="part-create">
         <flux:text class="text-zinc-500">{{ __('Si ce fournisseur a déjà une pièce de ce modèle, elle sera sélectionnée au lieu d\'en créer une autre.') }}</flux:text>
 
         <form wire:submit="create" class="mt-6 space-y-4">
@@ -68,5 +72,6 @@
                 </flux:button>
             </div>
         </form>
+        </div>
     @endif
 </flux:modal>

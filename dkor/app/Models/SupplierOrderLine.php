@@ -156,4 +156,14 @@ class SupplierOrderLine extends Model
 
         return $this->product->display_name.(filled($this->description) ? ' — '.$this->description : '');
     }
+
+    /** Libellé court pour le fournisseur : le modèle chez lui pour un produit, la description sinon. */
+    public function getSupplierLabelAttribute(): string
+    {
+        if ($this->product_id === null) {
+            return (string) $this->description;
+        }
+
+        return $this->product->supplier_model ?: $this->product->model;
+    }
 }

@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Orders;
 
-use App\Enums\StoreType;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierType;
 use App\Models\Store;
@@ -10,6 +9,7 @@ use App\Models\Supplier;
 use App\Models\SupplierOrder;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -23,6 +23,8 @@ class Index extends Component
     public string $typeFilter = '';
 
     public string $statusFilter = '';
+
+    public string $supplierFilter = '';
 
     /** Magasin de destination affiché (vide : tous), offert seulement avec stores.all (ADR 0013). */
     public string $storeFilter = '';
@@ -52,6 +54,11 @@ class Index extends Component
     }
 
     public function updatedStoreFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSupplierFilter(): void
     {
         $this->resetPage();
     }
@@ -110,13 +117,14 @@ class Index extends Component
     }
 
     /**
-     * Magasins de destination offerts : les magasins physiques actifs accessibles à l'usager.
+     * Magasins de destination offerts : les magasins actifs accessibles à l'usager qui tiennent du stock. Un magasin
+     * virtuel ou servi par l'entrepôt d'un autre ne reçoit rien : c'est son entrepôt qui commande.
      *
      * @return Collection<int, Store>
      */
     public function getStores(): Collection
     {
-        return Store::query()->accessibleTo(auth()->user())->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
+        return Store::query()->accessibleTo(auth()->user())->holdingStock()->where('is_active', true)->orderBy('name')->get();
     }
 
     /** Magasin proposé : celui du filtre, sinon celui de l'usager (ADR 0012), s'il est offert. */
@@ -143,24 +151,37 @@ class Index extends Component
     {
         $user = auth()->user();
 
-        $orders = SupplierOrder::query()
-            ->accessibleTo($user)
-            ->with(['supplier', 'lines', 'store'])
-            ->when($this->storeFilter !== '' && $user->hasAllStores(), fn ($query) => $query->where('store_id', (int) $this->storeFilter))
-            ->when(filled($this->typeFilter), fn ($query) => $query->where('type', $this->typeFilter))
-            ->when(filled($this->statusFilter), fn ($query) => $query->where('status', $this->statusFilter))
-            ->when(filled($this->search), function ($query) {
-                $query->where(function ($q) {
-                    $q->whereLike('number', '%'.$this->search.'%')
-                        ->orWhereLike('quote_number', '%'.$this->search.'%')
-                        ->orWhereHas('supplier', fn ($s) => $s->whereLike('name', '%'.$this->search.'%'));
-                });
-            })
-            ->latest('id')
-            ->paginate(10);
+        $term = trim($this->search);
+        $filtersByStore = $this->storeFilter !== '' && $user->hasAllStores();
+
+        /** Aucune commande n'est listée tant qu'aucun critère de recherche n'est saisi. */
+        $hasSearchCriteria = $term !== '' || filled($this->typeFilter) || filled($this->statusFilter) || filled($this->supplierFilter) || $filtersByStore;
+
+        $orders = $hasSearchCriteria
+            ? SupplierOrder::query()
+                ->accessibleTo($user)
+                ->with(['supplier', 'lines', 'store'])
+                ->when($filtersByStore, fn ($query) => $query->where('store_id', (int) $this->storeFilter))
+                ->when(filled($this->typeFilter), fn ($query) => $query->where('type', $this->typeFilter))
+                ->when(filled($this->statusFilter), fn ($query) => $query->where('status', $this->statusFilter))
+                ->when(filled($this->supplierFilter), fn ($query) => $query->where('supplier_id', (int) $this->supplierFilter))
+                ->when($term !== '', function ($query) use ($term) {
+                    $query->where(function ($q) use ($term) {
+                        $q->whereLike('number', '%'.$term.'%')
+                            ->orWhereLike('quote_number', '%'.$term.'%');
+                    });
+                })
+                ->latest('id')
+                ->paginate(10)
+            : new LengthAwarePaginator([], 0, 10);
 
         return view('livewire.orders.index', [
             'orders' => $orders,
+            'hasSearchCriteria' => $hasSearchCriteria,
+            'suppliers' => Supplier::query()
+                ->whereHas('orders', fn ($query) => $query->accessibleTo($user))
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'statuses' => SupplierOrderStatus::cases(),
             'stores' => $this->getStores(),
             'creatableSuppliers' => Supplier::query()

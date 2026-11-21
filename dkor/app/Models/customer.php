@@ -81,8 +81,24 @@ class customer extends Model
         $term = trim($term);
 
         $query->where(function (Builder $query) use ($term): void {
+            $query->where(fn (Builder $query) => $query->matchingNameOrPhone($term))
+                ->orWhereLike('email', '%'.$term.'%');
+        });
+    }
+
+    /**
+     * Clients dont le nom contient chacun des mots cherchés (peu importe l'ordre, la casse et les accents), ou dont
+     * le téléphone ou le cellulaire contient le texte cherché. Sans le courriel, qui donne des résultats inattendus
+     * quand on cherche un nom (ex. « jean » trouve jean47@…).
+     *
+     * @param  Builder<customer>  $query
+     */
+    public function scopeMatchingNameOrPhone(Builder $query, string $term): void
+    {
+        $term = trim($term);
+
+        $query->where(function (Builder $query) use ($term): void {
             $query->where(fn (Builder $query) => $query->matchingName($term))
-                ->orWhereLike('email', '%'.$term.'%')
                 ->orWhereLike('phone', '%'.$term.'%')
                 ->orWhereLike('cellphone', '%'.$term.'%');
         });

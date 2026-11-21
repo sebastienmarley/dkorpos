@@ -92,7 +92,13 @@ class SupplierOrder extends Model
     {
         static::creating(function (SupplierOrder $order): void {
             $order->store_id ??= Store::defaultIdFor(auth()->user());
-            $order->billing_store_id ??= $order->store_id === null ? null : Store::find($order->store_id)?->billingStoreId();
+            $store = $order->store_id === null ? null : Store::find($order->store_id);
+
+            if ($store !== null && ! $store->holdsStock()) {
+                throw new DomainException(__('Le magasin « :store » ne tient pas de stock : commandez pour son entrepôt.', ['store' => $store->name]));
+            }
+
+            $order->billing_store_id ??= $store?->billingStoreId();
             $supplier = Supplier::find($order->supplier_id);
 
             if ($supplier?->collect && $order->type === SupplierType::Product) {

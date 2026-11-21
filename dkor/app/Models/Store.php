@@ -109,6 +109,45 @@ class Store extends Model
     }
 
     /**
+     * Magasins qui prennent des commandes clients : les magasins physiques et les magasins virtuels servis par un
+     * entrepôt. Un magasin virtuel sans entrepôt (ex. : le bureau chef) n'a aucun stock pour servir une commande.
+     *
+     * @param  Builder<Store>  $query
+     */
+    #[Scope]
+    protected function takingCustomerOrders(Builder $query): void
+    {
+        $query->where(fn (Builder $query) => $query->where('type', StoreType::Physical)->orWhereNotNull('warehouse_store_id'));
+    }
+
+    /**
+     * Magasins qui tiennent du stock : les magasins physiques qui ne sont pas servis par l'entrepôt d'un autre. Seuls
+     * eux reçoivent des commandes fournisseurs (ADR 0013).
+     *
+     * @param  Builder<Store>  $query
+     */
+    #[Scope]
+    protected function holdingStock(Builder $query): void
+    {
+        $query->where('type', StoreType::Physical)->whereNull('warehouse_store_id');
+    }
+
+    /** Ce magasin tient-il du stock ? Voir `holdingStock()`. */
+    public function holdsStock(): bool
+    {
+        return $this->type === StoreType::Physical && $this->warehouse_store_id === null;
+    }
+
+    /**
+     * Le stock qui sert les ventes de ce magasin est-il sur place ? Faux pour un magasin servi par l'entrepôt d'un
+     * autre magasin : ses articles ne se ramassent pas, ils se livrent ou s'expédient.
+     */
+    public function hasStockOnSite(): bool
+    {
+        return $this->stockStoreId() === $this->id;
+    }
+
+    /**
      * Magasin à qui les fournisseurs facturent les commandes de ce magasin.
      *
      * @return BelongsTo<Store, $this>

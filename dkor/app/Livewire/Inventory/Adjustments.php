@@ -9,6 +9,7 @@ use App\Enums\StoreType;
 use App\Models\InventoryAdjustment;
 use App\Models\Product;
 use App\Models\Store;
+use Carbon\CarbonImmutable;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -24,6 +25,9 @@ use Livewire\WithPagination;
 class Adjustments extends Component
 {
     use WithPagination;
+
+    /** Année des ajustements affichés, l'année en cours par défaut. */
+    public string $yearFilter = '';
 
     public bool $showAdjust = false;
 
@@ -47,6 +51,25 @@ class Adjustments extends Component
     public function mount(): void
     {
         $this->authorize('inventory.adjust');
+
+        $this->yearFilter = (string) now()->year;
+    }
+
+    public function updatedYearFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    /**
+     * Années offertes au filtre : de celle du plus vieil ajustement accessible à l'année en cours.
+     *
+     * @return list<int>
+     */
+    private function years(): array
+    {
+        $oldest = InventoryAdjustment::query()->accessibleTo(auth()->user())->min('created_at');
+
+        return range(now()->year, $oldest ? min(CarbonImmutable::parse($oldest)->year, now()->year) : now()->year);
     }
 
     public function openAdjust(): void
@@ -145,13 +168,18 @@ class Adjustments extends Component
     public function render(): View
     {
         $reason = InventoryAdjustmentReason::tryFrom($this->reason) ?? InventoryAdjustmentReason::Breakage;
+        $years = $this->years();
+        $yearStart = CarbonImmutable::create(in_array((int) $this->yearFilter, $years, true) ? (int) $this->yearFilter : now()->year);
 
         return view('livewire.inventory.adjustments', [
             'adjustments' => InventoryAdjustment::query()
                 ->accessibleTo(auth()->user())
                 ->with(['product', 'user', 'movement', 'ledgerEntry'])
+                ->where('created_at', '>=', $yearStart)
+                ->where('created_at', '<', $yearStart->addYear())
                 ->latest('id')
                 ->paginate(15),
+            'years' => $years,
             'reasons' => collect(InventoryAdjustmentReason::cases())->filter->isManual()->values(),
             'selectedReason' => $reason,
             'reasonStatuses' => $reason->statuses(),

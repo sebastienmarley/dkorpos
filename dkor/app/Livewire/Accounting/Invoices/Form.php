@@ -162,7 +162,7 @@ class Form extends Component
     private function lines(): Collection
     {
         if ($this->reception) {
-            return $this->reception->invoiceableLines()->with(['product', 'orderLine.order'])->get()->toBase();
+            return $this->reception->invoiceableLines()->with(['product', 'orderLine.order', 'orderLine.product'])->get()->toBase();
         }
 
         return $this->order->lines()->get()

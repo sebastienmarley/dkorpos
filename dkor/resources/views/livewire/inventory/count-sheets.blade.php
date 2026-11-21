@@ -2,8 +2,12 @@
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:link :href="route('inventory.counts.show', $count)" wire:navigate class="text-sm">← {{ __('Prise d\'inventaire du :date', ['date' => $count->counted_on->format('Y-m-d')]) }}</flux:link>
-            <flux:heading level="1" size="xl" class="mt-1">{{ __('Feuilles de compte') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Chaque portée se compte deux fois (A et B) par deux personnes différentes. Les produits en désaccord sont recomptés par une troisième.') }}</flux:text>
+            <div class="mt-1 flex items-center gap-2">
+                <flux:heading level="1" size="xl">{{ __('Feuilles de compte') }}</flux:heading>
+                <flux:tooltip :content="__('Chaque portée se compte deux fois (A et B) par deux personnes différentes. Les produits en désaccord sont recomptés par une troisième.')">
+                    <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+                </flux:tooltip>
+            </div>
         </div>
 
         @if ($count->isInProgress())

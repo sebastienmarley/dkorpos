@@ -1,7 +1,9 @@
 <div class="sm:p-6">
-    <div class="mb-6">
+    <div class="mb-6 flex items-center gap-2">
         <flux:heading level="1" size="xl">{{ __('Comptes à payer') }}</flux:heading>
-        <flux:text class="mt-1 text-zinc-500">{{ __('Factures fournisseur qui ont un solde dû, par fournisseur. Un paiement se répartit sur une ou plusieurs factures; il s\'annule, mais ne se supprime pas.') }}</flux:text>
+        <flux:tooltip :content="__('Factures fournisseur qui ont un solde dû, par fournisseur. Un paiement se répartit sur une ou plusieurs factures; il s\'annule, mais ne se supprime pas.')">
+            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+        </flux:tooltip>
     </div>
 
     <div class="mb-4 flex flex-wrap items-center justify-between gap-4">

@@ -1,7 +1,9 @@
 <div class="sm:p-6">
-    <div class="mb-6">
+    <div class="mb-6 flex items-center gap-2">
         <flux:heading level="1" size="xl">{{ __('États comptables') }}</flux:heading>
-        <flux:text class="mt-1 text-zinc-500">{{ __('Balance de vérification, grand livre d\'un compte et taxes à remettre sur une période, pour un magasin ou l\'ensemble. Les soldes sont en débits moins crédits.') }}</flux:text>
+        <flux:tooltip :content="__('Balance de vérification, grand livre d\'un compte et taxes à remettre sur une période, pour un magasin ou l\'ensemble. Les soldes sont en débits moins crédits.')">
+            <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+        </flux:tooltip>
     </div>
 
     <div class="mb-4 flex flex-wrap items-end gap-3">

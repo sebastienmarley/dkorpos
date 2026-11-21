@@ -9,12 +9,13 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Ce que couvre une promotion : un département, une catégorie, un fournisseur ou un produit.
+ * Ce que couvre une promotion : un département, une catégorie, un fournisseur, un produit, ou tout le magasin
+ * (target_type = all, sans target_id, pour un rabais en pourcentage seulement).
  *
  * @property int $id
  * @property int $promotion_id
  * @property string $target_type
- * @property int $target_id
+ * @property int|null $target_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Promotion $promotion
@@ -23,6 +24,9 @@ use Illuminate\Support\Carbon;
 #[Fillable(['promotion_id', 'target_type', 'target_id'])]
 class PromotionTarget extends Model
 {
+    /** Sorte de cible qui vise toute la marchandise. Elle ne désigne aucun enregistrement. */
+    public const string ALL = 'all';
+
     /** @return BelongsTo<Promotion, $this> */
     public function promotion(): BelongsTo
     {
@@ -32,6 +36,10 @@ class PromotionTarget extends Model
     /** Ce que la cible désigne, pour l'affichage : « Département Éclairage », « Produit WRF555 »… */
     public function label(): string
     {
+        if ($this->target_type === self::ALL) {
+            return __('Tout le magasin');
+        }
+
         $kind = match ($this->target_type) {
             'department' => __('Département'),
             'category' => __('Catégorie'),
@@ -41,7 +49,7 @@ class PromotionTarget extends Model
         };
 
         $name = match (true) {
-            $this->target instanceof Product => $this->target->model,
+            $this->target instanceof Product => '#'.$this->target->id.' '.$this->target->model,
             $this->target instanceof Department, $this->target instanceof Category, $this->target instanceof Supplier => $this->target->name,
             default => '—',
         };

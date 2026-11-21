@@ -1,25 +1,37 @@
 <div class="sm:p-6">
     {{-- En-tête --}}
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div class="flex items-center gap-2">
             <flux:heading level="1" size="xl">{{ __('Commandes fournisseurs') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Commandes de produits et de services') }}</flux:text>
+            <flux:tooltip :content="__('Commandes de produits et de services')">
+                <flux:icon name="information-circle" variant="mini" class="text-zinc-400" />
+            </flux:tooltip>
         </div>
 
         @can('supplier_orders.create')
-            <flux:button variant="primary" icon="plus" wire:click="openCreate">
+            <flux:button variant="primary" icon="plus" wire:click="openCreate" class="max-sm:w-full">
                 {{ __('Nouvelle commande') }}
             </flux:button>
         @endcan
     </div>
 
     {{-- Filtres --}}
+    {{-- Sous xl, la recherche est sur sa propre ligne. Les menus vont deux par ligne en sm, et se partagent une seule ligne en md et en lg. --}}
     <div class="mb-4 flex flex-wrap gap-3">
-        <div class="flex-1">
-            <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('Rechercher par numéro, quote # ou fournisseur…') }}" icon="magnifying-glass" />
+        <div class="flex-1 sm:max-xl:basis-full">
+            <flux:input wire:model.live.debounce.300ms="search" placeholder="{{ __('# commande ou devis...') }}" icon="magnifying-glass" />
         </div>
 
-        <div class="w-full sm:w-44">
+        <div class="w-full sm:w-52 sm:max-md:w-auto sm:max-md:flex-1 sm:max-md:basis-[calc(50%-0.375rem)] md:max-xl:w-auto md:max-xl:min-w-0 md:max-xl:flex-1">
+            <flux:select wire:model.live="supplierFilter">
+                <flux:select.option value="">{{ __('Tous les fournisseurs') }}</flux:select.option>
+                @foreach ($suppliers as $supplier)
+                    <flux:select.option :value="$supplier->id">{{ $supplier->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        </div>
+
+        <div class="w-full sm:w-44 sm:max-md:w-auto sm:max-md:flex-1 sm:max-md:basis-[calc(50%-0.375rem)] md:max-xl:w-auto md:max-xl:min-w-0 md:max-xl:flex-1">
             <flux:select wire:model.live="typeFilter">
                 <flux:select.option value="">{{ __('Tous les types') }}</flux:select.option>
                 @foreach ($this->getOrderTypes() as $type)
@@ -29,7 +41,7 @@
         </div>
 
         @if (auth()->user()->hasAllStores())
-            <div class="w-full sm:w-52">
+            <div class="w-full sm:w-52 sm:max-md:w-auto sm:max-md:flex-1 sm:max-md:basis-[calc(50%-0.375rem)] md:max-xl:w-auto md:max-xl:min-w-0 md:max-xl:flex-1">
                 <flux:select wire:model.live="storeFilter">
                     <flux:select.option value="">{{ __('Tous les magasins') }}</flux:select.option>
                     @foreach ($stores as $store)
@@ -39,7 +51,7 @@
             </div>
         @endif
 
-        <div class="w-full sm:w-52">
+        <div class="w-full sm:w-52 sm:max-md:w-auto sm:max-md:flex-1 sm:max-md:basis-[calc(50%-0.375rem)] md:max-xl:w-auto md:max-xl:min-w-0 md:max-xl:flex-1">
             <flux:select wire:model.live="statusFilter">
                 <flux:select.option value="">{{ __('Tous les statuts') }}</flux:select.option>
                 @foreach ($statuses as $status)
@@ -49,70 +61,63 @@
         </div>
     </div>
 
-    {{-- Tableau --}}
-    <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <flux:table :paginate="$orders">
-            <flux:table.columns>
-                <flux:table.column>{{ __('Numéro') }}</flux:table.column>
-                <flux:table.column>{{ __('Magasin de destination') }}</flux:table.column>
-                <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
-                <flux:table.column>{{ __('Type') }}</flux:table.column>
-                <flux:table.column>{{ __('Statut') }}</flux:table.column>
-                <flux:table.column>{{ __('Total') }}</flux:table.column>
-                <flux:table.column>{{ __('Créée le') }}</flux:table.column>
-                <flux:table.column>{{ __('Envoyée le') }}</flux:table.column>
-            </flux:table.columns>
+    {{-- Résultats : rien avant une recherche, la table seulement s'il y a des commandes --}}
+    @if ($orders->isNotEmpty())
+        <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <flux:table :paginate="$orders">
+                <flux:table.columns>
+                    <flux:table.column>{{ __('Numéro') }}</flux:table.column>
+                    <flux:table.column>{{ __('Magasin de destination') }}</flux:table.column>
+                    <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
+                    <flux:table.column>{{ __('Type') }}</flux:table.column>
+                    <flux:table.column>{{ __('Statut') }}</flux:table.column>
+                    <flux:table.column>{{ __('Total') }}</flux:table.column>
+                    <flux:table.column>{{ __('Créée le') }}</flux:table.column>
+                    <flux:table.column>{{ __('Envoyée le') }}</flux:table.column>
+                    <flux:table.column />
+                </flux:table.columns>
 
-            <flux:table.rows>
-                @forelse ($orders as $order)
-                    <flux:table.row :key="$order->id">
-                        <flux:table.cell variant="strong">
-                            <flux:link :href="route('supplier-orders.show', $order)" wire:navigate>
-                                {{ $order->number }}
-                            </flux:link>
-                        </flux:table.cell>
+                <flux:table.rows>
+                    @foreach ($orders as $order)
+                        <x-table.row-link :key="$order->id" :href="route('supplier-orders.show', $order)">
+                            <flux:table.cell variant="strong">
+                                <flux:link :href="route('supplier-orders.show', $order)" wire:navigate>
+                                    {{ $order->number }}
+                                </flux:link>
+                            </flux:table.cell>
 
-                        <flux:table.cell>{{ $order->store?->name ?? '—' }}</flux:table.cell>
+                            <flux:table.cell>{{ $order->store?->name ?? '—' }}</flux:table.cell>
 
-                        <flux:table.cell>{{ $order->supplier->name }}</flux:table.cell>
+                            <flux:table.cell>{{ $order->supplier->name }}</flux:table.cell>
 
-                        <flux:table.cell>
-                            <flux:badge :color="$order->type->color()" size="sm">{{ $order->type->label() }}</flux:badge>
-                        </flux:table.cell>
+                            <flux:table.cell>
+                                <flux:badge :color="$order->type->color()" size="sm">{{ $order->type->label() }}</flux:badge>
+                            </flux:table.cell>
 
-                        <flux:table.cell>
-                            <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label($order->type) }}</flux:badge>
-                        </flux:table.cell>
+                            <flux:table.cell>
+                                <flux:badge :color="$order->status->color()" size="sm">{{ $order->status->label($order->type) }}</flux:badge>
+                            </flux:table.cell>
 
-                        <flux:table.cell>{{ $order->total->format() }}</flux:table.cell>
+                            <flux:table.cell>{{ $order->total->format() }}</flux:table.cell>
 
-                        <flux:table.cell>{{ $order->created_at->format('Y-m-d') }}</flux:table.cell>
+                            <flux:table.cell>{{ $order->created_at->format('Y-m-d') }}</flux:table.cell>
 
-                        <flux:table.cell>{{ $order->sent_at?->format('Y-m-d') ?? '—' }}</flux:table.cell>
-                    </flux:table.row>
-                @empty
-                    <flux:table.row>
-                        <flux:table.cell colspan="8" class="py-12 text-center">
-                            <div class="flex flex-col items-center gap-2">
-                                <flux:icon name="truck" class="h-8 w-8 text-zinc-300" />
-                                @if (filled($search) || filled($typeFilter) || filled($statusFilter) || filled($storeFilter))
-                                    <flux:text class="text-zinc-400">{{ __('Aucune commande trouvée pour ces critères.') }}</flux:text>
-                                @else
-                                    <flux:text class="text-zinc-400">{{ __('Aucune commande. Cliquez sur « Nouvelle commande » pour commencer.') }}</flux:text>
-                                @endif
-                            </div>
-                        </flux:table.cell>
-                    </flux:table.row>
-                @endforelse
-            </flux:table.rows>
-        </flux:table>
-    </div>
+                            <flux:table.cell>{{ $order->sent_at?->format('Y-m-d') ?? '—' }}</flux:table.cell>
+                        </x-table.row-link>
+                    @endforeach
+                </flux:table.rows>
+            </flux:table>
+        </div>
 
-    <div class="mt-3">
-        <flux:text class="text-sm text-zinc-400">
+        <flux:text class="mt-3 text-sm text-zinc-400">
             {{ trans_choice(':count commande|:count commandes', $orders->total()) }}
         </flux:text>
-    </div>
+    @elseif ($hasSearchCriteria)
+        <div class="flex flex-col items-center gap-2 py-12 text-center">
+            <flux:icon name="truck" class="h-8 w-8 text-zinc-300" />
+            <flux:text class="text-zinc-400">{{ __('Aucune commande trouvée pour ces critères.') }}</flux:text>
+        </div>
+    @endif
 
     {{-- Création --}}
     <flux:modal wire:model="showCreate" class="w-full max-w-md">

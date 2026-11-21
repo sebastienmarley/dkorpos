@@ -591,65 +591,77 @@ it('valide la commission et les montants', function () {
         ->assertHasNoErrors(['hourlyRate']);
 });
 
-it('refuse un taux horaire qui n\'est pas un montant à 2 décimales au plus', function (string $valeur) {
+it('refuse un taux horaire qui n\'est pas un montant à 2 décimales au plus', function () {
     $user = employeComplet();
 
     $this->actingAs(User::factory()->withRole('admin')->create());
 
-    Livewire::test(Show::class, ['user' => $user])
-        ->set('hourlyRate', $valeur)
-        ->call('saveHr')
-        ->assertHasErrors(['hourlyRate']);
+    $component = Livewire::test(Show::class, ['user' => $user]);
+
+    foreach (['1e3', '2.5e1', '12.345', '0', '0.00', '0.0', 'abc', '12,50', '1_000', '-5', '+5', ' 5', '.5', '12.', '99999'] as $valeur) {
+        $component->set('hourlyRate', $valeur)->call('saveHr');
+
+        expect($component->errors()->has('hourlyRate'))->toBeTrue("hourlyRate : « {$valeur} » accepté");
+    }
 
     expect($user->fresh()->hourly_rate)->toBeNull();
-})->with(['1e3', '2.5e1', '12.345', '0', '0.00', '0.0', 'abc', '12,50', '1_000', '-5', '+5', ' 5', '.5', '12.', '99999']);
+});
 
-it('accepte un taux horaire valide', function (string $valeur) {
+it('accepte un taux horaire valide', function () {
     $user = employeComplet();
 
     $this->actingAs(User::factory()->withRole('admin')->create());
 
-    Livewire::test(Show::class, ['user' => $user])
-        ->set('hourlyRate', $valeur)
-        ->call('saveHr')
-        ->assertHasNoErrors();
-})->with(['24', '24.5', '24.50', '0.01', '9999.99']);
+    $component = Livewire::test(Show::class, ['user' => $user]);
 
-it('refuse un salaire hebdomadaire nul ou en notation scientifique', function (string $valeur) {
+    foreach (['24', '24.5', '24.50', '0.01', '9999.99'] as $valeur) {
+        $component->set('hourlyRate', $valeur)->call('saveHr');
+
+        expect($component->errors()->has('hourlyRate'))->toBeFalse("hourlyRate : « {$valeur} » refusé");
+    }
+});
+
+it('refuse un salaire hebdomadaire nul ou en notation scientifique', function () {
     $user = employeComplet();
 
     $this->actingAs(User::factory()->withRole('admin')->create());
 
-    Livewire::test(Show::class, ['user' => $user])
-        ->set('isSalaried', true)
-        ->set('weeklySalary', $valeur)
-        ->call('saveHr')
-        ->assertHasErrors(['weeklySalary']);
-})->with(['0', '1e3', '1250.123', 'abc']);
+    $component = Livewire::test(Show::class, ['user' => $user])->set('isSalaried', true);
 
-it('refuse une commission en notation scientifique ou à plus de 2 décimales', function (string $valeur) {
+    foreach (['0', '1e3', '1250.123', 'abc'] as $valeur) {
+        $component->set('weeklySalary', $valeur)->call('saveHr');
+
+        expect($component->errors()->has('weeklySalary'))->toBeTrue("weeklySalary : « {$valeur} » accepté");
+    }
+});
+
+it('refuse une commission en notation scientifique ou à plus de 2 décimales', function () {
     $user = employeComplet();
 
     $this->actingAs(User::factory()->withRole('admin')->create());
 
-    Livewire::test(Show::class, ['user' => $user])
-        ->set('hasCommission', true)
-        ->set('commissionRate', $valeur)
-        ->call('saveHr')
-        ->assertHasErrors(['commissionRate']);
-})->with(['1e1', '2.555', '101', 'abc', '0']);
+    $component = Livewire::test(Show::class, ['user' => $user])->set('hasCommission', true);
 
-it('accepte une commission supérieure à 0 et jusqu\'à 100', function (string $valeur) {
+    foreach (['1e1', '2.555', '101', 'abc', '0'] as $valeur) {
+        $component->set('commissionRate', $valeur)->call('saveHr');
+
+        expect($component->errors()->has('commissionRate'))->toBeTrue("commissionRate : « {$valeur} » accepté");
+    }
+});
+
+it('accepte une commission supérieure à 0 et jusqu\'à 100', function () {
     $user = employeComplet();
 
     $this->actingAs(User::factory()->withRole('admin')->create());
 
-    Livewire::test(Show::class, ['user' => $user])
-        ->set('hasCommission', true)
-        ->set('commissionRate', $valeur)
-        ->call('saveHr')
-        ->assertHasNoErrors();
-})->with(['0.01', '2.75', '100', '100.00']);
+    $component = Livewire::test(Show::class, ['user' => $user])->set('hasCommission', true);
+
+    foreach (['0.01', '2.75', '100', '100.00'] as $valeur) {
+        $component->set('commissionRate', $valeur)->call('saveHr');
+
+        expect($component->errors()->has('commissionRate'))->toBeFalse("commissionRate : « {$valeur} » refusé");
+    }
+});
 
 it('interdit de sauvegarder les informations RH sans permission', function () {
     $user = employeComplet();
@@ -795,19 +807,21 @@ it('exige les trois champs de prime quand les primes sont cochées', function ()
         ->assertHasErrors(['weeklySalesTarget', 'bonusAmount', 'bonusStep']);
 });
 
-it('refuse les valeurs de prime non entières ou nulles', function (string $valeur) {
+it('refuse les valeurs de prime non entières ou nulles', function () {
     $user = employeComplet();
 
     $this->actingAs(User::factory()->withRole('admin')->create());
 
-    Livewire::test(Show::class, ['user' => $user])
-        ->set('hasBonus', true)
-        ->set('weeklySalesTarget', $valeur)
-        ->set('bonusAmount', $valeur)
-        ->set('bonusStep', $valeur)
-        ->call('saveHr')
-        ->assertHasErrors(['weeklySalesTarget', 'bonusAmount', 'bonusStep']);
-})->with(['0', '10.5', '1e3', '-5', 'abc', '12345678']);
+    $component = Livewire::test(Show::class, ['user' => $user])->set('hasBonus', true);
+
+    foreach (['0', '10.5', '1e3', '-5', 'abc', '12345678'] as $valeur) {
+        $component->set('weeklySalesTarget', $valeur)->set('bonusAmount', $valeur)->set('bonusStep', $valeur)->call('saveHr');
+
+        expect($component->errors()->has('weeklySalesTarget'))->toBeTrue("weeklySalesTarget : « {$valeur} » accepté");
+        expect($component->errors()->has('bonusAmount'))->toBeTrue("bonusAmount : « {$valeur} » accepté");
+        expect($component->errors()->has('bonusStep'))->toBeTrue("bonusStep : « {$valeur} » accepté");
+    }
+});
 
 it('efface les champs de prime quand les primes sont décochées', function () {
     $user = employeComplet(['has_bonus' => true, 'weekly_sales_target' => 8000, 'bonus_amount' => 50, 'bonus_step' => 1000]);
@@ -854,16 +868,19 @@ it('affiche les jours de vacances cumulés et enregistre les heures par jour', f
         ->and($user->vacation_hours_available)->toBe('56.70');
 });
 
-it('refuse des heures par jour invalides', function (string $valeur) {
+it('refuse des heures par jour invalides', function () {
     $user = employeComplet();
 
     $this->actingAs(User::factory()->withRole('admin')->create());
 
-    Livewire::test(Show::class, ['user' => $user])
-        ->set('hoursPerDay', $valeur)
-        ->call('saveHr')
-        ->assertHasErrors(['hoursPerDay']);
-})->with(['0', '25', '7.555', '1e1', 'abc']);
+    $component = Livewire::test(Show::class, ['user' => $user]);
+
+    foreach (['0', '25', '7.555', '1e1', 'abc'] as $valeur) {
+        $component->set('hoursPerDay', $valeur)->call('saveHr');
+
+        expect($component->errors()->has('hoursPerDay'))->toBeTrue("hoursPerDay : « {$valeur} » accepté");
+    }
+});
 
 it('ne calcule pas les vacances pour qui ne voit pas l\'onglet RH', function () {
     $user = employeComplet(['first_day' => '2020-01-15']);

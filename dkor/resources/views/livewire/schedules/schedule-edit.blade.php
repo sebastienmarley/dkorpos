@@ -8,9 +8,10 @@
             </flux:text>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
+        {{-- Sous lg : le magasin sur sa ligne, puis les boutons s'étirent pour remplir chaque ligne. --}}
+        <div class="flex flex-wrap items-center gap-2 max-lg:w-full">
             @if ($this->canChooseStore())
-                <flux:select wire:model.live="storeId" size="sm" class="w-full sm:w-56">
+                <flux:select wire:model.live="storeId" size="sm" class="w-full lg:w-56">
                     @foreach ($stores as $store)
                         <flux:select.option :value="$store->id">{{ $store->name }}</flux:select.option>
                     @endforeach
@@ -18,8 +19,8 @@
             @endif
 
             @can('schedule_management.edit')
-                <flux:dropdown align="end">
-                    <flux:button size="sm" variant="ghost" icon="document-duplicate" icon-trailing="chevron-down">
+                <flux:dropdown align="end" class="max-lg:flex-auto">
+                    <flux:button size="sm" variant="ghost" icon="document-duplicate" icon-trailing="chevron-down" class="max-lg:w-full">
                         {{ __('Remplir') }}
                     </flux:button>
 
@@ -42,23 +43,23 @@
             @endcan
 
             @can('schedule_management.publish')
-                <flux:button size="sm" variant="ghost" wire:click="unpublishWeek" wire:confirm="{{ __('Dépublier tous les quarts de cette semaine ?') }}">
+                <flux:button size="sm" variant="ghost" class="max-lg:flex-auto" wire:click="unpublishWeek" wire:confirm="{{ __('Dépublier tous les quarts de cette semaine ?') }}">
                     {{ __('Dépublier') }}
                 </flux:button>
-                <flux:button size="sm" variant="primary" wire:click="publishWeek" wire:confirm="{{ __('Publier tous les quarts de cette semaine ?') }}">
+                <flux:button size="sm" variant="primary" class="max-lg:flex-auto" wire:click="publishWeek" wire:confirm="{{ __('Publier tous les quarts de cette semaine ?') }}">
                     {{ __('Publier') }}
                 </flux:button>
             @endcan
 
             @if (! $isCurrentWeek)
-                <flux:button size="sm" variant="ghost" wire:click="goToCurrentWeek">
+                <flux:button size="sm" variant="ghost" class="max-lg:flex-auto" wire:click="goToCurrentWeek">
                     {{ __('Semaine actuelle') }}
                 </flux:button>
             @endif
 
-            <flux:button.group>
-                <flux:button size="sm" icon="chevron-left" wire:click="previousWeek" :label="__('Semaine précédente')" />
-                <flux:button size="sm" icon="chevron-right" wire:click="nextWeek" :label="__('Semaine suivante')" />
+            <flux:button.group class="max-lg:flex-auto">
+                <flux:button size="sm" icon="chevron-left" class="max-lg:flex-1" wire:click="previousWeek" :label="__('Semaine précédente')" />
+                <flux:button size="sm" icon="chevron-right" class="max-lg:flex-1" wire:click="nextWeek" :label="__('Semaine suivante')" />
             </flux:button.group>
         </div>
     </div>
@@ -348,7 +349,8 @@
                     </flux:field>
                 @endif
 
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {{-- Clés : les heures d'un quart et la date de fin d'une absence ne partagent pas leurs champs. --}}
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2" wire:key="schedule-hours">
                     <flux:field>
                         <flux:label>{{ __('Début') }}</flux:label>
                         <flux:input wire:model="startTime" type="time" />
@@ -362,7 +364,7 @@
                     </flux:field>
                 </div>
             @else
-                <flux:field>
+                <flux:field wire:key="schedule-until-date">
                     <flux:label>{{ __('Jusqu\'au (inclus)') }}</flux:label>
                     <flux:input wire:model="untilDate" type="date" :min="$editingDate" />
                     <flux:description>{{ __('Laissez vide pour un seul jour.') }}</flux:description>

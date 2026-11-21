@@ -102,7 +102,9 @@
         <flux:modal wire:model="showModal" class="w-full max-w-2xl">
             <flux:heading class="mb-1">{{ match (true) { (bool) $rescheduling => __('Reporter la livraison'), $this->isShipping() => __('Expédition'), default => __('Livraison') } }}</flux:heading>
 
+            {{-- Une clé par étape : Livewire ne réutilise pas les champs d'une étape pour ceux d'une autre. --}}
             @if ($step === 'address')
+                <div wire:key="delivery-step-address">
                 <flux:text class="text-zinc-500">{{ __('Vérifiez l\'adresse de livraison avec le client.') }}</flux:text>
 
                 <div class="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800">
@@ -134,7 +136,9 @@
                     @endcan
                     <flux:button type="button" variant="primary" icon="check" wire:click="confirmAddress" :disabled="! $customer->hasCompleteAddress()">{{ __('Adresse confirmée') }}</flux:button>
                 </div>
+                </div>
             @elseif ($step === 'items')
+                <div wire:key="delivery-step-items">
                 <flux:text class="text-zinc-500">{{ __('Articles à livrer. Ils peuvent être encore en commande : la livraison attend leur réception.') }}</flux:text>
 
                 <form wire:submit="continueFromItems" class="mt-6 space-y-3">
@@ -187,7 +191,9 @@
                         <flux:button type="submit" variant="primary">{{ __('Continuer') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @elseif ($step === 'payment')
+                <div wire:key="delivery-step-payment">
                 <flux:callout icon="banknotes" color="amber" class="mt-4">
                     @if ($this->isShipping())
                         <flux:callout.heading>{{ __('Réglez la facture avant l\'expédition') }}</flux:callout.heading>
@@ -213,7 +219,9 @@
                     @endif
                     <flux:button type="button" variant="primary" icon="banknotes" wire:click="settleInvoice">{{ __('Encaisser un paiement') }}</flux:button>
                 </div>
+                </div>
             @elseif ($step === 'confirm')
+                <div wire:key="delivery-step-confirm">
                 <flux:text class="text-zinc-500">{{ __('L\'expédition sera à faire dès que tous les articles seront en main. Le transporteur se choisit dans le menu d\'expédition.') }}</flux:text>
 
                 <form wire:submit="requestShipment" class="mt-6 space-y-4">
@@ -241,7 +249,9 @@
                         <flux:button type="submit" variant="primary" icon="paper-airplane">{{ __('Demander l\'expédition') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @else
+                <div wire:key="delivery-step-schedule">
                 @if ($rescheduling)
                     <flux:text class="text-zinc-500">
                         {{ __('Prévue le :slot. La livraison sera annulée et replanifiée à la nouvelle demi-journée.', ['slot' => $rescheduling->slotLabel()]) }}
@@ -319,6 +329,7 @@
                         <flux:button type="submit" variant="primary">{{ $rescheduling ? __('Reporter') : __('Planifier la livraison') }}</flux:button>
                     </div>
                 </form>
+                </div>
             @endif
         </flux:modal>
     @endcan

@@ -146,7 +146,7 @@
                         <flux:table.rows>
                             @foreach ($lines as $line)
                                 <flux:table.row :key="$line->id">
-                                    <flux:table.cell variant="strong">{{ $line->label }}</flux:table.cell>
+                                    <flux:table.cell variant="strong">{{ $line->supplier_label }}</flux:table.cell>
                                     <flux:table.cell>{{ $line instanceof \App\Models\ReceptionLine ? $line->orderLine->order->number : $line->order->number }}</flux:table.cell>
                                     <flux:table.cell align="end">
                                         {{ $line->billable_quantity }}
@@ -155,7 +155,7 @@
                                         @endif
                                     </flux:table.cell>
                                     <flux:table.cell align="end">
-                                        <flux:input wire:model.live.debounce.400ms="unitCosts.{{ $line->id }}" type="number" min="0" step="0.01" class="w-28" />
+                                        <flux:input wire:model.live.debounce.400ms="unitCosts.{{ $line->id }}" type="number" min="0" step="0.01" class="w-28 max-sm:min-w-32" />
                                         <flux:error name="unitCosts.{{ $line->id }}" />
                                     </flux:table.cell>
                                     <flux:table.cell align="end">{{ (isset($unitCosts[$line->id]) ? (\App\Support\Money::tryParse($unitCosts[$line->id]) ?? \App\Support\Money::zero()) : $line->unit_cost)->times($line->billable_quantity)->format() }}</flux:table.cell>

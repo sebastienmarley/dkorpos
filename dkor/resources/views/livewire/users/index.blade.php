@@ -6,8 +6,9 @@
     {{-- En-tête --}}
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-            <flux:heading level="1" size="xl">{{ __('Utilisateurs') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ match ($statusFilter) { 'inactive' => __('Employés inactifs'), 'all' => __('Tous les employés'), default => __('Employés actifs') } }}</flux:text>
+            {{-- Sur tablette et plus, le titre reflète les filtres choisis. --}}
+            <flux:heading level="1" size="xl" class="max-md:hidden">{{ $this->listHeading() }}</flux:heading>
+            <flux:heading level="1" size="xl" class="md:hidden">{{ __('Utilisateurs') }}</flux:heading>
         </div>
 
         @can('create', \App\Models\User::class)
@@ -62,13 +63,15 @@
                 @if (auth()->user()->hasAllStores())
                     <flux:table.column>{{ __('Magasin') }}</flux:table.column>
                 @endif
+                <flux:table.column />
             </flux:table.columns>
 
             <flux:table.rows>
                 @forelse ($users as $user)
-                    <flux:table.row :key="$user->id">
+                    @php($canOpen = auth()->user()->can('update', $user) || auth()->user()->can('viewHr', $user))
+                    <x-table.row-link :key="$user->id" :href="$canOpen ? route('users.show', $user) : null">
                         <flux:table.cell variant="strong">
-                            @if (auth()->user()->can('update', $user) || auth()->user()->can('viewHr', $user))
+                            @if ($canOpen)
                                 <flux:link :href="route('users.show', $user)" wire:navigate>
                                     {{ $user->fullName() }}
                                 </flux:link>
@@ -88,10 +91,10 @@
                         @if (auth()->user()->hasAllStores())
                             <flux:table.cell>{{ $user->store?->name ?? '—' }}</flux:table.cell>
                         @endif
-                    </flux:table.row>
+                    </x-table.row-link>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell :colspan="auth()->user()->hasAllStores() ? 4 : 3" class="py-12 text-center">
+                        <flux:table.cell :colspan="auth()->user()->hasAllStores() ? 5 : 4" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="users" class="h-8 w-8 text-zinc-300" />
                                 <flux:text class="text-zinc-400">{{ __('Aucun utilisateur trouvé.') }}</flux:text>
