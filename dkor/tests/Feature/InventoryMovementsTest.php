@@ -217,7 +217,12 @@ it('affiche, filtre et alimente le journal depuis la page', function () {
     InventoryMovement::factory()->create(['product_id' => $b->id, 'from_status' => InventoryStatus::InStock, 'to_status' => InventoryStatus::InDemo]);
 
     Livewire::test(Movements::class)
+        ->assertDontSeeHtml('data-flux-table')->assertDontSee('Aucun mouvement pour ces critères.')
+        ->set('typeFilter', Movements::ALL)
         ->assertSee('Produit Alpha')->assertSee('Produit Bêta')
+        ->set('typeFilter', InventoryMovementType::Receipt->value)
+        ->assertSee('Aucun mouvement pour ces critères.')
+        ->set('typeFilter', '')
         ->set('productFilter', (string) $a->id)
         ->assertSee('Produit Alpha')->assertDontSee('Produit Bêta')
         ->set('productFilter', '')

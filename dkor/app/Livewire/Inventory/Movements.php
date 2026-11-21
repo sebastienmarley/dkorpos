@@ -16,6 +16,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -25,6 +26,9 @@ class Movements extends Component
 {
     use WithPagination;
 
+    /** Valeur d'un filtre qui retient tout (magasins, états ou types), à distinguer du filtre pas encore choisi. */
+    public const ALL = 'all';
+
     #[Url(as: 'product')]
     public string $productFilter = '';
 
@@ -32,7 +36,7 @@ class Movements extends Component
 
     public string $typeFilter = '';
 
-    /** Magasin affiché (vide : tous), offert seulement avec stores.all (ADR 0013). */
+    /** Magasin affiché (ALL : tous), offert seulement avec stores.all (ADR 0013). */
     public string $storeFilter = '';
 
     public bool $showMove = false;
@@ -142,9 +146,22 @@ class Movements extends Component
             ->get();
     }
 
+    /**
+     * Le journal ne se charge qu'une fois un produit ou un filtre choisi.
+     */
+    public function hasSearchCriteria(): bool
+    {
+        return filled($this->productFilter) || filled($this->statusFilter) || filled($this->typeFilter) || filled($this->storeFilter);
+    }
+
+    private function isFilteringBy(string $filter): bool
+    {
+        return filled($filter) && $filter !== self::ALL;
+    }
+
     public function render(): View
     {
-        $movements = InventoryMovement::query()
+        $movements = ! $this->hasSearchCriteria() ? new LengthAwarePaginator([], 0, 15) : InventoryMovement::query()
             ->accessibleTo(auth()->user())
             ->with([
                 'product', 'user', 'store',
@@ -156,11 +173,11 @@ class Movements extends Component
                     : $relation,
             ])
             ->when(filled($this->productFilter), fn ($query) => $query->where('product_id', $this->productFilter))
-            ->when(filled($this->statusFilter), fn ($query) => $query->where(function ($q) {
+            ->when($this->isFilteringBy($this->statusFilter), fn ($query) => $query->where(function ($q) {
                 $q->where('from_status', $this->statusFilter)->orWhere('to_status', $this->statusFilter);
             }))
-            ->when(filled($this->typeFilter), fn ($query) => $query->where('type', $this->typeFilter))
-            ->when(filled($this->storeFilter) && auth()->user()->hasAllStores(), fn ($query) => $query->where('store_id', (int) $this->storeFilter))
+            ->when($this->isFilteringBy($this->typeFilter), fn ($query) => $query->where('type', $this->typeFilter))
+            ->when($this->isFilteringBy($this->storeFilter) && auth()->user()->hasAllStores(), fn ($query) => $query->where('store_id', (int) $this->storeFilter))
             ->latest('id')
             ->paginate(15);
 
@@ -168,6 +185,7 @@ class Movements extends Component
 
         return view('livewire.inventory.movements', [
             'movements' => $movements,
+            'hasSearchCriteria' => $this->hasSearchCriteria(),
             'statuses' => InventoryStatus::cases(),
             'movableStatuses' => collect(InventoryStatus::cases())->filter->isManuallyMovable()->values(),
             'types' => InventoryMovementType::cases(),

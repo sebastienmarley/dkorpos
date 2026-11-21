@@ -92,6 +92,7 @@ it('indique le magasin de chaque mouvement du journal, limité au magasin de l\'
 
     Livewire::actingAs(User::factory()->withRole('salesman')->create(['store_id' => $this->rimouski->id]))
         ->test(Movements::class)
+        ->set('typeFilter', Movements::ALL)
         ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->unique()->all() === [$this->rimouski->id])
         ->assertSee('Rimouski')
         ->assertDontSee('Gaspé')
@@ -100,6 +101,7 @@ it('indique le magasin de chaque mouvement du journal, limité au magasin de l\'
         ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->unique()->all() === [$this->rimouski->id]);
 
     Livewire::actingAs($this->owner)->test(Movements::class)
+        ->set('storeFilter', Movements::ALL)
         ->assertViewHas('movements', fn ($movements): bool => $movements->pluck('store_id')->sort()->values()->all() === [$this->rimouski->id, $this->gaspe->id])
         ->assertSee('Gaspé')
         ->set('storeFilter', (string) $this->gaspe->id)
