@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Enums\InventoryCountStatus;
+use App\Models\InventoryCountSheet;
 use App\Models\LabelRequest;
 use App\Models\User;
 
@@ -61,7 +63,7 @@ class Navigation
                 $this->item(__('Journal d\'inventaire'), 'clipboard-document-list', 'inventory.movements', allowed: $user->can('inventory.view')),
                 $this->item(__('Ajustements d\'inventaire'), 'adjustments-horizontal', 'inventory.adjustments', allowed: $user->can('inventory.adjust')),
                 $this->item(__('Prises d\'inventaire'), 'clipboard-document-check', 'inventory.counts', 'inventory.counts*', $user->can('inventory.count')),
-                $this->item(__('Mes comptes'), 'qr-code', 'inventory.my-counts', allowed: $user->can('inventory.count')),
+                $this->item(__('Mes comptes'), 'qr-code', 'inventory.my-counts', allowed: $user->can('inventory.count') && $this->hasAssignedCountSheets($user)),
                 $this->item(__('Zones et emplacements'), 'map', 'inventory.zones', allowed: $user->can('inventory.supervise'), navigate: false),
             ]],
             ['Catalogue', [
@@ -161,5 +163,16 @@ class Navigation
             'navigate' => $navigate,
             'badge' => $badgeCount > 0 ? $badgeCount : null,
         ];
+    }
+
+    /**
+     * « Mes comptes » n'apparaît qu'au compteur qui a une feuille assignée dans une prise d'inventaire en cours.
+     */
+    private function hasAssignedCountSheets(User $user): bool
+    {
+        return InventoryCountSheet::query()
+            ->where('assigned_to', $user->id)
+            ->whereHas('inventoryCount', fn ($query) => $query->where('status', InventoryCountStatus::InProgress))
+            ->exists();
     }
 }

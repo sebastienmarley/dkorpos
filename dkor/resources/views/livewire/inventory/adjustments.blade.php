@@ -10,12 +10,20 @@
         <flux:button variant="primary" icon="adjustments-horizontal" wire:click="openAdjust">{{ __('Nouvel ajustement') }}</flux:button>
     </div>
 
+    <div class="mb-4 w-full sm:w-40">
+        <flux:select wire:model.live="yearFilter" :aria-label="__('Année')">
+            @foreach ($years as $year)
+                <flux:select.option :value="$year">{{ $year }}</flux:select.option>
+            @endforeach
+        </flux:select>
+    </div>
+
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <flux:table :paginate="$adjustments">
             <flux:table.columns>
                 <flux:table.column>{{ __('Date') }}</flux:table.column>
                 <flux:table.column>{{ __('Produit') }}</flux:table.column>
-                <flux:table.column>{{ __('Motif') }}</flux:table.column>
+                <flux:table.column class="max-md:hidden">{{ __('Motif') }}</flux:table.column>
                 <flux:table.column>{{ __('État') }}</flux:table.column>
                 <flux:table.column align="end">{{ __('Qté') }}</flux:table.column>
                 <flux:table.column align="end">{{ __('Valeur') }}</flux:table.column>
@@ -27,9 +35,9 @@
                     <flux:table.row :key="$adjustment->id">
                         <flux:table.cell>{{ $adjustment->created_at->format('Y-m-d H:i') }}</flux:table.cell>
                         <flux:table.cell variant="strong">
-                            <flux:link :href="route('products.show', $adjustment->product)" wire:navigate>{{ $adjustment->product->display_name }}</flux:link>
+                            <flux:link :href="route('products.show', $adjustment->product)" wire:navigate>{{ $adjustment->product->model }}</flux:link>
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="max-md:hidden">
                             {{ $adjustment->reason->label() }}
                             <flux:text class="text-xs text-zinc-400">{{ $adjustment->note }}</flux:text>
                         </flux:table.cell>
@@ -49,7 +57,7 @@
                         <flux:table.cell colspan="7" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="adjustments-horizontal" class="h-8 w-8 text-zinc-300" />
-                                <flux:text class="text-zinc-400">{{ __('Aucun ajustement d\'inventaire.') }}</flux:text>
+                                <flux:text class="text-zinc-400">{{ __('Aucun ajustement d\'inventaire pour :year.', ['year' => $yearFilter]) }}</flux:text>
                             </div>
                         </flux:table.cell>
                     </flux:table.row>

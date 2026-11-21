@@ -1,5 +1,8 @@
 <?php
 
+use App\Enums\InventoryCountStatus;
+use App\Models\InventoryCount;
+use App\Models\InventoryCountSheet;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\Navigation;
@@ -21,6 +24,24 @@ it('ne montre que les pages permises', function () {
     $user->givePermissionTo(['customers.view', 'products.view']);
 
     expect(navigationRoutes($user))->toBe(['home', 'stats.index', 'customers.index', 'products.index']);
+});
+
+it('ne montre « Mes comptes » qu\'avec une feuille assignée dans une prise en cours', function () {
+    $user = User::factory()->withRole('visiteur')->create();
+    $user->givePermissionTo('inventory.count');
+
+    expect(navigationRoutes($user))->not->toContain('inventory.my-counts');
+
+    InventoryCountSheet::factory()->create([
+        'assigned_to' => $user->id,
+        'inventory_count_id' => InventoryCount::factory()->create(['status' => InventoryCountStatus::Finalized])->id,
+    ]);
+
+    expect(navigationRoutes($user))->not->toContain('inventory.my-counts');
+
+    InventoryCountSheet::factory()->create(['assigned_to' => $user->id]);
+
+    expect(navigationRoutes($user))->toContain('inventory.my-counts');
 });
 
 it('masque les sections sans page permise', function () {
