@@ -11,8 +11,21 @@
         @endcan
     </div>
 
-    <div class="mb-4">
-        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Rechercher un service…')" />
+    {{-- Filtres : la page s'ouvre sur les services rendus par le magasin. --}}
+    <div class="mb-4 flex flex-wrap gap-3">
+        <div class="w-full sm:w-72">
+            <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Rechercher un service…')" />
+        </div>
+
+        <div class="w-full sm:w-56">
+            <flux:select wire:model.live="providerFilter">
+                <flux:select.option value="{{ \App\Livewire\Catalog\Services::PROVIDER_INTERNAL }}">{{ __('Interne') }}</flux:select.option>
+                @foreach ($providers as $provider)
+                    <flux:select.option :value="$provider->id">{{ $provider->name }}</flux:select.option>
+                @endforeach
+                <flux:select.option value="">{{ __('Tous les fournisseurs') }}</flux:select.option>
+            </flux:select>
+        </div>
     </div>
 
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -69,7 +82,7 @@
                         <flux:table.cell colspan="5" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <flux:icon name="wrench" class="h-8 w-8 text-zinc-300" />
-                                <flux:text class="text-zinc-400">{{ __('Aucun service.') }}</flux:text>
+                                <flux:text class="text-zinc-400">{{ __('Aucun service pour ces critères.') }}</flux:text>
                             </div>
                         </flux:table.cell>
                     </flux:table.row>

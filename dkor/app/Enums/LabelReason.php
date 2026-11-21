@@ -14,9 +14,9 @@ enum LabelReason: string
     public function label(): string
     {
         return match ($this) {
-            self::Manual => __('Demande manuelle'),
-            self::PriceChange => __('Changement de prix'),
-            self::NewDemo => __('Nouveau démo'),
+            self::Manual => __('Manuelle'),
+            self::PriceChange => __('Changement'),
+            self::NewDemo => __('Nouveau'),
         };
     }
 

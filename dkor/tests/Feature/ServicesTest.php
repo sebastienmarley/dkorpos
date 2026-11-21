@@ -39,6 +39,20 @@ describe('catalogue de services', function () {
         $this->actingAs(User::factory()->withRole('admin')->create());
     });
 
+    it('ouvre sur les services internes et filtre par fournisseur', function () {
+        $internal = Service::factory()->create(['name' => 'Installation maison', 'is_internal' => true]);
+        [$external, $supplier] = externalService(attributes: ['name' => 'Livraison gants blancs', 'is_internal' => false]);
+        [$other] = externalService(attributes: ['name' => 'Réparation tissu', 'is_internal' => false]);
+
+        Livewire::test(Services::class)
+            ->assertSet('providerFilter', Services::PROVIDER_INTERNAL)
+            ->assertSee('Installation maison')->assertDontSee('Livraison gants blancs')
+            ->set('providerFilter', (string) $supplier->id)
+            ->assertSee('Livraison gants blancs')->assertDontSee('Installation maison')->assertDontSee('Réparation tissu')
+            ->set('providerFilter', '')
+            ->assertSee('Installation maison')->assertSee('Livraison gants blancs')->assertSee('Réparation tissu');
+    });
+
     it('crée un service interne non taxable avec son prix', function () {
         Livewire::test(Services::class)
             ->call('openCreate')
