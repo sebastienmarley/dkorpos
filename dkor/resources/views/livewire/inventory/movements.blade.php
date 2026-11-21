@@ -18,6 +18,23 @@
     </div>
 
     <div class="mb-4 flex flex-wrap gap-3">
+        <div class="w-full sm:w-64">
+            <flux:select wire:model.live="periodFilter">
+                @foreach ($periodOptions as $value => $label)
+                    <flux:select.option :value="$value">{{ $label }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        </div>
+        @if ($isSearchingArchives)
+            <div class="w-full sm:w-40">
+                <flux:select wire:model.live="archiveYear">
+                    <flux:select.option value="">{{ __('Choisir l\'année…') }}</flux:select.option>
+                    @foreach ($archiveYears as $year)
+                        <flux:select.option :value="$year">{{ $year }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            </div>
+        @endif
         @if (auth()->user()->hasAllStores())
             <div class="w-full sm:w-56">
                 <flux:select wire:model.live="storeFilter">
@@ -115,14 +132,17 @@
         </flux:table>
     </div>
 
-    <div class="mt-3">
-        <flux:text class="text-sm text-zinc-400">{{ trans_choice(':count mouvement|:count mouvements', $movements->total()) }}</flux:text>
-    </div>
     @elseif ($hasSearchCriteria)
         <div class="flex flex-col items-center gap-2 py-12 text-center">
             <flux:icon name="clipboard-document-list" class="h-8 w-8 text-zinc-300" />
             <flux:text class="text-zinc-400">{{ __('Aucun mouvement pour ces critères.') }}</flux:text>
         </div>
+    @elseif ($isSearchingArchives)
+        <flux:text class="py-12 text-center text-zinc-400">
+            {{ $archiveYears === []
+                ? __('Aucun mouvement archivé.')
+                : __('Dans les archives, choisir une année et au moins un critère précis : magasin, état ou type (« Tous » ne compte pas).') }}
+        </flux:text>
     @endif
 
     {{-- Nouveau mouvement --}}
