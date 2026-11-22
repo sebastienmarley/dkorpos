@@ -63,7 +63,7 @@
             <flux:field>
                 <flux:label>{{ __('Code hex') }}</flux:label>
                 <div class="flex flex-wrap items-center gap-2">
-                    <flux:input wire:model="hexCode" type="text" placeholder="#RRGGBB" maxlength="7" class="font-mono" />
+                    <flux:input wire:model.live.debounce.300ms="hexCode" type="text" placeholder="#RRGGBB" maxlength="7" class="font-mono" />
                     @if (filled($hexCode))
                         <span class="inline-block h-9 w-9 flex-shrink-0 rounded-lg border border-zinc-200 dark:border-zinc-600" style="background-color: {{ $hexCode }}"></span>
                     @endif

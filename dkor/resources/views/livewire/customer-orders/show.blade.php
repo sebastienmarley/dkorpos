@@ -703,7 +703,7 @@
                             <flux:error name="returnQuantity" />
                         </flux:field>
 
-                        <flux:radio.group wire:model="returnType" :label="__('Le client veut')">
+                        <flux:radio.group wire:model.live="returnType" :label="__('Le client veut')">
                             <flux:radio value="exchange" :label="__('Un échange')" :description="__('L\'article revient en stock; le montant payé reste au crédit de la commande pour le produit d\'échange.')" />
                             <flux:radio value="refund" :label="__('Un remboursement')" :description="__('L\'article revient en stock, puis le client est remboursé.')" />
                         </flux:radio.group>
