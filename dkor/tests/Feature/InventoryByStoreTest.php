@@ -59,6 +59,7 @@ it('montre les quantités du produit par magasin et le total de l\'entreprise', 
     InventoryMovement::record($this->product, $this->gaspe, InventoryStatus::InStock, InventoryStatus::InDemo, 1, InventoryMovementType::Transfer);
 
     Livewire::test(ProductShow::class, ['product' => $this->product->fresh()])
+        ->call('switchTab', 'inventory')
         ->assertSee('Rimouski')
         ->assertSee('Gaspé')
         ->assertSee('Total de l\'entreprise');
@@ -76,6 +77,7 @@ it('montre le lien vers les mouvements du produit seulement avec inventory.view'
     $movementsUrl = route('inventory.movements', ['product' => $this->product->id]);
 
     Livewire::test(ProductShow::class, ['product' => $this->product->fresh()])
+        ->call('switchTab', 'inventory')
         ->assertSee($movementsUrl, escape: false);
 
     Role::create(['name' => 'visiteur', 'label' => 'Visiteur', 'level' => 0, 'guard_name' => 'web']);
@@ -83,6 +85,8 @@ it('montre le lien vers les mouvements du produit seulement avec inventory.view'
     $viewer->givePermissionTo('products.view');
 
     Livewire::actingAs($viewer)->test(ProductShow::class, ['product' => $this->product->fresh()])
+        ->call('switchTab', 'inventory')
+        ->assertSee(InventoryStatus::InStock->label())
         ->assertDontSee($movementsUrl, escape: false);
 });
 

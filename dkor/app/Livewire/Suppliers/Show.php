@@ -10,6 +10,7 @@ use App\Rules\PostalCode;
 use App\Support\Money;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -326,15 +327,18 @@ class Show extends Component
         $this->isActive = $this->supplier->is_active;
     }
 
+    /**
+     * Seul l'onglet actif est généré : les listes des autres onglets ne sont lues que lorsqu'on les ouvre.
+     */
     public function render(): View
     {
         return view('livewire.suppliers.show', [
-            'shippingSuppliers' => Supplier::query()
+            'shippingSuppliers' => $this->activeTab !== 'transport' ? new Collection : Supplier::query()
                 ->where('type', SupplierType::Shipping)
                 ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->supplier->default_shipping_supplier_id))
                 ->orderBy('name')
                 ->get(),
-            'currencies' => Currency::query()
+            'currencies' => $this->activeTab !== 'accounting' ? new Collection : Currency::query()
                 ->where('is_archived', false)
                 ->orWhere('id', $this->supplier->currency_id)
                 ->orderBy('code')

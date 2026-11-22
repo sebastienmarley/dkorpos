@@ -24,7 +24,8 @@
 
         @can('stores.view')
         {{-- Identification --}}
-        <div x-show="tab === 'identification'" x-cloak>
+        @if ($activeTab === 'identification')
+        <div>
             <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
@@ -81,9 +82,11 @@
                 </div>
             </form>
         </div>
+        @endif
 
         {{-- Comptabilité --}}
-        <div x-show="tab === 'accounting'" x-cloak>
+        @if ($activeTab === 'accounting')
+        <div>
             <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
                     @forelse ($taxNumbers as $index => $taxNumber)
@@ -213,9 +216,11 @@
                 </div>
             </form>
         </div>
+        @endif
 
         {{-- Heures d'ouverture --}}
-        <div x-show="tab === 'hours'" x-cloak>
+        @if ($activeTab === 'hours')
+        <div>
             <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-4">
                 @foreach (['monday' => __('Lundi'), 'tuesday' => __('Mardi'), 'wednesday' => __('Mercredi'), 'thursday' => __('Jeudi'), 'friday' => __('Vendredi'), 'saturday' => __('Samedi'), 'sunday' => __('Dimanche')] as $day => $dayLabel)
                     <div class="grid grid-cols-[8rem_1fr] items-start gap-4 sm:grid-cols-[8rem_6rem_1fr]" wire:key="hours-{{ $day }}">
@@ -246,9 +251,11 @@
                 </div>
             </form>
         </div>
+        @endif
 
         {{-- Livraison --}}
-        <div x-show="tab === 'delivery'" x-cloak>
+        @if ($activeTab === 'delivery')
+        <div>
             <div class="mt-6 max-w-3xl space-y-4">
                 <div class="flex items-start justify-between gap-4">
                     <flux:text class="text-zinc-500">
@@ -299,9 +306,11 @@
                 </div>
             </div>
         </div>
+        @endif
 
         {{-- Expédition --}}
-        <div x-show="tab === 'shipping'" x-cloak>
+        @if ($activeTab === 'shipping')
+        <div>
             <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-4">
                 <flux:text class="text-zinc-500">
                     {{ __('Taille d\'un article qui peut être expédié par un fournisseur d\'expédition. Un article plus grand, plus lourd ou sans dimensions est signalé à la demande d\'expédition, sans la bloquer. Laissez vide pour ne pas vérifier.') }}
@@ -338,9 +347,11 @@
                 </div>
             </form>
         </div>
+        @endif
 
         {{-- Paramètres --}}
-        <div x-show="tab === 'parameters'" x-cloak>
+        @if ($activeTab === 'parameters')
+        <div>
             <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                 <flux:field>
                     <flux:label>{{ __('Emplacement de l\'entrepôt') }}</flux:label>
@@ -381,12 +392,15 @@
                 </div>
             </form>
         </div>
+        @endif
         @endcan
 
         @can('inventory.supervise')
-            <div x-show="tab === 'locations'" x-cloak>
+            @if ($activeTab === 'locations')
+            <div>
                 <livewire:stores.locations :store="$store" />
             </div>
+            @endif
         @endcan
     </div>
 

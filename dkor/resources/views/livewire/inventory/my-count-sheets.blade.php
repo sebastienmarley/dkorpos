@@ -62,7 +62,7 @@
                     <flux:text class="flex-1">{{ $line->product->display_name }}</flux:text>
                     @if ($sheet->state === \App\Enums\InventoryCountSheetState::InProgress)
                         <div class="w-20">
-                            <flux:input size="sm" type="number" min="0" inputmode="numeric" wire:model.blur="quantities.{{ $line->product_id }}" />
+                            <flux:input size="sm" type="number" min="0" inputmode="numeric" wire:model.live.blur="quantities.{{ $line->product_id }}" />
                         </div>
                     @else
                         <flux:text class="font-medium">{{ $line->quantity }}</flux:text>

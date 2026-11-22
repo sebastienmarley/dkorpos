@@ -444,6 +444,9 @@ class Show extends Component
         $this->shippingMaxWeight = $this->store->shipping_max_weight === null ? '' : rtrim(rtrim(number_format($this->store->shipping_max_weight, 2, '.', ''), '0'), '.');
     }
 
+    /**
+     * Seul l'onglet actif est généré : les listes des autres onglets ne sont lues que lorsqu'on les ouvre.
+     */
     public function render(): View
     {
         return view('livewire.stores.show', [
@@ -453,13 +456,13 @@ class Show extends Component
                 9 => __('Septembre'), 10 => __('Octobre'), 11 => __('Novembre'), 12 => __('Décembre'),
             ],
             'provinces' => Province::cases(),
-            'driversCount' => DeliveryBooking::driversOf($this->store->id)->count(),
-            'physicalStores' => Store::query()
+            'driversCount' => $this->activeTab === 'delivery' ? DeliveryBooking::driversOf($this->store->id)->count() : 0,
+            'physicalStores' => $this->activeTab !== 'parameters' ? new Collection : Store::query()
                 ->where('type', StoreType::Physical)
                 ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->store->warehouse_store_id)->orWhere('id', $this->store->shipping_warehouse_id))
                 ->orderBy('name')
                 ->get(),
-            'billingStores' => Store::query()
+            'billingStores' => $this->activeTab !== 'accounting' ? new Collection : Store::query()
                 ->whereKeyNot($this->store->id)
                 ->whereNull('billing_store_id')
                 ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $this->store->billing_store_id))

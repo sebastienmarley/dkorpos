@@ -41,7 +41,8 @@
 
         @can('update', $user)
             {{-- Identification --}}
-            <div x-show="tab === 'identification'">
+            @if ($activeTab === 'identification')
+            <div>
                 <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                     <div class="grid gap-4 sm:grid-cols-2">
                         <flux:field>
@@ -122,11 +123,13 @@
                     </div>
                 </form>
             </div>
+            @endif
         @endcan
 
         @can('viewHr', $user)
             {{-- RH --}}
-            <div x-show="tab === 'hr'" x-cloak>
+            @if ($activeTab === 'hr')
+            <div>
                 <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                     <fieldset @disabled(auth()->user()->cannot('editHr', $user)) class="space-y-6">
                     <flux:field variant="inline">
@@ -260,11 +263,13 @@
                     @endcan
                 </form>
             </div>
+            @endif
         @endcan
 
         @can('update', $user)
             {{-- Adresse --}}
-            <div x-show="tab === 'address'" x-cloak>
+            @if ($activeTab === 'address')
+            <div>
                 <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                     <x-address-input prefix="address" :current-country="$address['country'] ?? 'CA'" />
 
@@ -273,11 +278,13 @@
                     </div>
                 </form>
             </div>
+            @endif
         @endcan
 
         @can('update', $user)
             {{-- Compte --}}
-            <div x-show="tab === 'account'" x-cloak>
+            @if ($activeTab === 'account')
+            <div>
                 <div class="mt-6 max-w-2xl space-y-6">
                     <div class="space-y-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-800">
                         <div class="flex items-center justify-between">
@@ -362,11 +369,13 @@
                     </div>
                 </div>
             </div>
+            @endif
         @endcan
 
         {{-- Accès --}}
         @can('assignPermissions', $user)
-            <div x-show="tab === 'access'" x-cloak>
+            @if ($activeTab === 'access')
+            <div>
                 <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                     <flux:text class="text-sm text-zinc-500">
                         {{ __('Les permissions du rôle sont cochées par défaut. Cochez pour ajouter une permission, décochez pour en retirer une, même si elle vient du rôle. Vous ne pouvez modifier que les permissions que vous possédez.') }}
@@ -411,6 +420,7 @@
                     </div>
                 </form>
             </div>
+            @endif
         @endcan
     </div>
 </div>

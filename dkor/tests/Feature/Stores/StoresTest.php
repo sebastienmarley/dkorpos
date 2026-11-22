@@ -304,6 +304,7 @@ it('affiche un numéro par taxe en vigueur dans la province du magasin', functio
     StoreTaxRegistration::factory()->create(['store_id' => ($store = Store::factory()->create())->id, 'tax_name' => 'TPS', 'number' => '111RT0001']);
 
     Livewire::test(Show::class, ['store' => $store])
+        ->set('activeTab', 'accounting')
         ->assertSet('taxNumbers', [['name' => 'TPS', 'number' => '111RT0001'], ['name' => 'TVQ', 'number' => '']])
         ->assertSee('Numéro de TPS')
         ->assertSee('Numéro de TVQ')
@@ -312,6 +313,7 @@ it('affiche un numéro par taxe en vigueur dans la province du magasin', functio
     $ontario = Store::factory()->create(['province' => 'ON']);
 
     Livewire::test(Show::class, ['store' => $ontario])
+        ->set('activeTab', 'accounting')
         ->assertSet('taxNumbers', [['name' => 'TVH', 'number' => '']])
         ->assertSee('Numéro de TVH')
         ->assertDontSee('Numéro de TPS');

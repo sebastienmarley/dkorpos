@@ -13,9 +13,11 @@ use App\Models\CustomerOrderLine;
 use App\Models\CustomerPaymentMethod;
 use App\Models\InventoryLocation;
 use App\Models\InventoryZone;
+use App\Models\Product;
 use App\Models\Reception;
 use App\Models\Store;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -134,6 +136,26 @@ describe('ranger une ligne de commande client', function () {
 
         Livewire::test(LinePlacement::class, ['lineId' => $line->id])
             ->assertSet('locationId', (string) $this->location->id);
+    });
+
+    it('propose les emplacements de chaque magasin, lus en une seule requête', function () {
+        $otherStore = Store::factory()->create(['name' => 'Zzz Autre magasin']);
+        $otherLocation = InventoryLocation::factory()->create([
+            'inventory_zone_id' => InventoryZone::factory()->create(['store_id' => $otherStore->id])->id,
+            'code' => 'B-01-1',
+        ]);
+        InventoryLocation::factory()->create(['inventory_zone_id' => $this->zone->id, 'code' => 'A-99-9', 'is_active' => false]);
+
+        $component = Livewire::test(ProductShow::class, ['product' => Product::factory()->create()->fresh()]);
+
+        DB::enableQueryLog();
+        $locationsByStore = $component->instance()->getLocationsByStore()->mapWithKeys(fn (array $entry): array => [
+            $entry['store']->id => $entry['locations']->pluck('code')->all(),
+        ]);
+
+        expect($locationsByStore->get($this->store->id))->toBe(['A-03-2'])
+            ->and($locationsByStore->get($otherStore->id))->toBe([$otherLocation->code])
+            ->and(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'from "inventory_locations"')))->toHaveCount(1);
     });
 
     it('n\'accepte pas comme emplacement habituel un emplacement d\'un autre magasin', function () {

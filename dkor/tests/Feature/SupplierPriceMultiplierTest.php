@@ -30,6 +30,7 @@ it('sauvegarde les composantes et recalcule le multiplicateur', function () {
     $supplier = Supplier::factory()->for(Currency::factory()->create(['rate' => 1.3]))->create(['type' => SupplierType::Product]);
 
     Livewire::test(SupplierShow::class, ['supplier' => $supplier])
+        ->set('activeTab', 'parameters')
         ->set('baseMultiplier', '2')
         ->set('customsFee', '0.2')
         ->set('shippingFee', '0.5')
@@ -68,6 +69,7 @@ it('recalcule le multiplicateur quand la devise du fournisseur change', function
     Livewire::test(SupplierShow::class, ['supplier' => $supplier])
         ->set('currencyId', (string) $currency->id)
         ->call('saveAccounting')
+        ->set('activeTab', 'parameters')
         ->assertSee('3.3500');
 
     expect($supplier->fresh()->price_multiplier)->toBe(3.35);
@@ -124,11 +126,13 @@ it('affiche l\'onglet transport seulement pour les fournisseurs de produits', fu
     $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(SupplierShow::class, ['supplier' => Supplier::factory()->create(['type' => SupplierType::Product])])
+        ->set('activeTab', 'transport')
         ->assertSee('Montant prepaid');
 
     $service = Supplier::factory()->create(['type' => SupplierType::Service]);
 
     Livewire::test(SupplierShow::class, ['supplier' => $service])
+        ->set('activeTab', 'transport')
         ->assertDontSee('Montant prepaid')
         ->call('saveTransport')
         ->assertNotFound();
@@ -140,6 +144,7 @@ it('enregistre le fournisseur d\'expédition par défaut seulement si collect', 
     $supplier = Supplier::factory()->create(['type' => SupplierType::Product]);
 
     $component = Livewire::test(SupplierShow::class, ['supplier' => $supplier])
+        ->set('activeTab', 'transport')
         ->assertDontSee('Transport Alpha')
         ->set('collect', true)
         ->assertSee('Transport Alpha')
@@ -182,11 +187,13 @@ it('affiche l\'onglet info commande sauf pour un fournisseur d\'expédition', fu
     $this->actingAs(User::factory()->withRole('admin')->create());
 
     Livewire::test(SupplierShow::class, ['supplier' => Supplier::factory()->create(['type' => SupplierType::Product])])
+        ->set('activeTab', 'parameters')
         ->assertSee('Multiplicateur de prix');
 
     $shipping = Supplier::factory()->create(['type' => SupplierType::Shipping]);
 
     Livewire::test(SupplierShow::class, ['supplier' => $shipping])
+        ->set('activeTab', 'parameters')
         ->assertDontSee('Multiplicateur de prix')
         ->call('saveParameters')
         ->assertNotFound();
