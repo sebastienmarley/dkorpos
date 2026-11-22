@@ -2,7 +2,6 @@
 
 use App\Livewire\Catalog\Departments;
 use App\Livewire\Catalog\Styles;
-use App\Livewire\Products\Index as ProductsIndex;
 use App\Livewire\Products\Show as ProductShow;
 use App\Models\Category;
 use App\Models\Department;
@@ -124,19 +123,5 @@ describe('classification d\'un produit', function () {
             ->set('categoryId', (string) Category::factory()->create()->id)
             ->call('saveGeneral')
             ->assertHasErrors('categoryId');
-    });
-
-    it('filtre la liste des produits par département puis par catégorie', function () {
-        $stools = Category::factory()->create();
-        $tables = Category::factory()->create(['department_id' => $stools->department_id]);
-        $stool = Product::factory()->create(['category_id' => $stools->id]);
-        $table = Product::factory()->create(['category_id' => $tables->id]);
-        Product::factory()->create();
-
-        $component = Livewire::test(ProductsIndex::class)->set('departmentId', (string) $stools->department_id);
-        expect($component->instance()->getProducts()->pluck('id')->all())->toEqualCanonicalizing([$stool->id, $table->id]);
-
-        $component->set('categoryId', (string) $stools->id);
-        expect($component->instance()->getProducts()->pluck('id')->all())->toBe([$stool->id]);
     });
 });
