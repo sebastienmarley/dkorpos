@@ -13,47 +13,52 @@
         @endcan
     </div>
 
-    <div class="mb-4 max-w-sm">
-        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Rechercher un fournisseur…')" clearable />
+    <div class="mb-4 w-full sm:w-72">
+        <flux:select wire:model.live="supplierFilter">
+            <flux:select.option value="">{{ __('Choisir un fournisseur…') }}</flux:select.option>
+            <flux:select.option value="{{ \App\Livewire\Catalog\PriceLists::ALL }}">{{ __('Tous les fournisseurs') }}</flux:select.option>
+            @foreach ($filterableSuppliers as $supplier)
+                <flux:select.option :value="$supplier->id">{{ $supplier->name }}</flux:select.option>
+            @endforeach
+        </flux:select>
     </div>
 
-    <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <flux:table>
-            <flux:table.columns>
-                <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
-                <flux:table.column>{{ __('Liste active') }}</flux:table.column>
-                <flux:table.column>{{ __('Début') }}</flux:table.column>
-                <flux:table.column>{{ __('Fin') }}</flux:table.column>
-            </flux:table.columns>
+    @if ($priceLists->isNotEmpty())
+        <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <flux:table>
+                <flux:table.columns>
+                    <flux:table.column>{{ __('Fournisseur') }}</flux:table.column>
+                    <flux:table.column>{{ __('Statut') }}</flux:table.column>
+                    <flux:table.column>{{ __('Début') }}</flux:table.column>
+                    <flux:table.column>{{ __('Fin') }}</flux:table.column>
+                    <flux:table.column align="end" class="max-md:hidden">{{ __('Produits') }}</flux:table.column>
+                    <flux:table.column />
+                </flux:table.columns>
 
-            <flux:table.rows>
-                @forelse ($priceLists as $list)
-                    <flux:table.row :key="$list->id">
-                        <flux:table.cell variant="strong">
-                            <a href="{{ route('catalog.price-lists.show', $list) }}" wire:navigate class="hover:underline">{{ $list->supplier->name }}</a>
-                        </flux:table.cell>
-                        <flux:table.cell>
-                            @if ($list->isUpcoming())
-                                <flux:badge color="blue" size="sm">{{ __('À venir') }}</flux:badge>
-                            @else
-                                <flux:badge color="green" size="sm">{{ __('Active') }}</flux:badge>
-                            @endif
-                        </flux:table.cell>
-                        <flux:table.cell>{{ $list->starts_on->toDateString() }}</flux:table.cell>
-                        <flux:table.cell>{{ $list->ends_on->toDateString() }}</flux:table.cell>
-                    </flux:table.row>
-                @empty
-                    <flux:table.row>
-                        <flux:table.cell colspan="4" class="py-12 text-center">
-                            <flux:text class="text-zinc-400">
-                                {{ filled($search) ? __('Aucune liste de prix active pour ce fournisseur.') : __('Recherchez un fournisseur pour voir sa liste de prix active.') }}
-                            </flux:text>
-                        </flux:table.cell>
-                    </flux:table.row>
-                @endforelse
-            </flux:table.rows>
-        </flux:table>
-    </div>
+                <flux:table.rows>
+                    @foreach ($priceLists as $list)
+                        <x-table.row-link :key="$list->id" :href="route('catalog.price-lists.show', $list)">
+                            <flux:table.cell variant="strong">
+                                <a href="{{ route('catalog.price-lists.show', $list) }}" wire:navigate>{{ $list->supplier->name }}</a>
+                            </flux:table.cell>
+                            <flux:table.cell>
+                                @if ($list->isUpcoming())
+                                    <flux:badge color="blue" size="sm">{{ __('À venir') }}</flux:badge>
+                                @else
+                                    <flux:badge color="green" size="sm">{{ __('Active') }}</flux:badge>
+                                @endif
+                            </flux:table.cell>
+                            <flux:table.cell class="tabular-nums">{{ $list->starts_on->toDateString() }}</flux:table.cell>
+                            <flux:table.cell class="tabular-nums">{{ $list->ends_on->toDateString() }}</flux:table.cell>
+                            <flux:table.cell align="end" @class(['tabular-nums max-md:hidden', 'text-zinc-400' => $list->items_count === 0])>{{ number_format($list->items_count, 0, ',', ' ') }}</flux:table.cell>
+                        </x-table.row-link>
+                    @endforeach
+                </flux:table.rows>
+            </flux:table>
+        </div>
+    @elseif (filled($supplierFilter))
+        <flux:text class="py-12 text-center text-zinc-400">{{ __('Aucune liste de prix active.') }}</flux:text>
+    @endif
 
     <flux:modal wire:model="showModal" class="w-full max-w-md">
         <flux:heading class="mb-1">{{ __('Nouvelle liste de prix') }}</flux:heading>

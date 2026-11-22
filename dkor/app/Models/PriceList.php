@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Carbon;
 
 /**
@@ -20,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Supplier $supplier
+ * @property-read int|null $items_count
  */
 #[Fillable(['supplier_id', 'starts_on', 'ends_on', 'archived_at'])]
 class PriceList extends Model
@@ -46,6 +48,16 @@ class PriceList extends Model
     public function lists(): HasMany
     {
         return $this->hasMany(PriceListList::class);
+    }
+
+    /**
+     * Produits de toutes les listes.
+     *
+     * @return HasManyThrough<PriceListItem, PriceListList, $this>
+     */
+    public function items(): HasManyThrough
+    {
+        return $this->hasManyThrough(PriceListItem::class, PriceListList::class);
     }
 
     /**

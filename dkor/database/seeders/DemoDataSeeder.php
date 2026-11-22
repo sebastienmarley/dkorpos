@@ -22,12 +22,14 @@ use App\Enums\StoreType;
 use App\Enums\SupplierOrderStatus;
 use App\Enums\SupplierPaymentMethod;
 use App\Enums\SupplierType;
+use App\Models\Category;
 use App\Models\Currency;
 use App\Models\customer;
 use App\Models\CustomerOrder;
 use App\Models\CustomerOrderLine;
 use App\Models\CustomerPaymentMethod;
 use App\Models\DeliveryTruck;
+use App\Models\Department;
 use App\Models\InventoryLocation;
 use App\Models\InventoryMovement;
 use App\Models\InventoryStock;
@@ -498,31 +500,70 @@ class DemoDataSeeder extends Seeder
             ['name' => 'Tapis et Textiles Gaspésie'],
             ['name' => 'Ashford Furniture (USD)', 'currency_id' => $usd->id],
             ['name' => 'Carolina Outdoor (USD)', 'currency_id' => $usd->id],
+            ['name' => 'Électro Côte-Nord'],
+            ['name' => 'Great Lakes Appliances (USD)', 'currency_id' => $usd->id],
         ])->map(fn (array $attributes): Supplier => Supplier::factory()->create([...$attributes, 'type' => SupplierType::Product, 'base_multiplier' => 2, 'address_province' => 'QC']));
+
+        // Préfixe des modèles fournisseurs (LAU-1001…), dans l'ordre des fournisseurs : les listes de prix de démo
+        // (database/seeders/price-lists) retrouvent ainsi les produits.
+        $supplierCodes = ['LAU', 'BOR', 'LSL', 'CHX', 'MBF', 'TTG', 'ASH', 'CAR', 'ECN', 'GLA'];
+
+        // Les deux derniers fournisseurs ne vendent que des électroménagers, les autres que des meubles et du décor.
+        $applianceSupplierIds = $this->productSuppliers->slice(-2)->pluck('id')->all();
 
         $this->customSupplier = Supplier::factory()->create(['name' => 'Atelier Sur Mesure Gaspésie', 'type' => SupplierType::Product, 'custom_made' => true, 'base_multiplier' => 2]);
         $this->serviceSupplier = Supplier::factory()->create(['name' => 'Installations Pro-Bas-Saint-Laurent', 'type' => SupplierType::Service]);
         $this->carrier = Supplier::factory()->create(['name' => 'Transport Purolator', 'type' => SupplierType::Shipping]);
 
+        // Famille de produit => [département, catégorie, coût min., coût max., longueur, largeur, hauteur, poids].
         $families = [
-            ['Sofa', 250, 900, 90, 38, 34, 60], ['Causeuse', 200, 700, 66, 38, 34, 45], ['Fauteuil', 120, 500, 36, 34, 36, 25],
-            ['Table à manger', 200, 800, 72, 40, 30, 55], ['Chaise', 40, 150, 20, 22, 38, 8], ['Tabouret', 35, 120, 18, 18, 30, 6],
-            ['Lampe sur pied', 40, 180, 14, 14, 62, 6], ['Lampe de table', 25, 90, 12, 12, 24, 3], ['Matelas', 200, 900, 80, 60, 12, 35],
-            ['Sommier', 90, 300, 80, 60, 9, 30], ['Commode', 180, 600, 48, 20, 40, 50], ['Buffet', 220, 700, 60, 18, 34, 60],
-            ['Bibliothèque', 90, 350, 36, 14, 72, 40], ['Table de chevet', 50, 180, 20, 16, 24, 12], ['Lit', 250, 900, 82, 62, 48, 70],
-            ['Miroir', 40, 160, 30, 2, 40, 10], ['Tapis', 60, 400, 96, 1, 1, 15], ['Banc', 60, 220, 48, 16, 18, 15],
+            'Sofa' => ['Salon', 'Sofas', 250, 900, 90, 38, 34, 60],
+            'Causeuse' => ['Salon', 'Causeuses', 200, 700, 66, 38, 34, 45],
+            'Fauteuil' => ['Salon', 'Fauteuils', 120, 500, 36, 34, 36, 25],
+            'Table à manger' => ['Salle à manger', 'Tables', 200, 800, 72, 40, 30, 55],
+            'Chaise' => ['Salle à manger', 'Chaises', 40, 150, 20, 22, 38, 8],
+            'Tabouret' => ['Salle à manger', 'Tabourets', 35, 120, 18, 18, 30, 6],
+            'Buffet' => ['Salle à manger', 'Buffets', 220, 700, 60, 18, 34, 60],
+            'Lampe sur pied' => ['Éclairage', 'Lampes sur pied', 40, 180, 14, 14, 62, 6],
+            'Lampe de table' => ['Éclairage', 'Lampes de table', 25, 90, 12, 12, 24, 3],
+            'Matelas' => ['Chambre', 'Matelas', 200, 900, 80, 60, 12, 35],
+            'Sommier' => ['Chambre', 'Sommiers', 90, 300, 80, 60, 9, 30],
+            'Lit' => ['Chambre', 'Lits', 250, 900, 82, 62, 48, 70],
+            'Commode' => ['Chambre', 'Commodes', 180, 600, 48, 20, 40, 50],
+            'Table de chevet' => ['Chambre', 'Tables de chevet', 50, 180, 20, 16, 24, 12],
+            'Bibliothèque' => ['Rangement', 'Bibliothèques', 90, 350, 36, 14, 72, 40],
+            'Banc' => ['Rangement', 'Bancs', 60, 220, 48, 16, 18, 15],
+            'Miroir' => ['Décor', 'Miroirs', 40, 160, 30, 2, 40, 10],
+            'Tapis' => ['Décor', 'Tapis', 60, 400, 96, 1, 1, 15],
+            'Poêle' => ['Électroménagers', 'Poêles', 500, 1500, 30, 28, 47, 150],
+            'Réfrigérateur' => ['Électroménagers', 'Réfrigérateurs', 800, 2500, 33, 34, 70, 250],
+            'Congélateur' => ['Électroménagers', 'Congélateurs', 300, 1000, 40, 28, 34, 120],
+            'Laveuse' => ['Électroménagers', 'Laveuses', 500, 1400, 27, 30, 40, 180],
+            'Sécheuse' => ['Électroménagers', 'Sécheuses', 400, 1200, 27, 30, 40, 120],
         ];
+
+        // Une catégorie par famille, rangée dans son département.
+        $categories = collect($families)->map(fn (array $family): Category => Category::query()->firstOrCreate([
+            'department_id' => Department::query()->firstOrCreate(['name' => $family[0]])->id,
+            'name' => $family[1],
+        ]));
+        $applianceFamilies = array_keys(array_filter($families, fn (array $family): bool => $family[0] === 'Électroménagers'));
+        $furnitureFamilies = array_values(array_diff(array_keys($families), $applianceFamilies));
 
         $this->carried = [$this->rimouski->id => [], $this->riviereDuLoup->id => []];
         $this->products = collect();
 
         foreach ($this->productSuppliers as $index => $supplier) {
             foreach (range(1, self::PRODUCTS_PER_SUPPLIER) as $number) {
-                [$family, $minCost, $maxCost, $length, $width, $height, $weight] = $families[($index * 7 + $number) % count($families)];
+                $familyNames = in_array($supplier->id, $applianceSupplierIds, true) ? $applianceFamilies : $furnitureFamilies;
+                $family = $familyNames[($index * 7 + $number) % count($familyNames)];
+                [, , $minCost, $maxCost, $length, $width, $height, $weight] = $families[$family];
 
                 $product = Product::factory()->create([
                     'supplier_id' => $supplier->id,
+                    'category_id' => $categories[$family]->id,
                     'model' => $family.' '.strtoupper(substr($supplier->name, 0, 3)).'-'.(100 + $number),
+                    'supplier_model' => $supplierCodes[$index].'-'.(1000 + $number),
                     'cost' => Money::of(fake()->numberBetween($minCost, $maxCost) * 100),
                     'is_taxable' => true,
                     'length' => $length,
@@ -540,7 +581,7 @@ class DemoDataSeeder extends Seeder
             }
         }
 
-        $this->customTemplate = Product::factory()->create(['supplier_id' => $this->customSupplier->id, 'model' => 'SOFA-SUR-MESURE', 'is_custom' => true, 'cost' => Money::parse(1)]);
+        $this->customTemplate = Product::factory()->create(['supplier_id' => $this->customSupplier->id, 'model' => 'SOFA-SUR-MESURE', 'category_id' => $categories['Sofa']->id, 'is_custom' => true, 'cost' => Money::parse(1)]);
 
         $this->deliveryService = Service::factory()->internal(Money::parse(89))->create(['name' => 'Livraison à domicile']);
         $this->installation = Service::factory()->create(['name' => 'Installation']);
