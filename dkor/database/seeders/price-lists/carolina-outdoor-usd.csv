@@ -1,0 +1,51 @@
+﻿Modèle;Coût;IMAP;UPC;Collection;Description;Longueur;Largeur;Hauteur;Poids
+CAR-1001;98,50;;617107000019;Charleston;"Bibliothèque Charleston";39,6;15,4;79,2;44
+CAR-1002;191,00;;617107000026;Myrtle;"Banc Myrtle";45,6;15,2;17,1;14,3
+CAR-1003;101,00;222,99;617107000033;"Outer Banks";"Miroir Outer Banks";27,6;1,8;36,8;9,2
+CAR-1004;278,50;;617107000040;Charleston;"Tapis Charleston";86,4;0,9;0,9;13,5
+CAR-1005;587,50;;617107000057;Myrtle;"Sofa Myrtle";89,1;37,6;33,7;59,4
+CAR-1006;528,00;1161,99;617107000064;"Outer Banks";"Causeuse Outer Banks";59,4;34,2;30,6;40,5
+CAR-1007;250,99;;617107000071;Charleston;"Fauteuil Charleston";37,8;35,7;37,8;26,3
+CAR-1008;427,50;;617107000088;Myrtle;"Table à manger Myrtle";64,8;36;27;49,5
+CAR-1009;59,99;131,99;617107000095;"Outer Banks";"Chaise Outer Banks";20,6;22,7;39,1;8,2
+CAR-1010;55,99;;617107000101;Charleston;"Tabouret Charleston";16,9;16,9;28,2;5,6
+CAR-1011;684,50;;617107000118;Myrtle;"Buffet Myrtle";64,8;19,4;36,7;64,8
+CAR-1012;57,50;126,99;617107000125;"Outer Banks";"Lampe sur pied Outer Banks";15,3;15,3;67,6;6,5
+CAR-1013;86,50;;617107000132;Charleston;"Lampe de table Charleston";11,8;11,8;23,5;2,9
+CAR-1014;380,50;;617107000149;Myrtle;"Matelas Myrtle";85,6;64,2;12,8;37,5
+CAR-1015;142,50;313,99;617107000156;"Outer Banks";"Sommier Outer Banks";76;57;8,5;28,5
+CAR-1016;500,50;;617107000163;Charleston;"Lit Charleston";77,1;58,3;45,1;65,8
+CAR-1017;270,99;;617107000170;Myrtle;"Commode Myrtle";51,4;21,4;42,8;53,5
+CAR-1018;82,50;181,99;617107000187;"Outer Banks";"Table de chevet Outer Banks";20;16;24;12
+CAR-1019;222,99;;617107000194;Charleston;"Bibliothèque Charleston";33,5;13;67;37,2
+CAR-1020;208,99;;617107000200;Myrtle;"Banc Myrtle";43,2;14,4;16,2;13,5
+CAR-1021;147,50;324,99;617107000217;"Outer Banks";"Miroir Outer Banks";30,6;2;40,8;10,2
+CAR-1022;311,50;;617107000224;Charleston;"Tapis Charleston";97,9;1;1;15,3
+CAR-1023;319,50;;617107000231;Myrtle;"Sofa Myrtle";92,7;39,1;35;61,8
+CAR-1024;659,50;1450,99;617107000248;"Outer Banks";"Causeuse Outer Banks";68;39,1;35;46,4
+CAR-1025;448,00;;617107000255;Charleston;"Fauteuil Charleston";38,9;36,7;38,9;27
+CAR-1026;208,99;;617107000262;Myrtle;"Table à manger Myrtle";67,7;37,6;28,2;51,7
+CAR-1027;131,99;290,99;617107000279;"Outer Banks";"Chaise Outer Banks";19,8;21,8;37,6;7,9
+CAR-1028;95,99;;617107000286;Charleston;"Tabouret Charleston";19,8;19,8;33;6,6
+CAR-1029;363,50;;617107000293;Myrtle;"Buffet Myrtle";60;18;34;60
+CAR-1030;139,00;305,99;617107000309;"Outer Banks";"Lampe sur pied Outer Banks";13,6;13,6;60,1;5,8
+CAR-1031;42,50;;617107000316;Charleston;"Lampe de table Charleston";12,2;12,2;24,5;3,1
+CAR-1032;409,50;;617107000323;Myrtle;"Matelas Myrtle";78,4;58,8;11,8;34,3
+CAR-1033;283,99;624,99;617107000330;"Outer Banks";"Sommier Outer Banks";84,8;63,6;9,5;31,8
+CAR-1034;567,99;;617107000347;Charleston;"Lit Charleston";81,2;61,4;47,5;69,3
+CAR-1035;405,99;;617107000354;Myrtle;"Commode Myrtle";52,8;22;44;55
+CAR-1036;64,00;140,99;617107000361;"Outer Banks";"Table de chevet Outer Banks";19,2;15,4;23;11,5
+CAR-1037;148,00;;617107000378;Charleston;"Bibliothèque Charleston";36,4;14,1;72,7;40,4
+CAR-1038;157,50;;617107000385;Myrtle;"Banc Myrtle";48;16;18;15
+CAR-1039;135,50;298,99;617107000392;"Outer Banks";"Miroir Outer Banks";30,6;2;40,8;10,2
+CAR-1040;383,50;;617107000408;Charleston;"Tapis Charleston";104,6;1,1;1,1;16,4
+CAR-1041;502,50;;617107000415;Myrtle;"Sofa Myrtle";82,8;35;31,3;55,2
+CAR-1042;665,50;1464,99;617107000422;"Outer Banks";"Causeuse Outer Banks";65,3;37,6;33,7;44,6
+CAR-1043;495,00;;617107000439;Charleston;"Fauteuil Charleston";38,5;36,4;38,5;26,8
+CAR-1044;258,99;;617107000446;Myrtle;"Table à manger Myrtle";68,4;38;28,5;52,3
+CAR-1045;44,00;96,99;617107000453;"Outer Banks";"Chaise Outer Banks";19,8;21,8;37,6;7,9
+CAR-1046;54,50;;617107000460;Charleston;"Tabouret Charleston";18,7;18,7;31,2;6,2
+CAR-1047;499,99;;617107000477;Myrtle;"Buffet Myrtle";61,8;18,5;35;61,8
+CAR-1048;174,99;384,99;617107000484;"Outer Banks";"Lampe sur pied Outer Banks";12,7;12,7;56,4;5,5
+CAR-1049;46,50;;617107000491;Charleston;"Lampe de table Charleston";13;13;25,9;3,2
+CAR-1050;457,50;;617107000507;Myrtle;"Matelas Myrtle";83,2;62,4;12,5;36,4

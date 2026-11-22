@@ -12,7 +12,10 @@ use Livewire\Component;
 
 class PriceLists extends Component
 {
-    public string $search = '';
+    public const ALL = 'all';
+
+    /** Fournisseur dont on veut les listes actives : un id, ALL pour tous, vide tant qu'aucun choix n'est fait. */
+    public string $supplierFilter = '';
 
     public bool $showModal = false;
 
@@ -61,13 +64,13 @@ class PriceLists extends Component
 
     public function render(): View
     {
-        $priceLists = filled($this->search)
+        $priceLists = filled($this->supplierFilter)
             ? PriceList::query()
                 ->active()
                 ->with('supplier')
-                ->whereHas('supplier', fn ($query) => $query
-                    ->where('type', SupplierType::Product)
-                    ->whereLike('name', '%'.$this->search.'%'))
+                ->withCount('items')
+                ->whereHas('supplier', fn ($query) => $query->where('type', SupplierType::Product))
+                ->when($this->supplierFilter !== self::ALL, fn ($query) => $query->where('supplier_id', (int) $this->supplierFilter))
                 ->orderBy('starts_on')
                 ->get()
                 ->sortBy(fn (PriceList $list) => $list->supplier->name)
@@ -76,6 +79,11 @@ class PriceLists extends Component
 
         return view('livewire.catalog.price-lists', [
             'priceLists' => $priceLists,
+            'filterableSuppliers' => Supplier::query()
+                ->where('type', SupplierType::Product)
+                ->whereHas('priceLists', fn ($query) => $query->active())
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'creatableSuppliers' => Supplier::query()
                 ->where('type', SupplierType::Product)
                 ->where('is_active', true)

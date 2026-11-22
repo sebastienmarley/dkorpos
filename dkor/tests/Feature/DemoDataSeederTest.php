@@ -1,8 +1,11 @@
 <?php
 
+use App\Actions\ImportPriceListCsv;
 use App\Enums\StoreType;
 use App\Models\CustomerOrder;
 use App\Models\Department;
+use App\Models\PriceList;
+use App\Models\PriceListList;
 use App\Models\Product;
 use App\Models\ProductClearance;
 use App\Models\ProductDemo;
@@ -16,6 +19,7 @@ use App\Support\SalesReport;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\DemoDataSeeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 it('crée des données de démonstration dont le grand livre concorde avec les documents', function () {
     $this->seed([DatabaseSeeder::class, DemoDataSeeder::class]);
@@ -62,4 +66,18 @@ it('crée des données de démonstration dont le grand livre concorde avec les d
         ->and($weeklyMinutes->max())->toBeLessThanOrEqual(40 * 60);
 
     $this->artisan('ledger:check')->expectsOutputToContain('concorde avec les documents')->assertSuccessful();
+
+    // Listes de prix de démo : une par fournisseur, 50 lignes dont ses 15 produits existants.
+    $priceListFiles = glob(database_path('seeders/price-lists/*.csv'));
+    $suppliersBySlug = Supplier::query()->has('products', '>=', 15)->get()->keyBy(fn (Supplier $supplier): string => Str::slug($supplier->name));
+
+    expect($priceListFiles)->toHaveCount($suppliersBySlug->count());
+
+    foreach ($priceListFiles as $file) {
+        $supplier = $suppliersBySlug->get(basename($file, '.csv'));
+        $list = PriceListList::factory()->for(PriceList::factory()->for($supplier))->create();
+
+        expect(app(ImportPriceListCsv::class)->handle($list, $file))
+            ->toMatchArray(['rows' => 50, 'matched' => 15, 'duplicates' => 0]);
+    }
 })->group('demo-seeder');

@@ -504,6 +504,10 @@ class DemoDataSeeder extends Seeder
             ['name' => 'Great Lakes Appliances (USD)', 'currency_id' => $usd->id],
         ])->map(fn (array $attributes): Supplier => Supplier::factory()->create([...$attributes, 'type' => SupplierType::Product, 'base_multiplier' => 2, 'address_province' => 'QC']));
 
+        // Préfixe des modèles fournisseurs (LAU-1001…), dans l'ordre des fournisseurs : les listes de prix de démo
+        // (database/seeders/price-lists) retrouvent ainsi les produits.
+        $supplierCodes = ['LAU', 'BOR', 'LSL', 'CHX', 'MBF', 'TTG', 'ASH', 'CAR', 'ECN', 'GLA'];
+
         // Les deux derniers fournisseurs ne vendent que des électroménagers, les autres que des meubles et du décor.
         $applianceSupplierIds = $this->productSuppliers->slice(-2)->pluck('id')->all();
 
@@ -559,6 +563,7 @@ class DemoDataSeeder extends Seeder
                     'supplier_id' => $supplier->id,
                     'category_id' => $categories[$family]->id,
                     'model' => $family.' '.strtoupper(substr($supplier->name, 0, 3)).'-'.(100 + $number),
+                    'supplier_model' => $supplierCodes[$index].'-'.(1000 + $number),
                     'cost' => Money::of(fake()->numberBetween($minCost, $maxCost) * 100),
                     'is_taxable' => true,
                     'length' => $length,

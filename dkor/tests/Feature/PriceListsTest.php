@@ -77,28 +77,31 @@ it('refuse une date de fin antérieure au début et un fournisseur non produit',
         ->assertHasErrors('endsOn');
 });
 
-it('n\'affiche aucun fournisseur sans recherche ni les fournisseurs sans liste active', function () {
-    PriceList::factory()->create();
+it('n\'affiche rien avant le choix d\'un fournisseur et ne propose que ceux qui ont une liste active', function () {
+    $list = PriceList::factory()->create();
     Supplier::factory()->create(['type' => SupplierType::Product, 'name' => 'Gamma Sans Liste']);
+    PriceList::factory()->create(['archived_at' => now()]);
 
     Livewire::test(PriceLists::class)
-        ->assertSee('Recherchez un fournisseur')
-        ->set('search', 'Gamma')
-        ->assertDontSeeHtml('catalog/price-lists/');
+        ->assertDontSeeHtml('data-flux-table')
+        ->assertDontSeeHtml('catalog/price-lists/')
+        ->assertViewHas('filterableSuppliers', fn ($suppliers): bool => $suppliers->pluck('id')->all() === [$list->supplier_id]);
 });
 
-it('recherche un fournisseur et lie vers la liste active', function () {
-    $list = PriceList::factory()->create();
-    $list->supplier->update(['name' => 'Alpha Meubles']);
-    $beta = PriceList::factory()->for(Supplier::factory()->create(['type' => SupplierType::Product, 'name' => 'Beta Déco']))->create();
+it('montre la liste active du fournisseur choisi ou de tous les fournisseurs', function () {
+    $alpha = PriceList::factory()->create();
+    $beta = PriceList::factory()->create();
+    PriceListItem::factory()->count(2)->for(PriceListList::factory()->for($alpha))->create();
+    PriceListItem::factory()->for(PriceListList::factory()->for($alpha))->create();
 
     Livewire::test(PriceLists::class)
-        ->set('search', 'Alpha')
-        ->assertSee('Alpha Meubles')
+        ->set('supplierFilter', (string) $alpha->supplier_id)
+        ->assertSeeHtml('data-href="'.route('catalog.price-lists.show', $alpha).'"')
         ->assertDontSeeHtml('catalog/price-lists/'.$beta->id)
-        ->assertSeeHtml('catalog/price-lists/'.$list->id)
-        ->set('search', 'Gamma')
-        ->assertSee('Aucune liste de prix active pour ce fournisseur.');
+        ->assertViewHas('priceLists', fn ($lists): bool => $lists->sole()->items_count === 3)
+        ->set('supplierFilter', PriceLists::ALL)
+        ->assertSeeHtml('catalog/price-lists/'.$alpha->id)
+        ->assertSeeHtml('catalog/price-lists/'.$beta->id);
 });
 
 it('modifie les dates et archive une liste', function () {
@@ -150,7 +153,9 @@ it('ajoute une liste avec un nom et un escompte', function () {
         ->call('addList')
         ->assertHasNoErrors()
         ->assertSee('Printemps')
-        ->assertSee('0 produit');
+        ->assertSee('12,5 %')
+        ->assertSee('Importer')
+        ->assertDontSee('Remplacer');
 
     expect(PriceListList::firstOrFail())->name->toBe('Printemps')->discount_percent->toBe(12.5);
 });
@@ -427,7 +432,7 @@ it('permet une liste future qui ne chevauche pas la liste active du fournisseur'
 it('affiche une liste future avec le badge à venir', function () {
     $list = PriceList::factory()->create(['starts_on' => '2027-01-01']);
 
-    Livewire::test(PriceLists::class)->set('search', $list->supplier->name)->assertSee('À venir');
+    Livewire::test(PriceLists::class)->set('supplierFilter', (string) $list->supplier_id)->assertSee('À venir');
 });
 
 it('refuse de modifier les dates pour chevaucher une autre liste active', function () {

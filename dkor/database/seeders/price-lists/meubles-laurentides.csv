@@ -1,0 +1,51 @@
+﻿Modèle;Coût;IMAP;UPC;Collection;Description;Longueur;Largeur;Hauteur;Poids
+LAU-1001;522,99;;610100000017;Sainte-Adèle;"Causeuse Sainte-Adèle";65,3;37,6;33,7;44,6
+LAU-1002;455,50;;610100000024;Val-David;"Fauteuil Val-David";35,3;33,3;35,3;24,5
+LAU-1003;399,99;879,99;610100000031;Mont-Tremblant;"Table à manger Mont-Tremblant";64,8;36;27;49,5
+LAU-1004;117,00;;610100000048;Sainte-Adèle;"Chaise Sainte-Adèle";20,8;22,9;39,5;8,3
+LAU-1005;111,99;;610100000055;Val-David;"Tabouret Val-David";19,4;19,4;32,4;6,5
+LAU-1006;276,99;609,99;610100000062;Mont-Tremblant;"Buffet Mont-Tremblant";59,4;17,8;33,7;59,4
+LAU-1007;175,00;;610100000079;Sainte-Adèle;"Lampe sur pied Sainte-Adèle";14,8;14,8;65,7;6,4
+LAU-1008;81,99;;610100000086;Val-David;"Lampe de table Val-David";13,1;13,1;26,2;3,3
+LAU-1009;878,50;1932,99;610100000093;Mont-Tremblant;"Matelas Mont-Tremblant";77,6;58,2;11,6;33,9
+LAU-1010;263,00;;610100000109;Sainte-Adèle;"Sommier Sainte-Adèle";80;60;9;30
+LAU-1011;399,00;;610100000116;Val-David;"Lit Val-David";78,7;59,5;46,1;67,2
+LAU-1012;541,99;1192,99;610100000123;Mont-Tremblant;"Commode Mont-Tremblant";47;19,6;39,2;49
+LAU-1013;52,50;;610100000130;Sainte-Adèle;"Table de chevet Sainte-Adèle";20,2;16,2;24,2;12,1
+LAU-1014;332,99;;610100000147;Val-David;"Bibliothèque Val-David";38,2;14,8;76,3;42,4
+LAU-1015;67,99;149,99;610100000154;Mont-Tremblant;"Banc Mont-Tremblant";45,1;15;16,9;14,1
+LAU-1016;87,00;;610100000161;Sainte-Adèle;"Miroir Sainte-Adèle";28,5;1,9;38;9,5
+LAU-1017;166,99;;610100000178;Val-David;"Tapis Val-David";103,7;1,1;1,1;16,2
+LAU-1018;592,00;1302,99;610100000185;Mont-Tremblant;"Sofa Mont-Tremblant";93,6;39,5;35,4;62,4
+LAU-1019;516,99;;610100000192;Sainte-Adèle;"Causeuse Sainte-Adèle";60,7;35;31,3;41,4
+LAU-1020;447,00;;610100000208;Val-David;"Fauteuil Val-David";37,4;35,4;37,4;26
+LAU-1021;233,99;514,99;610100000215;Mont-Tremblant;"Table à manger Mont-Tremblant";66,2;36,8;27,6;50,6
+LAU-1022;120,99;;610100000222;Sainte-Adèle;"Chaise Sainte-Adèle";18,6;20,5;35,3;7,4
+LAU-1023;90,50;;610100000239;Val-David;"Tabouret Val-David";19,4;19,4;32,4;6,5
+LAU-1024;438,00;963,99;610100000246;Mont-Tremblant;"Buffet Mont-Tremblant";55,2;16,6;31,3;55,2
+LAU-1025;138,99;;610100000253;Sainte-Adèle;"Lampe sur pied Sainte-Adèle";13,2;13,2;58,3;5,6
+LAU-1026;64,99;;610100000260;Val-David;"Lampe de table Val-David";12;12;24;3
+LAU-1027;624,00;1372,99;610100000277;Mont-Tremblant;"Matelas Mont-Tremblant";88;66;13,2;38,5
+LAU-1028;255,00;;610100000284;Sainte-Adèle;"Sommier Sainte-Adèle";72;54;8,1;27
+LAU-1029;745,50;;610100000291;Val-David;"Lit Val-David";83,6;63,2;49;71,4
+LAU-1030;200,00;439,99;610100000307;Mont-Tremblant;"Commode Mont-Tremblant";46,6;19,4;38,8;48,5
+LAU-1031;80,50;;610100000314;Sainte-Adèle;"Table de chevet Sainte-Adèle";19;15,2;22,8;11,4
+LAU-1032;90,50;;610100000321;Val-David;"Bibliothèque Val-David";35,3;13,7;70,6;39,2
+LAU-1033;124,00;272,99;610100000338;Mont-Tremblant;"Banc Mont-Tremblant";44,6;14,9;16,7;14
+LAU-1034;150,00;;610100000345;Sainte-Adèle;"Miroir Sainte-Adèle";31,2;2,1;41,6;10,4
+LAU-1035;129,99;;610100000352;Val-David;"Tapis Val-David";102,7;1,1;1,1;16,1
+LAU-1036;573,99;1262,99;610100000369;Mont-Tremblant;"Sofa Mont-Tremblant";95,4;40,3;36;63,6
+LAU-1037;200,00;;610100000376;Sainte-Adèle;"Causeuse Sainte-Adèle";64,7;37,2;33,3;44,1
+LAU-1038;296,50;;610100000383;Val-David;"Fauteuil Val-David";33,1;31,3;33,1;23
+LAU-1039;756,99;1665,99;610100000390;Mont-Tremblant;"Table à manger Mont-Tremblant";67,7;37,6;28,2;51,7
+LAU-1040;61,99;;610100000406;Sainte-Adèle;"Chaise Sainte-Adèle";19,8;21,8;37,6;7,9
+LAU-1041;72,00;;610100000413;Val-David;"Tabouret Val-David";17,6;17,6;29,4;5,9
+LAU-1042;359,00;789,99;610100000420;Mont-Tremblant;"Buffet Mont-Tremblant";64,8;19,4;36,7;64,8
+LAU-1043;73,00;;610100000437;Sainte-Adèle;"Lampe sur pied Sainte-Adèle";14,6;14,6;64,5;6,2
+LAU-1044;38,99;;610100000444;Val-David;"Lampe de table Val-David";12,6;12,6;25,2;3,2
+LAU-1045;627,50;1380,99;610100000451;Mont-Tremblant;"Matelas Mont-Tremblant";73,6;55,2;11;32,2
+LAU-1046;247,99;;610100000468;Sainte-Adèle;"Sommier Sainte-Adèle";74,4;55,8;8,4;27,9
+LAU-1047;829,50;;610100000475;Val-David;"Lit Val-David";77,1;58,3;45,1;65,8
+LAU-1048;237,50;522,99;610100000482;Mont-Tremblant;"Commode Mont-Tremblant";52,3;21,8;43,6;54,5
+LAU-1049;72,99;;610100000499;Sainte-Adèle;"Table de chevet Sainte-Adèle";19,4;15,5;23,3;11,6
+LAU-1050;207,99;;610100000505;Val-David;"Bibliothèque Val-David";37,8;14,7;75,6;42
