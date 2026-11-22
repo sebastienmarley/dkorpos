@@ -22,6 +22,9 @@ class Index extends Component
 
     public const AVAILABILITY_IN_STOCK = 'in_stock';
 
+    /** Valeur liée à la colonne quantity_reserved (Réservé client). */
+    public const AVAILABILITY_RESERVED = 'reserved';
+
     public const AVAILABILITY_IN_DEMO = 'in_demo';
 
     public const AVAILABILITY_CLEARANCE = 'clearance';
@@ -91,7 +94,7 @@ class Index extends Component
             ->when(filled($this->supplierId), fn ($q) => $q->where('supplier_id', $this->supplierId))
             ->when($this->availabilityFilter === self::AVAILABILITY_CLEARANCE, fn ($q) => $q->whereHas('clearances', fn (Builder $query) => $this->limitToActiveClearances($query)))
             ->when(
-                in_array($this->availabilityFilter, [self::AVAILABILITY_IN_STOCK, self::AVAILABILITY_IN_DEMO, self::AVAILABILITY_ON_ORDER], true),
+                in_array($this->availabilityFilter, [self::AVAILABILITY_IN_STOCK, self::AVAILABILITY_RESERVED, self::AVAILABILITY_IN_DEMO, self::AVAILABILITY_ON_ORDER], true),
                 fn ($q) => $q->whereHas('inventoryStocks', fn (Builder $query) => $this->limitToStockStores($query)->where('quantity_'.$this->availabilityFilter, '>', 0)),
             )
             ->orderBy('model')
@@ -153,6 +156,7 @@ class Index extends Component
     {
         return [
             self::AVAILABILITY_IN_STOCK => __('En stock'),
+            self::AVAILABILITY_RESERVED => __('Réservé client'),
             self::AVAILABILITY_IN_DEMO => __('En démo'),
             self::AVAILABILITY_CLEARANCE => __('En liquidation'),
             self::AVAILABILITY_ON_ORDER => __('En commande'),

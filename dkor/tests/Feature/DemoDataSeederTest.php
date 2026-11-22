@@ -2,12 +2,14 @@
 
 use App\Enums\StoreType;
 use App\Models\CustomerOrder;
+use App\Models\Department;
 use App\Models\Product;
 use App\Models\ProductClearance;
 use App\Models\ProductDemo;
 use App\Models\Schedule;
 use App\Models\Store;
 use App\Models\StoreTransfer;
+use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\User;
 use App\Support\SalesReport;
@@ -21,6 +23,13 @@ it('crée des données de démonstration dont le grand livre concorde avec les d
     expect(CustomerOrder::count())->toBeGreaterThan(200)
         ->and(SupplierInvoice::count())->toBeGreaterThan(5)
         ->and(Product::query()->whereNull('clean_model')->exists())->toBeFalse()
+        ->and(Product::query()->whereNull('category_id')->exists())->toBeFalse()
+        ->and(Department::query()->where('name', 'Électroménagers')->sole()->categories()->pluck('name')->sort()->values()->all())
+        ->toBe(['Congélateurs', 'Laveuses', 'Poêles', 'Réfrigérateurs', 'Sécheuses'])
+        ->and(Supplier::query()->whereIn('name', ['Électro Côte-Nord', 'Great Lakes Appliances (USD)'])->get()->every(
+            fn (Supplier $supplier): bool => $supplier->products()->exists()
+                && ! $supplier->products()->whereRelation('category.department', 'name', '!=', 'Électroménagers')->exists()
+        ))->toBeTrue()
         ->and(now()->isToday())->toBeTrue()
         ->and(SalesReport::forStore(null, today(), today())->isPositive())->toBeTrue()
         ->and(User::query()->where('email', 'testuser@dkor.ca')->exists())->toBeFalse()

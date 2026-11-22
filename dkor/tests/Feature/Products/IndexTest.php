@@ -53,11 +53,11 @@ it('montre le stock des magasins de l\'usager et filtre par disponibilité', fun
     $lamp = Product::factory()->create(['model' => 'LAMPE-1']);
     $chair = Product::factory()->create(['model' => 'CHAISE-1']);
     InventoryStock::factory()->create(['product_id' => $sofa->id, 'store_id' => $rimouski->id, 'quantity_in_stock' => 3, 'quantity_in_demo' => 1, 'quantity_on_order' => 0, 'quantity_reserved' => 2, 'quantity_customer_order' => 1]);
-    InventoryStock::factory()->create(['product_id' => $sofa->id, 'store_id' => $gaspe->id, 'quantity_in_stock' => 4, 'quantity_in_demo' => 0, 'quantity_on_order' => 2]);
-    InventoryStock::factory()->create(['product_id' => $lamp->id, 'store_id' => $gaspe->id, 'quantity_in_stock' => 5, 'quantity_in_demo' => 0, 'quantity_on_order' => 0]);
+    InventoryStock::factory()->create(['product_id' => $sofa->id, 'store_id' => $gaspe->id, 'quantity_in_stock' => 4, 'quantity_in_demo' => 0, 'quantity_on_order' => 2, 'quantity_reserved' => 0]);
+    InventoryStock::factory()->create(['product_id' => $lamp->id, 'store_id' => $gaspe->id, 'quantity_in_stock' => 5, 'quantity_in_demo' => 0, 'quantity_on_order' => 0, 'quantity_reserved' => 0]);
     $emptyChair = Product::factory()->create(['model' => 'CHAISE-VIDE']);
-    InventoryStock::factory()->create(['product_id' => $chair->id, 'store_id' => $rimouski->id, 'quantity_in_stock' => 1, 'quantity_in_demo' => 0, 'quantity_on_order' => 0]);
-    InventoryStock::factory()->create(['product_id' => $emptyChair->id, 'store_id' => $rimouski->id, 'quantity_in_stock' => 0, 'quantity_in_demo' => 0, 'quantity_on_order' => 0]);
+    InventoryStock::factory()->create(['product_id' => $chair->id, 'store_id' => $rimouski->id, 'quantity_in_stock' => 1, 'quantity_in_demo' => 0, 'quantity_on_order' => 0, 'quantity_reserved' => 0]);
+    InventoryStock::factory()->create(['product_id' => $emptyChair->id, 'store_id' => $rimouski->id, 'quantity_in_stock' => 0, 'quantity_in_demo' => 0, 'quantity_on_order' => 0, 'quantity_reserved' => 0]);
     ProductClearance::factory()->create(['product_id' => $chair->id, 'store_id' => $rimouski->id]);
     ProductClearance::factory()->create(['product_id' => $emptyChair->id, 'store_id' => $rimouski->id]);
 
@@ -75,6 +75,7 @@ it('montre le stock des magasins de l\'usager et filtre par disponibilité', fun
     expect($ids(Index::AVAILABILITY_IN_STOCK))->toEqualCanonicalizing([$sofa->id, $chair->id])
         ->and($ids(Index::AVAILABILITY_IN_DEMO))->toBe([$sofa->id])
         ->and($ids(Index::AVAILABILITY_ON_ORDER))->toBe([])
+        ->and($ids(Index::AVAILABILITY_RESERVED))->toBe([$sofa->id])
         ->and($ids(Index::AVAILABILITY_CLEARANCE))->toBe([$chair->id]);
 
     Livewire::test(Index::class)->set('search', 'SOFA')
