@@ -20,39 +20,12 @@
 
     {{-- Onglets --}}
     <div x-data="{ tab: @entangle('activeTab') }">
-        <div class="flex overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] dark:border-zinc-700">
-            <button
-                type="button"
-                @click="$wire.switchTab('identification')"
-                :class="tab === 'identification' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-            >{{ __('Identification') }}</button>
-
-            <button
-                type="button"
-                @click="$wire.switchTab('accounting')"
-                :class="tab === 'accounting' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-            >{{ __('Comptabilité') }}</button>
-
-            @if ($supplier->type === \App\Enums\SupplierType::Product)
-                <button
-                    type="button"
-                    @click="$wire.switchTab('transport')"
-                    :class="tab === 'transport' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-                >{{ __('Transport') }}</button>
-            @endif
-
-            @if ($supplier->type !== \App\Enums\SupplierType::Shipping)
-                <button
-                    type="button"
-                    @click="$wire.switchTab('parameters')"
-                    :class="tab === 'parameters' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-                >{{ __('Info commande') }}</button>
-            @endif
-        </div>
+        <x-tabs :tabs="array_filter([
+            'identification' => __('Identification'),
+            'accounting' => __('Comptabilité'),
+            'transport' => $supplier->type === \App\Enums\SupplierType::Product ? __('Transport') : null,
+            'parameters' => $supplier->type !== \App\Enums\SupplierType::Shipping ? __('Info commande') : null,
+        ])" />
 
         {{-- Identification --}}
         <div x-show="tab === 'identification'" x-cloak>

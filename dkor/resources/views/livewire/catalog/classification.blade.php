@@ -8,34 +8,11 @@
 
     {{-- Onglets --}}
     <div x-data="{ tab: @entangle('tab') }">
-        <div class="mb-6 flex overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] dark:border-zinc-700">
-            @if ($this->canViewDepartments())
-                <button
-                    type="button"
-                    @click="tab = 'departments'"
-                    :class="tab === 'departments' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-                >{{ __('Départements et catégories') }}</button>
-            @endif
-
-            @if ($this->canViewColors())
-                <button
-                    type="button"
-                    @click="tab = 'colors'"
-                    :class="tab === 'colors' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-                >{{ __('Couleurs') }}</button>
-            @endif
-
-            @if ($this->canViewStyles())
-                <button
-                    type="button"
-                    @click="tab = 'styles'"
-                    :class="tab === 'styles' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-                >{{ __('Styles') }}</button>
-            @endif
-        </div>
+        <x-tabs class="mb-6" :save-on-switch="false" :tabs="array_filter([
+            'departments' => $this->canViewDepartments() ? __('Départements et catégories') : null,
+            'colors' => $this->canViewColors() ? __('Couleurs') : null,
+            'styles' => $this->canViewStyles() ? __('Styles') : null,
+        ])" />
 
         @if ($this->canViewDepartments())
             <div x-show="tab === 'departments'" x-cloak>

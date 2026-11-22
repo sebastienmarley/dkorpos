@@ -14,18 +14,8 @@
     </div>
 
     {{-- Onglets --}}
-    <div class="mb-4 flex overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] dark:border-zinc-700">
-        @foreach (['catalog' => __('Catalogue'), 'orders' => __('Commandes fournisseur')] as $key => $label)
-            <button
-                type="button"
-                wire:click="$set('tab', '{{ $key }}')"
-                @class([
-                    '-mb-px px-4 py-3 text-sm font-medium transition-colors',
-                    'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' => $tab === $key,
-                    'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' => $tab !== $key,
-                ])
-            >{{ $label }}</button>
-        @endforeach
+    <div x-data="{ tab: @entangle('tab').live }">
+        <x-tabs class="mb-4" :save-on-switch="false" :tabs="['catalog' => __('Catalogue'), 'orders' => __('Commandes fournisseur')]" />
     </div>
 
     @if ($tab === 'orders')

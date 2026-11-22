@@ -28,52 +28,16 @@
 
     {{-- Onglets --}}
     <div x-data="{ tab: @entangle('activeTab') }">
-        <div class="flex overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] dark:border-zinc-700">
-            @can('update', $user)
-                <button
-                    type="button"
-                    @click="$wire.switchTab('identification')"
-                    :class="tab === 'identification' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-                >{{ __('Identification') }}</button>
-            @endcan
-
-            @can('viewHr', $user)
-                <button
-                    type="button"
-                    @click="$wire.switchTab('hr')"
-                    :class="tab === 'hr' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-                >{{ __('RH') }}</button>
-            @endcan
-
-            @can('update', $user)
-                <button
-                    type="button"
-                    @click="$wire.switchTab('address')"
-                    :class="tab === 'address' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-                >{{ __('Adresse') }}</button>
-            @endcan
-
-            @can('update', $user)
-                <button
-                    type="button"
-                    @click="$wire.switchTab('account')"
-                    :class="tab === 'account' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-                >{{ __('Compte') }}</button>
-            @endcan
-
-            @can('assignPermissions', $user)
-                <button
-                    type="button"
-                    @click="$wire.switchTab('access')"
-                    :class="tab === 'access' ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'"
-                    class="-mb-px shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors"
-                >{{ __('Accès') }}</button>
-            @endcan
-        </div>
+        @php
+            $canUpdateUser = auth()->user()->can('update', $user);
+        @endphp
+        <x-tabs :tabs="array_filter([
+            'identification' => $canUpdateUser ? __('Identification') : null,
+            'hr' => auth()->user()->can('viewHr', $user) ? __('RH') : null,
+            'address' => $canUpdateUser ? __('Adresse') : null,
+            'account' => $canUpdateUser ? __('Compte') : null,
+            'access' => auth()->user()->can('assignPermissions', $user) ? __('Accès') : null,
+        ])" />
 
         @can('update', $user)
             {{-- Identification --}}
