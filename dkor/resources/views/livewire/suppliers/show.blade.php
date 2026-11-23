@@ -28,7 +28,8 @@
         ])" />
 
         {{-- Identification --}}
-        <div x-show="tab === 'identification'" x-cloak>
+        @if ($activeTab === 'identification')
+        <div>
             <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
@@ -85,9 +86,11 @@
                 </div>
             </form>
         </div>
+        @endif
 
         {{-- Comptabilité --}}
-        <div x-show="tab === 'accounting'" x-cloak>
+        @if ($activeTab === 'accounting')
+        <div>
             <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:field>
@@ -163,10 +166,12 @@
                 </div>
             </form>
         </div>
+        @endif
 
         @if ($supplier->type === \App\Enums\SupplierType::Product)
             {{-- Transport --}}
-            <div x-show="tab === 'transport'" x-cloak>
+            @if ($activeTab === 'transport')
+            <div>
                 <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-6">
                     <flux:field>
                         <div class="flex items-center gap-1.5">
@@ -204,11 +209,13 @@
                     </div>
                 </form>
             </div>
+            @endif
         @endif
 
         @if ($supplier->type !== \App\Enums\SupplierType::Shipping)
             {{-- Info commande --}}
-            <div x-show="tab === 'parameters'" x-cloak>
+            @if ($activeTab === 'parameters')
+            <div>
                 <form wire:submit="saveAndClose" class="mt-6 max-w-2xl space-y-4">
                     <flux:field>
                         <flux:label>{{ __('Courriel de commande') }}</flux:label>
@@ -274,6 +281,7 @@
                     </div>
                 </form>
             </div>
+            @endif
         @endif
     </div>
 </div>

@@ -51,6 +51,7 @@ it('assigne une devise à un fournisseur dans la comptabilité', function () {
     $supplier = Supplier::factory()->create();
 
     Livewire::test(SupplierShow::class, ['supplier' => $supplier])
+        ->set('activeTab', 'accounting')
         ->assertSee($currency->code)
         ->set('currencyId', (string) $currency->id)
         ->call('saveAccounting')
@@ -95,6 +96,7 @@ it('masque les devises archivées du sélecteur sauf celle du fournisseur', func
     $used = Currency::factory()->create(['code' => 'CCC', 'is_archived' => true]);
 
     Livewire::test(SupplierShow::class, ['supplier' => Supplier::factory()->for($used)->create()])
+        ->set('activeTab', 'accounting')
         ->assertSee('AAA')
         ->assertSee('CCC')
         ->assertDontSee('BBB');

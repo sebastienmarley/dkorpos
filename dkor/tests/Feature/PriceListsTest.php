@@ -515,6 +515,17 @@ function itemInActiveList(array $listAttributes = [], array $itemAttributes = []
     return PriceListItem::factory()->for($list)->create($itemAttributes + ['model' => 'Chaise X-1', 'clean_model' => 'chaisex1', 'cost' => Money::parse(100), 'collection' => 'Nordique', 'upc' => '999', 'imap' => Money::parse(150)]);
 }
 
+it('active la recherche dans les listes de prix dès le choix du fournisseur', function () {
+    $supplierId = itemInActiveList()->priceListList->priceList->supplier_id;
+    $searchIsDisabled = fn ($component): bool => (bool) preg_match('/<input[^>]*wire:model\.live\.debounce\.300ms="catalogSearch"[^>]*disabled/', $component->html());
+
+    $component = Livewire::test(ProductForm::class)->call('openCreate');
+
+    expect($component->html())->toContain('wire:model.live="supplierId"')
+        ->and($searchIsDisabled($component))->toBeTrue()
+        ->and($searchIsDisabled($component->set('supplierId', (string) $supplierId)))->toBeFalse();
+});
+
 it('cherche dans les listes actives du fournisseur par modèle ou collection', function () {
     $item = itemInActiveList();
     $supplierId = $item->priceListList->priceList->supplier_id;

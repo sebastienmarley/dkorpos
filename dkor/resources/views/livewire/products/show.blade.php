@@ -7,7 +7,7 @@
             'description' => __('Description'),
             'inventory' => __('Inventaire'),
             'photos' => __('Photos'),
-            'parts' => auth()->user()->can('parts.view') ? __('Pièces').' ('.$parts->count().')' : null,
+            'parts' => auth()->user()->can('parts.view') ? __('Pièces').' ('.$partsCount.')' : null,
         ]);
         $card = 'rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6 dark:border-zinc-700 dark:bg-zinc-900';
     @endphp
@@ -53,8 +53,10 @@
     <div x-data="{ tab: @entangle('activeTab') }">
         <x-tabs :tabs="$tabs" />
 
+        {{-- Seul l'onglet actif est généré (switchTab passe déjà par le serveur). --}}
         {{-- Général --}}
-        <div x-show="tab === 'general'" x-cloak>
+        @if ($activeTab === 'general')
+        <div>
             <form wire:submit="saveAndClose" class="mt-6 space-y-6">
                 <section class="{{ $card }}">
                     <flux:heading size="sm" class="mb-4">{{ __('Identification') }}</flux:heading>
@@ -63,7 +65,7 @@
                             <flux:label>{{ __('Fournisseur') }}</flux:label>
                             <flux:select wire:model.live="supplierId">
                                 <flux:select.option value="">{{ __('Sélectionner…') }}</flux:select.option>
-                                @foreach ($this->getSuppliers() as $supplier)
+                                @foreach ($this->suppliers as $supplier)
                                     <flux:select.option :value="$supplier->id">{{ $supplier->name }}</flux:select.option>
                                 @endforeach
                             </flux:select>
@@ -98,7 +100,7 @@
                                 <flux:label>{{ __('Département') }}</flux:label>
                                 <flux:select wire:model.live="departmentId">
                                     <flux:select.option value="">{{ __('Aucun') }}</flux:select.option>
-                                    @foreach ($this->getDepartments() as $department)
+                                    @foreach ($this->departments as $department)
                                         <flux:select.option :value="$department->id">{{ $department->name }}</flux:select.option>
                                     @endforeach
                                 </flux:select>
@@ -109,7 +111,7 @@
                                 <flux:label>{{ __('Catégorie') }}</flux:label>
                                 <flux:select wire:model="categoryId">
                                     <flux:select.option value="">{{ __('Aucune') }}</flux:select.option>
-                                    @foreach ($this->getCategories() as $category)
+                                    @foreach ($this->categories as $category)
                                         <flux:select.option :value="$category->id">{{ $category->name }}</flux:select.option>
                                     @endforeach
                                 </flux:select>
@@ -121,7 +123,7 @@
                     <section class="{{ $card }}">
                         <flux:heading size="sm" class="mb-4">{{ __('Prix') }}</flux:heading>
                         <div class="grid gap-4 sm:grid-cols-2">
-                            <x-cost-input wire:model.live="cost" label="{{ __('Coût') }}" name="cost" />
+                            <x-cost-input wire:model.live.blur="cost" label="{{ __('Coût') }}" name="cost" />
 
                             <flux:field>
                                 <flux:label class="gap-1.5">
@@ -173,9 +175,11 @@
                 @endif
             </form>
         </div>
+        @endif
 
         {{-- Description --}}
-        <div x-show="tab === 'description'" x-cloak class="mt-6 space-y-6">
+        @if ($activeTab === 'description')
+        <div class="mt-6 space-y-6">
             <form wire:submit="saveAndClose" class="space-y-6">
                 <section class="{{ $card }}">
                     <flux:heading size="sm" class="mb-4">{{ __('Apparence') }}</flux:heading>
@@ -184,7 +188,7 @@
                             <flux:label>{{ __('Couleur') }}</flux:label>
                             <flux:select wire:model="colorId">
                                 <flux:select.option value="">{{ __('Aucune') }}</flux:select.option>
-                                @foreach ($this->getColors() as $color)
+                                @foreach ($this->colors as $color)
                                     <flux:select.option :value="$color->id">
                                         {{ $color->name }}{{ $color->hex_code ? ' ('.$color->hex_code.')' : '' }}
                                     </flux:select.option>
@@ -197,7 +201,7 @@
                             <flux:label>{{ __('Style') }}</flux:label>
                             <flux:select wire:model="styleId">
                                 <flux:select.option value="">{{ __('Aucun') }}</flux:select.option>
-                                @foreach ($this->getStyles() as $style)
+                                @foreach ($this->styles as $style)
                                     <flux:select.option :value="$style->id">{{ $style->name }}</flux:select.option>
                                 @endforeach
                             </flux:select>
@@ -305,10 +309,11 @@
                 @endif
             </div>
         </div>
+        @endif
 
         {{-- Pièces --}}
-        @can('parts.view')
-            <div x-show="tab === 'parts'" x-cloak class="mt-6">
+        @if ($activeTab === 'parts' && auth()->user()->can('parts.view'))
+            <div class="mt-6">
                 <div class="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-900">
                     @forelse ($parts as $part)
                         <div wire:key="part-{{ $part->id }}" class="flex items-center justify-between gap-3 px-4 py-3 text-sm">
@@ -324,11 +329,11 @@
                     @endforelse
                 </div>
             </div>
-        @endcan
+        @endif
 
-        {{-- Photos --}}
         {{-- Inventaire par magasin (ADR 0012) --}}
-        <div x-show="tab === 'inventory'" x-cloak class="mt-6">
+        @if ($activeTab === 'inventory')
+        <div class="mt-6">
             @php
                 $stockStatuses = [\App\Enums\InventoryStatus::InStock, \App\Enums\InventoryStatus::InDemo, \App\Enums\InventoryStatus::ReservedCustomer, \App\Enums\InventoryStatus::InDelivery, \App\Enums\InventoryStatus::DefectiveStock, \App\Enums\InventoryStatus::Lost, \App\Enums\InventoryStatus::OnOrder];
                 $stocks = $product->inventoryStocks()->with('store')->get()->sortBy(fn ($stock) => $stock->store?->name);
@@ -373,10 +378,13 @@
                 </flux:table>
             </div>
 
-            <livewire:products.demos-and-clearances :product="$product" />
+            <livewire:products.demos-and-clearances :product="$product" wire:key="demos-and-clearances-{{ $product->id }}" />
         </div>
+        @endif
 
-        <div x-show="tab === 'photos'" x-cloak>
+        {{-- Photos --}}
+        @if ($activeTab === 'photos')
+        <div>
             <div class="mt-6">
                 <div class="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 py-16 dark:border-zinc-600 dark:bg-zinc-800/50">
                     <flux:icon name="photo" class="mb-3 h-12 w-12 text-zinc-300 dark:text-zinc-600" />
@@ -385,5 +393,6 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
 </div>

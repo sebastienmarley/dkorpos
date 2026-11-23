@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Support\Money;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
 
@@ -42,6 +43,17 @@ it('affiche la fiche et préremplit les champs', function () {
         ->assertSet('firstname', 'Alice')
         ->assertSet('firstDay', '2026-01-05')
         ->assertSet('personalEmail', 'alice@exemple.com');
+});
+
+it('lit les rôles assignables une seule fois pour toutes les vérifications de la fiche', function () {
+    $user = employeComplet();
+
+    $this->actingAs(User::factory()->withRole('admin')->create());
+
+    DB::enableQueryLog();
+    Livewire::test(Show::class, ['user' => $user])->assertOk();
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'from "roles" where "level" <=')))->toHaveCount(1);
 });
 
 it('exige un magasin pour sauvegarder l\'identification', function () {
@@ -857,6 +869,7 @@ it('affiche les jours de vacances cumulés et enregistre les heures par jour', f
     Livewire::test(Show::class, ['user' => $user])
         ->assertSet('vacationDaysAccrued', '7.56')
         ->assertSet('vacationReferenceStart', '2026-05-01')
+        ->set('activeTab', 'hr')
         ->assertSee('Jours de vacances cumulés')
         ->set('hoursPerDay', '7.5')
         ->call('saveHr')

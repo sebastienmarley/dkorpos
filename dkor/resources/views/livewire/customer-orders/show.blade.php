@@ -703,7 +703,7 @@
                             <flux:error name="returnQuantity" />
                         </flux:field>
 
-                        <flux:radio.group wire:model="returnType" :label="__('Le client veut')">
+                        <flux:radio.group wire:model.live="returnType" :label="__('Le client veut')">
                             <flux:radio value="exchange" :label="__('Un échange')" :description="__('L\'article revient en stock; le montant payé reste au crédit de la commande pour le produit d\'échange.')" />
                             <flux:radio value="refund" :label="__('Un remboursement')" :description="__('L\'article revient en stock, puis le client est remboursé.')" />
                         </flux:radio.group>
@@ -736,7 +736,7 @@
                                     <flux:error name="returnRefunds.{{ $index }}.method_id" />
                                 </div>
                                 <div class="w-32">
-                                    <flux:input wire:model.blur="returnRefunds.{{ $index }}.amount" inputmode="decimal" />
+                                    <flux:input wire:model.live.blur="returnRefunds.{{ $index }}.amount" inputmode="decimal" />
                                     <flux:error name="returnRefunds.{{ $index }}.amount" />
                                 </div>
                                 @if ((int) $refund['method_id'] === $this->cashMethodId())
@@ -980,7 +980,7 @@
                                     <flux:error name="defectiveRefunds.{{ $index }}.method_id" />
                                 </div>
                                 <div class="w-32">
-                                    <flux:input wire:model.blur="defectiveRefunds.{{ $index }}.amount" inputmode="decimal" />
+                                    <flux:input wire:model.live.blur="defectiveRefunds.{{ $index }}.amount" inputmode="decimal" />
                                     <flux:error name="defectiveRefunds.{{ $index }}.amount" />
                                 </div>
                                 @if (count($defectiveRefunds) > 1)
@@ -1029,7 +1029,7 @@
                             <flux:error name="creditRefunds.{{ $index }}.method_id" />
                         </div>
                         <div class="w-32">
-                            <flux:input wire:model.blur="creditRefunds.{{ $index }}.amount" inputmode="decimal" />
+                            <flux:input wire:model.live.blur="creditRefunds.{{ $index }}.amount" inputmode="decimal" />
                             <flux:error name="creditRefunds.{{ $index }}.amount" />
                         </div>
                                 @if ((int) $refund['method_id'] === $this->cashMethodId())
@@ -1165,7 +1165,7 @@
                                 <span class="text-zinc-400">{{ __('(disponible : :amount $)', ['amount' => $order->customer->credit_balance->toDecimal()]) }}</span>
                             </div>
                             <div class="w-32">
-                                <flux:input wire:model.blur="pickupCredit" inputmode="decimal" />
+                                <flux:input wire:model.live.blur="pickupCredit" inputmode="decimal" />
                                 <flux:error name="pickupCredit" />
                             </div>
                             @if (count($pickupPayments) > 1)
@@ -1190,7 +1190,7 @@
                                 {{ __('Solde restant') }}
                             </flux:button>
                             <div class="w-32">
-                                <flux:input wire:model.blur="pickupPayments.{{ $index }}.amount" inputmode="decimal" />
+                                <flux:input wire:model.live.blur="pickupPayments.{{ $index }}.amount" inputmode="decimal" />
                                 <flux:error name="pickupPayments.{{ $index }}.amount" />
                             </div>
                             @if (count($pickupPayments) > 1)

@@ -142,8 +142,8 @@ it('lie une pièce à des produits, visibles des deux côtés, puis retire un li
         ->call('detachProduct', $otherLamp->id);
 
     expect($part->products()->pluck('products.id')->all())->toBe([$lamp->id]);
-    Livewire::test(ProductShow::class, ['product' => $lamp->fresh()])->assertSee('PC-12');
-    Livewire::test(ProductShow::class, ['product' => $otherLamp->fresh()])->assertDontSee('PC-12');
+    Livewire::test(ProductShow::class, ['product' => $lamp->fresh()])->call('switchTab', 'parts')->assertSee('PC-12');
+    Livewire::test(ProductShow::class, ['product' => $otherLamp->fresh()])->call('switchTab', 'parts')->assertDontSee('PC-12');
 });
 
 it('refuse de renommer une pièce avec le modèle d\'une autre pièce du fournisseur', function () {

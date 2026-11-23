@@ -372,7 +372,8 @@ class User extends Authenticatable
             return new Collection;
         }
 
-        return Role::query()->where('level', '<=', $this->roleLevel())->orderByDesc('level')->orderBy('label')->get();
+        // Lu une seule fois par requête : chaque vérification de UserPolicy (update, viewHr…) en a besoin.
+        return once(fn (): Collection => Role::query()->where('level', '<=', $this->roleLevel())->orderByDesc('level')->orderBy('label')->get());
     }
 
     /**

@@ -23,8 +23,19 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
+use Livewire\Attributes\Computed;
 use Livewire\Component;
 
+/**
+ * Fiche produit. Les listes de référence sont des propriétés #[Computed] : lues une seule fois par requête.
+ *
+ * @property-read Supplier|null $selectedSupplier
+ * @property-read Collection<int, Supplier> $suppliers
+ * @property-read Collection<int, Department> $departments
+ * @property-read Collection<int, Category> $categories
+ * @property-read Collection<int, Color> $colors
+ * @property-read Collection<int, Style> $styles
+ */
 class Show extends Component
 {
     use SavesTabsOnSwitch;
@@ -106,16 +117,26 @@ class Show extends Component
     }
 
     /**
-     * Emplacements actifs proposés, par magasin physique qui en a.
+     * Emplacements actifs proposés, par magasin physique qui en a : une seule requête pour tous les magasins.
      *
      * @return SupportCollection<int, array{store: Store, locations: Collection<int, InventoryLocation>}>
      */
     public function getLocationsByStore(): SupportCollection
     {
-        return Store::query()->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get()
+        $stores = Store::query()->where('type', StoreType::Physical)->where('is_active', true)->orderBy('name')->get();
+
+        $locationsByStoreId = InventoryLocation::query()
+            ->selectable()
+            ->whereHas('zone', fn ($zone) => $zone->whereIn('store_id', $stores->modelKeys()))
+            ->with('zone')
+            ->orderBy('code')
+            ->get()
+            ->groupBy(fn (InventoryLocation $location): int => $location->zone->store_id);
+
+        return $stores
             ->map(fn (Store $store): array => [
                 'store' => $store,
-                'locations' => InventoryLocation::query()->ofStore($store->id)->selectable()->with('zone')->orderBy('code')->get(),
+                'locations' => $locationsByStoreId->get($store->id) ?? new Collection,
             ])
             ->filter(fn (array $entry): bool => $entry['locations']->isNotEmpty())
             ->values();
@@ -131,7 +152,7 @@ class Show extends Component
      */
     public function updatedDepartmentId(): void
     {
-        if (filled($this->categoryId) && ! $this->getCategories()->contains('id', (int) $this->categoryId)) {
+        if (filled($this->categoryId) && ! $this->categories->contains('id', (int) $this->categoryId)) {
             $this->categoryId = '';
         }
     }
@@ -265,23 +286,33 @@ class Show extends Component
             $cost = Money::zero();
         }
 
-        return Product::sellingPriceFor($cost, Supplier::find($this->supplierId)->price_multiplier ?? 1.0);
+        return Product::sellingPriceFor($cost, $this->selectedSupplier->price_multiplier ?? 1.0);
+    }
+
+    /** Fournisseur choisi dans le formulaire, lu une seule fois par requête. */
+    #[Computed]
+    public function selectedSupplier(): ?Supplier
+    {
+        return filled($this->supplierId) ? Supplier::find($this->supplierId) : null;
     }
 
     /** @return Collection<int, Supplier> */
-    public function getSuppliers(): Collection
+    #[Computed]
+    public function suppliers(): Collection
     {
         return Supplier::where('type', SupplierType::Product)->where('is_active', true)->orderBy('name')->get();
     }
 
     /** @return Collection<int, Department> */
-    public function getDepartments(): Collection
+    #[Computed]
+    public function departments(): Collection
     {
         return Department::orderBy('name')->get();
     }
 
     /** @return Collection<int, Category> */
-    public function getCategories(): Collection
+    #[Computed]
+    public function categories(): Collection
     {
         return Category::when(filled($this->departmentId), fn ($q) => $q->where('department_id', $this->departmentId))
             ->orderBy('name')
@@ -289,13 +320,15 @@ class Show extends Component
     }
 
     /** @return Collection<int, Color> */
-    public function getColors(): Collection
+    #[Computed]
+    public function colors(): Collection
     {
         return Color::orderBy('name')->get();
     }
 
     /** @return Collection<int, Style> */
-    public function getStyles(): Collection
+    #[Computed]
+    public function styles(): Collection
     {
         return Style::orderBy('name')->get();
     }
@@ -329,12 +362,16 @@ class Show extends Component
         $this->weight = $this->product->weight !== null ? (string) $this->product->weight : '';
     }
 
+    /**
+     * Seul l'onglet actif est généré : les données des autres onglets ne sont lues que lorsqu'on les ouvre.
+     */
     public function render(): View
     {
         return view('livewire.products.show', [
-            'supplierModelLocked' => $this->product->isInPriceList(),
-            'upcs' => $this->product->upcs()->orderBy('id')->get(),
-            'parts' => $this->product->parts()->with('supplier')->orderBy('model')->get(),
+            'supplierModelLocked' => $this->activeTab === 'general' && $this->product->isInPriceList(),
+            'upcs' => $this->activeTab === 'description' ? $this->product->upcs()->orderBy('id')->get() : new Collection,
+            'partsCount' => $this->product->parts()->count(),
+            'parts' => $this->activeTab === 'parts' ? $this->product->parts()->with('supplier')->orderBy('model')->get() : new Collection,
         ])
             ->layout('layouts.app', ['title' => $this->product->model]);
     }

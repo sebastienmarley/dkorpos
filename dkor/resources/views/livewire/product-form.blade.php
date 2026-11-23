@@ -4,7 +4,7 @@
     <form wire:submit="save" class="mt-6 space-y-4">
         <flux:field>
             <flux:label>{{ __('Fournisseur') }}</flux:label>
-            <flux:select wire:model="supplierId">
+            <flux:select wire:model.live="supplierId">
                 <flux:select.option value="">{{ __('Sélectionner un fournisseur…') }}</flux:select.option>
                 @foreach ($this->getSuppliers() as $supplier)
                     <flux:select.option :value="$supplier->id">{{ $supplier->name }}</flux:select.option>

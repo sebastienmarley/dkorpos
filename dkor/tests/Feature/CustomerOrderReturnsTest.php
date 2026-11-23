@@ -122,6 +122,18 @@ describe('modal de retour', function () {
             ->assertDontSeeHtml('wire:click="openReturnModal(');
     });
 
+    it('adapte le bouton au choix du client dès qu\'il le coche', function () {
+        $line = pickedUpLine($this->order, 1, 100, $this->cash);
+
+        Livewire::test(Show::class, ['order' => $this->order])
+            ->call('openReturnModal', $line->id)
+            ->assertSeeHtml('wire:model.live="returnType"')
+            ->set('returnType', 'exchange')
+            ->assertSee('Reprendre l\'article')
+            ->set('returnType', 'refund')
+            ->assertSee('Continuer vers le remboursement');
+    });
+
     it('fait un échange et revient à la commande', function () {
         $line = pickedUpLine($this->order, 1, 100, $this->cash);
 

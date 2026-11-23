@@ -95,7 +95,7 @@
                                 <flux:text class="text-xs text-zinc-400">{{ __('feuilles de compte') }}</flux:text>
                             @elseif ($count->isInProgress() && ! $line->is_kept)
                                 <div class="ms-auto w-24">
-                                    <flux:input size="sm" type="number" min="0" step="1" wire:model.blur="quantities.{{ $line->id }}" />
+                                    <flux:input size="sm" type="number" min="0" step="1" wire:model.live.blur="quantities.{{ $line->id }}" />
                                 </div>
                             @elseif ($line->is_kept)
                                 <flux:badge size="sm" color="zinc">{{ __('Conservée') }}</flux:badge>
@@ -109,7 +109,7 @@
                         <flux:table.cell align="end">{{ $line->differenceValue()?->format() ?? '—' }}</flux:table.cell>
                         <flux:table.cell>
                             @if ($count->isInProgress())
-                                <flux:input size="sm" wire:model.blur="notes.{{ $line->id }}" :placeholder="__('Variance notée…')" />
+                                <flux:input size="sm" wire:model.live.blur="notes.{{ $line->id }}" :placeholder="__('Variance notée…')" />
                             @else
                                 {{ $line->note }}
                             @endif
