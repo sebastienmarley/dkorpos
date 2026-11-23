@@ -10,8 +10,10 @@ tags:
   - "projet"
   - "réflexion"
 ---
-
+## Préambule
 Ce billet recense, en ordre chronologique, les difficultés et les bogues rencontrés du 21 septembre au 22 novembre 2026. Il s'appuie sur l'historique git (407 commits), les Issues GitHub, mon journal, mes entrées de blogue et le billet [Difficultés rencontrées]({{< relref "techno/difficulte.md" >}}), qui raconte plusieurs de ces histoires plus en détail. Les liens mènent aux commits, aux Issues et aux PR du dépôt. Quand aucune Issue n'est reliée, c'est indiqué.
+### Notes
+J'ai fait ce recensement via Claude, qui reprend mes termes, mon journal, mes descriptions de commit, etc. Pour les Issue non relié, c'est ce qui m'est reproché, je comprends un peu mieux maintenant, je croyais qu'une branche liée suffirait, mais bon j'ai appris, enfin je crois. Pour le reste je ne peux pas jurer qu'il s'agit de l'intégralité des problèmes, assurément certains ont été noyé au travers du développement sans jamais avoir un commit pour les répertorier, mais je crois que cela illustre bien le flow du projet.
 
 ## Septembre 2026
 
